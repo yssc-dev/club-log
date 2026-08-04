@@ -2,6 +2,23 @@ import AuthUtil from './authUtil';
 
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || "";
 
+// 대시보드 시트가 100포인트 이상 선수 이름에 붙이는 "★" 표식은 화면 표시용일 뿐,
+// 로그_이벤트/로그_선수경기/로그_매치/포인트로그/선수별집계 등 시트에 쌓이는 로그에는
+// 별표 없는 이름만 들어가야 한다(붙어서 전송되면 시트 쪽 이름 매칭 수식이 깨짐).
+// _postWrite로 나가는 모든 쓰기 페이로드에 재귀적으로 적용해 어떤 필드에 이름이
+// 실려도(scorer/assist/name/...) 한 곳에서 걸러지게 한다.
+const NAME_DECORATION_RE = /[★☆✩✪✫✬✭✮✯✰⭐🌟]/g;
+export function stripNameDecorations(value) {
+  if (typeof value === 'string') return value.replace(NAME_DECORATION_RE, '');
+  if (Array.isArray(value)) return value.map(stripNameDecorations);
+  if (value && typeof value === 'object') {
+    const out = {};
+    for (const k of Object.keys(value)) out[k] = stripNameDecorations(value[k]);
+    return out;
+  }
+  return value;
+}
+
 // 세션 캐시 (5분 TTL)
 const _cache = {};
 const CACHE_TTL = 5 * 60 * 1000;
@@ -49,7 +66,7 @@ const AppSync = {
     const resp = await fetch(APPS_SCRIPT_URL, {
       method: "POST",
       headers: { "Content-Type": "text/plain" },
-      body: JSON.stringify(payload),
+      body: JSON.stringify(stripNameDecorations(payload)),
     });
     if (!resp.ok) {
       console.warn(`${label} 실패: HTTP ${resp.status}`);
