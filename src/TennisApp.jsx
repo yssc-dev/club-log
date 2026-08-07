@@ -1,0 +1,134 @@
+import { useEffect, useState, useMemo, useRef } from 'react';
+import { useTennisReducer } from './hooks/useTennisReducer';
+import { useTheme } from './hooks/useTheme';
+import FirebaseSync from './services/firebaseSync';
+import TennisSync from './services/tennisSync';
+import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
+import { summarizeCourt } from './utils/tennis/tennisScoring';
+import { buildTennisMatchRows, buildTennisPlayerGameRows } from './utils/tennis/tennisRowBuilders';
+import TennisAttendeeSelector from './components/tennis/TennisAttendeeSelector';
+import TennisRoundNav from './components/tennis/TennisRoundNav';
+import TennisCourtCard from './components/tennis/TennisCourtCard';
+import TennisConfirmBar from './components/tennis/TennisConfirmBar';
+
+const todayLocal = () => {
+  const d = new Date();
+  return `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+};
+
+export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: _gameMode, gameId, onLogout: _onLogout, onBackToMenu }) {
+  const [state, dispatch] = useTennisReducer();
+  const { C } = useTheme();
+  const [roster, setRoster] = useState([]);
+  const [busy, setBusy] = useState(false);
+  const team = teamContext?.team || '';
+
+  useEffect(() => { TennisSync.getRoster().then(setRoster); }, []);
+
+  // 신규 경기면 메타를 세팅하고, 아니면 RTDB에서 복원한다.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (isNewGame) {
+      const date = todayLocal();
+      dispatch({ type: 'SET_GAME_META', gameId, team, gameDate: date, season: Number(date.slice(0, 4)), gameCreator: authUser?.name || '' });
+      return;
+    }
+    FirebaseSync.loadStateReconstructed(team, gameId).then(raw => {
+      if (raw) dispatch({ type: 'INIT_STATE', state: normalizeTennisMatch(raw) });
+    });
+  }, [isNewGame, gameId, team]);
+
+  // 상태가 바뀔 때마다 RTDB에 통째로 저장한다. (테니스는 코트 수가 적어 diff 없이도 충분하다)
+  const skipFirst = useRef(true);
+  useEffect(() => {
+    if (skipFirst.current) { skipFirst.current = false; return; }
+    if (!team || !state.gameId) return;
+    FirebaseSync.saveState(team, state.gameId, state).catch(() => {});
+  }, [state, team]);
+
+  const round = useMemo(
+    () => state.rounds.find(r => r.roundIdx === state.viewingRoundIdx) || state.rounds[0],
+    [state.rounds, state.viewingRoundIdx]);
+
+  const usedNames = useMemo(() => {
+    const s = new Set();
+    for (const c of (round?.courts || [])) { c.sideA.forEach(n => s.add(n)); c.sideB.forEach(n => s.add(n)); }
+    return s;
+  }, [round]);
+
+  const unfinished = useMemo(() => {
+    const out = [];
+    for (const r of state.rounds) for (const c of (r.courts || [])) {
+      if (!summarizeCourt(c).winner) out.push(`R${r.roundIdx}-C${c.courtId}`);
+    }
+    return out;
+  }, [state.rounds]);
+
+  const handleFinalize = async () => {
+    if (unfinished.length > 0 &&
+        !confirm(`미완료 ${unfinished.length}개가 전송되지 않습니다:\n${unfinished.join(', ')}\n\n마감할까요?`)) return;
+    setBusy(true);
+    try {
+      const memberSet = new Set(roster.map(m => m.name));
+      const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
+      const inputTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
+      const matchRows = buildTennisMatchRows({ team, state, inputTime, memberSet });
+      const pgRows = buildTennisPlayerGameRows({ team, state, inputTime, memberSet, gradeByPlayer });
+
+      // 병렬 전송. 하나라도 실패하면 미확정을 유지해 재시도할 수 있게 한다.
+      // (tennisSync가 success:false를 throw로 바꾸므로 rejected로 잡힌다)
+      const results = await Promise.allSettled([
+        TennisSync.writeMatches(matchRows),
+        TennisSync.writePlayerGames(pgRows),
+      ]);
+      const failed = results.filter(r => r.status === 'rejected');
+      if (failed.length > 0) {
+        alert(`전송 실패 ${failed.length}건 — 미확정 상태를 유지합니다.\n${failed.map(f => f.reason?.message).join('\n')}`);
+        return;
+      }
+      dispatch({ type: 'FINALIZE' });
+      await FirebaseSync.saveFinalized(team, state.gameId, { ...state, gameFinalized: true });
+      await FirebaseSync.clearState(team, state.gameId);
+      alert('마감 완료');
+      onBackToMenu();
+    } finally {
+      setBusy(false);
+    }
+  };
+
+  if (state.phase === 'setup') {
+    return (
+      <div style={{ background: C.bg, minHeight: '100vh', color: C.white }}>
+        <TennisAttendeeSelector roster={roster} attendees={state.attendees} guests={state.guests}
+          gameDate={state.gameDate} dispatch={dispatch} C={C}
+          onStart={() => dispatch({ type: 'ADD_ROUND' })} />
+      </div>
+    );
+  }
+
+  return (
+    <div style={{ background: C.bg, minHeight: '100vh', color: C.white, display: 'flex', flexDirection: 'column' }}>
+      <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <button onClick={onBackToMenu} style={{ fontSize: 12 }}>← 대시보드</button>
+        <b style={{ fontSize: 12 }}>{state.gameDate} · 테니스</b>
+      </div>
+
+      <TennisRoundNav rounds={state.rounds} viewingRoundIdx={state.viewingRoundIdx} dispatch={dispatch} C={C} />
+
+      <div style={{ flex: 1, overflowY: 'auto' }}>
+        {(round?.courts || []).map(c => (
+          <TennisCourtCard key={c.courtId} court={c} roundIdx={round.roundIdx}
+            attendees={state.attendees} usedNames={usedNames} dispatch={dispatch} C={C}
+            canDelete={(round.courts || []).length > 1} />
+        ))}
+        <button onClick={() => dispatch({ type: 'ADD_COURT', roundIdx: round.roundIdx })}
+          style={{ display: 'block', width: 'calc(100% - 16px)', margin: 8, padding: 11,
+            border: `1.5px dashed ${C.grayDarker}`, borderRadius: 10, background: 'transparent', color: C.gray }}>
+          + 코트
+        </button>
+      </div>
+
+      <TennisConfirmBar unfinishedCourts={unfinished} onFinalize={handleFinalize} busy={busy} C={C} />
+    </div>
+  );
+}
