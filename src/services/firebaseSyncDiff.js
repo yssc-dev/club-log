@@ -6,6 +6,7 @@ export const META_FIELDS = [
   'matchMode', 'isExtraRound', 'splitPhase', 'rotations',
   'earlyFinish', 'gameFinalized', 'lastEditor',
   'currentMatchIdx', 'draftMode',
+  'sport', 'gameDate', 'season',
 ];
 
 // 통째로 set 하는 배열/객체 필드 (변경 시 전체 교체)
@@ -14,6 +15,13 @@ export const WHOLE_REPLACE_FIELDS = [
   'schedule', 'attendees', 'opponents',
   'pushState', 'settingsSnapshot', 'soccerFormation',
   'freeCourtMatches',
+];
+
+// 테니스 전용 통짜 교체 필드. 풋살 리듀서 initialState엔 없는 필드라
+// WHOLE_REPLACE_FIELDS에 섞으면 syncCoverage 의 stale 가드가 깨진다.
+// (그 가드는 풋살 initialState 기준으로 오타/삭제를 잡는 장치이므로 약화시키지 않는다)
+export const TENNIS_WHOLE_REPLACE_FIELDS = [
+  'rounds', 'guests',
 ];
 
 // 자식 노드 단위로 diff/동기화되는 필드 (META/WHOLE_REPLACE 외). diffStateToWrites 의 개별 분기와 1:1.
@@ -350,12 +358,20 @@ export function reconstructState(gameId, raw) {
     lastEditor: meta.lastEditor || '',
     currentMatchIdx: meta.currentMatchIdx ?? -1,
     draftMode: meta.draftMode || 'snake',
+    // 테니스 meta — sport/gameDate/season는 normalizeTennisMatch 대신 여기서 복원
+    sport: meta.sport || '',
+    gameDate: meta.gameDate || '',
+    season: meta.season ?? null,
     teams: normalizeTeamArray(raw.teams, teamCount, () => []),
     teamNames: normalizeTeamArray(raw.teamNames, teamCount, (i) => `팀${i + 1}`),
     teamColorIndices: normalizeTeamArray(raw.teamColorIndices, teamCount, (i) => i),
     schedule: normalizeSchedule(raw.schedule, matches),
     attendees: raw.attendees || [],
     opponents: raw.opponents || [],
+    // 테니스 whole-replace — normalizeTennisMatch이 빈배열 기본값을 담당하므로 || [] 없음.
+    // undefined면 normalizeTennisMatch(state.rounds)가 [] 로 복원한다.
+    rounds: raw.rounds,
+    guests: raw.guests,
     freeCourtMatches: raw.freeCourtMatches || {},
     pushState: raw.pushState ?? null,
     settingsSnapshot: raw.settingsSnapshot ?? null,
@@ -380,6 +396,9 @@ export function expandStateForRtdb(state) {
   }
   const out = { meta };
   for (const f of WHOLE_REPLACE_FIELDS) {
+    if (state[f] !== undefined && state[f] !== null) out[f] = state[f];
+  }
+  for (const f of TENNIS_WHOLE_REPLACE_FIELDS) {
     if (state[f] !== undefined && state[f] !== null) out[f] = state[f];
   }
   if (state.gks) out.gks = state.gks;
