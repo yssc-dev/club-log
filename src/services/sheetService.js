@@ -1,6 +1,14 @@
 import { SHEET_CONFIG } from '../config/constants';
 import { getSettings } from '../config/settings';
 import AuthUtil from './authUtil';
+import { stripNameDecorations } from './appSync';
+
+// 시트가 붙이는 이름 장식(100포인트 ★ 등)은 읽는 시점에 제거한다.
+// 장식 붙은 이름이 앱에 들어오면 로그 기반 이름과 별개 선수로 갈라진다
+// (분석 드롭다운 "정보영 ★ (0경기)", 파생 팀명 "팀보영 ★" 등).
+function cleanName(s) {
+  return stripNameDecorations((s || '').trim());
+}
 
 function parseCSVLine(line) {
   const fields = [];
@@ -18,14 +26,14 @@ function parseNum(v) { return parseInt(v) || 0; }
 function parseFloat2(v) { return parseFloat(v) || 0; }
 function parseDelta(v) { if (!v || v === '-' || v === '') return 0; return parseInt(v) || 0; }
 
-function parseCSV(text) {
+export function parseCSV(text) {
   const lines = text.split('\n');
   const players = [];
   for (let i = 3; i < lines.length; i++) {
     const line = lines[i];
     if (!line.trim()) continue;
     const f = parseCSVLine(line);
-    const name = f[3];
+    const name = cleanName(f[3]);
     if (!name) continue;
     players.push({
       ppg: parseFloat2(f[0]),           // A: 경기당 포인트
@@ -69,7 +77,7 @@ function parseSoccerCSV(text) {
     const line = lines[i];
     if (!line.trim()) continue;
     const f = parseCSVLine(line);
-    const name = (f[2] || '').trim();
+    const name = cleanName(f[2]);
     if (!name || !/[가-힣]/.test(name)) continue;
     players.push({
       backNum: f[1] ? parseNum(f[1]) || null : null,
@@ -143,7 +151,7 @@ export async function fetchSheetData() {
   const keepers = [];
   for (let i = 4; i < lines.length; i++) {
     const f = parseCSVLine(lines[i]);
-    const name = (f[21] || '').trim();
+    const name = cleanName(f[21]);
     if (!name || name === '선수명') continue;
     keepers.push({
       name,
@@ -179,12 +187,17 @@ export async function fetchAttendanceData() {
     }
     for (let i = startRow; i < lines.length; i++) {
       const f = parseCSVLine(lines[i]);
-      const name = (f[1] || '').trim();
+      const name = cleanName(f[1]);
       if (!name || !/^[가-힣]{2,5}$/.test(name)) break; // 빈 행 만나면 중단
       attendees.push(name);
     }
     return { attendees, teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [] };
   }
+  return parseAttendanceGrid(text);
+}
+
+// 참석명단 시트(풋살)의 시드 그리드 파싱. 테스트를 위해 분리 export.
+export function parseAttendanceGrid(text) {
   const lines = text.split('\n');
 
   // CSV 구조 (참석명단 시트):
@@ -235,7 +248,7 @@ export async function fetchAttendanceData() {
       const f = parseCSVLine(lines[row]);
       let nameCount = 0;
       for (let col = 6; col <= 12; col++) {
-        const cell = (f[col] || '').trim();
+        const cell = cleanName(f[col]);
         if (cell && /^[가-힣]{2,4}$/.test(cell)) nameCount++;
       }
       if (nameCount >= 3) { seedStartRow = row; seedLabelCol = 5; break; }
@@ -254,7 +267,7 @@ export async function fetchAttendanceData() {
   const firstDataFields = parseCSVLine(lines[seedStartRow]);
 
   for (let col = teamColStart; col <= teamColEnd; col++) {
-    const raw = (firstDataFields[col] || '').trim();
+    const raw = cleanName(firstDataFields[col]);
     if (!raw || raw.length < 2) continue;
 
     let teamName = '';
@@ -291,7 +304,7 @@ export async function fetchAttendanceData() {
     for (let row = seedStartRow + 1; row <= seedStartRow + 7; row++) {
       if (row >= lines.length) break;
       const f = parseCSVLine(lines[row]);
-      const name = (f[tc.col] || '').trim();
+      const name = cleanName(f[tc.col]);
       if (name && !members.includes(name)) {
         members.push(name);
         if (!allAttendees.includes(name)) allAttendees.push(name);
