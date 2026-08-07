@@ -3,15 +3,22 @@
 //   1) 모든 요청에 authToken + team  — Code.js의 _checkTeamAccess는 team이 비면 무조건 통과한다
 //   2) success:false → throw          — Apps Script는 서버측 실패도 HTTP 200으로 답한다
 //   3) 이름의 ★ 표식 제거              — 시트 이름 매칭이 깨진다
-// stripNameDecorations는 src/services/appSync.js:11 의 복사본이다. 한쪽을 고치면 다른 쪽도 고칠 것.
+// stripNameDecorations는 src/services/appSync.js 의 복사본이다. 한쪽을 고치면 다른 쪽도 고칠 것.
+// (마지막 동기화: 2026-08-07, appSync df5277b 반영)
 
 import AuthUtil from './authUtil';
 
 const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || "";
 
-const NAME_DECORATION_RE = /[★☆✩✪✫✬✭✮✯✰⭐🌟]/g;
+// 참석명단은 "정보영 ★"처럼 이름과 별표 사이에 공백을 넣으므로 별표에 붙은 공백까지
+// 함께 지워야 한다 — 별표만 지우면 "정보영 "(트레일링 공백)이 전송돼 매칭이 깨진다.
+// trim은 별표가 있던 문자열에만 적용해 일반 문자열(메모 등)의 공백은 보존한다.
+const NAME_DECORATION_RE = /\s*[★☆✩✪✫✬✭✮✯✰⭐🌟]+/g;
 export function stripNameDecorations(value) {
-  if (typeof value === 'string') return value.replace(NAME_DECORATION_RE, '');
+  if (typeof value === 'string') {
+    const stripped = value.replace(NAME_DECORATION_RE, '');
+    return stripped === value ? value : stripped.trim();
+  }
   if (Array.isArray(value)) return value.map(stripNameDecorations);
   if (value && typeof value === 'object') {
     const out = {};

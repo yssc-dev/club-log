@@ -41,6 +41,22 @@ describe('stripNameDecorations', () => {
   it('숫자/불리언은 그대로', () => {
     expect(stripNameDecorations({ a: 6, ok: true })).toEqual({ a: 6, ok: true });
   });
+
+  // df5277b 반영 — 참석명단 "정보영 ★" 형태: 별표 앞 공백까지 제거
+  it('별표 앞 공백까지 제거한다', () => {
+    expect(stripNameDecorations('정보영 ★')).toBe('정보영');
+  });
+
+  // + 수량자: 별표가 여러 개 붙은 경우
+  it('별표가 여러 개 연속 붙어도 모두 제거한다', () => {
+    expect(stripNameDecorations('박성언★★')).toBe('박성언');
+  });
+
+  // 조건부 trim 핵심 케이스: 장식 없는 문자열의 공백은 보존
+  // 무조건 trim 구현이면 이 케이스가 실패한다
+  it('장식이 없는 문자열의 앞뒤 공백은 보존한다', () => {
+    expect(stripNameDecorations(' 메모 ')).toBe(' 메모 ');
+  });
 });
 
 describe('요청 계약', () => {
