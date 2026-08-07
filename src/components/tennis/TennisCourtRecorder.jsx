@@ -30,20 +30,31 @@ function Column({ side, court, cur, tb, courtKey, dispatch, C, s }) {
   const players = side === 'A' ? court.sideA : court.sideB;
   const games = side === 'A' ? cur.a : cur.b;
   const points = side === 'A' ? cur.tbA : cur.tbB;
+  // A=왼쪽/파랑, B=오른쪽/주황. 승패를 연상시키는 초록·빨강 대신 중립 두 색을 쓴다.
+  const tone = side === 'A' ? C.accent : C.orange;
   return (
     <div style={{ textAlign: 'center' }}>
-      <div style={{ fontWeight: 600, fontSize: 13, color: C.white, minHeight: 32, padding: '4px 0', lineHeight: 1.3 }}>
-        {players.join(' / ')}
+      <div style={{
+        background: C.cardLight, borderRadius: 12, padding: '10px 8px 12px',
+        borderTop: `3px solid ${tone}`,
+      }}>
+        <div style={{ fontWeight: 600, fontSize: 13, color: C.white, minHeight: 32, padding: '2px 0', lineHeight: 1.3 }}>
+          {players.join(' / ')}
+        </div>
+        <div style={{ fontSize: 52, fontWeight: 300, fontVariantNumeric: 'tabular-nums', color: C.white, lineHeight: 1, margin: '4px 0 12px' }}>
+          {tb ? points : games}
+        </div>
+        {/* ▲만 있으면 게임을 올리는지 타이브레이크 포인트를 올리는지 버튼만 봐선 알 수 없다 */}
+        <button onClick={() => dispatch({ type: tb ? 'INCREMENT_TIEBREAK_POINT' : 'INCREMENT_GAME', ...courtKey, side })}
+          style={{
+            ...s.btnFull(tone), minHeight: 46, borderRadius: 999,
+            fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em',
+          }}>
+          {tb ? '포인트 +1' : '게임 +1'}
+        </button>
       </div>
-      <div style={{ fontSize: 52, fontWeight: 300, fontVariantNumeric: 'tabular-nums', color: C.white, lineHeight: 1, margin: '8px 0' }}>
-        {tb ? points : games}
-      </div>
-      <button onClick={() => dispatch({ type: tb ? 'INCREMENT_TIEBREAK_POINT' : 'INCREMENT_GAME', ...courtKey, side })}
-        style={{ ...s.btnFull(C.accent), marginBottom: 10, fontSize: 18 }}>
-        ▲
-      </button>
       {/* 에이스/DF는 편이 아니라 선수마다 — 복식에서 잘못 귀속되면 2차에서 복원 불가 */}
-      <div>
+      <div style={{ marginTop: 10 }}>
         {players.map(p => {
           const st = court.stats[p] || { aces: 0, df: 0 };
           return (
