@@ -1,0 +1,71 @@
+// 흑기사(BK)/흑장미(BR)는 명부에 저장하지 않고 단식 로그에서 파생한다.
+// 기준은 "경기일 직전까지의 시즌 누적 단식 승률" — 당일 결과는 그날 판정에 넣지 않는다.
+// 덕분에 하루 안에서는 배치가 고정되고, 마감 순서가 꼬여도 포인트가 흔들리지 않는다.
+
+import { LEAGUE_BK, LEAGUE_BR, COMPETITION_SINGLES } from './tennisSchema';
+
+export function singlesWinRatesBefore(playerGameRows, dateISO) {
+  const acc = new Map();
+  for (const r of (playerGameRows || [])) {
+    if (!r || r.format !== '단식') continue;
+    if (r.league !== COMPETITION_SINGLES) continue;   // 용병전 등 미성립 판 제외
+    if (!r.date || String(r.date) >= String(dateISO)) continue; // 당일 포함 이후 제외
+    const cur = acc.get(r.player) || { wins: 0, losses: 0, rate: 0 };
+    if (r.result === '승') cur.wins++;
+    else if (r.result === '패') cur.losses++;
+    else continue;
+    const total = cur.wins + cur.losses;
+    cur.rate = total > 0 ? cur.wins / total : 0;
+    acc.set(r.player, cur);
+  }
+  return acc;
+}
+
+// 정렬: 기록 있는 사람 우선(승률↓ → 승수↓ → 이름) → 시드 있는 사람(시드↑) → 나머지(이름)
+function orderPlayers(roster, rates) {
+  const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'ko');
+  const recorded = [];
+  const seeded = [];
+  const rest = [];
+
+  for (const m of roster) {
+    if (rates.has(m.name)) recorded.push(m);
+    else if (m.seasonStartRank !== undefined && m.seasonStartRank !== null && m.seasonStartRank !== '') seeded.push(m);
+    else rest.push(m);
+  }
+
+  recorded.sort((a, b) => {
+    const ra = rates.get(a.name), rb = rates.get(b.name);
+    if (rb.rate !== ra.rate) return rb.rate - ra.rate;
+    if (rb.wins !== ra.wins) return rb.wins - ra.wins;
+    return byName(a, b);
+  });
+  seeded.sort((a, b) => Number(a.seasonStartRank) - Number(b.seasonStartRank) || byName(a, b));
+  rest.sort(byName);
+
+  return [...recorded, ...seeded, ...rest];
+}
+
+export function deriveLeagueForDate({ rows, dateISO, roster }) {
+  const list = (roster || []).filter(m => m && m.name);
+  if (list.length === 0) return {};
+
+  const rates = singlesWinRatesBefore(rows, dateISO);
+  const hasAnySignal = list.some(m =>
+    rates.has(m.name) ||
+    (m.seasonStartRank !== undefined && m.seasonStartRank !== null && m.seasonStartRank !== ''));
+
+  const out = {};
+  // 시즌 초 — 순위를 가를 근거가 전혀 없으면 전원 같은 리그로 둔다.
+  // (전원 흑기사로 두면 "장미가 기사를 이김" 보너스가 발생하지 않아 중립이다.)
+  if (!hasAnySignal) {
+    for (const m of list) out[m.name] = LEAGUE_BK;
+    return out;
+  }
+
+  const ordered = orderPlayers(list, rates);
+  // 홀수면 흑기사를 더 적게 — 하위 리그가 커야 "버스 탄다"가 성립한다.
+  const bkCount = Math.floor(ordered.length / 2) || ordered.length;
+  ordered.forEach((m, i) => { out[m.name] = i < bkCount ? LEAGUE_BK : LEAGUE_BR; });
+  return out;
+}
