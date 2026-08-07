@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useTennisReducer } from './hooks/useTennisReducer';
 import { useTheme } from './hooks/useTheme';
+import { makeStyles } from './styles/theme';
 import FirebaseSync from './services/firebaseSync';
 import TennisSync from './services/tennisSync';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
@@ -10,6 +11,7 @@ import TennisAttendeeSelector from './components/tennis/TennisAttendeeSelector';
 import TennisRoundNav from './components/tennis/TennisRoundNav';
 import TennisCourtCard from './components/tennis/TennisCourtCard';
 import TennisConfirmBar from './components/tennis/TennisConfirmBar';
+import MatchHeader from './components/game/MatchHeader';
 
 const todayLocal = () => {
   const d = new Date();
@@ -19,6 +21,7 @@ const todayLocal = () => {
 export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: _gameMode, gameId, onLogout: _onLogout, onBackToMenu }) {
   const [state, dispatch] = useTennisReducer();
   const { C } = useTheme();
+  const s = makeStyles(C);
   const [roster, setRoster] = useState([]);
   const [busy, setBusy] = useState(false);
   const team = teamContext?.team || '';
@@ -51,9 +54,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     [state.rounds, state.viewingRoundIdx]);
 
   const usedNames = useMemo(() => {
-    const s = new Set();
-    for (const c of (round?.courts || [])) { c.sideA.forEach(n => s.add(n)); c.sideB.forEach(n => s.add(n)); }
-    return s;
+    const set = new Set();
+    for (const c of (round?.courts || [])) { c.sideA.forEach(n => set.add(n)); c.sideB.forEach(n => set.add(n)); }
+    return set;
   }, [round]);
 
   const unfinished = useMemo(() => {
@@ -98,37 +101,46 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
 
   if (state.phase === 'setup') {
     return (
-      <div style={{ background: C.bg, minHeight: '100vh', color: C.white }}>
+      <div style={s.app}>
+        <div style={s.header}>
+          <div style={s.title}>🎾 테니스</div>
+          <div style={s.subtitle}>{state.gameDate} · 참석자 설정</div>
+        </div>
         <TennisAttendeeSelector roster={roster} attendees={state.attendees} guests={state.guests}
-          gameDate={state.gameDate} dispatch={dispatch} C={C}
+          gameDate={state.gameDate} dispatch={dispatch} C={C} styles={s}
           onStart={() => dispatch({ type: 'ADD_ROUND' })} />
       </div>
     );
   }
 
   return (
-    <div style={{ background: C.bg, minHeight: '100vh', color: C.white, display: 'flex', flexDirection: 'column' }}>
-      <div style={{ padding: '8px 10px', display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-        <button onClick={onBackToMenu} style={{ fontSize: 12 }}>← 대시보드</button>
-        <b style={{ fontSize: 12 }}>{state.gameDate} · 테니스</b>
-      </div>
+    <div style={s.app}>
+      <MatchHeader
+        title="경기 진행"
+        subtitle={`${state.gameDate} · 테니스 · ${state.rounds.length}라운드`}
+        onHome={onBackToMenu}
+      />
 
-      <TennisRoundNav rounds={state.rounds} viewingRoundIdx={state.viewingRoundIdx} dispatch={dispatch} C={C} />
+      <TennisRoundNav rounds={state.rounds} viewingRoundIdx={state.viewingRoundIdx} dispatch={dispatch} C={C} styles={s} />
 
-      <div style={{ flex: 1, overflowY: 'auto' }}>
+      <div style={s.section}>
         {(round?.courts || []).map(c => (
           <TennisCourtCard key={c.courtId} court={c} roundIdx={round.roundIdx}
-            attendees={state.attendees} usedNames={usedNames} dispatch={dispatch} C={C}
+            attendees={state.attendees} usedNames={usedNames} dispatch={dispatch} C={C} styles={s}
             canDelete={(round.courts || []).length > 1} />
         ))}
         <button onClick={() => dispatch({ type: 'ADD_COURT', roundIdx: round.roundIdx })}
-          style={{ display: 'block', width: 'calc(100% - 16px)', margin: 8, padding: 11,
-            border: `1.5px dashed ${C.grayDarker}`, borderRadius: 10, background: 'transparent', color: C.gray }}>
+          style={{
+            display: 'block', width: '100%', padding: 12, marginTop: 4,
+            border: `1.5px dashed ${C.grayDarker}`, borderRadius: 12,
+            background: 'transparent', color: C.gray, cursor: 'pointer',
+            fontSize: 14, fontFamily: 'inherit',
+          }}>
           + 코트
         </button>
       </div>
 
-      <TennisConfirmBar unfinishedCourts={unfinished} onFinalize={handleFinalize} busy={busy} C={C} />
+      <TennisConfirmBar unfinishedCourts={unfinished} onFinalize={handleFinalize} busy={busy} C={C} styles={s} />
     </div>
   );
 }

@@ -3,6 +3,7 @@
 import { useEffect, useState, useMemo } from 'react';
 import TennisSync from '../../services/tennisSync';
 import { buildSinglesStandings, buildPlayerSummary } from '../../utils/tennis/tennisStandings';
+import { makeStyles } from '../../styles/theme';
 
 function StatCell({ label, value, C }) {
   return (
@@ -14,6 +15,7 @@ function StatCell({ label, value, C }) {
 }
 
 export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, authUserName, C }) {
+  const ds = makeStyles(C);
   const [rows, setRows] = useState([]);
   const [roster, setRoster] = useState([]);
 
@@ -29,20 +31,19 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
 
   if (activeTab === 'games') {
     return (
-      <div style={{ padding: 12 }}>
+      <div style={ds.section}>
         <button onClick={() => onStartGame('테니스')}
-          style={{ width: '100%', padding: 14, borderRadius: 10, border: 0, background: C.white, color: C.bg, fontWeight: 600 }}>
+          style={ds.btnFull(C.accent)}>
           + 경기 추가
         </button>
         <div style={{ marginTop: 14 }}>
           {pendingGames.length === 0
-            ? <div style={{ color: C.gray, fontSize: 12, textAlign: 'center', padding: 20 }}>진행중인 경기가 없습니다</div>
+            ? <div style={{ color: C.gray, fontSize: 13, textAlign: 'center', padding: 20 }}>진행중인 경기가 없습니다</div>
             : pendingGames.map(g => (
               <button key={g.gameId} onClick={() => onContinueGame(g.gameId)}
-                style={{ display: 'block', width: '100%', textAlign: 'left', padding: 12, marginBottom: 8,
-                  border: `1px solid ${C.grayDarker}`, borderRadius: 10, background: C.bg, color: C.white }}>
-                <div style={{ fontSize: 13 }}>{g.state?.gameDate || '-'}</div>
-                <div style={{ fontSize: 11, color: C.gray }}>
+                style={{ ...ds.card, display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.borderColor}` }}>
+                <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{g.state?.gameDate || '-'}</div>
+                <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>
                   {(g.state?.rounds || []).length}라운드 · 참석 {(g.state?.attendees || []).length}명
                 </div>
               </button>
@@ -54,31 +55,38 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
 
   if (activeTab === 'records') {
     return (
-      <div style={{ padding: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 8, color: C.white }}>길로틴리그 (단식 승률)</div>
-        <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-          <thead>
-            <tr style={{ color: C.gray, fontSize: 10.5 }}>
-              <th style={{ textAlign: 'left' }}>#</th><th style={{ textAlign: 'left' }}>이름</th>
-              <th>리그</th><th>등급</th><th>전적</th><th>승률</th><th>P</th>
-            </tr>
-          </thead>
-          <tbody>
-            {standings.map((s, i) => (
-              <tr key={s.name} style={{ borderTop: `1px solid ${C.grayDarker}`, color: C.white }}>
-                <td>{i + 1}</td>
-                <td style={{ fontWeight: 600 }}>{s.name}</td>
-                <td style={{ textAlign: 'center', fontSize: 10 }}>{s.leagueTier === '흑기사' ? 'BK' : 'BR'}</td>
-                <td style={{ textAlign: 'center', fontSize: 10, color: C.gray }}>{s.grade}</td>
-                <td style={{ textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{s.wins}-{s.losses}</td>
-                <td style={{ textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>
-                  {s.games > 0 ? `${Math.round(s.rate * 100)}%` : '-'}
-                </td>
-                <td style={{ textAlign: 'center', fontVariantNumeric: 'tabular-nums' }}>{s.points}</td>
+      <div style={ds.section}>
+        <div style={ds.sectionTitle}>길로틴리그 (단식 승률)</div>
+        <div style={ds.card}>
+          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <th style={{ ...ds.th, textAlign: 'left' }}>#</th>
+                <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
+                <th style={ds.th}>리그</th>
+                <th style={ds.th}>등급</th>
+                <th style={ds.th}>전적</th>
+                <th style={ds.th}>승률</th>
+                <th style={ds.th}>P</th>
               </tr>
-            ))}
-          </tbody>
-        </table>
+            </thead>
+            <tbody>
+              {standings.map((standing, i) => (
+                <tr key={standing.name}>
+                  <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
+                  <td style={{ ...ds.td(true), textAlign: 'left', fontWeight: 700 }}>{standing.name}</td>
+                  <td style={{ ...ds.td(), fontSize: 10 }}>{standing.leagueTier === '흑기사' ? 'BK' : 'BR'}</td>
+                  <td style={{ ...ds.td(), fontSize: 10 }}>{standing.grade}</td>
+                  <td style={ds.td()}>{standing.wins}-{standing.losses}</td>
+                  <td style={ds.td()}>
+                    {standing.games > 0 ? `${Math.round(standing.rate * 100)}%` : '-'}
+                  </td>
+                  <td style={ds.td()}>{standing.points}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
       </div>
     );
   }
@@ -86,18 +94,20 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
   if (activeTab === 'roster') {
     const me = buildPlayerSummary({ rows, player: authUserName });
     return (
-      <div style={{ padding: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: C.white }}>{authUserName || '내'} 전적</div>
-        <div style={{ display: 'flex', marginBottom: 12 }}>
-          <StatCell C={C} label="단식" value={`${me.singles.wins}-${me.singles.losses}`} />
-          <StatCell C={C} label="복식" value={`${me.doubles.wins}-${me.doubles.losses}`} />
-          <StatCell C={C} label="출석" value={`${me.attendanceDates}일`} />
-        </div>
-        <div style={{ display: 'flex' }}>
-          <StatCell C={C} label="에이스" value={me.aces} />
-          <StatCell C={C} label="더블폴트" value={me.doubleFaults} />
-          <StatCell C={C} label="타이브레이크" value={`${me.tbWon}/${me.tbPlayed}`} />
-          <StatCell C={C} label="베이글" value={`${me.bagelsGiven}/${me.bagelsTaken}`} />
+      <div style={ds.section}>
+        <div style={ds.sectionTitle}>{authUserName || '내'} 전적</div>
+        <div style={ds.card}>
+          <div style={{ display: 'flex', marginBottom: 12 }}>
+            <StatCell C={C} label="단식" value={`${me.singles.wins}-${me.singles.losses}`} />
+            <StatCell C={C} label="복식" value={`${me.doubles.wins}-${me.doubles.losses}`} />
+            <StatCell C={C} label="출석" value={`${me.attendanceDates}일`} />
+          </div>
+          <div style={{ display: 'flex' }}>
+            <StatCell C={C} label="에이스" value={me.aces} />
+            <StatCell C={C} label="더블폴트" value={me.doubleFaults} />
+            <StatCell C={C} label="타이브레이크" value={`${me.tbWon}/${me.tbPlayed}`} />
+            <StatCell C={C} label="베이글" value={`${me.bagelsGiven}/${me.bagelsTaken}`} />
+          </div>
         </div>
       </div>
     );
