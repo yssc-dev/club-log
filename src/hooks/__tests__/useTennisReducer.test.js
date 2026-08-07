@@ -86,6 +86,22 @@ describe('선수 배치', () => {
     expect(c.sideB).toEqual(['성언']);
   });
 
+  it('선수를 배정한 뒤 제거하면 슬롯이 비워진다', () => {
+    let s = tennisReducer(tennisInitialState, A('ADD_ROUND'));
+    s = tennisReducer(s, A('ASSIGN_PLAYER', { ...C, name: '성언' }));
+    s = tennisReducer(s, A('ASSIGN_PLAYER', { ...C, name: '철우' }));
+    s = tennisReducer(s, A('REMOVE_PLAYER', { ...C, name: '성언' }));
+    const c = findCourt(s, 1, 1);
+    expect(c.sideA).toEqual([]);
+    expect(c.sideB).toEqual(['철우']);
+  });
+
+  it('경기 시작 후 REMOVE_PLAYER는 무시된다', () => {
+    let s = playingState();
+    s = tennisReducer(s, A('REMOVE_PLAYER', { ...C, name: '성언' }));
+    expect(findCourt(s, 1, 1).sideA).toEqual(['성언']);
+  });
+
   it('경기 도중 선수 추가가 가능하다', () => {
     let s = playingState();
     s = tennisReducer(s, A('ADD_ATTENDEE', { name: '지각생', isGuest: false }));
@@ -198,6 +214,21 @@ describe('세트/판 종료와 되돌리기', () => {
     s = tennisReducer(s, A('INCREMENT_TIEBREAK_POINT', { ...C, side: 'A' }));
     s = tennisReducer(s, A('UNDO', C));
     expect(findCourt(s, 1, 1).sets[0].tbA).toBe(0);
+  });
+
+  it('타이브레이크 7점째 되돌리기는 게임도 6→5로 함께 돌린다', () => {
+    let s = playingState();
+    for (let i = 0; i < 5; i++) {
+      s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' }));
+      s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'B' }));
+    }
+    for (let i = 0; i < 7; i++) s = tennisReducer(s, A('INCREMENT_TIEBREAK_POINT', { ...C, side: 'A' }));
+    // 7점 직후: a=6, tbA=7
+    expect(findCourt(s, 1, 1).sets[0]).toMatchObject({ a: 6, tbA: 7 });
+    s = tennisReducer(s, A('UNDO', C));
+    // 되돌리면 7점이 취소되고, 7점으로 승격됐던 게임도 함께 5로 내려야 한다
+    expect(findCourt(s, 1, 1).sets[0].tbA).toBe(6);
+    expect(findCourt(s, 1, 1).sets[0].a).toBe(5);
   });
 
   it('되돌리기는 에이스/DF도 취소한다', () => {
