@@ -47,3 +47,14 @@ describe('parseAttendanceGrid (참석명단 파싱) — 별표 제거', () => {
     expect(r.attendees).not.toContain('★');
   });
 });
+
+describe('parseSoccerOpponents — 별표 제거 (다른 이름 캡처 지점과 일관성)', () => {
+  it('상대팀명에 별표가 붙어도 제거한다', async () => {
+    const { parseSoccerOpponents } = await import('../sheetService.js');
+    const csv = [
+      ',,,,,,vs 상대팀명,경기',
+      ',,,,,,한울 ★,31',
+    ].join('\n');
+    expect(parseSoccerOpponents(csv)).toEqual([{ name: '한울', games: 31 }]);
+  });
+});

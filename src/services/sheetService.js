@@ -123,7 +123,7 @@ export function parseSoccerOpponents(text) {
   const seen = new Set();
   for (let i = hRow + 1; i < lines.length; i++) {
     const f = parseCSVLine(lines[i]);
-    const name = (f[hCol] || '').trim();
+    const name = cleanName(f[hCol]);
     if (!name) break;                  // 상대팀 열이 비면 표 끝
     // 같은 열 아래에 있는 다른 섹션(예: "상대팀별 다득점 TOP5") 만나면 표 끝으로 간주
     if (name.includes('다득점') || name.includes('상대팀별') || name.toUpperCase().includes('TOP')) break;
