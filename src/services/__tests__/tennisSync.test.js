@@ -66,7 +66,8 @@ describe('요청 계약', () => {
     await TennisSync.writeMatches([{ player: 'x' }]);
     const body = lastBody(f);
     expect(body.team).toBe('몽피스');
-    expect(body.authToken).toBeTruthy();
+    // 3-파트 형식(팀:이름:번호) 검증 — 팀이 빈 2-파트 토큰은 _checkTeamAccess를 우회하므로
+    expect(body.authToken).toBe('몽피스:서라현:1234');
     expect(body.action).toBe('writeTennisMatches');
   });
 
@@ -76,7 +77,8 @@ describe('요청 계약', () => {
     await TennisSync.getRoster();
     const body = lastBody(f);
     expect(body.team).toBe('몽피스');
-    expect(body.authToken).toBeTruthy();
+    // 읽기도 _checkTeamAccess를 거치므로 동일한 3-파트 형식을 보장
+    expect(body.authToken).toBe('몽피스:서라현:1234');
   });
 
   it('페이로드의 ★가 제거된 채 전송된다', async () => {

@@ -1,7 +1,7 @@
 // 로그_테니스선수경기 행 → 단식 순위표 / 개인 전적 요약.
 // 순위는 승률로 매기고 포인트는 별도 컬럼으로 적립한다(스펙 4.5).
 
-import { COMPETITION_SINGLES, COMPETITION_DOUBLES } from './tennisSchema';
+import { COMPETITION_SINGLES } from './tennisSchema';
 import { deriveLeagueForDate, singlesWinRatesBefore } from './leagueDerivation';
 import { calcMatchPoints, DEFAULT_POINT_RULES } from './rankPoints';
 

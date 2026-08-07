@@ -63,6 +63,42 @@ describe('buildSinglesStandings', () => {
     expect(s.find(x => x.name === 'a').points).toBe(6);
     expect(s.find(x => x.name === 'b').points).toBe(0);
   });
+
+  it('사전(경기일 직전) 승률로 역전 보너스를 계산한다', () => {
+    // 설계 근거:
+    //   x, y가 day0에 a, b를 각각 꺾어 두 사람 모두 BK 최상위에 자리 잡는다.
+    //   그 결과 day1·2에서 a와 b는 둘 다 BR 리그로 묶여 leagueUpset 경로가 없다.
+    //   day1: a가 b를 이길 때 사전 승률이 같으므로(0:0) sameLeagueUpset 미발동 → a 1점.
+    //   day2: b가 a를 이길 때 b의 사전 승률(0.0) < a의 사전 승률(0.5) → sameLeagueUpset 발동
+    //         → b 1 + 2 = 3점.
+    //   누적 승률 구현이면 day2에서 두 사람이 0.333으로 동률이라 보너스가 사라져 b는 1점만 받는다.
+    const roster4 = [
+      { name: 'x', grade: '동배' },
+      { name: 'y', grade: '동배' },
+      { name: 'a', grade: '동배' },
+      { name: 'b', grade: '동배' },
+    ];
+    const rows = [
+      // day0 (2026-03-01): x가 a를 꺾음, y가 b를 꺾음
+      pg({ player: 'x', result: '승', date: '2026-03-01', grade_at_date: '동배', match_id: 'R1_C1', side: 'A' }),
+      pg({ player: 'a', result: '패', date: '2026-03-01', grade_at_date: '동배', match_id: 'R1_C1', side: 'B' }),
+      pg({ player: 'y', result: '승', date: '2026-03-01', grade_at_date: '동배', match_id: 'R1_C2', side: 'A' }),
+      pg({ player: 'b', result: '패', date: '2026-03-01', grade_at_date: '동배', match_id: 'R1_C2', side: 'B' }),
+      // day1 (2026-03-02): a가 b를 꺾음 → a 1승1패(0.5), b 2패(0.0)
+      pg({ player: 'a', result: '승', date: '2026-03-02', grade_at_date: '동배', match_id: 'R2_C1', side: 'A' }),
+      pg({ player: 'b', result: '패', date: '2026-03-02', grade_at_date: '동배', match_id: 'R2_C1', side: 'B' }),
+      // day2 (2026-03-03): b가 a를 꺾음 — 사전 승률로는 역전(b<a), 누적 승률로는 동률
+      pg({ player: 'b', result: '승', date: '2026-03-03', grade_at_date: '동배', match_id: 'R3_C1', side: 'A' }),
+      pg({ player: 'a', result: '패', date: '2026-03-03', grade_at_date: '동배', match_id: 'R3_C1', side: 'B' }),
+    ];
+    const s = buildSinglesStandings({ rows, roster: roster4, asOfDate: '2026-12-31' });
+    const get = (n) => s.find(p => p.name === n);
+    // b는 day2에 sameLeagueUpset 발동 → 3점; 누적 구현이면 1점만 나온다
+    expect(get('b').points).toBe(3);
+    expect(get('a').points).toBe(1);
+    expect(get('x').points).toBe(1);
+    expect(get('y').points).toBe(1);
+  });
 });
 
 describe('buildPlayerSummary', () => {

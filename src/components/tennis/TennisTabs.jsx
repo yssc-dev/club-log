@@ -87,7 +87,7 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
     const me = buildPlayerSummary({ rows, player: authUserName });
     return (
       <div style={{ padding: 12 }}>
-        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: C.white }}>{authUserName} 전적</div>
+        <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 10, color: C.white }}>{authUserName || '내'} 전적</div>
         <div style={{ display: 'flex', marginBottom: 12 }}>
           <StatCell C={C} label="단식" value={`${me.singles.wins}-${me.singles.losses}`} />
           <StatCell C={C} label="복식" value={`${me.doubles.wins}-${me.doubles.losses}`} />
