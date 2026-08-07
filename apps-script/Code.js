@@ -2,6 +2,10 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-06: 테니스 종목 추가 — 시트 3종(테니스_회원명부/로그_테니스매치/로그_테니스선수경기)과
+//             액션 5종(getTennisRoster, getTennisMatches, getTennisPlayerGames,
+//             writeTennisMatches, writeTennisPlayerGames) 신설. 기존 풋살/축구 시트·액션 무수정.
+//             회원명부 조회는 생년월일을 클라이언트로 내리지 않는다(2차 연령대 분석용으로만 시트에 보관).
 // 2026-07-01: backfillSoccerMembers 추가 — 레거시 축구 로그_매치의 빈 our_members_json을
 //             로그_이벤트 참여자(득점/어시/자책/실점GK) + our_gk 로 복원(개인분석 rounds 누락 해소).
 //             dryRun 기본, 빈 행만 채움(비파괴). 에디터에서 _dryrun→검토→_apply 순으로 실행.
@@ -78,6 +82,36 @@ var RAW_PLAYER_GAMES_HEADERS = [
   "goals","assists","owngoals","fouls","conceded","cleansheets",
   "crova","goguma","rank_score",
   "input_time"
+];
+
+// ── 테니스 ─────────────────────────────────────────────
+// ★ 아래 두 헤더 배열은 src/utils/tennis/tennisSchema.js 의
+//   TENNIS_MATCH_COLUMNS / TENNIS_PLAYER_GAME_COLUMNS 와 순서까지 같아야 한다.
+var TENNIS_ROSTER_SHEET = "테니스_회원명부";
+var TENNIS_MATCHES_SHEET = "로그_테니스매치";
+var TENNIS_PLAYER_GAMES_SHEET = "로그_테니스선수경기";
+
+var TENNIS_ROSTER_HEADERS = [
+  "팀이름", "이름", "닉네임", "생년월일", "등급", "상태", "시즌시작순위", "가입일", "비고"
+];
+
+var TENNIS_MATCH_HEADERS = [
+  "team", "sport", "season", "date", "game_id",
+  "round_idx", "court_id", "match_idx", "match_id",
+  "format", "best_of",
+  "side_a_json", "side_b_json",
+  "sets_json", "sets_a", "sets_b", "games_a", "games_b", "winner",
+  "league", "input_time"
+];
+
+var TENNIS_PLAYER_GAME_HEADERS = [
+  "team", "sport", "season", "date", "game_id", "match_id", "round_idx", "court_id",
+  "player", "is_guest", "side", "format", "best_of",
+  "partner", "opponents_json", "result",
+  "sets_won", "sets_lost", "games_won", "games_lost",
+  "tb_played", "tb_won", "aces", "double_faults",
+  "bagels_taken", "bagels_given",
+  "grade_at_date", "league", "input_time"
 ];
 
 function _ensureRawSheets() {
@@ -356,6 +390,16 @@ function doPost(e) {
       return _jsonResponse(_getRawMatches(body.team, body.sport, body.dateFrom, body.dateTo));
     } else if (action === "getRawEvents") {
       return _jsonResponse(_getRawEvents(body.team, body.sport, body.dateFrom, body.dateTo));
+    } else if (action === "getTennisRoster") {
+      return _jsonResponse(_getTennisRoster(requestTeam));
+    } else if (action === "getTennisMatches") {
+      return _jsonResponse(_readTennisRows(TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS, requestTeam, body.dateFrom, body.dateTo));
+    } else if (action === "getTennisPlayerGames") {
+      return _jsonResponse(_readTennisRows(TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS, requestTeam, body.dateFrom, body.dateTo));
+    } else if (action === "writeTennisMatches") {
+      return _jsonResponse(_writeTennisMatches(body.data));
+    } else if (action === "writeTennisPlayerGames") {
+      return _jsonResponse(_writeTennisPlayerGames(body.data));
     } else if (action === "getRawPlayerGames") {
       return _jsonResponse(_getRawPlayerGames(body.team, body.sport));
     } else if (action === "migrateEventTypes") {
@@ -2873,4 +2917,111 @@ function _getTournamentEventLog(tournamentId) {
       inputTime: String(r[6]) };
   });
   return { success: true, events: events };
+}
+
+// ── 테니스 헬퍼 ───────────────────────────────────────────────────
+
+function _ensureTennisSheets() {
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var defs = [
+    [TENNIS_ROSTER_SHEET, TENNIS_ROSTER_HEADERS],
+    [TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS],
+    [TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS]
+  ];
+  for (var i = 0; i < defs.length; i++) {
+    var name = defs[i][0], headers = defs[i][1];
+    var sh = ss.getSheetByName(name);
+    if (!sh) {
+      sh = ss.insertSheet(name);
+      sh.getRange(1, 1, 1, headers.length).setValues([headers]);
+      sh.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+      sh.setFrozenRows(1);
+    }
+  }
+}
+
+function _tennisRowToArray(r, headers) {
+  var out = [];
+  for (var i = 0; i < headers.length; i++) {
+    var v = r[headers[i]];
+    out.push(v === undefined || v === null ? "" : v);
+  }
+  return out;
+}
+
+function _writeTennisRows(sheetName, headers, data) {
+  if (!data || !data.rows) return { success: false, error: "rows 누락" };
+  _ensureTennisSheets();
+  var rows = data.rows;
+  if (rows.length === 0) return { success: true, count: 0 };
+
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { success: false, error: "잠금 획득 실패" };
+  try {
+    var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+    var toInsert = [];
+    for (var i = 0; i < rows.length; i++) toInsert.push(_tennisRowToArray(rows[i], headers));
+    var lastRow = sheet.getLastRow();
+    sheet.getRange(lastRow + 1, 1, toInsert.length, headers.length).setValues(toInsert);
+    return { success: true, count: toInsert.length };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function _writeTennisMatches(data) {
+  return _writeTennisRows(TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS, data);
+}
+
+function _writeTennisPlayerGames(data) {
+  return _writeTennisRows(TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS, data);
+}
+
+function _readTennisRows(sheetName, headers, team, dateFrom, dateTo) {
+  _ensureTennisSheets();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(sheetName);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, rows: [] };
+  var values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+  var dateIdx = headers.indexOf("date");
+  var teamIdx = headers.indexOf("team");
+  var out = [];
+  for (var i = 0; i < values.length; i++) {
+    var v = values[i];
+    if (team && String(v[teamIdx]).trim() !== String(team).trim()) continue;
+    var d = _toDateStr(v[dateIdx]);
+    if (dateFrom && d < dateFrom) continue;
+    if (dateTo && d > dateTo) continue;
+    var obj = {};
+    for (var c = 0; c < headers.length; c++) obj[headers[c]] = v[c];
+    obj.date = d;
+    out.push(obj);
+  }
+  return { success: true, rows: out };
+}
+
+// 생년월일은 클라이언트로 내리지 않는다. 2차 연령대 분석 때 별도 경로를 만든다.
+function _getTennisRoster(team) {
+  _ensureTennisSheets();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, players: [] };
+  var values = sheet.getRange(2, 1, lastRow - 1, TENNIS_ROSTER_HEADERS.length).getValues();
+  var players = [];
+  for (var i = 0; i < values.length; i++) {
+    var v = values[i];
+    if (team && String(v[0]).trim() !== String(team).trim()) continue;
+    var name = String(v[1] || "").trim();
+    if (!name) continue;
+    var status = String(v[5] || "활동").trim();
+    if (status === "탈퇴") continue;
+    players.push({
+      name: name,
+      nickname: String(v[2] || "").trim(),
+      grade: String(v[4] || "").trim(),
+      status: status,
+      seasonStartRank: v[6] === "" || v[6] === null ? null : Number(v[6])
+    });
+  }
+  return { success: true, players: players };
 }

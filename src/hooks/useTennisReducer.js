@@ -1,0 +1,275 @@
+import { useReducer } from 'react';
+import {
+  emptySet, incrementGame, incrementTiebreakPoint,
+  isTiebreakActive, isSetComplete, matchWinner,
+} from '../utils/tennis/tennisScoring';
+import { normalizeTennisMatch, normalizeTennisCourt } from '../utils/tennis/normalizeTennisMatch';
+
+export const tennisInitialState = {
+  gameId: '',
+  team: '',
+  sport: '테니스',
+  gameDate: '',
+  season: null,
+  phase: 'setup',
+  attendees: [],
+  guests: [],
+  rounds: [],
+  viewingRoundIdx: 1,
+  gameCreator: '',
+  gameFinalized: false,
+};
+
+function newCourt(courtId) {
+  return normalizeTennisCourt({ courtId, format: '단식', bestOf: 1, status: 'ready' });
+}
+
+export function findCourt(state, roundIdx, courtId) {
+  const r = (state.rounds || []).find(x => x.roundIdx === roundIdx);
+  if (!r) return null;
+  return (r.courts || []).find(c => c.courtId === courtId) || null;
+}
+
+// 코트는 배열 index가 아니라 (roundIdx, courtId) 논리 키로 찾는다.
+function mapCourt(state, roundIdx, courtId, fn) {
+  return {
+    ...state,
+    rounds: (state.rounds || []).map(r => {
+      if (r.roundIdx !== roundIdx) return r;
+      return { ...r, courts: (r.courts || []).map(c => (c.courtId === courtId ? fn(c) : c)) };
+    }),
+  };
+}
+
+const slotsPerSide = (format) => (format === '복식' ? 2 : 1);
+
+function pushUndo(court, entry) {
+  return { ...court, undoStack: [...(court.undoStack || []), entry] };
+}
+
+function currentSetOf(court) {
+  const sets = court.sets || [];
+  return sets[court.currentSet] || null;
+}
+
+function withCurrentSet(court, nextSet) {
+  const sets = [...(court.sets || [])];
+  sets[court.currentSet] = nextSet;
+  return { ...court, sets };
+}
+
+export function tennisReducer(state, action) {
+  switch (action.type) {
+    case 'INIT_STATE':
+      return { ...tennisInitialState, ...normalizeTennisMatch(action.state) };
+
+    case 'SET_GAME_META': {
+      // action을 통째로 전개하면 type이 state에 섞인다. 필요한 필드만 뽑는다.
+      const { gameId, team, gameDate, season, gameCreator } = action;
+      return {
+        ...state,
+        ...(gameId !== undefined && { gameId }),
+        ...(team !== undefined && { team }),
+        ...(gameDate !== undefined && { gameDate }),
+        ...(season !== undefined && { season }),
+        ...(gameCreator !== undefined && { gameCreator }),
+      };
+    }
+
+    case 'SET_ATTENDEES':
+      return { ...state, attendees: action.attendees || [] };
+
+    case 'ADD_ATTENDEE': {
+      if (!action.name || state.attendees.includes(action.name)) return state;
+      return {
+        ...state,
+        attendees: [...state.attendees, action.name],
+        guests: action.isGuest ? [...state.guests, action.name] : state.guests,
+      };
+    }
+
+    case 'ADD_ROUND': {
+      const nextIdx = (state.rounds || []).reduce((m, r) => Math.max(m, r.roundIdx), 0) + 1;
+      return {
+        ...state,
+        phase: 'playing',
+        rounds: [...(state.rounds || []), { roundIdx: nextIdx, courts: [newCourt(1)] }],
+        viewingRoundIdx: nextIdx,
+      };
+    }
+
+    case 'SET_VIEWING_ROUND':
+      return { ...state, viewingRoundIdx: action.roundIdx };
+
+    case 'ADD_COURT':
+      return {
+        ...state,
+        rounds: (state.rounds || []).map(r => {
+          if (r.roundIdx !== action.roundIdx) return r;
+          const nextId = (r.courts || []).reduce((m, c) => Math.max(m, c.courtId), 0) + 1;
+          return { ...r, courts: [...(r.courts || []), newCourt(nextId)] };
+        }),
+      };
+
+    case 'DELETE_COURT': {
+      // 진행/완료된 코트는 지우지 않는다 — 오터치 한 번으로 기록이 날아가면 안 된다.
+      const target = findCourt(state, action.roundIdx, action.courtId);
+      if (!target || target.status !== 'ready') return state;
+      return {
+        ...state,
+        rounds: (state.rounds || []).map(r => (r.roundIdx !== action.roundIdx
+          ? r
+          : { ...r, courts: (r.courts || []).filter(c => c.courtId !== action.courtId) })),
+      };
+    }
+
+    case 'SET_COURT_FORMAT':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        if (c.status !== 'ready') return c;   // 시작 후 잠금
+        const n = slotsPerSide(action.format);
+        return { ...c, format: action.format, sideA: c.sideA.slice(0, n), sideB: c.sideB.slice(0, n) };
+      });
+
+    case 'SET_COURT_BEST_OF':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => (
+        c.status !== 'ready' ? c : { ...c, bestOf: action.bestOf }
+      ));
+
+    case 'ASSIGN_PLAYER':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        if (c.status !== 'ready') return c;
+        if (c.sideA.includes(action.name) || c.sideB.includes(action.name)) return c;
+        const n = slotsPerSide(c.format);
+        if (c.sideA.length < n) return { ...c, sideA: [...c.sideA, action.name] };
+        if (c.sideB.length < n) return { ...c, sideB: [...c.sideB, action.name] };
+        return c;
+      });
+
+    case 'REMOVE_PLAYER':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => (
+        c.status !== 'ready' ? c : {
+          ...c,
+          sideA: c.sideA.filter(n => n !== action.name),
+          sideB: c.sideB.filter(n => n !== action.name),
+        }
+      ));
+
+    case 'SWAP_SIDES':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => (
+        c.status !== 'ready' ? c : { ...c, sideA: c.sideB, sideB: c.sideA }
+      ));
+
+    case 'START_COURT':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        const n = slotsPerSide(c.format);
+        if (c.sideA.length !== n || c.sideB.length !== n) return c;
+        return { ...c, status: 'playing', sets: [emptySet()], currentSet: 0, undoStack: [] };
+      });
+
+    case 'INCREMENT_GAME':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        if (c.status !== 'playing') return c;
+        const cur = currentSetOf(c);
+        const next = incrementGame(cur, action.side);
+        if (next === cur) return c;   // 타이브레이크 중이거나 이미 끝난 세트
+        return pushUndo(withCurrentSet(c, next), { kind: 'game', side: action.side, setIdx: c.currentSet });
+      });
+
+    case 'INCREMENT_TIEBREAK_POINT':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        if (c.status !== 'playing') return c;
+        const cur = currentSetOf(c);
+        if (!isTiebreakActive(cur)) return c;
+        const next = incrementTiebreakPoint(cur, action.side);
+        return pushUndo(withCurrentSet(c, next), { kind: 'tb', side: action.side, setIdx: c.currentSet });
+      });
+
+    case 'INCREMENT_STAT':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        if (c.status !== 'playing') return c;
+        const prev = c.stats[action.player] || { aces: 0, df: 0 };
+        const stats = { ...c.stats, [action.player]: { ...prev, [action.stat]: (prev[action.stat] || 0) + 1 } };
+        return pushUndo({ ...c, stats }, { kind: 'stat', player: action.player, stat: action.stat });
+      });
+
+    case 'END_SET':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        const cur = currentSetOf(c);
+        if (!cur || !isSetComplete(cur)) return c;
+        const sets = [...c.sets];
+        sets[c.currentSet] = { ...cur, done: true };
+        const finished = !!matchWinner(sets, c.bestOf);
+        const undoEntry = { kind: 'endSet', setIdx: c.currentSet, endedMatch: finished };
+        if (finished) {
+          return pushUndo({ ...c, sets, status: 'done' }, undoEntry);
+        }
+        return pushUndo({ ...c, sets: [...sets, emptySet()], currentSet: c.currentSet + 1 }, undoEntry);
+      });
+
+    case 'UNDO':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => {
+        const stack = c.undoStack || [];
+        if (stack.length === 0) return c;
+        const last = stack[stack.length - 1];
+        const rest = stack.slice(0, -1);
+        const sets = [...c.sets];
+
+        if (last.kind === 'game') {
+          const s = sets[last.setIdx];
+          const key = last.side === 'A' ? 'a' : 'b';
+          sets[last.setIdx] = { ...s, [key]: Math.max(0, (s[key] || 0) - 1) };
+          return { ...c, sets, undoStack: rest };
+        }
+        if (last.kind === 'tb') {
+          const s = sets[last.setIdx];
+          const key = last.side === 'A' ? 'tbA' : 'tbB';
+          const games = last.side === 'A' ? 'a' : 'b';
+          const nextPoint = Math.max(0, (s[key] || 0) - 1);
+          // 7점 도달로 6게임이 확정됐던 경우 게임도 5로 되돌린다.
+          const nextGames = (s[key] || 0) >= 7 ? 5 : s[games];
+          sets[last.setIdx] = { ...s, [key]: nextPoint, [games]: nextGames };
+          return { ...c, sets, undoStack: rest };
+        }
+        if (last.kind === 'stat') {
+          const prev = c.stats[last.player] || { aces: 0, df: 0 };
+          const stats = { ...c.stats, [last.player]: { ...prev, [last.stat]: Math.max(0, (prev[last.stat] || 0) - 1) } };
+          return { ...c, stats, undoStack: rest };
+        }
+        if (last.kind === 'endSet') {
+          // ★ 세트 종료가 판을 끝냈다면 status도 함께 되돌린다.
+          //   빠뜨리면 점수는 풀렸는데 카드가 done에 갇히고, done 카드엔 [설정 수정]이 없어 빠져나갈 길이 없다.
+          const trimmed = last.endedMatch ? sets : sets.slice(0, last.setIdx + 1);
+          trimmed[last.setIdx] = { ...trimmed[last.setIdx], done: false };
+          return {
+            ...c,
+            sets: trimmed,
+            currentSet: last.setIdx,
+            status: 'playing',
+            undoStack: rest,
+          };
+        }
+        return { ...c, undoStack: rest };
+      });
+
+    case 'EDIT_COURT_SETTINGS':
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => ({
+        ...c, status: 'ready', sets: [], currentSet: 0, stats: {}, undoStack: [],
+      }));
+
+    case 'EXTEND_TO_THREE_SETS':
+      // 유일한 예외 — 점수를 유지한 채 세트만 늘린다.
+      return mapCourt(state, action.roundIdx, action.courtId, (c) => (
+        c.bestOf === 1 ? { ...c, bestOf: 3, status: c.status === 'done' ? 'playing' : c.status } : c
+      ));
+
+    case 'FINALIZE':
+      return { ...state, gameFinalized: true, phase: 'done' };
+
+    default:
+      return state;
+  }
+}
+
+export function useTennisReducer() {
+  return useReducer(tennisReducer, tennisInitialState);
+}

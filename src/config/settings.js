@@ -19,6 +19,18 @@ export const SPORT_DEFAULTS = {
     cleanSheetPoint: 1,
     opponents: [],
   },
+  테니스: {
+    // 랭킹 포인트 산식. rankPoints.js의 DEFAULT_POINT_RULES와 같은 모양.
+    // 등급 2단계 이상 차이의 점수가 확정되면 여기(또는 팀 override)만 고치면 된다.
+    pointRules: {
+      baseWin: 1,
+      sameLeagueUpset: 2,
+      leagueUpset: 3,
+      gradeUpset: 5,
+      gradeUpsetPerStep: false,
+    },
+    rosterSheet: '테니스_회원명부',
+  },
 };
 
 export const PRESETS = {
@@ -44,11 +56,17 @@ export const PRESETS = {
       values: {},
     },
   },
+  테니스: {
+    "표준테니스": {
+      description: "6게임 선취 · 5:5 노애드 타이브레이크 7점",
+      values: {},
+    },
+  },
 };
 
 const PRESET_MAP = {
   "마스터FC": { 풋살: "마스터FC풋살" },
-  _default: { 풋살: "표준풋살", 축구: "표준축구" },
+  _default: { 풋살: "표준풋살", 축구: "표준축구", 테니스: "표준테니스" },
 };
 
 export function resolvePreset(team, sport) {
@@ -173,6 +191,9 @@ export async function loadSettingsFromFirebase(team, teamEntries) {
     if (sports.has("축구")) {
       fresh["축구"] = { preset: resolvePreset(team, "축구"), overrides: {} };
     }
+    if (sports.has("테니스")) {
+      fresh["테니스"] = { preset: resolvePreset(team, "테니스"), overrides: {} };
+    }
     _cache[team] = fresh;
     localStorage.setItem(_key(team), JSON.stringify(fresh));
     return fresh;
@@ -247,11 +268,14 @@ const FUTSAL_KEYS = [
 const SOCCER_KEYS = [
   "ownGoalPoint", "foulPoint", "cleanSheetPoint", "opponents",
 ];
+const TENNIS_KEYS = [
+  "pointRules", "rosterSheet",
+];
 
 export function isLegacyFormat(raw) {
   if (!raw || typeof raw !== "object") return false;
   if (Object.keys(raw).length === 0) return false;
-  return !raw.shared && !raw["풋살"] && !raw["축구"];
+  return !raw.shared && !raw["풋살"] && !raw["축구"] && !raw["테니스"];
 }
 
 function _sparseOverrides(legacy, keys, presetValues) {
@@ -287,6 +311,14 @@ export function migrateToNested(team, legacy, teamEntries) {
     out["축구"] = {
       preset,
       overrides: _sparseOverrides(legacy, SOCCER_KEYS, presetValues),
+    };
+  }
+  if (sports.has("테니스")) {
+    const preset = resolvePreset(team, "테니스");
+    const presetValues = PRESETS.테니스[preset]?.values || {};
+    out["테니스"] = {
+      preset,
+      overrides: _sparseOverrides(legacy, TENNIS_KEYS, presetValues),
     };
   }
   return out;
