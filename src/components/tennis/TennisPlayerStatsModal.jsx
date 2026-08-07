@@ -1,12 +1,19 @@
+import { useState } from 'react';
 import { buildTennisPlayerGameRows } from '../../utils/tennis/tennisRowBuilders';
+
+const FORMATS = ['전체', '단식', '복식'];
 
 // 오늘 경기의 선수별 누적 기록.
 // buildTennisPlayerGameRows가 단일 진실 소스 — 새 집계 로직을 추가하지 않는다.
+// 단식/복식은 클럽에서 다른 리그(길로틴/투몽)로 운영되고 랭킹도 단식만 반영하므로
+// 합쳐서 보면 의미가 흐려진다 — 필터로 나눠 본다.
 export default function TennisPlayerStatsModal({ team, state, roster, C, styles: s }) {
+  const [format, setFormat] = useState('전체');
   const memberSet = new Set(roster.map(m => m.name));
   const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
 
-  const pgRows = buildTennisPlayerGameRows({ team, state, inputTime: '', memberSet, gradeByPlayer });
+  const allRows = buildTennisPlayerGameRows({ team, state, inputTime: '', memberSet, gradeByPlayer });
+  const pgRows = format === '전체' ? allRows : allRows.filter(r => r.format === format);
 
   // 선수별 집계
   const playerMap = {};
@@ -33,19 +40,30 @@ export default function TennisPlayerStatsModal({ team, state, roster, C, styles:
   }
 
   const players = Object.entries(playerMap).sort(([a], [b]) => a.localeCompare(b, 'ko'));
+  const fmt = (n) => (n > 0 ? `+${n}` : String(n));
+
+  const filterRow = (
+    <div style={{ display: 'flex', gap: 6, marginBottom: 12 }}>
+      {FORMATS.map(f => (
+        <button key={f} onClick={() => setFormat(f)} style={s.chip(f === format)}>{f}</button>
+      ))}
+    </div>
+  );
 
   if (players.length === 0) {
     return (
-      <div style={{ color: C.gray, textAlign: 'center', padding: 20 }}>
-        완료된 경기 기록이 없습니다.
+      <div>
+        {filterRow}
+        <div style={{ color: C.gray, textAlign: 'center', padding: 20 }}>
+          {format === '전체' ? '완료된 경기 기록이 없습니다.' : `완료된 ${format} 경기가 없습니다.`}
+        </div>
       </div>
     );
   }
 
-  const fmt = (n) => (n > 0 ? `+${n}` : String(n));
-
   return (
     <div style={{ overflowX: 'auto' }}>
+      {filterRow}
       <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
         <thead>
           <tr>
