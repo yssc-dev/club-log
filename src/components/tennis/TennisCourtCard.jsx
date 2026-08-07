@@ -1,18 +1,66 @@
+import { useState } from 'react';
 import TennisCourtSetup from './TennisCourtSetup';
 import TennisCourtRecorder from './TennisCourtRecorder';
-import { summarizeCourt } from '../../utils/tennis/tennisScoring';
+import { summarizeCourt, setWinner } from '../../utils/tennis/tennisScoring';
+
+// 끝난 판을 고치는 경로. 진행 카드의 [설정 수정]은 done 카드엔 없으므로
+// 여기서 탭해 펼치는 것이 유일한 진입점이다.
+//   되돌리기 = 판 종료를 취소해 마지막 세트를 다시 연다(점수 유지)
+//   설정 수정 = 점수를 지우고 배치부터 다시
+function DoneCourtCard({ court, roundIdx, dispatch, C, styles: s }) {
+  const [open, setOpen] = useState(false);
+  const courtKey = { roundIdx, courtId: court.courtId };
+  const summ = summarizeCourt(court);
+  const canUndo = (court.undoStack || []).length > 0;
+
+  return (
+    <div style={{ ...s.card, marginBottom: 10, padding: open ? 14 : '10px 14px' }}>
+      <button onClick={() => setOpen(o => !o)}
+        aria-expanded={open}
+        style={{
+          display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 8,
+          width: '100%', background: 'transparent', border: 'none', padding: 0,
+          cursor: 'pointer', fontFamily: 'inherit', textAlign: 'left',
+        }}>
+        <span style={{ color: C.green, fontSize: 13, fontWeight: 500 }}>✓ 코트 {court.courtId} · {court.format}</span>
+        <span style={{ fontSize: 12, color: C.gray }}>
+          {court.sideA.join('/')} {summ.setsA}-{summ.setsB} {court.sideB.join('/')}
+          <span style={{ marginLeft: 6, color: C.grayLight }}>{open ? '▲' : '▼'}</span>
+        </span>
+      </button>
+
+      {open && (
+        <div style={{ marginTop: 12, borderTop: `0.5px solid ${C.borderColor}`, paddingTop: 12 }}>
+          <div style={{ fontSize: 13, color: C.gray, fontVariantNumeric: 'tabular-nums', marginBottom: 12 }}>
+            {(court.sets || []).filter(set => setWinner(set)).map((set, i) => (
+              <span key={i} style={{ marginRight: 10 }}>
+                {set.a}:{set.b}
+                {(set.tbA || set.tbB) ? <span style={{ color: C.grayLight }}> ({set.tbA}-{set.tbB})</span> : null}
+              </span>
+            ))}
+          </div>
+          <div style={{ display: 'flex', gap: 6 }}>
+            <button disabled={!canUndo}
+              onClick={() => dispatch({ type: 'UNDO', ...courtKey })}
+              style={{ ...s.btnSm(), flex: 1, minHeight: 36, opacity: canUndo ? 1 : 0.4 }}>
+              ↩ 되돌리기
+            </button>
+            <button onClick={() => {
+              if (!confirm('이 판의 기록된 점수가 지워지고 배치 화면으로 돌아갑니다. 계속할까요?')) return;
+              dispatch({ type: 'EDIT_COURT_SETTINGS', ...courtKey });
+            }} style={{ ...s.btnSm(), flex: 1, minHeight: 36 }}>
+              설정 수정
+            </button>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+}
 
 export default function TennisCourtCard({ court, roundIdx, attendees, usedNames, dispatch, C, styles: s, canDelete }) {
   if (court.status === 'done') {
-    const summ = summarizeCourt(court);
-    return (
-      <div style={{ ...s.eventLog, justifyContent: 'space-between', marginBottom: 10 }}>
-        <span style={{ color: C.green, fontSize: 13 }}>✓ 코트 {court.courtId} · {court.format}</span>
-        <span style={{ fontSize: 12, color: C.gray }}>
-          {court.sideA.join('/')} {summ.setsA}-{summ.setsB} {court.sideB.join('/')}
-        </span>
-      </div>
-    );
+    return <DoneCourtCard court={court} roundIdx={roundIdx} dispatch={dispatch} C={C} styles={s} />;
   }
 
   return (
