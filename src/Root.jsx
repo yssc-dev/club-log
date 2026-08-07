@@ -10,6 +10,7 @@ import SettingsScreen from './components/common/SettingsScreen';
 import { loadSettingsFromFirebase } from './config/settings';
 import App from './App';
 import SoccerApp from './SoccerApp';
+import TennisApp from './TennisApp';
 
 // 팀 배열 → { teamName: [{mode, role}, ...] } 그룹. 순수 함수라 모듈 스코프(초기 state에서도 사용).
 function groupTeams(teams) {
@@ -49,7 +50,7 @@ export default function Root() {
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회만 실행 (저장된 팀이 있으면 pending 체크)
   useEffect(() => {
     if (screen === "dashboard" && selectedTeamName) {
-      checkPendingGames(selectedTeamName);
+      checkPendingGames(selectedTeamName, teamContext?.mode);
       loadSettingsFromFirebase(selectedTeamName, selectedTeamEntries);
     }
   }, []);
@@ -58,17 +59,22 @@ export default function Root() {
   const prevScreenRef = useRef(screen);
   useEffect(() => {
     if (screen === "dashboard" && prevScreenRef.current !== "dashboard" && selectedTeamName) {
-      checkPendingGames(selectedTeamName);
+      checkPendingGames(selectedTeamName, teamContext?.mode);
     }
     prevScreenRef.current = screen;
   }, [screen, selectedTeamName]);
 
-  const checkPendingGames = (teamName) => {
+  const checkPendingGames = (teamName, mode) => {
     setCheckingPending(true);
     setPendingGames([]);
 
     FirebaseSync.loadAllActiveReconstructed(teamName).then(fbGames => {
-      const validGames = fbGames.filter(g => g.state && g.state.phase !== "setup");
+      const validGames = fbGames.filter(g => {
+        if (!g.state || g.state.phase === "setup") return false;
+        // 종목이 다른 경기는 이 화면의 목록에 넣지 않는다.
+        const gameSport = g.state.sport || (g.state.matchMode === "soccer" ? "축구" : "풋살");
+        return !mode || gameSport === mode;
+      });
       setPendingGames(validGames);
     }).catch(() => { }).finally(() => setCheckingPending(false));
   };
@@ -104,7 +110,7 @@ export default function Root() {
     const u = user || authUser;
     AuthUtil.save(u.name, u.phone4, teamName, first.mode, first.role);
     setScreen("dashboard");
-    checkPendingGames(teamName);
+    checkPendingGames(teamName, first.mode);
     loadSettingsFromFirebase(teamName, entries);
   };
 
@@ -192,7 +198,9 @@ export default function Root() {
     return <SettingsScreen teamName={selectedTeamName} teamMode={teamContext?.mode} teamEntries={selectedTeamEntries} isAdmin={teamContext?.role === "관리자"} onBack={() => setScreen("dashboard")} />;
   }
 
-  const GameApp = teamContext?.mode === "축구" ? SoccerApp : App;
+  const GameApp = teamContext?.mode === "축구" ? SoccerApp
+    : teamContext?.mode === "테니스" ? TennisApp
+    : App;
   return <GameApp authUser={authUser} teamContext={teamContext} isNewGame={isNewGame} gameMode={gameMode} gameId={activeGameId}
-    onLogout={handleLogout} onBackToMenu={() => { setIsNewGame(false); setGameMode(null); setActiveGameId(null); setScreen("dashboard"); setTimeout(() => { if (selectedTeamName) checkPendingGames(selectedTeamName); else setPendingGames([]); }, 1500); }} />;
+    onLogout={handleLogout} onBackToMenu={() => { setIsNewGame(false); setGameMode(null); setActiveGameId(null); setScreen("dashboard"); setTimeout(() => { if (selectedTeamName) checkPendingGames(selectedTeamName, teamContext?.mode); else setPendingGames([]); }, 1500); }} />;
 }

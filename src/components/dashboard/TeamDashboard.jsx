@@ -11,6 +11,7 @@ import RankingCandlestickChart from './RankingCandlestickChart';
 import PlayerAnalytics from './PlayerAnalytics';
 import DualTeamTab from './analytics/DualTeamTab';
 import TournamentListTab from '../tournament/TournamentListTab';
+import TennisTabs from '../tennis/TennisTabs';
 
 export default function TeamDashboard({ authUser, teamName, teamEntries, onStartGame, onContinueGame, onViewHistory, onSettings, onSwitchTeam, onLogout, pendingGames = [], checkingPending }) {
   const { C, mode, toggle } = useTheme();
@@ -53,8 +54,11 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
 
   // 배열 prop 대신 파생 primitive로 의존 — 렌더마다 재fetch 방지
   const hasSoccerEntry = teamEntries.some(e => e.mode === "축구");
+  const isTennis = activeSport === "테니스";
 
   useEffect(() => {
+    // 테니스는 대시보드 시트(풋살/축구 명부)를 읽지 않는다. 호출하면 빈 명단으로 위젯이 0으로 채워진다.
+    if (isTennis) { setMembersLoading(false); return; }
     fetchSheetData()
       .then(data => { setMembers(data.players || []); setKeepers(data.keepers || []); })
       .catch(() => setMembers([]))
@@ -129,8 +133,8 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
         setOpponentRecords(Object.values(oppRec).sort((a, b) => b.games - a.games));
       }).catch(() => {});
     }
-    // teamName/hasSoccerEntry 변경 시 재조회 — 이전엔 []라 팀 전환에도 최초 데이터가 유지됐음
-  }, [teamName, hasSoccerEntry]);
+    // teamName/hasSoccerEntry/isTennis 변경 시 재조회 — 이전엔 []라 팀 전환에도 최초 데이터가 유지됐음
+  }, [teamName, hasSoccerEntry, isTennis]);
 
   const ds = useMemo(() => ({
     container: { background: "var(--app-bg-grouped)", minHeight: "100vh",
@@ -951,29 +955,37 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
       </div>}
 
       <div style={{ padding: "16px 0" }}>
-        {activeTab === "records" && renderRecords()}
-        {activeTab === "roster" && renderRoster()}
-        {activeTab === "analytics" && (
-          <div style={ds.section}>
-            <div style={ds.sectionTitle}>선수 분석</div>
-            <PlayerAnalytics teamName={teamName} teamMode={activeSport} isAdmin={activeEntry?.role === "관리자"} authUserName={authUser?.name} />
-          </div>
-        )}
-        {activeTab === "games" && renderGames()}
-        {activeTab === "tournament" && (
-          <TournamentListTab
-            teamName={teamName} ourTeamName={teamName}
-            isAdmin={activeEntry?.role === "관리자"}
-            attendees={members.map(m => m.name)}
-            gameSettings={getSettings(teamName)}
-            onTournamentView={setTournamentActive}
-            onTournamentName={setTournamentName}
-            onGoHome={() => {
-              if (!confirm("대회 모드에서 홈 화면으로 이동하시겠습니까?")) return;
-              setTournamentActive(false);
-              setActiveTab("records");
-            }}
-          />
+        {isTennis ? (
+          <TennisTabs activeTab={activeTab} pendingGames={pendingGames}
+            onStartGame={onStartGame} onContinueGame={onContinueGame}
+            authUserName={authUser?.name} C={C} />
+        ) : (
+          <>
+            {activeTab === "records" && renderRecords()}
+            {activeTab === "roster" && renderRoster()}
+            {activeTab === "analytics" && (
+              <div style={ds.section}>
+                <div style={ds.sectionTitle}>선수 분석</div>
+                <PlayerAnalytics teamName={teamName} teamMode={activeSport} isAdmin={activeEntry?.role === "관리자"} authUserName={authUser?.name} />
+              </div>
+            )}
+            {activeTab === "games" && renderGames()}
+            {activeTab === "tournament" && (
+              <TournamentListTab
+                teamName={teamName} ourTeamName={teamName}
+                isAdmin={activeEntry?.role === "관리자"}
+                attendees={members.map(m => m.name)}
+                gameSettings={getSettings(teamName)}
+                onTournamentView={setTournamentActive}
+                onTournamentName={setTournamentName}
+                onGoHome={() => {
+                  if (!confirm("대회 모드에서 홈 화면으로 이동하시겠습니까?")) return;
+                  setTournamentActive(false);
+                  setActiveTab("records");
+                }}
+              />
+            )}
+          </>
         )}
       </div>
 
