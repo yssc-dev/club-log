@@ -10,6 +10,24 @@ describe('stripNameDecorations', () => {
     expect(stripNameDecorations('홍길동')).toBe('홍길동');
   });
 
+  // 참석명단 시트가 "정보영 ★"처럼 이름과 별표 사이에 공백을 넣는 실제 사례.
+  // 별표만 지우면 "정보영 "(트레일링 공백)이 로그 시트로 전송돼 이름 매칭이 깨진다.
+  it('이름과 별표 사이 공백까지 제거한다', () => {
+    expect(stripNameDecorations('정보영 ★')).toBe('정보영');
+  });
+
+  it('별표에서 파생된 팀명("팀보영 ★")도 공백 없이 정리된다', () => {
+    expect(stripNameDecorations('팀보영 ★')).toBe('팀보영');
+  });
+
+  it('앞쪽 별표/공백도 남기지 않는다', () => {
+    expect(stripNameDecorations('★ 정보영')).toBe('정보영');
+  });
+
+  it('별표 없는 문자열의 공백은 건드리지 않는다', () => {
+    expect(stripNameDecorations('메모 내용 ')).toBe('메모 내용 ');
+  });
+
   it('중첩된 객체/배열 안의 문자열까지 재귀적으로 제거한다 (writePlayerLog/writeRawEvents 페이로드 형태)', () => {
     const payload = {
       action: 'writeRawPlayerGames',

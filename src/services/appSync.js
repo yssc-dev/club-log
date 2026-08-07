@@ -7,9 +7,15 @@ const APPS_SCRIPT_URL = import.meta.env.VITE_APPS_SCRIPT_URL || "";
 // 별표 없는 이름만 들어가야 한다(붙어서 전송되면 시트 쪽 이름 매칭 수식이 깨짐).
 // _postWrite로 나가는 모든 쓰기 페이로드에 재귀적으로 적용해 어떤 필드에 이름이
 // 실려도(scorer/assist/name/...) 한 곳에서 걸러지게 한다.
-const NAME_DECORATION_RE = /[★☆✩✪✫✬✭✮✯✰⭐🌟]/g;
+// 참석명단은 "정보영 ★"처럼 이름과 별표 사이에 공백을 넣으므로 별표에 붙은 공백까지
+// 함께 지워야 한다 — 별표만 지우면 "정보영 "(트레일링 공백)이 전송돼 매칭이 깨진다.
+// trim은 별표가 있던 문자열에만 적용해 일반 문자열(메모 등)의 공백은 보존한다.
+const NAME_DECORATION_RE = /\s*[★☆✩✪✫✬✭✮✯✰⭐🌟]+/g;
 export function stripNameDecorations(value) {
-  if (typeof value === 'string') return value.replace(NAME_DECORATION_RE, '');
+  if (typeof value === 'string') {
+    const stripped = value.replace(NAME_DECORATION_RE, '');
+    return stripped === value ? value : stripped.trim();
+  }
   if (Array.isArray(value)) return value.map(stripNameDecorations);
   if (value && typeof value === 'object') {
     const out = {};
