@@ -3,6 +3,29 @@ import { isTiebreakActive, isSetComplete } from '../../utils/tennis/tennisScorin
 // 좌우 축을 그대로 유지한다: 이름·스코어·▲·에이스/DF가 한 세로줄.
 // 5:5가 되면 ▲가 게임이 아니라 타이브레이크 포인트를 올린다.
 
+// 에이스=테니스공, 더블폴트=레드카드. 글자만으론 "A"와 "DF"가 비슷하게 읽혀
+// 경기 중 급하게 누를 때 헷갈린다 — 색과 모양으로 먼저 구분되게 한다.
+function AceBadge() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 20 20" aria-hidden="true" style={{ display: 'block', flexShrink: 0 }}>
+      <circle cx="10" cy="10" r="9" fill="#D8E840" />
+      <path d="M4 3.8a8 8 0 0 1 0 12.4" fill="none" stroke="#fff" strokeWidth="1.3" />
+      <path d="M16 3.8a8 8 0 0 0 0 12.4" fill="none" stroke="#fff" strokeWidth="1.3" />
+      <text x="10" y="13.4" textAnchor="middle" fontSize="9.5" fontWeight="700" fill="#2E3A00">A</text>
+    </svg>
+  );
+}
+
+function DoubleFaultBadge({ C }) {
+  return (
+    <span aria-hidden="true" style={{
+      display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+      width: 13, height: 18, borderRadius: 2.5, flexShrink: 0,
+      background: C.red, color: '#fff', fontSize: 9.5, fontWeight: 700, lineHeight: 1,
+    }}>D</span>
+  );
+}
+
 function Column({ side, court, cur, tb, courtKey, dispatch, C, s }) {
   const players = side === 'A' ? court.sideA : court.sideB;
   const games = side === 'A' ? cur.a : cur.b;
@@ -27,9 +50,15 @@ function Column({ side, court, cur, tb, courtKey, dispatch, C, s }) {
             <div key={p} style={{ display: 'flex', gap: 4, alignItems: 'center', marginBottom: 4 }}>
               <span style={{ flex: 1, textAlign: 'left', color: C.gray, fontSize: 11, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{p}</span>
               <button onClick={() => dispatch({ type: 'INCREMENT_STAT', ...courtKey, player: p, stat: 'aces' })}
-                style={s.btnSm()}>A {st.aces || 0}</button>
+                aria-label={`${p} 서브에이스 추가`}
+                style={{ ...s.btnSm(), display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px' }}>
+                <AceBadge />{st.aces || 0}
+              </button>
               <button onClick={() => dispatch({ type: 'INCREMENT_STAT', ...courtKey, player: p, stat: 'df' })}
-                style={s.btnSm()}>DF {st.df || 0}</button>
+                aria-label={`${p} 더블폴트 추가`}
+                style={{ ...s.btnSm(), display: 'inline-flex', alignItems: 'center', gap: 4, padding: '4px 8px' }}>
+                <DoubleFaultBadge C={C} />{st.df || 0}
+              </button>
             </div>
           );
         })}
