@@ -12,6 +12,11 @@ import TennisRoundNav from './components/tennis/TennisRoundNav';
 import TennisCourtCard from './components/tennis/TennisCourtCard';
 import TennisConfirmBar from './components/tennis/TennisConfirmBar';
 import MatchHeader from './components/game/MatchHeader';
+import MatchTabBar from './components/game/MatchTabBar';
+import Modal from './components/common/Modal';
+import TennisAttendeeModal from './components/tennis/TennisAttendeeModal';
+import TennisResultsModal from './components/tennis/TennisResultsModal';
+import TennisPlayerStatsModal from './components/tennis/TennisPlayerStatsModal';
 
 const todayLocal = () => {
   const d = new Date();
@@ -24,6 +29,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const s = makeStyles(C);
   const [roster, setRoster] = useState([]);
   const [busy, setBusy] = useState(false);
+  const [matchModal, setMatchModal] = useState(null);
   const team = teamContext?.team || '';
 
   useEffect(() => { TennisSync.getRoster().then(setRoster); }, []);
@@ -99,6 +105,13 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     }
   };
 
+  const deleteTennisGame = async () => {
+    if (!confirm('오늘의 테니스 경기 기록이 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다. 삭제하시겠습니까?')) return;
+    if (!confirm('정말 삭제하시겠습니까? 되돌릴 수 없습니다.')) return;
+    await FirebaseSync.clearState(team, state.gameId);
+    onBackToMenu();
+  };
+
   if (state.phase === 'setup') {
     return (
       <div style={s.app}>
@@ -119,7 +132,49 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
         title="경기 진행"
         subtitle={`${state.gameDate} · 테니스 · ${state.rounds.length}라운드`}
         onHome={onBackToMenu}
-      />
+      >
+        <MatchTabBar tabs={[
+          { key: 'attendees',  label: '참석명단', onClick: () => setMatchModal('attendees') },
+          { key: 'results',    label: '오늘 결과', onClick: () => setMatchModal('results') },
+          { key: 'playerStats', label: '개인기록', onClick: () => setMatchModal('playerStats') },
+          { key: 'delete', label: '경기삭제', tone: 'red', onClick: deleteTennisGame, hidden: teamContext?.role !== '관리자' },
+        ]} />
+      </MatchHeader>
+
+      {matchModal === 'attendees' && (
+        <Modal onClose={() => setMatchModal(null)} title="참석명단">
+          <TennisAttendeeModal
+            roster={roster}
+            attendees={state.attendees}
+            guests={state.guests}
+            dispatch={dispatch}
+            C={C}
+            styles={s}
+          />
+        </Modal>
+      )}
+
+      {matchModal === 'results' && (
+        <Modal onClose={() => setMatchModal(null)} title="오늘 결과">
+          <TennisResultsModal
+            rounds={state.rounds}
+            C={C}
+            styles={s}
+          />
+        </Modal>
+      )}
+
+      {matchModal === 'playerStats' && (
+        <Modal onClose={() => setMatchModal(null)} title="개인기록">
+          <TennisPlayerStatsModal
+            team={team}
+            state={state}
+            roster={roster}
+            C={C}
+            styles={s}
+          />
+        </Modal>
+      )}
 
       <TennisRoundNav rounds={state.rounds} viewingRoundIdx={state.viewingRoundIdx} dispatch={dispatch} C={C} styles={s} />
 
