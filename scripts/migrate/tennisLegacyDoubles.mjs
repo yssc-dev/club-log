@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// 실행: npx vite-node scripts/migrate/tennisLegacyDoubles.mjs --team 몽피스 --auth "이름:전화4" [--apply]
 // 모닝피스클럽 시트 'N월 복식 기록'(2026 1~7월) → 로그_테니스매치/로그_테니스선수경기 적재.
 // 기본 dry-run: 매핑·게스트·league 분포·판수 검산 리포트만 출력. --apply로 실제 적재.
 // 가드: 로그에 legacy_ game_id가 이미 있으면 중단(재적재는 유저가 시트에서 수동 삭제 후).

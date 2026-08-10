@@ -1,4 +1,5 @@
 #!/usr/bin/env node
+// 실행: npx vite-node scripts/migrate/tennisLegacyAggregates.mjs --team 몽피스 --auth "이름:전화4" [--apply]
 // 모닝피스클럽 시트 '2024시즌 전적'/'2025시즌 전적' → 테니스_레거시전적 적재.
 // 시즌시작순위는 출력만(시트에 쓰지 않음, 스펙 §4.3). 기본 dry-run, --apply로 적재.
 // 가드: getTennisLegacyRecords가 비어있지 않으면 중단(재실행은 유저가 시트에서 수동 삭제 후).
@@ -50,7 +51,7 @@ const unmapped = new Set();
 
 for (const { tab, season } of YEAR_TABS) {
   const ws = wb.Sheets[tab];
-  if (!ws) { console.warn(`탭 없음: ${tab} — 건너뜀`); continue; }
+  if (!ws) die(`탭 없음: ${tab} — 소스 시트를 확인하라(부분 적재 없음)`);
   // null→'' 정규화: raw:false에서 행 중간 빈 셀이 null로 올 수 있어 Number(null)=0 오인 방지.
   const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
   const rows2d = rawRows.map(row => row.map(cell => (cell === null ? '' : cell)));
