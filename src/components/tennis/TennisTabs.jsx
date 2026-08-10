@@ -1,9 +1,11 @@
 // 테니스 대시보드 본문. Task 12에서 경기관리 탭을 채웠고,
 // Task 13에서 records(랭킹)·roster(개인기록) 탭을 추가한다.
-import { useEffect, useState, useMemo } from 'react';
+// Task 5에서 records 분기를 TennisAnalyticsTab으로 위임.
+import { useEffect, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
-import { buildSinglesStandings, buildPlayerSummary } from '../../utils/tennis/tennisStandings';
+import { buildPlayerSummary } from '../../utils/tennis/tennisStandings';
 import { makeStyles } from '../../styles/theme';
+import TennisAnalyticsTab from './TennisAnalyticsTab';
 
 function StatCell({ label, value, C }) {
   return (
@@ -17,17 +19,10 @@ function StatCell({ label, value, C }) {
 export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, authUserName, C }) {
   const ds = makeStyles(C);
   const [rows, setRows] = useState([]);
-  const [roster, setRoster] = useState([]);
 
   useEffect(() => {
     TennisSync.getPlayerGames().then(setRows);
-    TennisSync.getRoster().then(setRoster);
   }, []);
-
-  const today = new Date().toISOString().slice(0, 10);
-  const standings = useMemo(
-    () => buildSinglesStandings({ rows, roster, asOfDate: today }),
-    [rows, roster, today]);
 
   if (activeTab === 'games') {
     return (
@@ -54,41 +49,7 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
   }
 
   if (activeTab === 'records') {
-    return (
-      <div style={ds.section}>
-        <div style={ds.sectionTitle}>길로틴리그 (단식 승률)</div>
-        <div style={ds.card}>
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ ...ds.th, textAlign: 'left' }}>#</th>
-                <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
-                <th style={ds.th}>리그</th>
-                <th style={ds.th}>등급</th>
-                <th style={ds.th}>전적</th>
-                <th style={ds.th}>승률</th>
-                <th style={ds.th}>P</th>
-              </tr>
-            </thead>
-            <tbody>
-              {standings.map((standing, i) => (
-                <tr key={standing.name}>
-                  <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
-                  <td style={{ ...ds.td(true), textAlign: 'left', fontWeight: 700 }}>{standing.name}</td>
-                  <td style={{ ...ds.td(), fontSize: 10 }}>{standing.leagueTier === '흑기사' ? 'BK' : 'BR'}</td>
-                  <td style={{ ...ds.td(), fontSize: 10 }}>{standing.grade}</td>
-                  <td style={ds.td()}>{standing.wins}-{standing.losses}</td>
-                  <td style={ds.td()}>
-                    {standing.games > 0 ? `${Math.round(standing.rate * 100)}%` : '-'}
-                  </td>
-                  <td style={ds.td()}>{standing.points}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      </div>
-    );
+    return <TennisAnalyticsTab C={C} authUserName={authUserName} />;
   }
 
   if (activeTab === 'roster') {

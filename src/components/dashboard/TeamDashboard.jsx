@@ -937,9 +937,9 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
 
       {!tournamentActive && <div style={{ display: "flex", background: C.bg, borderBottom: `1px solid ${C.grayDarker}` }}>
         {[
-          { key: "records", label: "대시보드" },
+          { key: "records", label: activeSport === "테니스" ? "분석" : "대시보드" },
           { key: "roster", label: activeSport === "축구" ? "팀/개인 기록" : "개인기록" },
-          { key: "analytics", label: "분석" },
+          activeSport !== "테니스" && { key: "analytics", label: "분석" },
           { key: "games", label: "경기관리", badge: pendingGames.length > 0 },
           activeSport === "축구" && { key: "tournament", label: "대회" },
         ].filter(Boolean).map(tab => (
