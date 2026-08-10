@@ -31,7 +31,7 @@ function finishedCourts(state) {
   return out.map((x, i) => ({ ...x, matchIdx: i + 1 }));
 }
 
-function serializeSets(sets) {
+export function serializeSets(sets) {
   return JSON.stringify((sets || []).map(s => {
     const o = { a: s.a || 0, b: s.b || 0 };
     if ((s.tbA || 0) > 0 || (s.tbB || 0) > 0) { o.tbA = s.tbA || 0; o.tbB = s.tbB || 0; }
