@@ -100,4 +100,7 @@ describe('buildYearlyRecords', () => {
       { season: '통산', wins: 31, losses: 15, rate: 31 / 46 },
     ]);
   });
+  it('기록 없는 선수는 빈 배열 반환(통산 0-0 행 없음)', () => {
+    expect(buildYearlyRecords({ legacyRows: [], rows: [], player: '갑', format: '복식' })).toEqual([]);
+  });
 });

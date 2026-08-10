@@ -207,6 +207,9 @@ export function buildYearlyRecords({ legacyRows, rows, player, format }) {
       season, wins, losses, rate: rate(wins, wins + losses),
     }));
 
+  // 기록이 없으면 통산 행을 만들지 않는다
+  if (!entries.length) return [];
+
   // 통산 합산
   const totalWins = entries.reduce((s, x) => s + x.wins, 0);
   const totalLosses = entries.reduce((s, x) => s + x.losses, 0);
