@@ -35,3 +35,7 @@ dist-ssr
 .env
 .env.local
 .env.*.local
+
+# Claude 세션 작업트리/SDD 스크래치
+.claude/worktrees/
+.superpowers/
