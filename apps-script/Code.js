@@ -2,6 +2,7 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-10: 테니스_레거시전적 시트+액션 2종(getTennisLegacyRecords, writeTennisLegacyRecords) 추가
 // 2026-08-06: 테니스 종목 추가 — 시트 3종(테니스_회원명부/로그_테니스매치/로그_테니스선수경기)과
 //             액션 5종(getTennisRoster, getTennisMatches, getTennisPlayerGames,
 //             writeTennisMatches, writeTennisPlayerGames) 신설. 기존 풋살/축구 시트·액션 무수정.
@@ -112,6 +113,11 @@ var TENNIS_PLAYER_GAME_HEADERS = [
   "tb_played", "tb_won", "aces", "double_faults",
   "bagels_taken", "bagels_given",
   "grade_at_date", "league", "input_time"
+];
+
+var TENNIS_LEGACY_SHEET = "테니스_레거시전적";
+var TENNIS_LEGACY_HEADERS = [
+  "team", "sport", "season", "format", "player", "wins", "losses"
 ];
 
 function _ensureRawSheets() {
@@ -400,6 +406,10 @@ function doPost(e) {
       return _jsonResponse(_writeTennisMatches(body.data));
     } else if (action === "writeTennisPlayerGames") {
       return _jsonResponse(_writeTennisPlayerGames(body.data));
+    } else if (action === "getTennisLegacyRecords") {
+      return _jsonResponse(_getTennisLegacyRecords(requestTeam));
+    } else if (action === "writeTennisLegacyRecords") {
+      return _jsonResponse(_writeTennisRows(TENNIS_LEGACY_SHEET, TENNIS_LEGACY_HEADERS, body.data));
     } else if (action === "getRawPlayerGames") {
       return _jsonResponse(_getRawPlayerGames(body.team, body.sport));
     } else if (action === "migrateEventTypes") {
@@ -2926,7 +2936,8 @@ function _ensureTennisSheets() {
   var defs = [
     [TENNIS_ROSTER_SHEET, TENNIS_ROSTER_HEADERS],
     [TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS],
-    [TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS]
+    [TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS],
+    [TENNIS_LEGACY_SHEET, TENNIS_LEGACY_HEADERS]
   ];
   for (var i = 0; i < defs.length; i++) {
     var name = defs[i][0], headers = defs[i][1];
@@ -2975,6 +2986,23 @@ function _writeTennisMatches(data) {
 
 function _writeTennisPlayerGames(data) {
   return _writeTennisRows(TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS, data);
+}
+
+function _getTennisLegacyRecords(team) {
+  _ensureTennisSheets();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_LEGACY_SHEET);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, rows: [] };
+  var values = sheet.getRange(2, 1, lastRow - 1, TENNIS_LEGACY_HEADERS.length).getValues();
+  var out = [];
+  for (var i = 0; i < values.length; i++) {
+    var v = values[i];
+    if (team && String(v[0]).trim() !== String(team).trim()) continue;
+    var obj = {};
+    for (var c = 0; c < TENNIS_LEGACY_HEADERS.length; c++) obj[TENNIS_LEGACY_HEADERS[c]] = v[c];
+    out.push(obj);
+  }
+  return { success: true, rows: out };
 }
 
 function _readTennisRows(sheetName, headers, team, dateFrom, dateTo) {

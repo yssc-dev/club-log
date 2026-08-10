@@ -86,6 +86,14 @@ const TennisSync = {
   writePlayerGames(rows) {
     return _post({ action: "writeTennisPlayerGames", data: { rows: rows || [] } });
   },
+
+  getLegacyRecords() {
+    return _safeRead({ action: "getTennisLegacyRecords" }, "rows", []);
+  },
+
+  writeLegacyRecords(rows) {
+    return _post({ action: "writeTennisLegacyRecords", data: { rows: rows || [] } });
+  },
 };
 
 export default TennisSync;

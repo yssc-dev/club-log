@@ -4,6 +4,7 @@ import {
   LEAGUE_BK, LEAGUE_BR,
   COMPETITION_SINGLES, COMPETITION_DOUBLES, COMPETITION_NONE,
   TENNIS_MATCH_COLUMNS, TENNIS_PLAYER_GAME_COLUMNS,
+  TENNIS_LEGACY_COLUMNS,
 } from '../tennisSchema';
 
 describe('상수', () => {
@@ -58,5 +59,12 @@ describe('TENNIS_PLAYER_GAME_COLUMNS', () => {
     ]) {
       expect(TENNIS_PLAYER_GAME_COLUMNS).toContain(col);
     }
+  });
+});
+
+describe('TENNIS_LEGACY_COLUMNS', () => {
+  it('레거시전적 7컬럼 — Apps Script TENNIS_LEGACY_HEADERS와 1:1', () => {
+    expect(TENNIS_LEGACY_COLUMNS).toEqual(
+      ['team', 'sport', 'season', 'format', 'player', 'wins', 'losses']);
   });
 });

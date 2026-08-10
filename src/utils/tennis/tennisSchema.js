@@ -33,3 +33,8 @@ export const TENNIS_PLAYER_GAME_COLUMNS = [
   'bagels_taken', 'bagels_given',
   'grade_at_date', 'league', 'input_time',
 ];
+
+// 2024·2025 시즌 집계(로우데이터 없는 연도). 통산 = 이 시트 + 로그 실계산 합산.
+export const TENNIS_LEGACY_COLUMNS = [
+  'team', 'sport', 'season', 'format', 'player', 'wins', 'losses',
+];
