@@ -50,7 +50,14 @@ for (const { tab, month } of TABS) {
   // 행 중간의 빈 셀이 null로 올 수 있어 Number(null)=0 오인 방지.
   const rawRows = XLSX.utils.sheet_to_json(ws, { header: 1, raw: false });
   const rows2d = rawRows.map(row => row.map(cell => (cell === null ? '' : cell)));
-  const { matches, skipped } = parseDoublesTab(rows2d, { expectMonth: month });
+  // 열 오프셋 정규화: Google export?format=xlsx가 leading empty A열을 used range에서
+  // 제거할 수 있다(실측: dateIdx=0). 헤더 행의 '날짜' 위치를 찾아 index 1에 오도록 패딩.
+  const headerRowIdx = rows2d.findIndex(row => row.some(cell => String(cell).trim() === '날짜'));
+  if (headerRowIdx === -1) die(`탭 ${tab}: 날짜 헤더를 찾지 못함`);
+  const dateIdx = rows2d[headerRowIdx].findIndex(cell => String(cell).trim() === '날짜');
+  if (dateIdx !== 0 && dateIdx !== 1) die(`탭 ${tab}: 날짜 헤더가 예상 외 위치(index ${dateIdx})에 있음`);
+  const normalized = dateIdx === 0 ? rows2d.map(row => ['', ...row]) : rows2d;
+  const { matches, skipped } = parseDoublesTab(normalized, { expectMonth: month });
   allMatches.push(...matches);
   allSkipped.push(...skipped.map(s => ({ ...s, tab })));
 }
