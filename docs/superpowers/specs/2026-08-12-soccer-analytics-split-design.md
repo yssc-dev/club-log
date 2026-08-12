@@ -82,6 +82,21 @@ const { calcXxx, ... } = isSoccer ? soccerCalc : futsalCalc;  // 컴포넌트 �
 축구 지표 수식 변경 = `soccerAnalytics`(+`soccerScoring.js`)만. 풋살 숫자 절대 불변.
 완료 시 메모리에 기록.
 
+## 풋살 무영향 검증 게이트 (필수, 각 페이즈 커밋 전)
+
+1. **원본 diff 감사**: 페이즈 1 커밋 전 `git diff --stat -- src/utils/analyticsV2/`가
+   **빈 출력**이어야 한다(원본 계산 모듈·테스트 완전 무수정 증명). 페이즈 2 커밋 전에는
+   변경 파일이 정확히 `calcTrends.js`·`calcStreaks.js`(+신규 테스트)뿐인지 확인.
+2. **풋살 기본 경로 정적 확인**: 배선된 6개 컴포넌트에서 `isSoccer` 미전달(풋살 호출부)
+   시 기본값 `false` → futsalCalc가 선택됨을 스모크 테스트로 확인
+   (`analyticsTabs.smoke.test.jsx`는 isSoccer 없이 렌더 = 풋살 경로).
+3. **기존 스위트 그린**: analyticsV2 기존 테스트 전건 무수정 통과 = 풋살 계산 결과 불변.
+4. **크래시 방어 2건 결과 동일성**: 정상 데이터(전 행 date 존재) 입력에서 수정 전후
+   출력이 동일함을 테스트로 고정(신규 테스트, 원본 테스트는 무수정 유지).
+5. **누수 그레프**: `grep -rn "soccerAnalytics" src/` 결과가 배선 6개 컴포넌트와
+   soccerAnalytics 내부·테스트뿐인지 확인 — 풋살 전용 파일(gameRecordBuilder,
+   CrovaGogumaRankTab 등)에 유입 금지.
+
 ## 테스트 전략
 
 - 페이즈 1: 기존 스위트 그린 = 풋살 불변 증명. soccerAnalytics 복사 테스트 그린 = 복사
