@@ -7,6 +7,7 @@ import FirebaseSync from './services/firebaseSync';
 import TennisSync from './services/tennisSync';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
 import { buildTennisMatchRows, buildTennisPlayerGameRows } from './utils/tennis/tennisRowBuilders';
+import { nowKST } from './utils/tennis/tennisTime';
 import { allRoundsConfirmed, isLastRoundConfirmed } from './utils/tennis/roundConfirm';
 import TennisAttendeeSelector from './components/tennis/TennisAttendeeSelector';
 import TennisRoundNav from './components/tennis/TennisRoundNav';
@@ -88,9 +89,10 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     try {
       const memberSet = new Set(roster.map(m => m.name));
       const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
-      const inputTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
-      const matchRows = buildTennisMatchRows({ team, state, inputTime, memberSet });
-      const pgRows = buildTennisPlayerGameRows({ team, state, inputTime, memberSet, gradeByPlayer });
+      const inputTime = nowKST();
+      const inputBy = authUser?.name || '';
+      const matchRows = buildTennisMatchRows({ team, state, inputTime, inputBy, memberSet });
+      const pgRows = buildTennisPlayerGameRows({ team, state, inputTime, inputBy, memberSet, gradeByPlayer });
       const results = await Promise.allSettled([
         TennisSync.writeMatches(matchRows),
         TennisSync.writePlayerGames(pgRows),

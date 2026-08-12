@@ -91,6 +91,12 @@ export function tennisReducer(state, action) {
       };
     }
 
+    case 'SET_GAME_DATE': {
+      if (state.phase !== 'setup') return state;         // 경기 시작 후 고정
+      if (!/^\d{4}-\d{2}-\d{2}$/.test(action.date || '')) return state;
+      return { ...state, gameDate: action.date, season: Number(action.date.slice(0, 4)) };
+    }
+
     case 'SET_ATTENDEES':
       return { ...state, attendees: action.attendees || [] };
 
