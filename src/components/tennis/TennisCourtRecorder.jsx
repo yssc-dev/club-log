@@ -26,7 +26,7 @@ function DoubleFaultBadge({ C }) {
   );
 }
 
-function Column({ side, court, cur, tb, courtKey, dispatch, C, s }) {
+function Column({ side, court, cur, tb, courtKey, dispatch, C, s, scoringRules }) {
   const players = side === 'A' ? court.sideA : court.sideB;
   const games = side === 'A' ? cur.a : cur.b;
   const points = side === 'A' ? cur.tbA : cur.tbB;
@@ -50,7 +50,7 @@ function Column({ side, court, cur, tb, courtKey, dispatch, C, s }) {
             ...s.btnFull(tone), minHeight: 46, borderRadius: 999,
             fontSize: 14, fontWeight: 600, letterSpacing: '-0.01em',
           }}>
-          {tb ? '포인트 +1' : '게임 +1'}
+          {tb ? (scoringRules?.tiebreakMode === '1point' ? '승부 포인트' : '포인트 +1') : '게임 +1'}
         </button>
       </div>
       {/* 에이스/DF는 편이 아니라 선수마다 — 복식에서 잘못 귀속되면 2차에서 복원 불가 */}
@@ -78,25 +78,26 @@ function Column({ side, court, cur, tb, courtKey, dispatch, C, s }) {
   );
 }
 
-export default function TennisCourtRecorder({ court, roundIdx, dispatch, C, styles: s }) {
+export default function TennisCourtRecorder({ court, roundIdx, dispatch, C, styles: s, scoringRules }) {
   const courtKey = { roundIdx, courtId: court.courtId };
   const cur = court.sets[court.currentSet] || { a: 0, b: 0, tbA: 0, tbB: 0 };
   const tb = isTiebreakActive(cur);
   const canEndSet = isSetComplete(cur);
+  const tbLabel = scoringRules?.tiebreakMode === '1point' ? '타이브레이크 (1점 데스)' : '타이브레이크 (7점)';
 
   return (
     <div>
       <div style={{ textAlign: 'center', fontSize: 12, color: C.gray, marginBottom: 8 }}>
-        {tb ? '타이브레이크 (7점)' : `세트 ${court.currentSet + 1} / ${court.bestOf}`}
+        {tb ? tbLabel : `세트 ${court.currentSet + 1} / ${court.bestOf}`}
         {court.sets.filter(set => set.done).map((set, i) => (
           <span key={i} style={{ marginLeft: 8 }}>{set.a}:{set.b}{set.tbA || set.tbB ? ` (${set.tbA}-${set.tbB})` : ''}</span>
         ))}
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 20px 1fr', gap: 4 }}>
-        <Column side="A" court={court} cur={cur} tb={tb} courtKey={courtKey} dispatch={dispatch} C={C} s={s} />
+        <Column side="A" court={court} cur={cur} tb={tb} courtKey={courtKey} dispatch={dispatch} C={C} s={s} scoringRules={scoringRules} />
         <div />
-        <Column side="B" court={court} cur={cur} tb={tb} courtKey={courtKey} dispatch={dispatch} C={C} s={s} />
+        <Column side="B" court={court} cur={cur} tb={tb} courtKey={courtKey} dispatch={dispatch} C={C} s={s} scoringRules={scoringRules} />
       </div>
 
       <div style={{ display: 'flex', gap: 6, marginTop: 10 }}>

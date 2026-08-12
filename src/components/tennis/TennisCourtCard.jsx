@@ -64,7 +64,7 @@ function DoneCourtCard({ court, roundIdx, dispatch, C, styles: s, locked }) {
   );
 }
 
-export default function TennisCourtCard({ court, roundIdx, attendees, usedNames, dispatch, C, styles: s, canDelete, locked }) {
+export default function TennisCourtCard({ court, roundIdx, attendees, usedNames, dispatch, C, styles: s, canDelete, locked, scoringRules }) {
   if (court.status === 'done') {
     return <DoneCourtCard court={court} roundIdx={roundIdx} dispatch={dispatch} C={C} styles={s} locked={locked} />;
   }
@@ -77,7 +77,7 @@ export default function TennisCourtCard({ court, roundIdx, attendees, usedNames,
       {court.status === 'ready'
         ? <TennisCourtSetup court={court} roundIdx={roundIdx} attendees={attendees}
             usedNames={usedNames} dispatch={dispatch} C={C} styles={s} canDelete={canDelete} />
-        : <TennisCourtRecorder court={court} roundIdx={roundIdx} dispatch={dispatch} C={C} styles={s} />}
+        : <TennisCourtRecorder court={court} roundIdx={roundIdx} dispatch={dispatch} C={C} styles={s} scoringRules={scoringRules} />}
     </div>
   );
 }

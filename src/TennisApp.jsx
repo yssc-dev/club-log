@@ -2,6 +2,7 @@ import { useEffect, useState, useMemo, useRef } from 'react';
 import { useTennisReducer } from './hooks/useTennisReducer';
 import { useTheme } from './hooks/useTheme';
 import { makeStyles } from './styles/theme';
+import { getEffectiveSettings } from './config/settings';
 import FirebaseSync from './services/firebaseSync';
 import TennisSync from './services/tennisSync';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
@@ -41,6 +42,8 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     if (isNewGame) {
       const date = todayLocal();
       dispatch({ type: 'SET_GAME_META', gameId, team, gameDate: date, season: Number(date.slice(0, 4)), gameCreator: authUser?.name || '' });
+      const eff = getEffectiveSettings(team, '테니스');
+      if (eff?.scoringRules) dispatch({ type: 'SET_SCORING_RULES', rules: eff.scoringRules });
       return;
     }
     FirebaseSync.loadStateReconstructed(team, gameId).then(raw => {
@@ -135,6 +138,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
         </div>
         <TennisAttendeeSelector roster={roster} attendees={state.attendees} guests={state.guests}
           gameDate={state.gameDate} dispatch={dispatch} C={C} styles={s}
+          scoringRules={state.scoringRules}
           onStart={() => dispatch({ type: 'ADD_ROUND' })} />
       </div>
     );
@@ -221,7 +225,8 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
         {(round?.courts || []).map(c => (
           <TennisCourtCard key={c.courtId} court={c} roundIdx={round.roundIdx}
             attendees={state.attendees} usedNames={usedNames} dispatch={dispatch} C={C} styles={s}
-            canDelete={(round.courts || []).length > 1} locked={viewingConfirmed} />
+            canDelete={(round.courts || []).length > 1} locked={viewingConfirmed}
+            scoringRules={state.scoringRules} />
         ))}
         {!viewingConfirmed && (
           <button onClick={() => dispatch({ type: 'ADD_COURT', roundIdx: round.roundIdx })}
