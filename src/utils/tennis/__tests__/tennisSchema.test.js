@@ -26,13 +26,14 @@ describe('상수', () => {
 });
 
 describe('TENNIS_MATCH_COLUMNS', () => {
-  it('21칸, 스펙 5.2 순서 그대로', () => {
-    expect(TENNIS_MATCH_COLUMNS).toHaveLength(21);
+  it('22칸, 스펙 5.2 순서 그대로', () => {
+    expect(TENNIS_MATCH_COLUMNS).toHaveLength(22);
     expect(TENNIS_MATCH_COLUMNS[0]).toBe('team');
     expect(TENNIS_MATCH_COLUMNS[8]).toBe('match_id');
     expect(TENNIS_MATCH_COLUMNS[13]).toBe('sets_json');
     expect(TENNIS_MATCH_COLUMNS[18]).toBe('winner');
     expect(TENNIS_MATCH_COLUMNS[20]).toBe('input_time');
+    expect(TENNIS_MATCH_COLUMNS[21]).toBe('input_by');
   });
 
   it('구기 전용 필드가 섞이지 않는다', () => {
@@ -43,12 +44,13 @@ describe('TENNIS_MATCH_COLUMNS', () => {
 });
 
 describe('TENNIS_PLAYER_GAME_COLUMNS', () => {
-  it('29칸, 스펙 5.3 순서 그대로', () => {
-    expect(TENNIS_PLAYER_GAME_COLUMNS).toHaveLength(29);
+  it('30칸, 스펙 5.3 순서 그대로', () => {
+    expect(TENNIS_PLAYER_GAME_COLUMNS).toHaveLength(30);
     expect(TENNIS_PLAYER_GAME_COLUMNS[0]).toBe('team');
     expect(TENNIS_PLAYER_GAME_COLUMNS[8]).toBe('player');
     expect(TENNIS_PLAYER_GAME_COLUMNS[15]).toBe('result');
     expect(TENNIS_PLAYER_GAME_COLUMNS[28]).toBe('input_time');
+    expect(TENNIS_PLAYER_GAME_COLUMNS[29]).toBe('input_by');
   });
 
   it('2차 지표에 필요한 컬럼이 전부 있다 (마이그레이션 방지)', () => {

@@ -39,7 +39,7 @@ export function serializeSets(sets) {
   }));
 }
 
-export function buildTennisMatchRows({ team, state, inputTime, memberSet }) {
+export function buildTennisMatchRows({ team, state, inputTime, inputBy, memberSet }) {
   if (!state) return [];
   return finishedCourts(state).map(({ roundIdx, court, summary, matchIdx }) => ({
     team,
@@ -63,10 +63,11 @@ export function buildTennisMatchRows({ team, state, inputTime, memberSet }) {
     winner: summary.winner,
     league: determineCompetition(court.format, court.sideA, court.sideB, memberSet),
     input_time: inputTime || '',
+    input_by: inputBy || '',
   }));
 }
 
-export function buildTennisPlayerGameRows({ team, state, inputTime, memberSet, gradeByPlayer }) {
+export function buildTennisPlayerGameRows({ team, state, inputTime, inputBy, memberSet, gradeByPlayer }) {
   if (!state) return [];
   const rows = [];
 
@@ -112,6 +113,7 @@ export function buildTennisPlayerGameRows({ team, state, inputTime, memberSet, g
           grade_at_date: isGuest ? '' : ((gradeByPlayer && gradeByPlayer[player]) || ''),
           league,
           input_time: inputTime || '',
+          input_by: inputBy || '',
         });
       }
     }

@@ -21,7 +21,7 @@ export const TENNIS_MATCH_COLUMNS = [
   'format', 'best_of',
   'side_a_json', 'side_b_json',
   'sets_json', 'sets_a', 'sets_b', 'games_a', 'games_b', 'winner',
-  'league', 'input_time',
+  'league', 'input_time', 'input_by',
 ];
 
 export const TENNIS_PLAYER_GAME_COLUMNS = [
@@ -31,7 +31,7 @@ export const TENNIS_PLAYER_GAME_COLUMNS = [
   'sets_won', 'sets_lost', 'games_won', 'games_lost',
   'tb_played', 'tb_won', 'aces', 'double_faults',
   'bagels_taken', 'bagels_given',
-  'grade_at_date', 'league', 'input_time',
+  'grade_at_date', 'league', 'input_time', 'input_by',
 ];
 
 // 2024·2025 시즌 집계(로우데이터 없는 연도). 통산 = 이 시트 + 로그 실계산 합산.

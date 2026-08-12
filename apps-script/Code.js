@@ -2,6 +2,7 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-12: 로그_테니스매치/선수경기에 input_by(전송자) 컬럼 추가
 // 2026-08-10: 테니스_레거시전적 시트+액션 2종(getTennisLegacyRecords, writeTennisLegacyRecords) 추가
 // 2026-08-06: 테니스 종목 추가 — 시트 3종(테니스_회원명부/로그_테니스매치/로그_테니스선수경기)과
 //             액션 5종(getTennisRoster, getTennisMatches, getTennisPlayerGames,
@@ -102,7 +103,7 @@ var TENNIS_MATCH_HEADERS = [
   "format", "best_of",
   "side_a_json", "side_b_json",
   "sets_json", "sets_a", "sets_b", "games_a", "games_b", "winner",
-  "league", "input_time"
+  "league", "input_time", "input_by"
 ];
 
 var TENNIS_PLAYER_GAME_HEADERS = [
@@ -112,7 +113,7 @@ var TENNIS_PLAYER_GAME_HEADERS = [
   "sets_won", "sets_lost", "games_won", "games_lost",
   "tb_played", "tb_won", "aces", "double_faults",
   "bagels_taken", "bagels_given",
-  "grade_at_date", "league", "input_time"
+  "grade_at_date", "league", "input_time", "input_by"
 ];
 
 var TENNIS_LEGACY_SHEET = "테니스_레거시전적";

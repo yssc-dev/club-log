@@ -155,3 +155,16 @@ describe('buildTennisPlayerGameRows', () => {
     expect(tb.find(x => x.player === '철우')).toMatchObject({ tb_played: 1, tb_won: 0 });
   });
 });
+
+describe('input_by', () => {
+  it('inputBy가 매치/선수경기 행에 input_by로 들어간다', () => {
+    const matchRows = buildTennisMatchRows({ team: 'T', state, inputTime: '2026-08-12 21:00:00', inputBy: '서라현', memberSet: new Set() });
+    const pgRows = buildTennisPlayerGameRows({ team: 'T', state, inputTime: '2026-08-12 21:00:00', inputBy: '서라현', memberSet: new Set(), gradeByPlayer: {} });
+    expect(matchRows[0].input_by).toBe('서라현');
+    expect(pgRows[0].input_by).toBe('서라현');
+  });
+
+  it('inputBy 미전달 시 빈 문자열', () => {
+    expect(buildTennisMatchRows({ team: 'T', state, inputTime: '', memberSet: new Set() })[0].input_by).toBe('');
+  });
+});
