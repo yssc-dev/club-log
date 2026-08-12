@@ -63,14 +63,14 @@ export default function TennisAttendeeSelector({ roster, attendees, guests, game
           );
         })}
         {guests.map(g => (
-          <span key={g} style={{ ...s.chip(false), cursor: 'default' }}>
+          <span key={g} style={{ ...s.chip(true), cursor: 'default' }}>
             {g} <span style={{ fontSize: 10, opacity: 0.7 }}>용병</span>
           </span>
         ))}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 12 }}>
         <input value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="용병 이름"
-          style={{ ...s.input, flex: 1 }} />
+          style={{ ...s.input, flex: 1, border: `1px solid ${C.grayDarker}` }} />
         <button onClick={() => {
           if (!guestName.trim()) return;
           dispatch({ type: 'ADD_ATTENDEE', name: guestName.trim(), isGuest: true });

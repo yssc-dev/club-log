@@ -4,7 +4,7 @@ import { isRoundComplete, unfinishedCourtLabels } from '../../utils/tennis/round
 //   미확정+전 코트 완료 → [라운드 N 확정]
 //   미확정+미완료 존재 → 비활성 + 미완료 코트 안내 (자동 폐기 없음 — 스펙 §2)
 //   확정됨           → [라운드 N 확정취소]
-export default function TennisConfirmBar({ round, isConfirmed, onConfirm, onUnconfirm, C, styles: s }) {
+export default function TennisConfirmBar({ round, isConfirmed, onConfirm, onUnconfirm, canAddRound, onAddRound, C, styles: s }) {
   if (!round) return null;
   const complete = isRoundComplete(round);
   const unfinished = unfinishedCourtLabels(round);
@@ -12,7 +12,15 @@ export default function TennisConfirmBar({ round, isConfirmed, onConfirm, onUnco
   if (isConfirmed) {
     return (
       <div style={{ ...s.bottomBar, flexDirection: 'column', gap: 6 }}>
-        <button onClick={onUnconfirm} style={s.btnFull(C.orange)}>
+        {canAddRound && (
+          <button onClick={onAddRound} style={s.btnFull(C.accent)}>
+            + 다음 라운드 시작
+          </button>
+        )}
+        <button onClick={onUnconfirm}
+          style={canAddRound
+            ? { ...s.btnSm(), alignSelf: 'center', background: 'transparent', color: C.gray }
+            : s.btnFull(C.orange)}>
           라운드 {round.roundIdx} 확정취소
         </button>
       </div>

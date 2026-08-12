@@ -243,7 +243,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
         )}
       </div>
 
-      <TennisConfirmBar round={round} isConfirmed={viewingConfirmed} onConfirm={handleConfirmRound} onUnconfirm={handleUnconfirmRound} C={C} styles={s} />
+      <TennisConfirmBar round={round} isConfirmed={viewingConfirmed} onConfirm={handleConfirmRound} onUnconfirm={handleUnconfirmRound} canAddRound={canAddRound} onAddRound={() => dispatch({ type: 'ADD_ROUND' })} C={C} styles={s} />
     </div>
   );
 }
