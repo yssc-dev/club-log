@@ -20,9 +20,10 @@
 
 | 항목 | 결정 |
 |---|---|
-| 대시보드 탭 | 1단계는 "준비 중" placeholder, 2단계에서 채움 |
-| 회원관리 탭 | 1단계는 "준비 중" placeholder(관리자 전용), 기능은 별도 서브프로젝트 |
-| 탭 순서 | `[대시보드] · [분석] · [경기관리] · [회원관리(관리자)]`, 개인기록 탭 제거 |
+| 대시보드 탭 | 라벨에 **beta 딱지**, 콘텐츠는 1단계 미구현(2단계에서 채움) |
+| 회원관리 탭 | 라벨에 **beta 딱지**(관리자 전용), 기능은 별도 서브프로젝트 |
+| beta 표기 | "준비 중" 문구 대신 탭 라벨 옆 작은 **beta 배지**(경기관리 "진행중" 배지와 별개 스타일) |
+| 탭 순서 | `[대시보드·beta] · [분석] · [경기관리] · [회원관리·beta(관리자)]`, 개인기록 탭 제거 |
 | 기본 진입 탭 | 분석(현행 유지 — 대시보드는 아직 비어 있음) |
 | 분석 기본 상태 | **전체 랭킹**(선수 미선택) |
 | 개인 뷰 구성 | 요약 카드 + 파트너별(복식) + 상대전적 + 월별흐름 + 연도별 |
@@ -49,10 +50,10 @@
 ```js
 {(isTennis
   ? [
-      { key: "tdash",   label: "대시보드" },
+      { key: "tdash",   label: "대시보드", beta: true },
       { key: "records", label: "분석" },
       { key: "games",   label: "경기관리", badge: pendingGames.length > 0 },
-      activeEntry?.role === "관리자" && { key: "members", label: "회원관리" },
+      activeEntry?.role === "관리자" && { key: "members", label: "회원관리", beta: true },
     ]
   : [
       { key: "records", label: "대시보드" },
@@ -65,6 +66,12 @@
 ```
 
 - 비테니스 배열은 기존과 **의미 동일**: 테니스가 빠졌으므로 `records` 라벨은 항상 "대시보드", `analytics`의 `activeSport !== "테니스"`는 항상 참(그대로 두어도 무방하나 명시적으로 유지). 축구/풋살 탭 구성·순서·badge 무변경.
+- **beta 배지**: map 본문(939-946행)의 라벨 렌더 옆에 `tab.beta`용 span을 **추가**한다(기존 `tab.badge`의 "진행중" 초록 배지는 그대로 두고 별개 조건):
+  ```jsx
+  {tab.badge && <span style={{ ...초록 진행중 배지, 기존 그대로 }}>진행중</span>}
+  {tab.beta &&  <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "#a78bfa22", color: "#a78bfa", fontWeight: 700, letterSpacing: 0.3 }}>beta</span>}
+  ```
+  비테니스 탭은 `beta` 키가 없어 이 span 미표시 → 축구/풋살 무영향.
 - 기본 `activeTab`은 `useState("records")`(29행) 유지 — 테니스에선 "분석"(records)에 착지, 대시보드(tdash)는 탭해서 진입.
 - 렌더 분기(951-954행): 테니스는 `TennisTabs`가 `activeTab`을 받아 전 분기를 처리하므로, 새 키 `tdash`를 TennisTabs가 처리하게 한다(4.3). TeamDashboard의 테니스 렌더 호출부는 그대로.
 
@@ -90,13 +97,13 @@ toggle/select UI(427-449행)는 유지. `useMemo`들은 그대로 두되(계산�
 
 - `roster` 분기(55-75행: "내 전적" 요약 카드) **삭제**.
 - `StatCell` 컴포넌트 + 요약 카드 마크업을 분석 개인 뷰의 **요약 카드**로 이동(TennisAnalyticsTab 내부 또는 공용 소컴포넌트). 값은 동일하게 `buildPlayerSummary` 사용.
-- 새 `tdash`·`members` 분기 추가 → placeholder:
+- 새 `tdash`·`members` 분기 추가 → beta placeholder("준비 중" 문구 없이 beta 표기):
   ```js
-  if (activeTab === 'tdash')   return <Placeholder text="대시보드 준비 중" />;
-  if (activeTab === 'members') return <Placeholder text="회원관리 준비 중" />;
+  if (activeTab === 'tdash')   return <Placeholder text="대시보드 · beta" />;
+  if (activeTab === 'members') return <Placeholder text="회원관리 · beta" />;
   // Placeholder = <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>{text}</div>
   ```
-  회원관리 탭은 TeamDashboard에서 관리자에게만 노출되므로 비관리자는 `members` activeTab에 도달할 수 없음(방어적으로 placeholder는 무해).
+  탭 라벨의 beta 배지가 미완성 표시 주체이고, 콘텐츠 placeholder는 "준비 중" 대신 `· beta`로 최소 표기. 회원관리 탭은 TeamDashboard에서 관리자에게만 노출되므로 비관리자는 `members` activeTab에 도달할 수 없음(방어적으로 placeholder는 무해).
 - `records` 분기(→ `TennisAnalyticsTab`)·`games` 분기 유지. `authUserName`은 TennisAnalyticsTab에 계속 전달(개인 뷰 기본은 전체지만, 유저가 select에서 본인 선택 시 사용 — 기본 선택엔 안 씀).
 
 ### 4.4 컬럼 정렬 (신규) — `src/utils/tennis/useSortableRows.js` + `SortHeader`
@@ -141,7 +148,7 @@ toggle/select UI(427-449행)는 유지. `useMemo`들은 그대로 두되(계산�
 - **`useSortableRows` 유닛**: 숫자 desc 우선·텍스트 ko asc·같은 key 토글(asc↔desc)·다른 key 전환·`initial=null`이면 원순서·안정성(동값 순서 보존).
 - **분석 뷰 전환**(렌더 또는 순수 함수 스모크): `player=''`이면 전체 섹션만(순위·케미·TB·베이글·에이스), 개인 전용 섹션(요약카드·파트너별·상대전적·월별·연도별) 미표시. `player='홍길동'`이면 반대. 복식/단식 각각.
 - **요약 카드**: `buildPlayerSummary` 반환값(단·복식 전적·출석·에이스·DF·TB·베이글) 표기 확인.
-- **탭 배열 회귀**: 테니스(관리자)=`[대시보드, 분석, 경기관리, 회원관리]`, 테니스(비관리자)=`[대시보드, 분석, 경기관리]`(개인기록 없음, 회원관리 없음); 축구/풋살 탭 배열 기존 유지 — 기존 `analyticsTabs.smoke.test.jsx`가 비테니스 회귀 감시.
+- **탭 배열 회귀**: 테니스(관리자)=`[대시보드, 분석, 경기관리, 회원관리]`, 테니스(비관리자)=`[대시보드, 분석, 경기관리]`(개인기록 없음, 회원관리 없음); 대시보드·회원관리는 `beta:true`, 축구/풋살 탭 배열·배지 기존 유지 — 기존 `analyticsTabs.smoke.test.jsx`가 비테니스 회귀 감시.
 - 전체 스위트(820) 통과 유지 + 신규 테스트.
 
 ## 6. 하위 호환·리스크
