@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { normalizeTennisCourt, normalizeTennisMatch } from '../normalizeTennisMatch';
+import { normalizeTennisCourt, normalizeTennisMatch, normalizeScoringRules } from '../normalizeTennisMatch';
 
 describe('normalizeTennisCourt', () => {
   it('undefined 배열 필드를 빈 배열로 되살린다', () => {
@@ -71,6 +71,19 @@ describe('normalizeTennisMatch', () => {
     });
     expect(s.rounds[0].courts[0].sideB).toEqual(['김성환']);
     expect(s.rounds[0].courts[0].sets).toEqual([]);
+  });
+});
+
+describe('scoringRules 보정', () => {
+  it('없으면 기본값(7point, false)', () => {
+    expect(normalizeTennisMatch({ rounds: [] }).scoringRules)
+      .toEqual({ tiebreakMode: '7point', acesDfAffectScore: false });
+  });
+  it('부분/이상 값은 정규화', () => {
+    expect(normalizeTennisMatch({ rounds: [], scoringRules: { tiebreakMode: '1point' } }).scoringRules)
+      .toEqual({ tiebreakMode: '1point', acesDfAffectScore: false });
+    expect(normalizeTennisMatch({ rounds: [], scoringRules: { tiebreakMode: 'xxx', acesDfAffectScore: true } }).scoringRules)
+      .toEqual({ tiebreakMode: '7point', acesDfAffectScore: true });
   });
 });
 

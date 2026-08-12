@@ -3,7 +3,7 @@ import {
   emptySet, incrementGame, incrementTiebreakPoint,
   isTiebreakActive, isSetComplete, matchWinner,
 } from '../utils/tennis/tennisScoring';
-import { normalizeTennisMatch, normalizeTennisCourt } from '../utils/tennis/normalizeTennisMatch';
+import { normalizeTennisMatch, normalizeTennisCourt, normalizeScoringRules } from '../utils/tennis/normalizeTennisMatch';
 import { isRoundComplete } from '../utils/tennis/roundConfirm';
 
 export const tennisInitialState = {
@@ -19,6 +19,7 @@ export const tennisInitialState = {
   viewingRoundIdx: 1,
   gameCreator: '',
   confirmedRounds: {},
+  scoringRules: { tiebreakMode: '7point', acesDfAffectScore: false },
   gameFinalized: false,
 };
 
@@ -91,6 +92,10 @@ export function tennisReducer(state, action) {
 
     case 'SET_ATTENDEES':
       return { ...state, attendees: action.attendees || [] };
+
+    case 'SET_SCORING_RULES':
+      if (state.phase !== 'setup') return state;   // 경기 시작 후 고정
+      return { ...state, scoringRules: normalizeScoringRules(action.rules) };
 
     case 'ADD_ATTENDEE': {
       if (!action.name || state.attendees.includes(action.name)) return state;
@@ -193,7 +198,7 @@ export function tennisReducer(state, action) {
         if (c.status !== 'playing') return c;
         const cur = currentSetOf(c);
         if (!isTiebreakActive(cur)) return c;
-        const next = incrementTiebreakPoint(cur, action.side);
+        const next = incrementTiebreakPoint(cur, action.side, state.scoringRules);
         return pushUndo(withCurrentSet(c, next), { kind: 'tb', side: action.side, setIdx: c.currentSet });
       });
 
@@ -202,7 +207,18 @@ export function tennisReducer(state, action) {
         if (c.status !== 'playing') return c;
         const prev = c.stats[action.player] || { aces: 0, df: 0 };
         const stats = { ...c.stats, [action.player]: { ...prev, [action.stat]: (prev[action.stat] || 0) + 1 } };
-        return pushUndo({ ...c, stats }, { kind: 'stat', player: action.player, stat: action.stat });
+        let nextCourt = { ...c, stats };
+        let scoredSide = null;
+        if (state.scoringRules?.acesDfAffectScore) {
+          const cur = currentSetOf(c);
+          if (cur && !isTiebreakActive(cur)) {   // TB 중엔 stats만
+            const playerSide = c.sideA.includes(action.player) ? 'A' : 'B';
+            const targetSide = action.stat === 'aces' ? playerSide : (playerSide === 'A' ? 'B' : 'A');
+            const incd = incrementGame(cur, targetSide);
+            if (incd !== cur) { nextCourt = withCurrentSet(nextCourt, incd); scoredSide = targetSide; }
+          }
+        }
+        return pushUndo(nextCourt, { kind: 'stat', player: action.player, stat: action.stat, scoredSide, setIdx: c.currentSet });
       });
 
     case 'END_SET':
@@ -238,15 +254,25 @@ export function tennisReducer(state, action) {
           const key = last.side === 'A' ? 'tbA' : 'tbB';
           const games = last.side === 'A' ? 'a' : 'b';
           const nextPoint = Math.max(0, (s[key] || 0) - 1);
-          // 7점 도달로 6게임이 확정됐던 경우 게임도 5로 되돌린다.
-          const nextGames = (s[key] || 0) >= 7 ? 5 : s[games];
+          // threshold 도달로 6게임이 확정됐던 경우 게임도 5로 되돌린다.
+          const threshold = state.scoringRules?.tiebreakMode === '1point' ? 1 : 7;
+          const nextGames = (s[key] || 0) >= threshold ? 5 : s[games];
           sets[last.setIdx] = { ...s, [key]: nextPoint, [games]: nextGames };
           return { ...c, sets, undoStack: rest };
         }
         if (last.kind === 'stat') {
           const prev = c.stats[last.player] || { aces: 0, df: 0 };
           const stats = { ...c.stats, [last.player]: { ...prev, [last.stat]: Math.max(0, (prev[last.stat] || 0) - 1) } };
-          return { ...c, stats, undoStack: rest };
+          let base2 = { ...c, stats, undoStack: rest };
+          if (last.scoredSide) {   // 스코어 반영분도 되돌림
+            const setsCopy = [...c.sets];
+            const key = last.scoredSide === 'A' ? 'a' : 'b';
+            const sIdx = last.setIdx ?? c.currentSet;
+            const sSet = setsCopy[sIdx];
+            if (sSet) setsCopy[sIdx] = { ...sSet, [key]: Math.max(0, (sSet[key] || 0) - 1) };
+            base2 = { ...base2, sets: setsCopy };
+          }
+          return base2;
         }
         if (last.kind === 'endSet') {
           // ★ 세트 종료가 판을 끝냈다면 status도 함께 되돌린다.

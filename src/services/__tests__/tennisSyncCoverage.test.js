@@ -18,7 +18,7 @@ const TENNIS_LOCAL_ONLY = [
   'viewingRoundIdx', // 보기 위치 — 사용자별 로컬, 원격값 무시 (풋살 LOCAL_ONLY_FIELDS와 동일 이유)
 ];
 
-// 왕복 검증용 테니스 상태 — 라운드 1개, 코트 1개, 세트 스코어 4:3, stats, guests 포함
+// 왕복 검증용 테니스 상태 — 라운드 1개, 코트 1개, 세트 스코어 4:3, stats, guests, scoringRules 포함
 const SAMPLE_TENNIS_STATE = {
   gameId: 'game-test-1',
   team: '마스터FC',
@@ -31,6 +31,7 @@ const SAMPLE_TENNIS_STATE = {
   gameCreator: '홍길동',
   gameFinalized: false,
   viewingRoundIdx: 1,
+  scoringRules: { tiebreakMode: '1point', acesDfAffectScore: true },
   rounds: [
     {
       roundIdx: 1,
@@ -90,6 +91,14 @@ describe('테니스 RTDB 동기화 — 왕복 테스트', () => {
 
     const court = result.rounds[0].courts[0];
     expect(court.stats['선수A'].aces).toBe(2);
+  });
+
+  it('scoringRules가 왕복(expand→reconstruct) 후 보존돼야 한다', () => {
+    const expanded = expandStateForRtdb(SAMPLE_TENNIS_STATE);
+    // TENNIS_WHOLE_REPLACE_FIELDS에 등록됐는지 확인 — scoringRules가 포함돼야 전달된다
+    expect(expanded.scoringRules).toEqual({ tiebreakMode: '1point', acesDfAffectScore: true });
+    const result = reconstructState('game-test-1', expanded);
+    expect(result.scoringRules).toEqual({ tiebreakMode: '1point', acesDfAffectScore: true });
   });
 });
 

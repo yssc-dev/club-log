@@ -38,6 +38,15 @@ export function normalizeTennisCourt(court) {
   };
 }
 
+export function normalizeScoringRules(v) {
+  const d = { tiebreakMode: '7point', acesDfAffectScore: false };
+  if (!v || typeof v !== 'object') return d;
+  return {
+    tiebreakMode: v.tiebreakMode === '1point' ? '1point' : '7point',
+    acesDfAffectScore: v.acesDfAffectScore === true,
+  };
+}
+
 // confirmedRounds는 숫자 키 객체 — RTDB가 [null,true,…] 배열로 되돌릴 수 있다.
 function normalizeConfirmedRounds(v) {
   if (!v || typeof v !== 'object') return {};
@@ -64,5 +73,6 @@ export function normalizeTennisMatch(state) {
     guests: asArray(state.guests),
     rounds,
     confirmedRounds: normalizeConfirmedRounds(state.confirmedRounds),
+    scoringRules: normalizeScoringRules(state.scoringRules),
   };
 }
