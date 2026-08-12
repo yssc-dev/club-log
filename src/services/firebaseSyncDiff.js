@@ -21,7 +21,7 @@ export const WHOLE_REPLACE_FIELDS = [
 // WHOLE_REPLACE_FIELDS에 섞으면 syncCoverage 의 stale 가드가 깨진다.
 // (그 가드는 풋살 initialState 기준으로 오타/삭제를 잡는 장치이므로 약화시키지 않는다)
 export const TENNIS_WHOLE_REPLACE_FIELDS = [
-  'rounds', 'guests',
+  'rounds', 'guests', 'confirmedRounds',
 ];
 
 // 자식 노드 단위로 diff/동기화되는 필드 (META/WHOLE_REPLACE 외). diffStateToWrites 의 개별 분기와 1:1.
@@ -368,10 +368,11 @@ export function reconstructState(gameId, raw) {
     schedule: normalizeSchedule(raw.schedule, matches),
     attendees: raw.attendees || [],
     opponents: raw.opponents || [],
-    // 테니스 whole-replace — normalizeTennisMatch이 빈배열 기본값을 담당하므로 || [] 없음.
-    // undefined면 normalizeTennisMatch(state.rounds)가 [] 로 복원한다.
+    // 테니스 whole-replace — normalizeTennisMatch이 빈배열/기본값을 담당하므로 || 없음.
+    // undefined면 normalizeTennisMatch가 각각 [] / {} 로 복원한다.
     rounds: raw.rounds,
     guests: raw.guests,
+    confirmedRounds: raw.confirmedRounds,
     freeCourtMatches: raw.freeCourtMatches || {},
     pushState: raw.pushState ?? null,
     settingsSnapshot: raw.settingsSnapshot ?? null,
@@ -380,7 +381,6 @@ export function reconstructState(gameId, raw) {
     gksHistory: raw.gksHistory || {},
     liveMercs: raw.liveMercs || {},
     absentees: raw.absentees || {},
-    confirmedRounds: raw.confirmedRounds || {},
     allEvents: events,
     completedMatches: matches,
     soccerMatches,

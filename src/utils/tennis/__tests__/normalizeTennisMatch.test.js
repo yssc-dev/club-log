@@ -73,3 +73,18 @@ describe('normalizeTennisMatch', () => {
     expect(s.rounds[0].courts[0].sets).toEqual([]);
   });
 });
+
+describe('confirmedRounds 보정', () => {
+  it('없으면 {} — 기존 진행 경기 하위 호환', () => {
+    expect(normalizeTennisMatch({ rounds: [] }).confirmedRounds).toEqual({});
+  });
+  it('RTDB가 배열로 되돌려도 객체로 복원한다', () => {
+    // roundIdx가 1부터라 RTDB는 [null, true, true]로 저장할 수 있다
+    const out = normalizeTennisMatch({ rounds: [], confirmedRounds: [null, true, true] });
+    expect(out.confirmedRounds).toEqual({ 1: true, 2: true });
+  });
+  it('객체는 true 값만 유지한다', () => {
+    const out = normalizeTennisMatch({ rounds: [], confirmedRounds: { 1: true, 2: false, 3: 'x' } });
+    expect(out.confirmedRounds).toEqual({ 1: true });
+  });
+});

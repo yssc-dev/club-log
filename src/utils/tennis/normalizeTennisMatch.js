@@ -38,6 +38,16 @@ export function normalizeTennisCourt(court) {
   };
 }
 
+// confirmedRounds는 숫자 키 객체 — RTDB가 [null,true,…] 배열로 되돌릴 수 있다.
+function normalizeConfirmedRounds(v) {
+  if (!v || typeof v !== 'object') return {};
+  const out = {};
+  for (const [k, val] of Object.entries(v)) {
+    if (val === true) out[k] = true;
+  }
+  return out;
+}
+
 export function normalizeTennisMatch(state) {
   if (!state) return null;
   const rounds = asArray(state.rounds)
@@ -53,5 +63,6 @@ export function normalizeTennisMatch(state) {
     attendees: asArray(state.attendees),
     guests: asArray(state.guests),
     rounds,
+    confirmedRounds: normalizeConfirmedRounds(state.confirmedRounds),
   };
 }

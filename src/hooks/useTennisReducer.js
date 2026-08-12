@@ -4,6 +4,7 @@ import {
   isTiebreakActive, isSetComplete, matchWinner,
 } from '../utils/tennis/tennisScoring';
 import { normalizeTennisMatch, normalizeTennisCourt } from '../utils/tennis/normalizeTennisMatch';
+import { isRoundComplete } from '../utils/tennis/roundConfirm';
 
 export const tennisInitialState = {
   gameId: '',
@@ -17,8 +18,17 @@ export const tennisInitialState = {
   rounds: [],
   viewingRoundIdx: 1,
   gameCreator: '',
+  confirmedRounds: {},
   gameFinalized: false,
 };
+
+// 확정된 라운드의 코트는 편집 불가 — UI 차단만으로는 실시간 동기화 다중 탭에서 뚫린다.
+const COURT_EDIT_ACTIONS = new Set([
+  'ADD_COURT', 'DELETE_COURT', 'SET_COURT_FORMAT', 'SET_COURT_BEST_OF',
+  'ASSIGN_PLAYER', 'REMOVE_PLAYER', 'SWAP_SIDES', 'START_COURT',
+  'INCREMENT_GAME', 'INCREMENT_TIEBREAK_POINT', 'INCREMENT_STAT',
+  'END_SET', 'UNDO', 'EDIT_COURT_SETTINGS', 'EXTEND_TO_THREE_SETS',
+]);
 
 function newCourt(courtId) {
   return normalizeTennisCourt({ courtId, format: '단식', bestOf: 1, status: 'ready' });
@@ -59,6 +69,9 @@ function withCurrentSet(court, nextSet) {
 }
 
 export function tennisReducer(state, action) {
+  if (COURT_EDIT_ACTIONS.has(action.type) && (state.confirmedRounds || {})[action.roundIdx]) {
+    return state;
+  }
   switch (action.type) {
     case 'INIT_STATE':
       return { ...tennisInitialState, ...normalizeTennisMatch(action.state) };
@@ -261,6 +274,23 @@ export function tennisReducer(state, action) {
       return mapCourt(state, action.roundIdx, action.courtId, (c) => (
         c.bestOf === 1 ? { ...c, bestOf: 3, status: c.status === 'done' ? 'playing' : c.status } : c
       ));
+
+    case 'CONFIRM_ROUND': {
+      const r = (state.rounds || []).find(x => x.roundIdx === action.roundIdx);
+      if (!r || !isRoundComplete(r)) return state;
+      return { ...state, confirmedRounds: { ...(state.confirmedRounds || {}), [action.roundIdx]: true } };
+    }
+
+    case 'UNCONFIRM_ROUND': {
+      const next = { ...(state.confirmedRounds || {}) };
+      delete next[action.roundIdx];
+      return { ...state, confirmedRounds: next };
+    }
+
+    case 'SET_PHASE':
+      // 마감 확인 화면 왕복 전용. done 전이는 FINALIZE가 담당한다.
+      if (action.phase !== 'playing' && action.phase !== 'summary') return state;
+      return { ...state, phase: action.phase };
 
     case 'FINALIZE':
       return { ...state, gameFinalized: true, phase: 'done' };
