@@ -34,11 +34,30 @@ export function setWinner(set) {
   return null;
 }
 
-export function incrementGame(set, side) {
-  if (!set || set.done || isSetComplete(set)) return set;
-  if (isTiebreakActive(set)) return set; // 타이브레이크 중엔 포인트만 센다
+export function incrementGame(set, side, rules = {}) {
+  if (!set || set.done) return set;
   const key = side === 'A' ? 'a' : 'b';
-  return { ...set, [key]: (set[key] || 0) + 1 };
+  const other = side === 'A' ? 'b' : 'a';
+  const oneMode = rules.tiebreakMode === '1point';
+
+  // 이미 6게임인 쪽은 더 올릴 수 없다 (7 금지)
+  if ((set[key] || 0) >= GAMES_TO_WIN_SET) return set;
+
+  if (oneMode) {
+    // 1점 데스 모드: 5:5에서도 게임 +1 허용 — 단, 6:6 금지
+    const nextVal = (set[key] || 0) + 1;
+    if (nextVal >= GAMES_TO_WIN_SET && (set[other] || 0) >= GAMES_TO_WIN_SET) return set;
+    return { ...set, [key]: nextVal };
+  }
+
+  // 7점 모드(기본): 5:5는 타이브레이크로만 처리
+  if (isTiebreakActive(set)) return set;
+  // 6:5는 타이브레이크 승자만 만들 수 있는 스코어 — 게임으로 진입 금지
+  const nextVal = (set[key] || 0) + 1;
+  const ra = key === 'a' ? nextVal : (set.a || 0);
+  const rb = key === 'b' ? nextVal : (set.b || 0);
+  if (Math.max(ra, rb) === GAMES_TO_WIN_SET && Math.min(ra, rb) === GAMES_TO_WIN_SET - 1) return set;
+  return { ...set, [key]: nextVal };
 }
 
 export function incrementTiebreakPoint(set, side, rules = {}) {

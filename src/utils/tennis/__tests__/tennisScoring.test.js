@@ -140,13 +140,6 @@ describe('incrementTiebreakPoint — 모드별', () => {
     expect(s).toMatchObject({ tbA: 7, a: 6, b: 5 }); // 7점 → 6게임
   });
 
-  it("1point 모드: 첫 포인트에 즉시 6:5", () => {
-    const s = incrementTiebreakPoint(tbSet, 'A', { tiebreakMode: '1point' });
-    expect(s).toMatchObject({ tbA: 1, a: 6, b: 5 });
-    const sB = incrementTiebreakPoint(tbSet, 'B', { tiebreakMode: '1point' });
-    expect(sB).toMatchObject({ tbB: 1, b: 6, a: 5 });
-  });
-
   it("rules 없으면 7point 기본", () => {
     let s = tbSet;
     for (let i = 0; i < 7; i++) s = incrementTiebreakPoint(s, 'A');
@@ -156,5 +149,26 @@ describe('incrementTiebreakPoint — 모드별', () => {
   it("5:5 아니면(TB 비활성) 변화 없음", () => {
     const notTb = { a: 4, b: 3, tbA: 0, tbB: 0, done: false };
     expect(incrementTiebreakPoint(notTb, 'A', { tiebreakMode: '1point' })).toBe(notTb);
+  });
+});
+
+describe('incrementGame — rules', () => {
+  const s = (a, b) => ({ a, b, tbA: 0, tbB: 0, done: false });
+  it('7점 모드(기본): 6게임 후 상대 6:4까지 순서무관, 6:5 금지', () => {
+    expect(incrementGame(s(6, 0), 'B')).toMatchObject({ a: 6, b: 1 });    // 6:0→6:1 허용
+    expect(incrementGame(s(6, 4), 'B')).toMatchObject({ a: 6, b: 4 });    // 6:4→6:5 금지(변화없음)
+    expect(incrementGame(s(6, 2), 'A')).toMatchObject({ a: 6, b: 2 });    // 7 금지
+    expect(incrementGame(s(5, 0), 'A')).toMatchObject({ a: 6, b: 0 });    // 5:0→6:0 허용
+  });
+  it('7점 모드: 5:5는 게임+1 무시(TB로)', () => {
+    const t = s(5, 5);
+    expect(incrementGame(t, 'A')).toBe(t); // 변화 없음(참조 동일)
+  });
+  it('1점 모드: 5:5→6:5 세트승, 6:6 금지', () => {
+    const r = { tiebreakMode: '1point' };
+    expect(incrementGame(s(5, 5), 'A', r)).toMatchObject({ a: 6, b: 5 });
+    expect(incrementGame(s(6, 0), 'B', r)).toMatchObject({ a: 6, b: 1 });
+    expect(incrementGame(s(6, 5), 'B', r)).toMatchObject({ a: 6, b: 5 }); // 6:6 금지(변화없음)
+    expect(incrementGame(s(6, 2), 'A', r)).toMatchObject({ a: 6, b: 2 }); // 7 금지
   });
 });

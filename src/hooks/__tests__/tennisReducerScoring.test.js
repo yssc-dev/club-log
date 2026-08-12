@@ -55,16 +55,10 @@ describe('INCREMENT_STAT 스코어 반영', () => {
   });
 });
 
-describe('INCREMENT_TIEBREAK_POINT 1point 모드', () => {
-  it('첫 포인트에 6:5 세트', () => {
-    const s = tennisReducer(base({ tiebreakMode: '1point', acesDfAffectScore: false }, { sets: [{ a: 5, b: 5, tbA: 0, tbB: 0, done: false }] }),
-      { type: 'INCREMENT_TIEBREAK_POINT', roundIdx: 1, courtId: 1, side: 'A' });
-    expect(court0(s).sets[0]).toMatchObject({ tbA: 1, a: 6, b: 5 });
-  });
-  it('UNDO: 6게임 → 5게임 복원(1point threshold)', () => {
-    const s1 = tennisReducer(base({ tiebreakMode: '1point', acesDfAffectScore: false }, { sets: [{ a: 5, b: 5, tbA: 0, tbB: 0, done: false }] }),
-      { type: 'INCREMENT_TIEBREAK_POINT', roundIdx: 1, courtId: 1, side: 'A' });
-    const s2 = tennisReducer(s1, { type: 'UNDO', roundIdx: 1, courtId: 1 });
-    expect(court0(s2).sets[0]).toMatchObject({ tbA: 0, a: 5 });
+describe('INCREMENT_GAME 1point 모드', () => {
+  it('1점 모드: 5:5에서 게임+1 → 6:5 세트승(TB 액션 없이)', () => {
+    const st = base({ tiebreakMode: '1point', acesDfAffectScore: false }, { sets: [{ a: 5, b: 5, tbA: 0, tbB: 0, done: false }] });
+    const s = tennisReducer(st, { type: 'INCREMENT_GAME', roundIdx: 1, courtId: 1, side: 'A' });
+    expect(court0(s).sets[0]).toMatchObject({ a: 6, b: 5 });
   });
 });

@@ -81,7 +81,7 @@ function Column({ side, court, cur, tb, courtKey, dispatch, C, s, scoringRules }
 export default function TennisCourtRecorder({ court, roundIdx, dispatch, C, styles: s, scoringRules }) {
   const courtKey = { roundIdx, courtId: court.courtId };
   const cur = court.sets[court.currentSet] || { a: 0, b: 0, tbA: 0, tbB: 0 };
-  const tb = isTiebreakActive(cur);
+  const tb = isTiebreakActive(cur) && scoringRules?.tiebreakMode !== '1point';
   const canEndSet = isSetComplete(cur);
   const tbLabel = scoringRules?.tiebreakMode === '1point' ? '타이브레이크 (1점 데스)' : '타이브레이크 (7점)';
 

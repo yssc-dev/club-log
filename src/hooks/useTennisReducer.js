@@ -195,7 +195,7 @@ export function tennisReducer(state, action) {
       return mapCourt(state, action.roundIdx, action.courtId, (c) => {
         if (c.status !== 'playing') return c;
         const cur = currentSetOf(c);
-        const next = incrementGame(cur, action.side);
+        const next = incrementGame(cur, action.side, state.scoringRules);
         if (next === cur) return c;   // 타이브레이크 중이거나 이미 끝난 세트
         return pushUndo(withCurrentSet(c, next), { kind: 'game', side: action.side, setIdx: c.currentSet });
       });
@@ -221,7 +221,7 @@ export function tennisReducer(state, action) {
           if (cur && !isTiebreakActive(cur)) {   // TB 중엔 stats만
             const playerSide = c.sideA.includes(action.player) ? 'A' : 'B';
             const targetSide = action.stat === 'aces' ? playerSide : (playerSide === 'A' ? 'B' : 'A');
-            const incd = incrementGame(cur, targetSide);
+            const incd = incrementGame(cur, targetSide, state.scoringRules);
             if (incd !== cur) { nextCourt = withCurrentSet(nextCourt, incd); scoredSide = targetSide; }
           }
         }
