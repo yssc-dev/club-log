@@ -5,9 +5,8 @@ import { makeStyles } from './styles/theme';
 import FirebaseSync from './services/firebaseSync';
 import TennisSync from './services/tennisSync';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
-import { summarizeCourt } from './utils/tennis/tennisScoring';
 import { buildTennisMatchRows, buildTennisPlayerGameRows } from './utils/tennis/tennisRowBuilders';
-import { isLastRoundConfirmed } from './utils/tennis/roundConfirm';
+import { allRoundsConfirmed, isLastRoundConfirmed } from './utils/tennis/roundConfirm';
 import TennisAttendeeSelector from './components/tennis/TennisAttendeeSelector';
 import TennisRoundNav from './components/tennis/TennisRoundNav';
 import TennisCourtCard from './components/tennis/TennisCourtCard';
@@ -18,6 +17,7 @@ import Modal from './components/common/Modal';
 import TennisAttendeeModal from './components/tennis/TennisAttendeeModal';
 import TennisResultsModal from './components/tennis/TennisResultsModal';
 import TennisPlayerStatsModal from './components/tennis/TennisPlayerStatsModal';
+import TennisSummaryView from './components/tennis/TennisSummaryView';
 
 const todayLocal = () => {
   const d = new Date();
@@ -29,7 +29,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const { C } = useTheme();
   const s = makeStyles(C);
   const [roster, setRoster] = useState([]);
-  const [_busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(false);
   const [matchModal, setMatchModal] = useState(null);
   const team = teamContext?.team || '';
 
@@ -66,14 +66,6 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     return set;
   }, [round]);
 
-  const unfinished = useMemo(() => {
-    const out = [];
-    for (const r of state.rounds) for (const c of (r.courts || [])) {
-      if (!summarizeCourt(c).winner) out.push(`R${r.roundIdx}-C${c.courtId}`);
-    }
-    return out;
-  }, [state.rounds]);
-
   const viewingConfirmed = !!(state.confirmedRounds || {})[state.viewingRoundIdx];
   const canAddRound = isLastRoundConfirmed(state.rounds, state.confirmedRounds);
 
@@ -86,10 +78,8 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     dispatch({ type: 'UNCONFIRM_ROUND', roundIdx: round.roundIdx });
   };
 
-  /* Task 3에서 summary로 이동 예정 */
-  const handleFinalize = async () => {
-    if (unfinished.length > 0 &&
-        !confirm(`미완료 ${unfinished.length}개가 전송되지 않습니다:\n${unfinished.join(', ')}\n\n마감할까요?`)) return;
+  // summary의 "기록확정" — 시트 전송 + FINALIZE. 실패 시 미확정 유지(기존 규칙).
+  const handleSubmitRecords = async () => {
     setBusy(true);
     try {
       const memberSet = new Set(roster.map(m => m.name));
@@ -97,9 +87,6 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
       const inputTime = new Date().toISOString().slice(0, 19).replace('T', ' ');
       const matchRows = buildTennisMatchRows({ team, state, inputTime, memberSet });
       const pgRows = buildTennisPlayerGameRows({ team, state, inputTime, memberSet, gradeByPlayer });
-
-      // 병렬 전송. 하나라도 실패하면 미확정을 유지해 재시도할 수 있게 한다.
-      // (tennisSync가 success:false를 throw로 바꾸므로 rejected로 잡힌다)
       const results = await Promise.allSettled([
         TennisSync.writeMatches(matchRows),
         TennisSync.writePlayerGames(pgRows),
@@ -110,15 +97,26 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
         return;
       }
       dispatch({ type: 'FINALIZE' });
-      await FirebaseSync.saveFinalized(team, state.gameId, { ...state, gameFinalized: true });
-      await FirebaseSync.clearState(team, state.gameId);
-      alert('마감 완료');
-      onBackToMenu();
+      alert('전송 완료 — 아카이브 저장으로 마무리하세요.');
     } finally {
       setBusy(false);
     }
   };
-  void handleFinalize;
+
+  // "아카이브 저장" — finalized 노드 보관 후 active 제거(풋살 Archive 관례).
+  const handleArchive = async () => {
+    setBusy(true);
+    try {
+      await FirebaseSync.saveFinalized(team, state.gameId, { ...state, gameFinalized: true });
+      await FirebaseSync.clearState(team, state.gameId);
+      alert('아카이브 완료');
+      onBackToMenu();
+    } catch (e) {
+      alert(`아카이브 실패 — 데이터 보존을 위해 경기를 지우지 않았습니다.\n${e?.message || ''}`);
+    } finally {
+      setBusy(false);
+    }
+  };
 
   const deleteTennisGame = async () => {
     if (!confirm('오늘의 테니스 경기 기록이 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다. 삭제하시겠습니까?')) return;
@@ -141,6 +139,20 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     );
   }
 
+  if (state.phase === 'summary' || state.phase === 'done') {
+    return (
+      <div style={s.app}>
+        <div style={s.header}>
+          <div style={s.title}>🎾 경기 마감</div>
+          <div style={s.subtitle}>{state.gameDate} · 기록 확인</div>
+        </div>
+        <TennisSummaryView state={state} isAdmin={teamContext?.role === '관리자'} busy={busy}
+          onBack={() => dispatch({ type: 'SET_PHASE', phase: 'playing' })}
+          onSubmit={handleSubmitRecords} onArchive={handleArchive} C={C} styles={s} />
+      </div>
+    );
+  }
+
   return (
     <div style={s.app}>
       <MatchHeader
@@ -152,6 +164,17 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
           { key: 'attendees',  label: '참석명단', onClick: () => setMatchModal('attendees') },
           { key: 'results',    label: '오늘 결과', onClick: () => setMatchModal('results') },
           { key: 'playerStats', label: '개인기록', onClick: () => setMatchModal('playerStats') },
+          {
+            key: 'finish', label: '경기 마감', tone: 'green',
+            strong: allRoundsConfirmed(state.rounds, state.confirmedRounds),
+            onClick: () => {
+              if (!allRoundsConfirmed(state.rounds, state.confirmedRounds)) {
+                alert('모든 라운드를 확정해야 마감할 수 있습니다.');
+                return;
+              }
+              dispatch({ type: 'SET_PHASE', phase: 'summary' });
+            },
+          },
           { key: 'delete', label: '경기삭제', tone: 'red', onClick: deleteTennisGame, hidden: teamContext?.role !== '관리자' },
         ]} />
       </MatchHeader>

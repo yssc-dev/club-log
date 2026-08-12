@@ -43,7 +43,7 @@ export default function TennisResultsModal({ rounds, C, styles: s }) {
             const aWon = summary.winner === 'A';
             const setsStr = (court.sets || [])
               .filter(set => setWinner(set))
-              .map(set => `${set.a}:${set.b}`)
+              .map(set => `${set.a}:${set.b}${(set.tbA || set.tbB) ? ` (${set.tbA}-${set.tbB})` : ''}`)
               .join('  ');
 
             return (
