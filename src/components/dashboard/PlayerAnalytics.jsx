@@ -78,7 +78,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
           members={members || []} C={C} authUserName={authUserName} isSoccer={isSoccer}
         />
       )}
-      {tab === "synergy" && <SynergyMatrixTab matchLogs={matchLogs} C={C} />}
+      {tab === "synergy" && <SynergyMatrixTab matchLogs={matchLogs} C={C} isSoccer={isSoccer} />}
       {tab === "chem" && <ChemistryTab matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
       {tab === "awards" && <AwardsTab playerGameLogs={playerGameLogs} matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
       {tab === "crovaguma" && showCrovaGoguma && (

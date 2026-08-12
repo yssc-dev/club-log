@@ -10,6 +10,7 @@ import { calcPersonalSynergy } from '../../../utils/analyticsV2/calcPersonalSyne
 import { calcSynergyMatrix } from '../../../utils/analyticsV2/calcSynergyMatrix';
 import { calcAssistLinkMatrix, personalLink } from '../../../utils/analyticsV2/calcAssistLinkMatrix';
 import { calcPlayerSummary } from '../../../utils/analyticsV2/calcPlayerSummary';
+import * as soccerCalc from '../../../utils/soccerAnalytics';
 import RoundDistribution from './RoundDistribution';
 import SoloGoalDonut from './SoloGoalDonut';
 import PersonalSynergyCard from './PersonalSynergyCard';
@@ -130,10 +131,15 @@ function getChaosBadge(chaosRate) {
 
 // ─── Main Component ──────────────────────────────────────────────────────────
 
+// 종목별 계산층 선택용 — 위 analyticsV2 named import 전부와 1:1 (풋살 기본)
+const futsalCalc = { buildRadarPopulations, calcRadarValues, getPlayerType, calcTrends, calcStreaks, calcPersonalRecords, calcRoundSlope, calcSoloGoalRatio, calcPersonalSynergy, calcSynergyMatrix, calcAssistLinkMatrix, personalLink, calcPlayerSummary };
+
 export default function PersonalAnalysisTab({
   playerGameLogs, matchLogs, eventLogs,
   members, C, authUserName, isSoccer = false,
 }) {
+  // 축구는 soccerAnalytics(분리 계산층), 풋살은 analyticsV2 — 함수 스코프 셰도잉으로 본문 호출부 무변경
+  const { buildRadarPopulations, calcRadarValues, getPlayerType, calcTrends, calcStreaks, calcPersonalRecords, calcRoundSlope, calcSoloGoalRatio, calcPersonalSynergy, calcSynergyMatrix, calcAssistLinkMatrix, personalLink, calcPlayerSummary } = isSoccer ? soccerCalc : futsalCalc;
   // 6개 카드 숫자는 모두 matchLogs+eventLogs 단일 소스에서 계산.
   // (이전: playerGameLogs/defenseStats/winStats 혼용 → 같은 "경기수"가 4종 5종으로 갈렸음)
   const summaryV2 = useMemo(

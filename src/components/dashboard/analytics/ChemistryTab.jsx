@@ -7,8 +7,13 @@ import GoldenTrioView from './GoldenTrioView';
 import AssistPairList from './AssistPairList';
 import GkChemistryView from './GkChemistryView';
 import RivalryView from './RivalryView';
+import * as soccerCalc from '../../../utils/soccerAnalytics';
+
+// 종목별 계산층 선택용 (풋살 기본)
+const futsalCalc = { calcAssistPairs, calcGkChemistry, calcSynergyMatrix };
 
 export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false }) {
+  const { calcAssistPairs, calcGkChemistry, calcSynergyMatrix } = isSoccer ? soccerCalc : futsalCalc;
   const [sub, setSub] = useState('trio');
 
   // 어시페어 노출 보정 분모(함께 뛴 라운드 수)용 — SynergyMatrixTab과 동일 계산을 탭 자체적으로 수행
@@ -46,7 +51,7 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
           }}>{s.label}</button>
         ))}
       </div>
-      {sub === 'trio' && <GoldenTrioView matchLogs={matchLogs} C={C} />}
+      {sub === 'trio' && <GoldenTrioView matchLogs={matchLogs} C={C} isSoccer={isSoccer} />}
       {sub === 'assist' && <AssistPairList pairs={assistPairs} C={C} />}
       {sub === 'gk' && <GkChemistryView chem={gkChem} C={C} />}
       {sub === 'rival' && !isSoccer && <RivalryView matchLogs={matchLogs} C={C} />}

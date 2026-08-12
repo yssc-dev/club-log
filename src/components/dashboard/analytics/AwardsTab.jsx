@@ -8,8 +8,14 @@ import { calcMonthlyRanking } from '../../../utils/analyticsV2/calcMonthlyRankin
 import { calcVolatility } from '../../../utils/analyticsV2/calcVolatility';
 import { calcPlayerSummary } from '../../../utils/analyticsV2/calcPlayerSummary';
 import { calcMetricLeaders } from '../../../utils/analyticsV2/calcMetricLeaders';
+import * as soccerCalc from '../../../utils/soccerAnalytics';
+
+// 종목별 계산층 선택용 — 위 analyticsV2 named import 전부와 1:1 (풋살 기본)
+const futsalCalc = { calcAwards, calcDailyMvp, calcRoundSlope, calcSoloGoalRatio, calcMonthlyRanking, calcVolatility, calcPlayerSummary, calcMetricLeaders };
 
 export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isSoccer = false }) {
+  // 축구는 soccerAnalytics(분리 계산층), 풋살은 analyticsV2 — 함수 스코프 셰도잉으로 본문 호출부 무변경
+  const { calcAwards, calcDailyMvp, calcRoundSlope, calcSoloGoalRatio, calcMonthlyRanking, calcVolatility, calcPlayerSummary, calcMetricLeaders } = isSoccer ? soccerCalc : futsalCalc;
   // 크로바(MVP)·고구마(꼴지)는 마스터FC 풋살 커스텀이라 축구엔 개념이 없다 —
   // buildRawPlayerGamesFromSoccer가 축구 PG에 crova:0/goguma:0을 박아 합산에도 안 들어간다.
   // 자책골은 축구에도 있지만 용어가 다르다: 축구는 '자책'(SoccerApp 개인기록 헤더), 풋살은 '역주행'.
