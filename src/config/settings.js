@@ -102,17 +102,13 @@ function _firebaseRef(team) {
 let _cache = {};
 
 export function getSettings(team) {
-  const key = _key(team);
-  let stored = _cache[key];
-  if (!stored) {
-    try {
-      stored = JSON.parse(localStorage.getItem(key) || "{}");
-      _cache[key] = stored;
-    } catch {
-      stored = {};
-    }
-  }
-  // 중첩 포맷의 shared.* 는 top-level로 평탄화. 레거시 flat 포맷은 stored 전개로 처리.
+  // loadSettingsFromFirebase/getEffectiveSettings와 같은 _cache[team] 캐시를 공유해야
+  // RTDB 로드 결과가 같은 세션의 getSettings에도 즉시 반영된다.
+  // 빈 결과는 캐시에 쓰지 않는다 — {}를 고정하면 이후 로드가 무시된다.
+  // 레거시 flat localStorage는 하이드레이션에서 제외 — loadSettingsFromFirebase가 마이그레이션한다.
+  _hydrateCacheFromStorage(team);
+  const stored = _cache[team] || {};
+  // 중첩 포맷의 shared.* 는 top-level로 평탄화.
   return { ...DEFAULTS, ...(stored.shared || {}), ...stored };
 }
 
