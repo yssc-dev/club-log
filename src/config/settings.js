@@ -274,7 +274,7 @@ const SOCCER_KEYS = [
   "ownGoalPoint", "foulPoint", "cleanSheetPoint", "opponents",
 ];
 const TENNIS_KEYS = [
-  "pointRules", "rosterSheet",
+  "pointRules", "rosterSheet", "scoringRules",
 ];
 
 export function isLegacyFormat(raw) {
