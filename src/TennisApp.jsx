@@ -68,6 +68,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
 
   const viewingConfirmed = !!(state.confirmedRounds || {})[state.viewingRoundIdx];
   const canAddRound = isLastRoundConfirmed(state.rounds, state.confirmedRounds);
+  const canFinish = allRoundsConfirmed(state.rounds, state.confirmedRounds);
 
   const handleConfirmRound = () => {
     if (!confirm(`라운드 ${round.roundIdx}을 확정할까요?\n확정하면 이 라운드는 수정할 수 없습니다(확정취소로 해제 가능).`)) return;
@@ -166,9 +167,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
           { key: 'playerStats', label: '개인기록', onClick: () => setMatchModal('playerStats') },
           {
             key: 'finish', label: '경기 마감', tone: 'green',
-            strong: allRoundsConfirmed(state.rounds, state.confirmedRounds),
+            strong: canFinish,
             onClick: () => {
-              if (!allRoundsConfirmed(state.rounds, state.confirmedRounds)) {
+              if (!canFinish) {
                 alert('모든 라운드를 확정해야 마감할 수 있습니다.');
                 return;
               }

@@ -253,6 +253,22 @@ describe('reconstructState', () => {
     expect(reconstructState('g_1', { meta: { draftMode: 'sheet' } }).draftMode).toBe('sheet');
     expect(reconstructState('g_1', {}).draftMode).toBe('snake');
   });
+
+  // 회귀 가드: confirmedRounds 는 풋살/축구/테니스 공유 필드.
+  // 라운드 확정을 전부 취소하면 diffStateToWrites가 confirmedRounds/{k}=null 을 써서
+  // Firebase가 노드를 통째로 삭제 → 다음 snapshot의 raw.confirmedRounds === undefined.
+  // reconstructState가 undefined 를 그대로 반환하면 풋살 RESTORE_STATE의
+  // `if (s.confirmedRounds != null)` 가드(undefined != null === false)가 스킵돼
+  // 구독 중인 다른 탭의 stale 확정 상태가 지워지지 않는다(취소 미전파 회귀).
+  it('confirmedRounds 노드가 삭제(undefined)돼도 {} 로 복원해 취소가 전파된다', () => {
+    expect(reconstructState('g_1', {}).confirmedRounds).toEqual({});
+    expect(reconstructState('g_1', { meta: {} }).confirmedRounds).toEqual({});
+  });
+
+  it('confirmedRounds 값이 있으면 그대로 복원', () => {
+    const s = reconstructState('g_1', { confirmedRounds: { 0: true, 1: true } });
+    expect(s.confirmedRounds).toEqual({ 0: true, 1: true });
+  });
 });
 
 describe('expandStateForRtdb / 라운드트립', () => {

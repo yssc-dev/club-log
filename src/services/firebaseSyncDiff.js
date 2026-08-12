@@ -17,9 +17,11 @@ export const WHOLE_REPLACE_FIELDS = [
   'freeCourtMatches',
 ];
 
-// 테니스 전용 통짜 교체 필드. 풋살 리듀서 initialState엔 없는 필드라
+// 테니스 통짜 교체 필드. rounds/guests는 테니스 전용이라 풋살 initialState엔 없어
 // WHOLE_REPLACE_FIELDS에 섞으면 syncCoverage 의 stale 가드가 깨진다.
 // (그 가드는 풋살 initialState 기준으로 오타/삭제를 잡는 장치이므로 약화시키지 않는다)
+// confirmedRounds는 풋살/축구도 쓰는 공유 필드지만, 풋살 CHILD_NODE 경로와 별개로
+// 테니스 통짜 저장(saveState)에도 포함돼야 해 여기 둔다(풋살 동기화엔 무영향).
 export const TENNIS_WHOLE_REPLACE_FIELDS = [
   'rounds', 'guests', 'confirmedRounds',
 ];
@@ -369,10 +371,14 @@ export function reconstructState(gameId, raw) {
     attendees: raw.attendees || [],
     opponents: raw.opponents || [],
     // 테니스 whole-replace — normalizeTennisMatch이 빈배열/기본값을 담당하므로 || 없음.
-    // undefined면 normalizeTennisMatch가 각각 [] / {} 로 복원한다.
+    // undefined면 normalizeTennisMatch가 각각 [] 로 복원한다.
     rounds: raw.rounds,
     guests: raw.guests,
-    confirmedRounds: raw.confirmedRounds,
+    // ★ confirmedRounds는 풋살/축구/테니스 공유 필드다. 풋살은 normalizeTennisMatch를
+    //   거치지 않으므로 여기서 기본값을 보장해야 한다. 라운드 확정을 전부 취소하면
+    //   Firebase가 노드를 삭제해 raw.confirmedRounds === undefined가 되는데, 그대로 두면
+    //   풋살 RESTORE_STATE의 `!= null` 가드가 스킵돼 구독 탭의 stale 확정이 안 지워진다.
+    confirmedRounds: raw.confirmedRounds ?? {},
     freeCourtMatches: raw.freeCourtMatches || {},
     pushState: raw.pushState ?? null,
     settingsSnapshot: raw.settingsSnapshot ?? null,
@@ -405,7 +411,7 @@ export function expandStateForRtdb(state) {
   if (state.gksHistory) out.gksHistory = state.gksHistory;
   if (state.liveMercs) out.liveMercs = state.liveMercs;
   if (state.absentees) out.absentees = state.absentees;
-  if (state.confirmedRounds) out.confirmedRounds = state.confirmedRounds;
+  // confirmedRounds는 위 TENNIS_WHOLE_REPLACE_FIELDS 루프에서 이미 처리된다(중복 제거).
   if (state.allEvents) out.events = eventsToObj(state.allEvents);
   if (state.completedMatches) out.matches = matchesToObj(state.completedMatches);
   if (state.soccerMatches) {
