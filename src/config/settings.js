@@ -30,6 +30,11 @@ export const SPORT_DEFAULTS = {
       gradeUpsetPerStep: false,
     },
     rosterSheet: '테니스_회원명부',
+    // 경기 스코어링 규칙. 경기 생성 시 이 값을 state.scoringRules로 스냅샷한다.
+    scoringRules: {
+      tiebreakMode: '7point',     // '7point'(5:5 노애드 7점) | '1point'(5:5 단판 데스)
+      acesDfAffectScore: false,   // false(분석 전용) | true(에이스=서버편 득점, DF=상대편 득점)
+    },
   },
 };
 

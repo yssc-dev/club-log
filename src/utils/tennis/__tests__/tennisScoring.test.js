@@ -128,3 +128,33 @@ describe('summarizeCourt', () => {
     expect(summarizeCourt({ bestOf: 1 })).toMatchObject({ setsA: 0, setsB: 0, winner: null });
   });
 });
+
+describe('incrementTiebreakPoint — 모드별', () => {
+  const tbSet = { a: 5, b: 5, tbA: 0, tbB: 0, done: false }; // 5:5 TB 활성
+
+  it("기본(7point): 6점까진 게임 안 오르고 7점에 6:5", () => {
+    let s = tbSet;
+    for (let i = 0; i < 6; i++) s = incrementTiebreakPoint(s, 'A', { tiebreakMode: '7point' });
+    expect(s).toMatchObject({ tbA: 6, a: 5 }); // 아직 게임 안 오름
+    s = incrementTiebreakPoint(s, 'A', { tiebreakMode: '7point' });
+    expect(s).toMatchObject({ tbA: 7, a: 6, b: 5 }); // 7점 → 6게임
+  });
+
+  it("1point 모드: 첫 포인트에 즉시 6:5", () => {
+    const s = incrementTiebreakPoint(tbSet, 'A', { tiebreakMode: '1point' });
+    expect(s).toMatchObject({ tbA: 1, a: 6, b: 5 });
+    const sB = incrementTiebreakPoint(tbSet, 'B', { tiebreakMode: '1point' });
+    expect(sB).toMatchObject({ tbB: 1, b: 6, a: 5 });
+  });
+
+  it("rules 없으면 7point 기본", () => {
+    let s = tbSet;
+    for (let i = 0; i < 7; i++) s = incrementTiebreakPoint(s, 'A');
+    expect(s).toMatchObject({ tbA: 7, a: 6 });
+  });
+
+  it("5:5 아니면(TB 비활성) 변화 없음", () => {
+    const notTb = { a: 4, b: 3, tbA: 0, tbB: 0, done: false };
+    expect(incrementTiebreakPoint(notTb, 'A', { tiebreakMode: '1point' })).toBe(notTb);
+  });
+});

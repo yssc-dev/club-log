@@ -8,6 +8,7 @@
 // 규칙(클럽 커스텀): 6게임 선취. 5:5가 되면 노애드 타이브레이크 7점 선취.
 // 타이브레이크 승자가 6번째 게임을 가져가므로 최종 세트 스코어는 6:5가 된다.
 // 6:5는 타이브레이크로만 나온다 — 5:4에서 다음 게임은 6:4 아니면 5:5이기 때문.
+// 타이브레이크는 7점 노애드가 기본, 팀 설정에 따라 1포인트 단판 데스도 가능.
 
 const GAMES_TO_WIN_SET = 6;
 const TIEBREAK_POINTS_TO_WIN = 7;
@@ -40,11 +41,12 @@ export function incrementGame(set, side) {
   return { ...set, [key]: (set[key] || 0) + 1 };
 }
 
-export function incrementTiebreakPoint(set, side) {
+export function incrementTiebreakPoint(set, side, rules = {}) {
   if (!set || set.done || !isTiebreakActive(set)) return set;
   const key = side === 'A' ? 'tbA' : 'tbB';
   const next = { ...set, [key]: (set[key] || 0) + 1 };
-  if (next[key] >= TIEBREAK_POINTS_TO_WIN) {
+  const threshold = rules.tiebreakMode === '1point' ? 1 : TIEBREAK_POINTS_TO_WIN;
+  if (next[key] >= threshold) {
     // 승자가 6번째 게임을 가져간다 → 6:5
     if (side === 'A') next.a = GAMES_TO_WIN_SET;
     else next.b = GAMES_TO_WIN_SET;
