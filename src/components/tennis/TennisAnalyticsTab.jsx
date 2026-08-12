@@ -10,6 +10,7 @@ import {
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
+import { useSortableRows, SortHeader } from './Sortable';
 
 const pct = (r) => r > 0 ? `${Math.round(r * 100)}%` : '-';
 
@@ -46,6 +47,13 @@ function SummaryCard({ summary, player, ds, C }) {
 
 // ─── 복식 순위표 ────────────────────────────────────────
 function DoublesStandingsSection({ standings, ds }) {
+  const cols = useMemo(() => ({
+    name:   { accessor: s => s.name, type: 'text' },
+    grade:  { accessor: s => s.grade || '', type: 'text' },
+    record: { accessor: s => s.wins, type: 'num' },
+    rate:   { accessor: s => s.rate, type: 'num' },
+  }), []);
+  const { sorted, sort, onSort } = useSortableRows(standings, cols);
   if (!standings.length) return null;
   return (
     <>
@@ -55,14 +63,14 @@ function DoublesStandingsSection({ standings, ds }) {
           <thead>
             <tr>
               <th style={{ ...ds.th, textAlign: 'left' }}>#</th>
-              <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
-              <th style={ds.th}>등급</th>
-              <th style={ds.th}>전적</th>
-              <th style={ds.th}>승률</th>
+              <SortHeader label="이름" sortKey="name" sort={sort} onSort={onSort} align="left" ds={ds} />
+              <SortHeader label="등급" sortKey="grade" sort={sort} onSort={onSort} ds={ds} />
+              <SortHeader label="전적" sortKey="record" sort={sort} onSort={onSort} ds={ds} />
+              <SortHeader label="승률" sortKey="rate" sort={sort} onSort={onSort} ds={ds} />
             </tr>
           </thead>
           <tbody>
-            {standings.map((s, i) => (
+            {sorted.map((s, i) => (
               <tr key={s.name}>
                 <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
                 <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
@@ -80,6 +88,15 @@ function DoublesStandingsSection({ standings, ds }) {
 
 // ─── 단식 순위표 (포인트 컬럼은 단식 뷰 전용) ──────────
 function SinglesStandingsSection({ standings, ds }) {
+  const cols = useMemo(() => ({
+    name:       { accessor: s => s.name, type: 'text' },
+    leagueTier: { accessor: s => s.leagueTier || '', type: 'text' },
+    grade:      { accessor: s => s.grade || '', type: 'text' },
+    record:     { accessor: s => s.wins, type: 'num' },
+    rate:       { accessor: s => s.rate, type: 'num' },
+    points:     { accessor: s => s.points, type: 'num' },
+  }), []);
+  const { sorted, sort, onSort } = useSortableRows(standings, cols);
   if (!standings.length) return null;
   return (
     <>
@@ -89,16 +106,16 @@ function SinglesStandingsSection({ standings, ds }) {
           <thead>
             <tr>
               <th style={{ ...ds.th, textAlign: 'left' }}>#</th>
-              <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
-              <th style={ds.th}>리그</th>
-              <th style={ds.th}>등급</th>
-              <th style={ds.th}>전적</th>
-              <th style={ds.th}>승률</th>
-              <th style={ds.th}>P</th>
+              <SortHeader label="이름" sortKey="name" sort={sort} onSort={onSort} align="left" ds={ds} />
+              <SortHeader label="리그" sortKey="leagueTier" sort={sort} onSort={onSort} ds={ds} />
+              <SortHeader label="등급" sortKey="grade" sort={sort} onSort={onSort} ds={ds} />
+              <SortHeader label="전적" sortKey="record" sort={sort} onSort={onSort} ds={ds} />
+              <SortHeader label="승률" sortKey="rate" sort={sort} onSort={onSort} ds={ds} />
+              <SortHeader label="P" sortKey="points" sort={sort} onSort={onSort} ds={ds} />
             </tr>
           </thead>
           <tbody>
-            {standings.map((s, i) => (
+            {sorted.map((s, i) => (
               <tr key={s.name}>
                 <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
                 <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
@@ -153,6 +170,20 @@ function YearlyRecordsSection({ entries, ds }) {
 // showChemistry: 전체 케미 표 표시 여부 (기본 true, 전체 뷰에서만 사용)
 // showBreakdown: 파트너별 분석 표시 여부 (기본 true, 개인 뷰에서만 사용)
 function ChemistrySection({ chemistry, breakdown, player, ds, C, showChemistry = true, showBreakdown = true }) {
+  const chemCols = useMemo(() => ({
+    pair:   { accessor: p => p.players.join('·'), type: 'text' },
+    record: { accessor: p => p.wins, type: 'num' },
+    rate:   { accessor: p => p.rate, type: 'num' },
+  }), []);
+  const { sorted: sortedChem, sort: sortChem, onSort: onSortChem } = useSortableRows(chemistry, chemCols);
+
+  const brkCols = useMemo(() => ({
+    partner: { accessor: b => b.partner, type: 'text' },
+    record:  { accessor: b => b.wins, type: 'num' },
+    rate:    { accessor: b => b.rate, type: 'num' },
+  }), []);
+  const { sorted: sortedBrk, sort: sortBrk, onSort: onSortBrk } = useSortableRows(breakdown, brkCols);
+
   return (
     <>
       {showChemistry && (
@@ -165,13 +196,13 @@ function ChemistrySection({ chemistry, breakdown, player, ds, C, showChemistry =
               <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
                 <thead>
                   <tr>
-                    <th style={{ ...ds.th, textAlign: 'left' }}>페어</th>
-                    <th style={ds.th}>전적</th>
-                    <th style={ds.th}>승률</th>
+                    <SortHeader label="페어" sortKey="pair" sort={sortChem} onSort={onSortChem} align="left" ds={ds} />
+                    <SortHeader label="전적" sortKey="record" sort={sortChem} onSort={onSortChem} ds={ds} />
+                    <SortHeader label="승률" sortKey="rate" sort={sortChem} onSort={onSortChem} ds={ds} />
                   </tr>
                 </thead>
                 <tbody>
-                  {chemistry.map((p) => (
+                  {sortedChem.map((p) => (
                     <tr key={p.players.join('|')}>
                       <td style={{ ...ds.td(), textAlign: 'left', fontSize: 11 }}>
                         {p.players.join(' · ')}{p.hasGuest ? ' *' : ''}
@@ -193,13 +224,13 @@ function ChemistrySection({ chemistry, breakdown, player, ds, C, showChemistry =
             <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
               <thead>
                 <tr>
-                  <th style={{ ...ds.th, textAlign: 'left' }}>파트너</th>
-                  <th style={ds.th}>전적</th>
-                  <th style={ds.th}>승률</th>
+                  <SortHeader label="파트너" sortKey="partner" sort={sortBrk} onSort={onSortBrk} align="left" ds={ds} />
+                  <SortHeader label="전적" sortKey="record" sort={sortBrk} onSort={onSortBrk} ds={ds} />
+                  <SortHeader label="승률" sortKey="rate" sort={sortBrk} onSort={onSortBrk} ds={ds} />
                 </tr>
               </thead>
               <tbody>
-                {breakdown.map((b) => (
+                {sortedBrk.map((b) => (
                   <tr key={b.partner}>
                     <td style={{ ...ds.td(), textAlign: 'left' }}>
                       {b.partner}{b.isGuestPartner ? ' *' : ''}
@@ -219,6 +250,12 @@ function ChemistrySection({ chemistry, breakdown, player, ds, C, showChemistry =
 
 // ─── 상대 전적 ──────────────────────────────────────────
 function HeadToHeadSection({ h2h, player, ds, C }) {
+  const cols = useMemo(() => ({
+    opponent: { accessor: e => e.opponent, type: 'text' },
+    record:   { accessor: e => e.wins, type: 'num' },
+    rate:     { accessor: e => e.rate, type: 'num' },
+  }), []);
+  const { sorted, sort, onSort } = useSortableRows(h2h, cols);
   return (
     <>
       <div style={ds.sectionTitle}>{player || '—'} 상대 전적</div>
@@ -229,13 +266,13 @@ function HeadToHeadSection({ h2h, player, ds, C }) {
           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ ...ds.th, textAlign: 'left' }}>상대</th>
-                <th style={ds.th}>전적</th>
-                <th style={ds.th}>승률</th>
+                <SortHeader label="상대" sortKey="opponent" sort={sort} onSort={onSort} align="left" ds={ds} />
+                <SortHeader label="전적" sortKey="record" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="승률" sortKey="rate" sort={sort} onSort={onSort} ds={ds} />
               </tr>
             </thead>
             <tbody>
-              {h2h.map((e) => (
+              {sorted.map((e) => (
                 <tr key={e.opponent}>
                   <td style={{ ...ds.td(), textAlign: 'left' }}>{e.opponent}</td>
                   <td style={ds.td()}>{e.wins}-{e.losses}</td>
@@ -325,6 +362,20 @@ function MonthlyFormSection({ monthly, player, format, ds, C }) {
 
 // ─── 타이브레이크 · 베이글 ──────────────────────────────
 function TbBagelSection({ tb, bagel, ds, C }) {
+  const tbCols = useMemo(() => ({
+    name: { accessor: e => e.name, type: 'text' },
+    won:  { accessor: e => e.tbWon, type: 'num' },
+    rate: { accessor: e => e.rate, type: 'num' },
+  }), []);
+  const { sorted: sortedTb, sort: sortTb, onSort: onSortTb } = useSortableRows(tb, tbCols);
+
+  const bagelCols = useMemo(() => ({
+    name:  { accessor: e => e.name, type: 'text' },
+    given: { accessor: e => e.given, type: 'num' },
+    taken: { accessor: e => e.taken, type: 'num' },
+  }), []);
+  const { sorted: sortedBagel, sort: sortBagel, onSort: onSortBagel } = useSortableRows(bagel, bagelCols);
+
   return (
     <>
       <div style={ds.sectionTitle}>타이브레이크</div>
@@ -335,13 +386,13 @@ function TbBagelSection({ tb, bagel, ds, C }) {
           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
-                <th style={ds.th}>승/판</th>
-                <th style={ds.th}>승률</th>
+                <SortHeader label="이름" sortKey="name" sort={sortTb} onSort={onSortTb} align="left" ds={ds} />
+                <SortHeader label="승/판" sortKey="won" sort={sortTb} onSort={onSortTb} ds={ds} />
+                <SortHeader label="승률" sortKey="rate" sort={sortTb} onSort={onSortTb} ds={ds} />
               </tr>
             </thead>
             <tbody>
-              {tb.map((e) => (
+              {sortedTb.map((e) => (
                 <tr key={e.name}>
                   <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
                   <td style={ds.td()}>{e.tbWon}/{e.tbPlayed}</td>
@@ -360,13 +411,13 @@ function TbBagelSection({ tb, bagel, ds, C }) {
           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
-                <th style={ds.th}>준</th>
-                <th style={ds.th}>먹음</th>
+                <SortHeader label="이름" sortKey="name" sort={sortBagel} onSort={onSortBagel} align="left" ds={ds} />
+                <SortHeader label="준" sortKey="given" sort={sortBagel} onSort={onSortBagel} ds={ds} />
+                <SortHeader label="먹음" sortKey="taken" sort={sortBagel} onSort={onSortBagel} ds={ds} />
               </tr>
             </thead>
             <tbody>
-              {bagel.map((e) => (
+              {sortedBagel.map((e) => (
                 <tr key={e.name}>
                   <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
                   <td style={ds.td()}>{e.given}</td>
@@ -383,6 +434,13 @@ function TbBagelSection({ tb, bagel, ds, C }) {
 
 // ─── 에이스 · 더블폴트 ──────────────────────────────────
 function AceDfSection({ acedf, ds, C }) {
+  const cols = useMemo(() => ({
+    name:          { accessor: e => e.name, type: 'text' },
+    aces:          { accessor: e => e.aces, type: 'num' },
+    doubleFaults:  { accessor: e => e.doubleFaults, type: 'num' },
+    recordedGames: { accessor: e => e.recordedGames, type: 'num' },
+  }), []);
+  const { sorted, sort, onSort } = useSortableRows(acedf, cols);
   return (
     <>
       <div style={ds.sectionTitle}>에이스 · 더블폴트</div>
@@ -394,14 +452,14 @@ function AceDfSection({ acedf, ds, C }) {
           <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
             <thead>
               <tr>
-                <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
-                <th style={ds.th}>에이스</th>
-                <th style={ds.th}>DF</th>
-                <th style={ds.th}>경기수</th>
+                <SortHeader label="이름" sortKey="name" sort={sort} onSort={onSort} align="left" ds={ds} />
+                <SortHeader label="에이스" sortKey="aces" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="DF" sortKey="doubleFaults" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="경기수" sortKey="recordedGames" sort={sort} onSort={onSort} ds={ds} />
               </tr>
             </thead>
             <tbody>
-              {acedf.map((e) => (
+              {sorted.map((e) => (
                 <tr key={e.name}>
                   <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
                   <td style={ds.td()}>{e.aces}</td>
