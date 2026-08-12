@@ -7,6 +7,7 @@ import TennisSync from './services/tennisSync';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
 import { summarizeCourt } from './utils/tennis/tennisScoring';
 import { buildTennisMatchRows, buildTennisPlayerGameRows } from './utils/tennis/tennisRowBuilders';
+import { isLastRoundConfirmed } from './utils/tennis/roundConfirm';
 import TennisAttendeeSelector from './components/tennis/TennisAttendeeSelector';
 import TennisRoundNav from './components/tennis/TennisRoundNav';
 import TennisCourtCard from './components/tennis/TennisCourtCard';
@@ -28,7 +29,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const { C } = useTheme();
   const s = makeStyles(C);
   const [roster, setRoster] = useState([]);
-  const [busy, setBusy] = useState(false);
+  const [_busy, setBusy] = useState(false);
   const [matchModal, setMatchModal] = useState(null);
   const team = teamContext?.team || '';
 
@@ -73,6 +74,19 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     return out;
   }, [state.rounds]);
 
+  const viewingConfirmed = !!(state.confirmedRounds || {})[state.viewingRoundIdx];
+  const canAddRound = isLastRoundConfirmed(state.rounds, state.confirmedRounds);
+
+  const handleConfirmRound = () => {
+    if (!confirm(`라운드 ${round.roundIdx}을 확정할까요?\n확정하면 이 라운드는 수정할 수 없습니다(확정취소로 해제 가능).`)) return;
+    dispatch({ type: 'CONFIRM_ROUND', roundIdx: round.roundIdx });
+  };
+  const handleUnconfirmRound = () => {
+    if (!confirm(`라운드 ${round.roundIdx} 확정을 취소할까요?\n취소하면 이 라운드를 다시 수정할 수 있습니다.`)) return;
+    dispatch({ type: 'UNCONFIRM_ROUND', roundIdx: round.roundIdx });
+  };
+
+  /* Task 3에서 summary로 이동 예정 */
   const handleFinalize = async () => {
     if (unfinished.length > 0 &&
         !confirm(`미완료 ${unfinished.length}개가 전송되지 않습니다:\n${unfinished.join(', ')}\n\n마감할까요?`)) return;
@@ -104,6 +118,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
       setBusy(false);
     }
   };
+  void handleFinalize;
 
   const deleteTennisGame = async () => {
     if (!confirm('오늘의 테니스 경기 기록이 모두 삭제됩니다.\n이 작업은 되돌릴 수 없습니다. 삭제하시겠습니까?')) return;
@@ -176,26 +191,28 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
         </Modal>
       )}
 
-      <TennisRoundNav rounds={state.rounds} viewingRoundIdx={state.viewingRoundIdx} dispatch={dispatch} C={C} styles={s} />
+      <TennisRoundNav rounds={state.rounds} viewingRoundIdx={state.viewingRoundIdx} dispatch={dispatch} C={C} styles={s} canAddRound={canAddRound} />
 
       <div style={s.section}>
         {(round?.courts || []).map(c => (
           <TennisCourtCard key={c.courtId} court={c} roundIdx={round.roundIdx}
             attendees={state.attendees} usedNames={usedNames} dispatch={dispatch} C={C} styles={s}
-            canDelete={(round.courts || []).length > 1} />
+            canDelete={(round.courts || []).length > 1} locked={viewingConfirmed} />
         ))}
-        <button onClick={() => dispatch({ type: 'ADD_COURT', roundIdx: round.roundIdx })}
-          style={{
-            display: 'block', width: '100%', padding: 12, marginTop: 4,
-            border: `1.5px dashed ${C.grayDarker}`, borderRadius: 12,
-            background: 'transparent', color: C.gray, cursor: 'pointer',
-            fontSize: 14, fontFamily: 'inherit',
-          }}>
-          + 코트
-        </button>
+        {!viewingConfirmed && (
+          <button onClick={() => dispatch({ type: 'ADD_COURT', roundIdx: round.roundIdx })}
+            style={{
+              display: 'block', width: '100%', padding: 12, marginTop: 4,
+              border: `1.5px dashed ${C.grayDarker}`, borderRadius: 12,
+              background: 'transparent', color: C.gray, cursor: 'pointer',
+              fontSize: 14, fontFamily: 'inherit',
+            }}>
+            + 코트
+          </button>
+        )}
       </div>
 
-      <TennisConfirmBar unfinishedCourts={unfinished} onFinalize={handleFinalize} busy={busy} C={C} styles={s} />
+      <TennisConfirmBar round={round} isConfirmed={viewingConfirmed} onConfirm={handleConfirmRound} onUnconfirm={handleUnconfirmRound} C={C} styles={s} />
     </div>
   );
 }

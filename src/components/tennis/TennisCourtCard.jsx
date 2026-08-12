@@ -7,7 +7,7 @@ import { summarizeCourt, setWinner } from '../../utils/tennis/tennisScoring';
 // 여기서 탭해 펼치는 것이 유일한 진입점이다.
 //   되돌리기 = 판 종료를 취소해 마지막 세트를 다시 연다(점수 유지)
 //   설정 수정 = 점수를 지우고 배치부터 다시
-function DoneCourtCard({ court, roundIdx, dispatch, C, styles: s }) {
+function DoneCourtCard({ court, roundIdx, dispatch, C, styles: s, locked }) {
   const [open, setOpen] = useState(false);
   const courtKey = { roundIdx, courtId: court.courtId };
   const summ = summarizeCourt(court);
@@ -39,28 +39,34 @@ function DoneCourtCard({ court, roundIdx, dispatch, C, styles: s }) {
               </span>
             ))}
           </div>
-          <div style={{ display: 'flex', gap: 6 }}>
-            <button disabled={!canUndo}
-              onClick={() => dispatch({ type: 'UNDO', ...courtKey })}
-              style={{ ...s.btnSm(), flex: 1, minHeight: 36, opacity: canUndo ? 1 : 0.4 }}>
-              ↩ 되돌리기
-            </button>
-            <button onClick={() => {
-              if (!confirm('이 판의 기록된 점수가 지워지고 배치 화면으로 돌아갑니다. 계속할까요?')) return;
-              dispatch({ type: 'EDIT_COURT_SETTINGS', ...courtKey });
-            }} style={{ ...s.btnSm(), flex: 1, minHeight: 36 }}>
-              설정 수정
-            </button>
-          </div>
+          {locked ? (
+            <div style={{ fontSize: 12, color: C.gray, textAlign: 'center', padding: '4px 0' }}>
+              확정된 라운드 — 수정하려면 하단에서 확정취소
+            </div>
+          ) : (
+            <div style={{ display: 'flex', gap: 6 }}>
+              <button disabled={!canUndo}
+                onClick={() => dispatch({ type: 'UNDO', ...courtKey })}
+                style={{ ...s.btnSm(), flex: 1, minHeight: 36, opacity: canUndo ? 1 : 0.4 }}>
+                ↩ 되돌리기
+              </button>
+              <button onClick={() => {
+                if (!confirm('이 판의 기록된 점수가 지워지고 배치 화면으로 돌아갑니다. 계속할까요?')) return;
+                dispatch({ type: 'EDIT_COURT_SETTINGS', ...courtKey });
+              }} style={{ ...s.btnSm(), flex: 1, minHeight: 36 }}>
+                설정 수정
+              </button>
+            </div>
+          )}
         </div>
       )}
     </div>
   );
 }
 
-export default function TennisCourtCard({ court, roundIdx, attendees, usedNames, dispatch, C, styles: s, canDelete }) {
+export default function TennisCourtCard({ court, roundIdx, attendees, usedNames, dispatch, C, styles: s, canDelete, locked }) {
   if (court.status === 'done') {
-    return <DoneCourtCard court={court} roundIdx={roundIdx} dispatch={dispatch} C={C} styles={s} />;
+    return <DoneCourtCard court={court} roundIdx={roundIdx} dispatch={dispatch} C={C} styles={s} locked={locked} />;
   }
 
   return (

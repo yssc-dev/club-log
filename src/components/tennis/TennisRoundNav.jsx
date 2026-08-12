@@ -1,4 +1,4 @@
-export default function TennisRoundNav({ rounds, viewingRoundIdx, dispatch, styles: s }) {
+export default function TennisRoundNav({ rounds, viewingRoundIdx, dispatch, styles: s, canAddRound }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '4px 16px 8px' }}>
       <div style={{ ...s.tabRow, flex: 1, marginBottom: 0 }}>
@@ -10,7 +10,9 @@ export default function TennisRoundNav({ rounds, viewingRoundIdx, dispatch, styl
           </button>
         ))}
       </div>
-      <button onClick={() => dispatch({ type: 'ADD_ROUND' })} style={s.btnSm()}>
+      <button onClick={() => canAddRound && dispatch({ type: 'ADD_ROUND' })}
+        disabled={!canAddRound}
+        style={{ ...s.btnSm(), opacity: canAddRound ? 1 : 0.4 }}>
         + 라운드
       </button>
     </div>
