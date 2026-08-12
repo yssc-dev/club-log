@@ -2,14 +2,47 @@
 // 경기 중 화면과 무관 — 당일/누적 경계(스펙 §2)를 지킨다.
 import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
-import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
+import { buildSinglesStandings, buildPlayerSummary } from '../../utils/tennis/tennisStandings';
 import {
   buildDoublesStandings, buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
 } from '../../utils/tennis/tennisAnalytics';
+import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
 import { makeStyles } from '../../styles/theme';
+import { useTheme } from '../../hooks/useTheme';
 
 const pct = (r) => r > 0 ? `${Math.round(r * 100)}%` : '-';
+
+// ─── 요약 카드 (개인 뷰) ────────────────────────────────
+function StatCell({ label, value, C }) {
+  return (
+    <div style={{ flex: 1, textAlign: 'center' }}>
+      <div style={{ fontSize: 10, color: C.gray }}>{label}</div>
+      <div style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums', color: C.white }}>{value}</div>
+    </div>
+  );
+}
+
+function SummaryCard({ summary, player, ds, C }) {
+  return (
+    <>
+      <div style={ds.sectionTitle}>{player} 요약</div>
+      <div style={ds.card}>
+        <div style={{ display: 'flex', marginBottom: 12 }}>
+          <StatCell C={C} label="단식" value={`${summary.singles.wins}-${summary.singles.losses}`} />
+          <StatCell C={C} label="복식" value={`${summary.doubles.wins}-${summary.doubles.losses}`} />
+          <StatCell C={C} label="출석" value={`${summary.attendanceDates}일`} />
+        </div>
+        <div style={{ display: 'flex' }}>
+          <StatCell C={C} label="에이스" value={summary.aces} />
+          <StatCell C={C} label="더블폴트" value={summary.doubleFaults} />
+          <StatCell C={C} label="타이브레이크" value={`${summary.tbWon}/${summary.tbPlayed}`} />
+          <StatCell C={C} label="베이글" value={`${summary.bagelsGiven}/${summary.bagelsTaken}`} />
+        </div>
+      </div>
+    </>
+  );
+}
 
 // ─── 복식 순위표 ────────────────────────────────────────
 function DoublesStandingsSection({ standings, ds }) {
@@ -117,37 +150,43 @@ function YearlyRecordsSection({ entries, ds }) {
 }
 
 // ─── 페어 케미 + 파트너 분석 ─────────────────────────────
-function ChemistrySection({ chemistry, breakdown, player, ds, C }) {
+// showChemistry: 전체 케미 표 표시 여부 (기본 true, 전체 뷰에서만 사용)
+// showBreakdown: 파트너별 분석 표시 여부 (기본 true, 개인 뷰에서만 사용)
+function ChemistrySection({ chemistry, breakdown, player, ds, C, showChemistry = true, showBreakdown = true }) {
   return (
     <>
-      <div style={ds.sectionTitle}>페어 케미 (3경기↑)</div>
-      {chemistry.length === 0 ? (
-        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
-      ) : (
-        <div style={ds.card}>
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <th style={{ ...ds.th, textAlign: 'left' }}>페어</th>
-                <th style={ds.th}>전적</th>
-                <th style={ds.th}>승률</th>
-              </tr>
-            </thead>
-            <tbody>
-              {chemistry.map((p) => (
-                <tr key={p.players.join('|')}>
-                  <td style={{ ...ds.td(), textAlign: 'left', fontSize: 11 }}>
-                    {p.players.join(' · ')}{p.hasGuest ? ' *' : ''}
-                  </td>
-                  <td style={ds.td()}>{p.wins}-{p.losses}</td>
-                  <td style={ds.td()}>{pct(p.rate)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+      {showChemistry && (
+        <>
+          <div style={ds.sectionTitle}>페어 케미 (3경기↑)</div>
+          {chemistry.length === 0 ? (
+            <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
+          ) : (
+            <div style={ds.card}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <th style={{ ...ds.th, textAlign: 'left' }}>페어</th>
+                    <th style={ds.th}>전적</th>
+                    <th style={ds.th}>승률</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {chemistry.map((p) => (
+                    <tr key={p.players.join('|')}>
+                      <td style={{ ...ds.td(), textAlign: 'left', fontSize: 11 }}>
+                        {p.players.join(' · ')}{p.hasGuest ? ' *' : ''}
+                      </td>
+                      <td style={ds.td()}>{p.wins}-{p.losses}</td>
+                      <td style={ds.td()}>{pct(p.rate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </>
       )}
-      {player && breakdown.length > 0 && (
+      {showBreakdown && player && breakdown.length > 0 && (
         <>
           <div style={ds.sectionTitle}>{player} 파트너별</div>
           <div style={ds.card}>
@@ -379,13 +418,15 @@ function AceDfSection({ acedf, ds, C }) {
 }
 
 // ─── 메인 컴포넌트 ──────────────────────────────────────
-export default function TennisAnalyticsTab({ C, authUserName }) {
+export default function TennisAnalyticsTab({ C: propC, authUserName }) {
+  const { C: themeC } = useTheme();
+  const C = propC ?? themeC;
   const ds = makeStyles(C);
   const [rows, setRows] = useState([]);
   const [legacyRows, setLegacyRows] = useState([]);
   const [roster, setRoster] = useState([]);
   const [format, setFormat] = useState('복식');           // 복식 기본 (스펙 §5)
-  const [player, setPlayer] = useState(authUserName || '');
+  const [player, setPlayer] = useState('');
 
   useEffect(() => {
     TennisSync.getPlayerGames().then(setRows);
@@ -421,6 +462,12 @@ export default function TennisAnalyticsTab({ C, authUserName }) {
     () => player ? buildYearlyRecords({ legacyRows, rows, player, format }) : [],
     [legacyRows, rows, player, format]);
 
+  const summary = useMemo(
+    () => player ? buildPlayerSummary({ rows, player }) : null,
+    [rows, player]);
+
+  const sectionKeys = analyticsSectionKeys({ player, format, hasLegacy: legacyRows.length > 0 });
+
   return (
     <div style={ds.section}>
       {/* 포맷 토글 + 선수 선택 */}
@@ -443,31 +490,26 @@ export default function TennisAnalyticsTab({ C, authUserName }) {
             cursor: 'pointer',
           }}
         >
-          <option value="">선수 선택</option>
+          <option value="">전체 랭킹</option>
           {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
       </div>
 
-      {format === '복식' ? (
-        <>
-          <DoublesStandingsSection standings={doublesStandings} ds={ds} />
-          {legacyRows.length > 0 && <YearlyRecordsSection entries={yearlyRecords} ds={ds} />}
-          <ChemistrySection chemistry={chemistry} breakdown={partnerBreakdown} player={player} ds={ds} C={C} />
-          <HeadToHeadSection h2h={h2h} player={player} ds={ds} C={C} />
-          <MonthlyFormSection monthly={monthly} player={player} format={format} ds={ds} C={C} />
-          <TbBagelSection tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />
-          <AceDfSection acedf={aceDfRanking} ds={ds} C={C} />
-        </>
-      ) : (
-        <>
-          <SinglesStandingsSection standings={singlesStandings} ds={ds} />
-          {legacyRows.length > 0 && <YearlyRecordsSection entries={yearlyRecords} ds={ds} />}
-          <HeadToHeadSection h2h={h2h} player={player} ds={ds} C={C} />
-          <MonthlyFormSection monthly={monthly} player={player} format={format} ds={ds} C={C} />
-          <TbBagelSection tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />
-          <AceDfSection acedf={aceDfRanking} ds={ds} C={C} />
-        </>
-      )}
+      {sectionKeys.map((key) => {
+        switch (key) {
+          case 'doublesStandings': return <DoublesStandingsSection key={key} standings={doublesStandings} ds={ds} />;
+          case 'singlesStandings': return <SinglesStandingsSection key={key} standings={singlesStandings} ds={ds} />;
+          case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} breakdown={[]} player="" showBreakdown={false} ds={ds} C={C} />;
+          case 'summary':          return summary ? <SummaryCard key={key} summary={summary} player={player} ds={ds} C={C} /> : null;
+          case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
+          case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;
+          case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={format} ds={ds} C={C} />;
+          case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} />;
+          case 'tb':               return <TbBagelSection key={key} tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />;
+          case 'acedf':            return <AceDfSection key={key} acedf={aceDfRanking} ds={ds} C={C} />;
+          default:                 return null;
+        }
+      })}
     </div>
   );
 }
