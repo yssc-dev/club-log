@@ -1,4 +1,6 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
+import TennisSync from '../../services/tennisSync';
+import { nowKST } from '../../utils/tennis/tennisTime';
 
 function RuleToggle({ label, options, value, onPick, C, s }) {
   return (
@@ -19,13 +21,36 @@ function RuleToggle({ label, options, value, onPick, C, s }) {
 }
 
 export default function TennisAttendeeSelector({ roster, attendees, guests, gameDate, dispatch, onStart, scoringRules, C, styles: s }) {
+  const todayKST = nowKST().slice(0, 10);
   const [guestName, setGuestName] = useState('');
+  const [dupCount, setDupCount] = useState(0);
+  useEffect(() => {
+    let alive = true;
+    if (!gameDate) { setDupCount(0); return; }
+    TennisSync.getPlayerGames(gameDate, gameDate).then(rows => {
+      if (alive) setDupCount((rows || []).length);
+    });
+    return () => { alive = false; };
+  }, [gameDate]);
   const toggle = (name) => dispatch({
     type: 'SET_ATTENDEES',
     attendees: attendees.includes(name) ? attendees.filter(n => n !== name) : [...attendees, name],
   });
   return (
     <div style={s.section}>
+      <div style={{ ...s.card, marginBottom: 12 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+          <span style={{ fontSize: 13, color: C.gray }}>경기 날짜</span>
+          <input type="date" value={gameDate || todayKST} max={todayKST}
+            onChange={(e) => e.target.value && dispatch({ type: 'SET_GAME_DATE', date: e.target.value })}
+            style={{ ...s.input, flex: 1, fontFamily: 'inherit' }} />
+        </div>
+        {dupCount > 0 && (
+          <div style={{ fontSize: 12, color: C.orange, marginTop: 6 }}>
+            이 날짜에 이미 {dupCount}판 기록됨 — 중복 입력에 주의하세요
+          </div>
+        )}
+      </div>
       <div style={s.sectionTitle}>{gameDate} · 참석자 {attendees.length}명</div>
       <div style={{ display: 'flex', flexWrap: 'wrap' }}>
         {roster.map(m => {
