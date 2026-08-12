@@ -50,15 +50,17 @@ describe('calcDailyMvp (최종포인트 = 골+어시+클린시트+크로바+고�
     expect(r.ranking.find(x => x.player === 'B').value).toBe(1);
   });
 
-  it('포인트 제도 미기록 날짜(랭크/크로바/고구마 전원 0)는 골 기록이 있어도 스킵', () => {
+  it('축구 게이트: 크로바·고구마·랭크점수 없이도 양수 포인트가 있는 날은 MVP 산출', () => {
+    // 풋살의 hasPointData 게이트는 축구 PG(crova/goguma/rank_score 0 고정)에서 전 날짜를
+    // 스킵시켰다 — soccerAnalytics는 양수 포인트 게이트로 대체(2026-08-12 리뷰 #2).
     const logs = [
       pg('A', '2026-01-01', { goals: 5 }),
       pg('B', '2026-01-01', { goals: 1 }),
       pg('A', '2026-06-04', { rank_score: 1, goals: 1 }),
     ];
     const r = calcDailyMvp({ playerGameLogs: logs });
-    expect(r.ranking[0]).toMatchObject({ player: 'A', value: 1 });
-    expect(r.eligibleDates).toBe(1);
+    expect(r.ranking[0]).toMatchObject({ player: 'A', value: 2 });
+    expect(r.eligibleDates).toBe(2);
   });
 
   it('recent: 최신순, 새 공식 포인트 표기', () => {

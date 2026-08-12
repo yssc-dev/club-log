@@ -35,12 +35,22 @@ export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
     ? (sortedMeans[mid - 1] + sortedMeans[mid]) / 2
     : sortedMeans[mid];
 
-  const streaky = [...stats]
+  // 같은 선수가 몰빵형·꾸준형에 동시 선정되는 모순 방지(소표본에서 topN이 풀 전체를 덮을 때):
+  // std 그룹 중앙값으로 분할 — 초과만 몰빵형, 이하만 꾸준형 후보. 구성상 상호 배타.
+  // (중앙값 경계는 꾸준형 쪽 — std가 그룹 평범 수준인 선수를 몰빵형이라 부르지 않는다)
+  const stdSorted = stats.map(s => s.std).sort((a, b) => a - b);
+  const smid = Math.floor(stdSorted.length / 2);
+  const stdMedian = stdSorted.length % 2 === 0
+    ? (stdSorted[smid - 1] + stdSorted[smid]) / 2
+    : stdSorted[smid];
+
+  const streaky = stats
+    .filter(s => s.std > stdMedian)
     .sort((a, b) => b.std - a.std || a.player.localeCompare(b.player, 'ko'))
     .slice(0, topN);
 
   const consistent = stats
-    .filter(s => s.mean >= median)
+    .filter(s => s.mean >= median && s.std <= stdMedian)
     .sort((a, b) => a.std - b.std || a.player.localeCompare(b.player, 'ko'))
     .slice(0, topN);
 

@@ -24,8 +24,6 @@ export function calcDailyMvp({ playerGameLogs, topN = 5, recentN = 5 }) {
       points:
         (Number(p.goals) || 0) + (Number(p.assists) || 0) + (Number(p.cleansheets) || 0) +
         (Number(p.crova) || 0) + (Number(p.goguma) || 0) + owngoalPoints(p.owngoals),
-      hasPointData:
-        (Number(p.rank_score) || 0) !== 0 || (Number(p.crova) || 0) !== 0 || (Number(p.goguma) || 0) !== 0,
     });
   }
 
@@ -35,9 +33,12 @@ export function calcDailyMvp({ playerGameLogs, topN = 5, recentN = 5 }) {
   const dates = Object.keys(byDate).sort((a, b) => a.localeCompare(b));
   for (const date of dates) {
     const rows = byDate[date];
-    if (!rows.some(r => r.hasPointData)) continue; // 포인트 제도 미기록 세션
-    eligibleDates++;
+    // 축구엔 크로바·고구마·랭크점수 제도가 없어(rawLogBuilders가 0 고정) 풋살의
+    // hasPointData 게이트로는 전 날짜가 스킵된다 → 양수 포인트 게이트로 대체.
+    // 전원 0점인 날(기록만 있고 기여 없음)은 MVP 없음 — 전원 공동 MVP 방지.
     const maxPoints = Math.max(...rows.map(r => r.points));
+    if (maxPoints <= 0) continue;
+    eligibleDates++;
     const mvps = rows.filter(r => r.points === maxPoints).map(r => r.player)
       .sort((a, b) => a.localeCompare(b, 'ko'));
     for (const name of mvps) counts[name] = (counts[name] || 0) + 1;

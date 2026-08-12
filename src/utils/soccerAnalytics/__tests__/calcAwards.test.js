@@ -83,25 +83,23 @@ describe('calcAwards', () => {
     expect(r.hatTricks).toEqual([{ player: 'X', count: 2 }]);
   });
 
-  it('owngoal 폴백: eventLogs에 owngoal 이벤트가 하나도 없으면 PG.owngoals 사용', () => {
+  it('owngoal 병합: 이벤트가 커버하는 날짜는 이벤트가 권위(그날 자책 0건도 사실)', () => {
     const eventLogs = [
       { event_type: 'goal', player: 'X', date: '2026-01-01', match_id: 'R1_C1' },
     ];
     const r = calcAwards({ playerLogs: logs, eventLogs });
-    // eventLogs는 비어있지 않지만 owngoal 이벤트가 없음 → PG 폴백 (C:3, A:1)
-    expect(r.owngoalKings).toEqual([
-      { player: 'C', total: 3 },
-      { player: 'A', total: 1 },
-    ]);
+    // 01-01은 이벤트 커버 날짜 → C(01-01)의 PG 자책 3은 무시, A(01-03, 미커버)만 보충
+    expect(r.owngoalKings).toEqual([{ player: 'A', total: 1 }]);
   });
 
-  it('owngoal: eventLogs에 owngoal 이벤트가 있으면 그쪽이 진실 소스', () => {
+  it('owngoal 병합: 이벤트 자책 + 미커버 날짜 PG 자책 합산', () => {
     const eventLogs = [
       { event_type: 'owngoal', player: 'D', date: '2026-01-01', match_id: 'R1_C1' },
       { event_type: 'owngoal', player: 'D', date: '2026-01-01', match_id: 'R2_C1' },
     ];
     const r = calcAwards({ playerLogs: logs, eventLogs });
-    expect(r.owngoalKings).toEqual([{ player: 'D', total: 2 }]);
+    // D 2(이벤트) + A 1(01-03 미커버 PG). C(01-01)는 커버 날짜라 무시
+    expect(r.owngoalKings).toEqual([{ player: 'D', total: 2 }, { player: 'A', total: 1 }]);
   });
 
   it('respects custom topN', () => {

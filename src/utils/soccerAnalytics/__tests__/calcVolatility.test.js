@@ -33,11 +33,13 @@ describe('calcVolatility', () => {
     expect(r.consistent.map(x => x.player)).toEqual(['High']);
   });
 
-  it('동률 std는 한글 가나다순', () => {
+  it('동률 std(=그룹 중앙값)는 꾸준형 귀속 + 한글 가나다순 — 몰빵형 중복 선정 금지', () => {
+    // std가 전원 동일하면 아무도 그룹 중앙값을 '초과'하지 않는다 → 몰빵형 없음(2026-08-12 리뷰 #12)
     const a = Array.from({ length: 5 }, (_, i) => ({ player: '가', goals: i % 2, assists: 0 }));
     const b = Array.from({ length: 5 }, (_, i) => ({ player: '나', goals: i % 2, assists: 0 }));
     const r = calcVolatility({ playerLogs: [...a, ...b], minGames: 5 });
-    expect(r.streaky.map(x => x.player)).toEqual(['가', '나']);
+    expect(r.streaky).toEqual([]);
+    expect(r.consistent.map(x => x.player)).toEqual(['가', '나']);
   });
 
   it('mean과 std 값을 정확히 계산 (표본 분산 ÷(n-1) — 소표본 과소추정 보정)', () => {
@@ -49,7 +51,8 @@ describe('calcVolatility', () => {
       { player: 'P', goals: 2, assists: 0 },
     ];
     const r = calcVolatility({ playerLogs: logs, minGames: 5 });
-    const p = r.streaky.find(x => x.player === 'P');
+    // 단독 선수는 std 중앙값 분할상 꾸준형 쪽 — 이 테스트의 관심사는 분류가 아니라 값 정밀도
+    const p = [...r.streaky, ...r.consistent].find(x => x.player === 'P');
     expect(p.mean).toBeCloseTo(2, 5);
     // var = ((0-2)^2 + (0-2)^2 + (4-2)^2 + (4-2)^2 + (2-2)^2)/(5-1) = 16/4 = 4 → std=2
     expect(p.std).toBeCloseTo(2, 5);
