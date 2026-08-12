@@ -62,9 +62,10 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
     if (isTennis) { setMembersLoading(false); return; }
     let cancelled = false;
     const load = async () => {
-      // 시트명 설정(RTDB)이 도착하기 전에 기본 시트명으로 조회하던 레이스 방지 —
-      // 로드 실패(오프라인 등) 시엔 localStorage 캐시 값으로 진행한다.
-      try { await loadSettingsFromFirebase(teamName, teamEntries); } catch { /* 캐시로 진행 */ }
+      // 시트명 설정(RTDB)이 도착하기 전에 기본 시트명으로 조회하던 레이스 방지.
+      // 로드 실패(오프라인 등) 폴백은 loadSettingsFromFirebase가 내부에서 처리하고 throw하지
+      // 않는다 — 이 catch는 함수가 나중에 throw하게 바뀌어도 대시보드가 죽지 않게 하는 보험.
+      try { await loadSettingsFromFirebase(teamName, teamEntries); } catch { /* 보험용 */ }
       if (cancelled) return;
       const s = getSettings(teamName);
       fetchSheetData()
