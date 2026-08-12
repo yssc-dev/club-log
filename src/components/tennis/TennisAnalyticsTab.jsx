@@ -169,7 +169,7 @@ function YearlyRecordsSection({ entries, ds }) {
 // ─── 페어 케미 + 파트너 분석 ─────────────────────────────
 // showChemistry: 전체 케미 표 표시 여부 (기본 true, 전체 뷰에서만 사용)
 // showBreakdown: 파트너별 분석 표시 여부 (기본 true, 개인 뷰에서만 사용)
-function ChemistrySection({ chemistry, breakdown, player, ds, C, showChemistry = true, showBreakdown = true }) {
+function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemistry = true, showBreakdown = true }) {
   const chemCols = useMemo(() => ({
     pair:   { accessor: p => p.players.join('·'), type: 'text' },
     record: { accessor: p => p.wins, type: 'num' },
@@ -476,7 +476,7 @@ function AceDfSection({ acedf, ds, C }) {
 }
 
 // ─── 메인 컴포넌트 ──────────────────────────────────────
-export default function TennisAnalyticsTab({ C: propC, authUserName }) {
+export default function TennisAnalyticsTab({ C: propC, _authUserName }) {
   const { C: themeC } = useTheme();
   const C = propC ?? themeC;
   const ds = makeStyles(C);
@@ -524,7 +524,9 @@ export default function TennisAnalyticsTab({ C: propC, authUserName }) {
     () => player ? buildPlayerSummary({ rows, player }) : null,
     [rows, player]);
 
-  const sectionKeys = analyticsSectionKeys({ player, format, hasLegacy: legacyRows.length > 0 });
+  const sectionKeys = useMemo(
+    () => analyticsSectionKeys({ player, format, hasLegacy: legacyRows.length > 0 }),
+    [player, format, legacyRows]);
 
   return (
     <div style={ds.section}>
@@ -557,7 +559,7 @@ export default function TennisAnalyticsTab({ C: propC, authUserName }) {
         switch (key) {
           case 'doublesStandings': return <DoublesStandingsSection key={key} standings={doublesStandings} ds={ds} />;
           case 'singlesStandings': return <SinglesStandingsSection key={key} standings={singlesStandings} ds={ds} />;
-          case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} breakdown={[]} player="" showBreakdown={false} ds={ds} C={C} />;
+          case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
           case 'summary':          return summary ? <SummaryCard key={key} summary={summary} player={player} ds={ds} C={C} /> : null;
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
           case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;

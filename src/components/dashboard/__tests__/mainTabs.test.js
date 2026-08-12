@@ -23,14 +23,18 @@ describe('buildMainTabs 테니스', () => {
 
 describe('buildMainTabs 비테니스(회귀)', () => {
   it('축구 = records·roster·analytics·games·tournament', () => {
-    expect(keys(buildMainTabs({ activeSport: '축구', role: '관리자', pendingCount: 0 })))
-      .toEqual(['records', 'roster', 'analytics', 'games', 'tournament']);
+    const t = buildMainTabs({ activeSport: '축구', role: '관리자', pendingCount: 0 });
+    expect(keys(t)).toEqual(['records', 'roster', 'analytics', 'games', 'tournament']);
+    expect(t.every(x => !x.beta)).toBe(true);
+    expect(t.find(x => x.key === 'games').badge).toBeFalsy();
   });
   it('풋살 = records·roster·analytics·games (대회 없음)', () => {
     const t = buildMainTabs({ activeSport: '풋살', role: '관리자', pendingCount: 0 });
     expect(keys(t)).toEqual(['records', 'roster', 'analytics', 'games']);
     expect(t.find(x => x.key === 'records').label).toBe('대시보드');
     expect(t.find(x => x.key === 'roster').label).toBe('개인기록');
+    expect(t.every(x => !x.beta)).toBe(true);
+    expect(t.find(x => x.key === 'games').badge).toBeFalsy();
   });
   it('축구 roster 라벨=팀/개인 기록', () => {
     const t = buildMainTabs({ activeSport: '축구', role: '관리자', pendingCount: 0 });
