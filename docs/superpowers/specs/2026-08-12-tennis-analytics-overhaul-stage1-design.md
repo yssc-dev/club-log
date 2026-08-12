@@ -13,7 +13,7 @@
 ## 2. 범위
 
 - **포함**: 탭 재편(테니스 분기), 분석 뷰 전환, 개인기록 탭 흡수, 컬럼 정렬(분석 테이블 전부).
-- **제외(후속 단계)**: 대시보드 콘텐츠(2단계), 날짜 필터(3단계), 대시보드 테이블 정렬(2단계에서 동일 훅 재사용).
+- **제외(후속 단계)**: 대시보드 콘텐츠(2단계), 날짜 필터(3단계), 대시보드 테이블 정렬(2단계에서 동일 훅 재사용), **회원관리 기능**(회원명부 조회·편집 — 진실 소스 쓰기 API+승인 게이트 필요, 별도 서브프로젝트). 1단계는 회원관리 **탭 placeholder만** 추가.
 - **무변경**: 분석 계산 유틸(`tennisAnalytics.js`/`tennisStandings.js`)의 **계산 로직**. 컴포넌트 배치와 정렬 래핑만 바뀐다. 축구/풋살 코드 경로 전부.
 
 ## 3. 결정 (2026-08-12 유저)
@@ -21,7 +21,8 @@
 | 항목 | 결정 |
 |---|---|
 | 대시보드 탭 | 1단계는 "준비 중" placeholder, 2단계에서 채움 |
-| 탭 순서 | `[대시보드] · [분석] · [경기관리]`, 개인기록 탭 제거 |
+| 회원관리 탭 | 1단계는 "준비 중" placeholder(관리자 전용), 기능은 별도 서브프로젝트 |
+| 탭 순서 | `[대시보드] · [분석] · [경기관리] · [회원관리(관리자)]`, 개인기록 탭 제거 |
 | 기본 진입 탭 | 분석(현행 유지 — 대시보드는 아직 비어 있음) |
 | 분석 기본 상태 | **전체 랭킹**(선수 미선택) |
 | 개인 뷰 구성 | 요약 카드 + 파트너별(복식) + 상대전적 + 월별흐름 + 연도별 |
@@ -51,6 +52,7 @@
       { key: "tdash",   label: "대시보드" },
       { key: "records", label: "분석" },
       { key: "games",   label: "경기관리", badge: pendingGames.length > 0 },
+      activeEntry?.role === "관리자" && { key: "members", label: "회원관리" },
     ]
   : [
       { key: "records", label: "대시보드" },
@@ -88,12 +90,13 @@ toggle/select UI(427-449행)는 유지. `useMemo`들은 그대로 두되(계산�
 
 - `roster` 분기(55-75행: "내 전적" 요약 카드) **삭제**.
 - `StatCell` 컴포넌트 + 요약 카드 마크업을 분석 개인 뷰의 **요약 카드**로 이동(TennisAnalyticsTab 내부 또는 공용 소컴포넌트). 값은 동일하게 `buildPlayerSummary` 사용.
-- 새 `tdash` 분기 추가 → 대시보드 placeholder:
+- 새 `tdash`·`members` 분기 추가 → placeholder:
   ```js
-  if (activeTab === 'tdash') {
-    return <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>대시보드 준비 중</div>;
-  }
+  if (activeTab === 'tdash')   return <Placeholder text="대시보드 준비 중" />;
+  if (activeTab === 'members') return <Placeholder text="회원관리 준비 중" />;
+  // Placeholder = <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>{text}</div>
   ```
+  회원관리 탭은 TeamDashboard에서 관리자에게만 노출되므로 비관리자는 `members` activeTab에 도달할 수 없음(방어적으로 placeholder는 무해).
 - `records` 분기(→ `TennisAnalyticsTab`)·`games` 분기 유지. `authUserName`은 TennisAnalyticsTab에 계속 전달(개인 뷰 기본은 전체지만, 유저가 select에서 본인 선택 시 사용 — 기본 선택엔 안 씀).
 
 ### 4.4 컬럼 정렬 (신규) — `src/utils/tennis/useSortableRows.js` + `SortHeader`
@@ -138,7 +141,7 @@ toggle/select UI(427-449행)는 유지. `useMemo`들은 그대로 두되(계산�
 - **`useSortableRows` 유닛**: 숫자 desc 우선·텍스트 ko asc·같은 key 토글(asc↔desc)·다른 key 전환·`initial=null`이면 원순서·안정성(동값 순서 보존).
 - **분석 뷰 전환**(렌더 또는 순수 함수 스모크): `player=''`이면 전체 섹션만(순위·케미·TB·베이글·에이스), 개인 전용 섹션(요약카드·파트너별·상대전적·월별·연도별) 미표시. `player='홍길동'`이면 반대. 복식/단식 각각.
 - **요약 카드**: `buildPlayerSummary` 반환값(단·복식 전적·출석·에이스·DF·TB·베이글) 표기 확인.
-- **탭 배열 회귀**: 테니스=`[대시보드, 분석, 경기관리]`(개인기록 없음); 축구/풋살 탭 배열 기존 유지 — 기존 `analyticsTabs.smoke.test.jsx`가 비테니스 회귀 감시.
+- **탭 배열 회귀**: 테니스(관리자)=`[대시보드, 분석, 경기관리, 회원관리]`, 테니스(비관리자)=`[대시보드, 분석, 경기관리]`(개인기록 없음, 회원관리 없음); 축구/풋살 탭 배열 기존 유지 — 기존 `analyticsTabs.smoke.test.jsx`가 비테니스 회귀 감시.
 - 전체 스위트(820) 통과 유지 + 신규 테스트.
 
 ## 6. 하위 호환·리스크
