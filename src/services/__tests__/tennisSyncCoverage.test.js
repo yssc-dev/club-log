@@ -127,6 +127,7 @@ describe('풋살 회귀 — 풋살 상태에 테니스 키가 생기지 않아�
 
     expect('rounds' in expanded).toBe(false);
     expect('guests' in expanded).toBe(false);
+    expect('scoringRules' in expanded).toBe(false);
   });
 
   it('풋살 initialState를 expandStateForRtdb에 통과시켜도 meta.sport 키가 생기지 않는다', () => {

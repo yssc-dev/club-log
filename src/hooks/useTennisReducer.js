@@ -2,6 +2,7 @@ import { useReducer } from 'react';
 import {
   emptySet, incrementGame, incrementTiebreakPoint,
   isTiebreakActive, isSetComplete, matchWinner,
+  TIEBREAK_POINTS_TO_WIN,
 } from '../utils/tennis/tennisScoring';
 import { normalizeTennisMatch, normalizeTennisCourt, normalizeScoringRules } from '../utils/tennis/normalizeTennisMatch';
 import { isRoundComplete } from '../utils/tennis/roundConfirm';
@@ -19,7 +20,7 @@ export const tennisInitialState = {
   viewingRoundIdx: 1,
   gameCreator: '',
   confirmedRounds: {},
-  scoringRules: { tiebreakMode: '7point', acesDfAffectScore: false },
+  scoringRules: normalizeScoringRules({}),
   gameFinalized: false,
 };
 
@@ -255,7 +256,7 @@ export function tennisReducer(state, action) {
           const games = last.side === 'A' ? 'a' : 'b';
           const nextPoint = Math.max(0, (s[key] || 0) - 1);
           // threshold 도달로 6게임이 확정됐던 경우 게임도 5로 되돌린다.
-          const threshold = state.scoringRules?.tiebreakMode === '1point' ? 1 : 7;
+          const threshold = state.scoringRules?.tiebreakMode === '1point' ? 1 : TIEBREAK_POINTS_TO_WIN;
           const nextGames = (s[key] || 0) >= threshold ? 5 : s[games];
           sets[last.setIdx] = { ...s, [key]: nextPoint, [games]: nextGames };
           return { ...c, sets, undoStack: rest };

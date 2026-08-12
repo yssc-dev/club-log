@@ -11,7 +11,7 @@
 // 타이브레이크는 7점 노애드가 기본, 팀 설정에 따라 1포인트 단판 데스도 가능.
 
 const GAMES_TO_WIN_SET = 6;
-const TIEBREAK_POINTS_TO_WIN = 7;
+export const TIEBREAK_POINTS_TO_WIN = 7;
 
 export function emptySet() {
   return { a: 0, b: 0, tbA: 0, tbB: 0, done: false };
