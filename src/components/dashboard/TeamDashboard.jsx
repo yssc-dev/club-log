@@ -13,6 +13,7 @@ import PlayerAnalytics from './PlayerAnalytics';
 import DualTeamTab from './analytics/DualTeamTab';
 import TournamentListTab from '../tournament/TournamentListTab';
 import TennisTabs from '../tennis/TennisTabs';
+import { buildMainTabs } from './mainTabs';
 
 export default function TeamDashboard({ authUser, teamName, teamEntries, onStartGame, onContinueGame, onViewHistory, onSettings, onSwitchTeam, onLogout, pendingGames = [], checkingPending }) {
   const { C, mode, toggle } = useTheme();
@@ -929,18 +930,15 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
       </div>
 
       {!tournamentActive && <div style={{ display: "flex", background: C.bg, borderBottom: `1px solid ${C.grayDarker}` }}>
-        {[
-          { key: "records", label: activeSport === "테니스" ? "분석" : "대시보드" },
-          { key: "roster", label: activeSport === "축구" ? "팀/개인 기록" : "개인기록" },
-          activeSport !== "테니스" && { key: "analytics", label: "분석" },
-          { key: "games", label: "경기관리", badge: pendingGames.length > 0 },
-          activeSport === "축구" && { key: "tournament", label: "대회" },
-        ].filter(Boolean).map(tab => (
+        {buildMainTabs({ activeSport, role: activeEntry?.role, pendingCount: pendingGames.length }).filter(Boolean).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={ds.mainTab(activeTab === tab.key)}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               {tab.label}
               {tab.badge && (
                 <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "#22c55e22", color: "#22c55e", fontWeight: 700 }}>진행중</span>
+              )}
+              {tab.beta && (
+                <span style={{ fontSize: 9, padding: "1px 5px", borderRadius: 4, background: "#a78bfa22", color: "#a78bfa", fontWeight: 700, letterSpacing: 0.3 }}>beta</span>
               )}
             </span>
           </button>

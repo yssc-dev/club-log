@@ -1,28 +1,20 @@
 // 테니스 대시보드 본문. Task 12에서 경기관리 탭을 채웠고,
 // Task 13에서 records(랭킹)·roster(개인기록) 탭을 추가한다.
 // Task 5에서 records 분기를 TennisAnalyticsTab으로 위임.
-import { useEffect, useState } from 'react';
-import TennisSync from '../../services/tennisSync';
-import { buildPlayerSummary } from '../../utils/tennis/tennisStandings';
+// Task 4(탭 재편): roster 분기 제거(분석 개인뷰로 흡수), tdash/members placeholder 추가.
 import { makeStyles } from '../../styles/theme';
 import TennisAnalyticsTab from './TennisAnalyticsTab';
 
-function StatCell({ label, value, C }) {
-  return (
-    <div style={{ flex: 1, textAlign: 'center' }}>
-      <div style={{ fontSize: 10, color: C.gray }}>{label}</div>
-      <div style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums', color: C.white }}>{value}</div>
-    </div>
-  );
-}
-
 export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, authUserName, C }) {
   const ds = makeStyles(C);
-  const [rows, setRows] = useState([]);
 
-  useEffect(() => {
-    TennisSync.getPlayerGames().then(setRows);
-  }, []);
+  if (activeTab === 'tdash') {
+    return <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>대시보드 · beta</div>;
+  }
+
+  if (activeTab === 'members') {
+    return <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>회원관리 · beta</div>;
+  }
 
   if (activeTab === 'games') {
     return (
@@ -50,28 +42,6 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
 
   if (activeTab === 'records') {
     return <TennisAnalyticsTab C={C} authUserName={authUserName} />;
-  }
-
-  if (activeTab === 'roster') {
-    const me = buildPlayerSummary({ rows, player: authUserName });
-    return (
-      <div style={ds.section}>
-        <div style={ds.sectionTitle}>{authUserName || '내'} 전적</div>
-        <div style={ds.card}>
-          <div style={{ display: 'flex', marginBottom: 12 }}>
-            <StatCell C={C} label="단식" value={`${me.singles.wins}-${me.singles.losses}`} />
-            <StatCell C={C} label="복식" value={`${me.doubles.wins}-${me.doubles.losses}`} />
-            <StatCell C={C} label="출석" value={`${me.attendanceDates}일`} />
-          </div>
-          <div style={{ display: 'flex' }}>
-            <StatCell C={C} label="에이스" value={me.aces} />
-            <StatCell C={C} label="더블폴트" value={me.doubleFaults} />
-            <StatCell C={C} label="타이브레이크" value={`${me.tbWon}/${me.tbPlayed}`} />
-            <StatCell C={C} label="베이글" value={`${me.bagelsGiven}/${me.bagelsTaken}`} />
-          </div>
-        </div>
-      </div>
-    );
   }
 
   return <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 12 }}>준비 중</div>;
