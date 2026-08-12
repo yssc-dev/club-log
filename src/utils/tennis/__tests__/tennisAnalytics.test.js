@@ -84,6 +84,44 @@ describe('buildTbRanking / buildBagelRanking / buildAceDfRanking', () => {
   });
 });
 
+describe('buildTbRanking / buildBagelRanking / buildAceDfRanking — format 필터', () => {
+  // 단식 행(tb_played=2, bagels_given=1, aces=4) + 복식 행(tb_played=3, bagels_given=2, aces=6) 혼합
+  const mixedRows = [
+    ...doublesMatch({ over: { format: '단식', tb_played: 2, tb_won: 2, bagels_given: 1, aces: 4, double_faults: 0 } }),
+    ...doublesMatch({ over: { format: '복식', tb_played: 3, tb_won: 1, bagels_given: 2, aces: 6, double_faults: 2 } }),
+  ];
+
+  it('buildTbRanking: format=단식이면 복식 행 제외', () => {
+    const result = buildTbRanking({ rows: mixedRows, roster, format: '단식' });
+    const gap = result.find(x => x.name === '갑');
+    expect(gap).toBeDefined();
+    expect(gap.tbPlayed).toBe(2); // 단식만: tb_played=2
+  });
+
+  it('buildBagelRanking: format=복식이면 단식 베이글 제외', () => {
+    const result = buildBagelRanking({ rows: mixedRows, roster, format: '복식' });
+    const gap = result.find(x => x.name === '갑');
+    expect(gap).toBeDefined();
+    expect(gap.given).toBe(2); // 복식만: bagels_given=2
+  });
+
+  it('buildAceDfRanking: format=단식이면 복식 에이스 제외', () => {
+    const result = buildAceDfRanking({ rows: mixedRows, roster, format: '단식' });
+    const gap = result.find(x => x.name === '갑');
+    expect(gap).toBeDefined();
+    expect(gap.aces).toBe(4); // 단식만: aces=4
+  });
+
+  it('format 미전달 시 단식+복식 전체 집계 — 하위호환', () => {
+    const tb = buildTbRanking({ rows: mixedRows, roster });
+    expect(tb.find(x => x.name === '갑').tbPlayed).toBe(5); // 2+3
+    const bagel = buildBagelRanking({ rows: mixedRows, roster });
+    expect(bagel.find(x => x.name === '갑').given).toBe(3); // 1+2
+    const ace = buildAceDfRanking({ rows: mixedRows, roster });
+    expect(ace.find(x => x.name === '갑').aces).toBe(10); // 4+6
+  });
+});
+
 describe('buildYearlyRecords', () => {
   it('레거시+로그+통산 합산', () => {
     const legacyRows = [

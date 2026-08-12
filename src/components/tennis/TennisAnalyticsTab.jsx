@@ -413,9 +413,9 @@ export default function TennisAnalyticsTab({ C, authUserName }) {
   const monthly = useMemo(
     () => player ? buildMonthlyForm({ rows, player, format }) : [], [rows, player, format]);
 
-  const tbRanking = useMemo(() => buildTbRanking({ rows, roster }), [rows, roster]);
-  const bagelRanking = useMemo(() => buildBagelRanking({ rows, roster }), [rows, roster]);
-  const aceDfRanking = useMemo(() => buildAceDfRanking({ rows, roster }), [rows, roster]);
+  const tbRanking = useMemo(() => buildTbRanking({ rows, roster, format }), [rows, roster, format]);
+  const bagelRanking = useMemo(() => buildBagelRanking({ rows, roster, format }), [rows, roster, format]);
+  const aceDfRanking = useMemo(() => buildAceDfRanking({ rows, roster, format }), [rows, roster, format]);
 
   const yearlyRecords = useMemo(
     () => player ? buildYearlyRecords({ legacyRows, rows, player, format }) : [],

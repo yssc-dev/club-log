@@ -124,11 +124,13 @@ export function buildMonthlyForm({ rows, player, format }) {
 }
 
 // TB 랭킹: 회원만, tbPlayed >= 1만, rate↓
-export function buildTbRanking({ rows, roster }) {
+// format 미지정 시 단·복식 전체
+export function buildTbRanking({ rows, roster, format }) {
   const members = memberNames(roster);
   const acc = new Map();
   for (const r of rows || []) {
     if (!members.has(r.player)) continue;
+    if (format !== undefined && r.format !== format) continue;
     const cur = acc.get(r.player) || { name: r.player, tbPlayed: 0, tbWon: 0, rate: 0 };
     cur.tbPlayed += Number(r.tb_played) || 0;
     cur.tbWon += Number(r.tb_won) || 0;
@@ -141,11 +143,13 @@ export function buildTbRanking({ rows, roster }) {
 }
 
 // 베이글 랭킹: 회원만, given↓
-export function buildBagelRanking({ rows, roster }) {
+// format 미지정 시 단·복식 전체
+export function buildBagelRanking({ rows, roster, format }) {
   const members = memberNames(roster);
   const acc = new Map();
   for (const r of rows || []) {
     if (!members.has(r.player)) continue;
+    if (format !== undefined && r.format !== format) continue;
     const cur = acc.get(r.player) || { name: r.player, given: 0, taken: 0 };
     cur.given += Number(r.bagels_given) || 0;
     cur.taken += Number(r.bagels_taken) || 0;
@@ -157,11 +161,13 @@ export function buildBagelRanking({ rows, roster }) {
 
 // 에이스/더블폴트 랭킹: 미기록 행(aces === '' | null | undefined) 제외, 회원만, recordedGames>0만, aces↓
 // 마이그레이션 행은 aces=''이므로 Number() 강제 변환으로 0으로 오염시키지 않는다
-export function buildAceDfRanking({ rows, roster }) {
+// format 미지정 시 단·복식 전체
+export function buildAceDfRanking({ rows, roster, format }) {
   const members = memberNames(roster);
   const acc = new Map();
   for (const r of rows || []) {
     if (!members.has(r.player)) continue;
+    if (format !== undefined && r.format !== format) continue;
     // 미기록 행 제외 — '' / null / undefined 모두 포함
     if (r.aces === '' || r.aces === null || r.aces === undefined) continue;
     const cur = acc.get(r.player) || { name: r.player, aces: 0, doubleFaults: 0, recordedGames: 0 };
