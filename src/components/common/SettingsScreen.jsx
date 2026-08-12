@@ -12,6 +12,7 @@ import { recoverFinalizedStateFromSheets } from '../../utils/recoverFinalizedFro
 
 export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmin, onBack }) {
   const isSoccer = teamMode === "축구";
+  const isTennis = teamMode === "테니스";
   const { C } = useTheme();
   const sport = teamMode;
   const [settings, setSettings] = useState(() => getEffectiveSettings(teamName, sport));
@@ -299,6 +300,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
         <div style={{ fontSize: 15, color: "var(--app-text-secondary)", marginTop: 4 }}>{teamName}</div>
       </div>
 
+      {!isTennis && (
       <div style={ss.section}>
         <div className="app-section-label">구글시트 설정</div>
         <div className="app-grouped">
@@ -314,6 +316,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
           <div className="app-row"><SheetSelect label="선수별집계 시트" value={settings.playerLogSheet} onChange={v => update("playerLogSheet", v)} /></div>
         </div>
       </div>
+      )}
 
       <div style={ss.section}>
         <div className="app-section-label">경기규칙 설정</div>
@@ -342,8 +345,20 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
               <div className="app-row"><NumRow label="자책골 포인트" value={settings.ownGoalPoint} onChange={v => update("ownGoalPoint", v)} defaultVal={getDefaultFor("ownGoalPoint")} settingKey="ownGoalPoint" /></div>
               <div className="app-row"><NumRow label="클린시트 포인트" value={settings.cleanSheetPoint} onChange={v => update("cleanSheetPoint", v)} defaultVal={getDefaultFor("cleanSheetPoint")} settingKey="cleanSheetPoint" /></div>
             </>
+          ) : isTennis ? (
+            <>
+              <SegToggle label="타이브레이크 시"
+                options={[['7point', '노애드 7점'], ['1point', '단판 1점']]}
+                value={settings.scoringRules?.tiebreakMode ?? '7point'}
+                onPick={(v) => update('scoringRules', { ...(settings.scoringRules || {}), tiebreakMode: v })} />
+              <SegToggle label="에이스·더블폴트"
+                options={[[false, '분석 전용'], [true, '점수 반영']]}
+                value={settings.scoringRules?.acesDfAffectScore ?? false}
+                onPick={(v) => update('scoringRules', { ...(settings.scoringRules || {}), acesDfAffectScore: v })} />
+            </>
           ) : (
             <>
+              {/* 기존 풋살 블록 그대로 — 크로바/고구마·자책골. 수정 금지 */}
               <div className="app-row">
                 <div style={ss.row}>
                   <label style={ss.label}>
@@ -369,7 +384,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
             </>
           )}
         </div>
-        {!isSoccer && settings.useCrovaGoguma && (
+        {!isSoccer && !isTennis && settings.useCrovaGoguma && (
           <>
             <div style={{ fontSize: 12, color: "var(--app-text-tertiary)", padding: "8px 16px 0" }}>
               ※ 크로바/고구마 점수는 2구장 경기에서만 적용됩니다.
@@ -385,7 +400,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
         )}
       </div>
 
-      {isAdmin && (
+      {isAdmin && !isTennis && (
         <div style={ss.section}>
           <div className="app-section-label">관리자 툴</div>
           <div className="app-grouped">
@@ -485,6 +500,29 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
           </div>
         </div>
       )}
+    </div>
+  );
+}
+
+function SegToggle({ label, options, value, onPick }) {
+  return (
+    <div className="app-row">
+      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10, width: "100%" }}>
+        <span style={{ fontSize: 15, color: "var(--app-text-primary)", flex: 1 }}>{label}</span>
+        <div style={{ display: "flex", gap: 4 }}>
+          {options.map(([v, lbl]) => (
+            <button key={String(v)} type="button" onClick={() => onPick(v)}
+              style={{
+                padding: "5px 10px", borderRadius: 8, fontSize: 13, cursor: "pointer",
+                fontFamily: "inherit", border: "0.5px solid var(--app-divider)",
+                background: v === value ? "var(--app-blue)" : "var(--app-bg-row)",
+                color: v === value ? "#fff" : "var(--app-text-secondary)",
+              }}>
+              {lbl}
+            </button>
+          ))}
+        </div>
+      </div>
     </div>
   );
 }

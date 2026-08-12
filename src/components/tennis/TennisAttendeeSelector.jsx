@@ -79,7 +79,7 @@ export default function TennisAttendeeSelector({ roster, attendees, guests, game
       </div>
       <div style={{ ...s.card, marginTop: 14 }}>
         <div style={s.sectionTitle}>경기 규칙</div>
-        <RuleToggle label="타이브레이크(5:5)"
+        <RuleToggle label="타이브레이크 시"
           options={[['7point', '노애드 7점'], ['1point', '단판 1점']]}
           value={scoringRules?.tiebreakMode || '7point'}
           onPick={(v) => dispatch({ type: 'SET_SCORING_RULES', rules: { ...scoringRules, tiebreakMode: v } })}
