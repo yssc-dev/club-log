@@ -44,7 +44,7 @@ export function calcPlayerSummary({ matchLogs = [], eventLogs = [], playerGameLo
 
   for (const m of matchLogs) {
     if (m.is_extra) continue;
-    sessionDates.add(m.date || '');
+    if (m.date) sessionDates.add(m.date); // 빈 날짜가 totalSessions를 부풀리지 않게(참석률 분모)
     const home = safeParseArray(m.our_members_json);
     const away = safeParseArray(m.opponent_members_json);
     const ourScore = Number(m.our_score) || 0;
@@ -81,7 +81,14 @@ export function calcPlayerSummary({ matchLogs = [], eventLogs = [], playerGameLo
   }
 
   // 2) eventLogs 패스: goals/assists/ownGoals/fouls
+  // is_extra 매치의 이벤트는 제외 — 매치 패스와 동일 기준. 이벤트 행엔 is_extra가 없어
+  // (date, match_id)로 조인한다. match_id 없는 레거시 행은 보수적으로 유지.
+  const extraKeys = new Set();
+  for (const m of matchLogs) {
+    if (m.is_extra && m.date && m.match_id) extraKeys.add(`${m.date}|${m.match_id}`);
+  }
   for (const e of eventLogs) {
+    if (e.date && e.match_id && extraKeys.has(`${e.date}|${e.match_id}`)) continue;
     if (e.event_type === 'goal') {
       if (e.player) ensure(e.player).goals++;
       if (e.related_player) ensure(e.related_player).assists++;
