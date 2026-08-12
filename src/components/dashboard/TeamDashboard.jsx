@@ -2,7 +2,8 @@ import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchSheetData } from '../../services/sheetService';
 import AppSync from '../../services/appSync';
 import AuthUtil from '../../services/authUtil';
-import { getSettings, getEffectiveSettings } from '../../config/settings';
+import { getSettings, getEffectiveSettings, loadSettingsFromFirebase } from '../../config/settings';
+import { buildAttendanceData, buildAttendanceView } from '../../utils/dashboardAttendance';
 import { pendingGameProgressLabel } from '../../utils/pendingGameLabel';
 import { useTheme } from '../../hooks/useTheme';
 import Modal from '../common/Modal';
@@ -59,81 +60,72 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   useEffect(() => {
     // 테니스는 대시보드 시트(풋살/축구 명부)를 읽지 않는다. 호출하면 빈 명단으로 위젯이 0으로 채워진다.
     if (isTennis) { setMembersLoading(false); return; }
-    fetchSheetData()
-      .then(data => { setMembers(data.players || []); setKeepers(data.keepers || []); })
-      .catch(() => setMembers([]))
-      .finally(() => setMembersLoading(false));
-    AppSync.getLatestDeltas(getSettings(teamName).playerLogSheet).then(deltas => {
-      setPrevRanks(deltas);
-    }).catch(() => {});
-    // 축구팀: 포인트로그에서 팀 전적 + 선수별집계에서 출석률
-    if (hasSoccerEntry) {
-      AppSync.getPlayerLog(getSettings(teamName).playerLogSheet).then(plog => {
-        if (!plog || plog.length === 0) return;
-        const allDates = new Set(plog.map(p => p.date));
-        const playerDates = {};
-        for (const p of plog) {
-          if (!playerDates[p.name]) playerDates[p.name] = new Set();
-          playerDates[p.name].add(p.date);
-        }
-        const result = {};
-        for (const [name, dates] of Object.entries(playerDates)) { result[name] = dates.size; }
-        setAttendanceData({ totalDates: allDates.size, playerDates: result });
+    let cancelled = false;
+    const load = async () => {
+      // 시트명 설정(RTDB)이 도착하기 전에 기본 시트명으로 조회하던 레이스 방지 —
+      // 로드 실패(오프라인 등) 시엔 localStorage 캐시 값으로 진행한다.
+      try { await loadSettingsFromFirebase(teamName, teamEntries); } catch { /* 캐시로 진행 */ }
+      if (cancelled) return;
+      const s = getSettings(teamName);
+      fetchSheetData()
+        .then(data => { if (cancelled) return; setMembers(data.players || []); setKeepers(data.keepers || []); })
+        .catch(() => { if (!cancelled) setMembers([]); })
+        .finally(() => { if (!cancelled) setMembersLoading(false); });
+      AppSync.getLatestDeltas(s.playerLogSheet).then(deltas => {
+        if (!cancelled) setPrevRanks(deltas);
       }).catch(() => {});
-      AppSync.getPointLog(getSettings(teamName).pointLogSheet).then(events => {
-        if (!events || events.length === 0) return;
-        const matches = {};
-        for (const e of events) {
-          if (!e.date || !e.matchId) continue;
-          const key = `${e.date}_${e.matchId}`;
-          if (!matches[key]) matches[key] = { ourGoals: 0, opponentGoals: 0, date: e.date, matchId: e.matchId };
-          if (e.scorer && e.scorer !== "OG") matches[key].ourGoals++;
-          if (e.ownGoal) matches[key].opponentGoals++;
-          if (e.concedingGk && !e.scorer) matches[key].opponentGoals++;
-        }
-        const sorted = Object.values(matches).sort((a, b) => `${a.date}_${a.matchId}`.localeCompare(`${b.date}_${b.matchId}`));
-        let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
-        const form = [];
-        for (const m of sorted) {
-          gf += m.ourGoals; ga += m.opponentGoals;
-          if (m.ourGoals > m.opponentGoals) { wins++; form.push("W"); }
-          else if (m.ourGoals < m.opponentGoals) { losses++; form.push("L"); }
-          else { draws++; form.push("D"); }
-        }
-        setTeamRecord({ wins, draws, losses, gf, ga, games: sorted.length, form: form.slice(-5) });
-        // 상대팀별 전적
-        const oppMap = {};
-        for (const e of events) {
-          if (!e.date || !e.matchId || !e.opponent) continue;
-          const key = `${e.date}_${e.matchId}`;
-          if (!oppMap[key]) oppMap[key] = { opponent: e.opponent };
-        }
-        const oppStats = {};
-        for (const m of sorted) {
-          const info = Object.values(oppMap).find(o => true); // need opponent from events
-        }
-        // 더 정확한 방법: events에서 opponent 추출
-        const matchOpponents = {};
-        for (const e of events) {
-          if (!e.date || !e.matchId) continue;
-          const key = `${e.date}_${e.matchId}`;
-          if (e.opponent && !matchOpponents[key]) matchOpponents[key] = e.opponent;
-        }
-        const oppRec = {};
-        for (const m of sorted) {
-          const key = `${m.date}_${m.matchId}`;
-          const opp = matchOpponents[key];
-          if (!opp) continue;
-          if (!oppRec[opp]) oppRec[opp] = { opponent: opp, games: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 };
-          oppRec[opp].games++; oppRec[opp].gf += m.ourGoals; oppRec[opp].ga += m.opponentGoals;
-          if (m.ourGoals > m.opponentGoals) oppRec[opp].wins++;
-          else if (m.ourGoals < m.opponentGoals) oppRec[opp].losses++;
-          else oppRec[opp].draws++;
-        }
-        setOpponentRecords(Object.values(oppRec).sort((a, b) => b.games - a.games));
-      }).catch(() => {});
-    }
+      // 축구팀: 포인트로그에서 팀 전적 + 선수별집계에서 출석률
+      if (hasSoccerEntry) {
+        AppSync.getPlayerLog(s.playerLogSheet).then(plog => {
+          if (!cancelled) setAttendanceData(buildAttendanceData(plog));
+        }).catch(() => {});
+        AppSync.getPointLog(s.pointLogSheet).then(events => {
+          if (cancelled) return;
+          if (!events || events.length === 0) return;
+          const matches = {};
+          for (const e of events) {
+            if (!e.date || !e.matchId) continue;
+            const key = `${e.date}_${e.matchId}`;
+            if (!matches[key]) matches[key] = { ourGoals: 0, opponentGoals: 0, date: e.date, matchId: e.matchId };
+            if (e.scorer && e.scorer !== "OG") matches[key].ourGoals++;
+            if (e.ownGoal) matches[key].opponentGoals++;
+            if (e.concedingGk && !e.scorer) matches[key].opponentGoals++;
+          }
+          const sorted = Object.values(matches).sort((a, b) => `${a.date}_${a.matchId}`.localeCompare(`${b.date}_${b.matchId}`));
+          let wins = 0, draws = 0, losses = 0, gf = 0, ga = 0;
+          const form = [];
+          for (const m of sorted) {
+            gf += m.ourGoals; ga += m.opponentGoals;
+            if (m.ourGoals > m.opponentGoals) { wins++; form.push("W"); }
+            else if (m.ourGoals < m.opponentGoals) { losses++; form.push("L"); }
+            else { draws++; form.push("D"); }
+          }
+          setTeamRecord({ wins, draws, losses, gf, ga, games: sorted.length, form: form.slice(-5) });
+          // 상대팀별 전적 — events에서 매치별 상대 추출
+          const matchOpponents = {};
+          for (const e of events) {
+            if (!e.date || !e.matchId) continue;
+            const key = `${e.date}_${e.matchId}`;
+            if (e.opponent && !matchOpponents[key]) matchOpponents[key] = e.opponent;
+          }
+          const oppRec = {};
+          for (const m of sorted) {
+            const key = `${m.date}_${m.matchId}`;
+            const opp = matchOpponents[key];
+            if (!opp) continue;
+            if (!oppRec[opp]) oppRec[opp] = { opponent: opp, games: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0 };
+            oppRec[opp].games++; oppRec[opp].gf += m.ourGoals; oppRec[opp].ga += m.opponentGoals;
+            if (m.ourGoals > m.opponentGoals) oppRec[opp].wins++;
+            else if (m.ourGoals < m.opponentGoals) oppRec[opp].losses++;
+            else oppRec[opp].draws++;
+          }
+          setOpponentRecords(Object.values(oppRec).sort((a, b) => b.games - a.games));
+        }).catch(() => {});
+      }
+    };
+    load();
     // teamName/hasSoccerEntry/isTennis 변경 시 재조회 — 이전엔 []라 팀 전환에도 최초 데이터가 유지됐음
+    return () => { cancelled = true; };
   }, [teamName, hasSoccerEntry, isTennis]);
 
   const ds = useMemo(() => ({
@@ -482,30 +474,30 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
           })()}
 
           {/* 출석률 */}
-          {activePlayers.length > 0 && (
-            <div style={ds.section}>
-              <div style={ds.sectionTitle}>출석률 TOP 10 <span style={{ fontSize: 11, fontWeight: 400, color: C.gray }}>(전체 {activeSport === "축구" && attendanceData ? attendanceData.totalDates : maxGames}일 기준)</span></div>
-              <div style={{ ...ds.card, display: "flex", flexWrap: "wrap", gap: 0 }}>
-                {(() => {
-                  const isSoccer = activeSport === "축구" && attendanceData;
-                  const totalDates = isSoccer ? attendanceData.totalDates : maxGames;
-                  const list = isSoccer
-                    ? Object.entries(attendanceData.playerDates).map(([name, count]) => ({ name, att: count })).sort((a, b) => b.att - a.att).slice(0, 10)
-                    : [...members].filter(p => p.games > 0).sort((a, b) => b.games - a.games).slice(0, 10).map(p => ({ name: p.name, att: p.games }));
-                  return list.map((p, i) => {
-                    const ratio = p.att / (totalDates || 1);
-                    const opacity = 0.3 + ratio * 0.7;
-                    return (
-                      <div key={i} style={{ width: "50%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 6px", fontSize: 12 }}>
-                        <span style={{ fontWeight: 600, opacity }}>{p.name}</span>
-                        <span style={{ fontWeight: 700, color: ratio >= 1 ? "#22c55e" : C.accent, opacity }}>{Math.round(ratio * 100)}%({p.att}일)</span>
-                      </div>
-                    );
-                  });
-                })()}
+          {activePlayers.length > 0 && (() => {
+            const av = buildAttendanceView(activeSport, attendanceData, members, maxGames);
+            return (
+              <div style={ds.section}>
+                <div style={ds.sectionTitle}>출석률 TOP 10 {av.mode !== "empty" && <span style={{ fontSize: 11, fontWeight: 400, color: C.gray }}>(전체 {av.totalDates}일 기준)</span>}</div>
+                <div style={{ ...ds.card, display: "flex", flexWrap: "wrap", gap: 0 }}>
+                  {av.mode === "empty" ? (
+                    <div style={{ padding: "6px", fontSize: 12, color: C.gray }}>출석 데이터 없음</div>
+                  ) : (
+                    av.list.map((p, i) => {
+                      const ratio = p.att / (av.totalDates || 1);
+                      const opacity = 0.3 + ratio * 0.7;
+                      return (
+                        <div key={i} style={{ width: "50%", display: "flex", justifyContent: "space-between", alignItems: "center", padding: "5px 6px", fontSize: 12 }}>
+                          <span style={{ fontWeight: 600, opacity }}>{p.name}</span>
+                          <span style={{ fontWeight: 700, color: ratio >= 1 ? "#22c55e" : C.accent, opacity }}>{Math.round(ratio * 100)}%({p.att}일)</span>
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
               </div>
-            </div>
-          )}
+            );
+          })()}
 
         </>
       )}
