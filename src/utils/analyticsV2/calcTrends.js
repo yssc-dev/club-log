@@ -7,7 +7,7 @@ export function calcTrends({ playerName, playerLogs, matchLogs, maxSessions = 12
 
   const playerSessions = playerLogs
     .filter(p => p.player === playerName)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '')); // date 누락 행 크래시 방어
   if (playerSessions.length === 0) return { points: [], smoothed: [] };
 
   const sessionMatches = {};

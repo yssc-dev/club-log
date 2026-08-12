@@ -9,7 +9,7 @@ export function calcStreaks({ playerName, playerLogs, sessionDates = null }) {
 
   const rows = playerLogs
     .filter(p => p.player === playerName)
-    .sort((a, b) => a.date.localeCompare(b.date));
+    .sort((a, b) => (a.date || '').localeCompare(b.date || '')); // date 누락 행 크래시 방어
 
   // 순회 단위: sessionDates가 있으면 클럽 세션 전체(결석=null 슬롯), 없으면 본인 행만
   let sessions;
