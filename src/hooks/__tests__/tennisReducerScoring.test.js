@@ -61,4 +61,10 @@ describe('INCREMENT_GAME 1point 모드', () => {
     const s = tennisReducer(st, { type: 'INCREMENT_GAME', roundIdx: 1, courtId: 1, side: 'A' });
     expect(court0(s).sets[0]).toMatchObject({ a: 6, b: 5 });
   });
+  it('1점 모드: INCREMENT_GAME 6:5 → UNDO → 5:5 복원', () => {
+    const st = base({ tiebreakMode: '1point', acesDfAffectScore: false }, { sets: [{ a: 5, b: 5, tbA: 0, tbB: 0, done: false }] });
+    const s1 = tennisReducer(st, { type: 'INCREMENT_GAME', roundIdx: 1, courtId: 1, side: 'A' });
+    const s2 = tennisReducer(s1, { type: 'UNDO', roundIdx: 1, courtId: 1 });
+    expect(court0(s2).sets[0]).toMatchObject({ a: 5, b: 5 });
+  });
 });

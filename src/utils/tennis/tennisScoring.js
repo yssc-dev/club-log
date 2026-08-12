@@ -52,11 +52,11 @@ export function incrementGame(set, side, rules = {}) {
 
   // 7점 모드(기본): 5:5는 타이브레이크로만 처리
   if (isTiebreakActive(set)) return set;
-  // 6:5는 타이브레이크 승자만 만들 수 있는 스코어 — 게임으로 진입 금지
+  // 6:5·6:6 금지 — 6:5는 타이브레이크 승자만 만들 수 있는 스코어
   const nextVal = (set[key] || 0) + 1;
-  const ra = key === 'a' ? nextVal : (set.a || 0);
-  const rb = key === 'b' ? nextVal : (set.b || 0);
-  if (Math.max(ra, rb) === GAMES_TO_WIN_SET && Math.min(ra, rb) === GAMES_TO_WIN_SET - 1) return set;
+  const otherVal = set[other] || 0;
+  if (nextVal === GAMES_TO_WIN_SET && otherVal >= 5) return set;  // 자기가 6이 될 때 상대≥5 금지
+  if (nextVal === 5 && otherVal === GAMES_TO_WIN_SET) return set; // 역방향 6:5 금지
   return { ...set, [key]: nextVal };
 }
 

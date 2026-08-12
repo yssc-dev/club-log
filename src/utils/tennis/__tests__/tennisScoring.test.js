@@ -156,9 +156,14 @@ describe('incrementGame — rules', () => {
   const s = (a, b) => ({ a, b, tbA: 0, tbB: 0, done: false });
   it('7점 모드(기본): 6게임 후 상대 6:4까지 순서무관, 6:5 금지', () => {
     expect(incrementGame(s(6, 0), 'B')).toMatchObject({ a: 6, b: 1 });    // 6:0→6:1 허용
-    expect(incrementGame(s(6, 4), 'B')).toMatchObject({ a: 6, b: 4 });    // 6:4→6:5 금지(변화없음)
+    const s64 = s(6, 4);
+    expect(incrementGame(s64, 'B')).toBe(s64);  // 6:4→6:5 금지(변화없음, 참조 동일)
     expect(incrementGame(s(6, 2), 'A')).toMatchObject({ a: 6, b: 2 });    // 7 금지
     expect(incrementGame(s(5, 0), 'A')).toMatchObject({ a: 6, b: 0 });    // 5:0→6:0 허용
+  });
+  it('7점 모드: 6:5에서 게임+1이 6:6 생성 안 함(회귀)', () => {
+    const s65 = s(6, 5);
+    expect(incrementGame(s65, 'B')).toBe(s65); // 6:6 금지(변화없음, 참조 동일)
   });
   it('7점 모드: 5:5는 게임+1 무시(TB로)', () => {
     const t = s(5, 5);
@@ -168,7 +173,8 @@ describe('incrementGame — rules', () => {
     const r = { tiebreakMode: '1point' };
     expect(incrementGame(s(5, 5), 'A', r)).toMatchObject({ a: 6, b: 5 });
     expect(incrementGame(s(6, 0), 'B', r)).toMatchObject({ a: 6, b: 1 });
-    expect(incrementGame(s(6, 5), 'B', r)).toMatchObject({ a: 6, b: 5 }); // 6:6 금지(변화없음)
+    const s65r = s(6, 5);
+    expect(incrementGame(s65r, 'B', r)).toBe(s65r); // 6:6 금지(변화없음, 참조 동일)
     expect(incrementGame(s(6, 2), 'A', r)).toMatchObject({ a: 6, b: 2 }); // 7 금지
   });
 });
