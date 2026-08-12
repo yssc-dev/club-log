@@ -9,6 +9,7 @@ import {
 } from '../firebaseSyncDiff';
 import { tennisInitialState } from '../../hooks/useTennisReducer';
 import { initialState } from '../../hooks/useGameReducer';
+import { normalizeTennisMatch } from '../../utils/tennis/normalizeTennisMatch';
 
 // 테니스 전용 로컬 전용 필드 — RTDB에 저장하지 않는다.
 // (풋살 LOCAL_ONLY_FIELDS는 풋살 initialState 기준이라 여기에 별도 정의)
@@ -93,12 +94,15 @@ describe('테니스 RTDB 동기화 — 왕복 테스트', () => {
     expect(court.stats['선수A'].aces).toBe(2);
   });
 
-  it('scoringRules가 왕복(expand→reconstruct) 후 보존돼야 한다', () => {
+  it('scoringRules가 왕복(expand→reconstruct→normalize) 전체 체인 후 보존돼야 한다', () => {
     const expanded = expandStateForRtdb(SAMPLE_TENNIS_STATE);
     // TENNIS_WHOLE_REPLACE_FIELDS에 등록됐는지 확인 — scoringRules가 포함돼야 전달된다
     expect(expanded.scoringRules).toEqual({ tiebreakMode: '1point', acesDfAffectScore: true });
     const result = reconstructState('game-test-1', expanded);
     expect(result.scoringRules).toEqual({ tiebreakMode: '1point', acesDfAffectScore: true });
+    // normalize 체인 — reconstructState가 기본값을 땜질하지 않고 normalizeTennisMatch가 담당함을 검증
+    const normalized = normalizeTennisMatch(result);
+    expect(normalized.scoringRules).toEqual({ tiebreakMode: '1point', acesDfAffectScore: true });
   });
 });
 
