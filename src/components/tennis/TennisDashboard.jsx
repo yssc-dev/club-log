@@ -77,6 +77,12 @@ export default function TennisDashboard({ C: propC }) {
   const tb = useMemo(() => buildTbRanking({ rows, roster }), [rows, roster]);
   const bagel = useMemo(() => buildBagelRanking({ rows, roster }), [rows, roster]);
   const acedf = useMemo(() => buildAceDfRanking({ rows, roster }), [rows, roster]);
+  // 대시보드 순위는 전체 데이터 기준 — 데이터의 연도 범위를 제목에 표기.
+  const yearSpan = useMemo(() => {
+    const ys = [...new Set((rows || []).map(r => (r.date || '').slice(0, 4)).filter(Boolean))].sort();
+    if (!ys.length) return '';
+    return ys.length === 1 ? ys[0] : `${ys[0]}~${ys[ys.length - 1]}`;
+  }, [rows]);
 
   const highlight = (label, top, fmt) =>
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: C.white }}>
@@ -100,13 +106,13 @@ export default function TennisDashboard({ C: propC }) {
       </div>
 
       {/* 2. 순위 TOP 5 */}
-      <MiniRankTable title="복식 순위 TOP 5" rows={doubles.map(s => ({ ...s, _key: s.name }))} ds={ds}
+      <MiniRankTable title={`복식 순위 TOP 5${yearSpan ? ` · ${yearSpan}` : ''}`} rows={doubles.map(s => ({ ...s, _key: s.name }))} ds={ds}
         cols={[
           { key: 'name', label: '이름', align: 'left', render: r => r.name },
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },
           { key: 'rate', label: '승률', render: r => pct(r.rate) },
         ]} />
-      <MiniRankTable title="단식 순위 TOP 5" rows={singles.map(s => ({ ...s, _key: s.name }))} ds={ds}
+      <MiniRankTable title={`단식 순위 TOP 5${yearSpan ? ` · ${yearSpan}` : ''}`} rows={singles.map(s => ({ ...s, _key: s.name }))} ds={ds}
         cols={[
           { key: 'name', label: '이름', align: 'left', render: r => r.name },
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },
