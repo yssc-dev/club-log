@@ -8,6 +8,7 @@ export * from './calcGkChemistry';
 export * from './calcGoldenTrio';
 export * from './calcMetricLeaders';
 export * from './calcMonthlyRanking';
+export * from './calcOpponentBreakdown';
 export * from './calcPersonalRecords';
 export * from './calcPersonalSynergy';
 export * from './calcPlayerSummary';
