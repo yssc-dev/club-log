@@ -34,8 +34,9 @@ export function calcStreaks({ playerName, playerLogs, sessionDates = null }) {
   let curCs = 0, bestCs = 0;
   for (const s of sessions) {
     if (s === null) { curCs = 0; continue; } // 결석 → 절단
-    if ((s.keeper_games || 0) === 0) continue; // 참석했지만 필드만 → 유지
-    if ((s.conceded || 0) === 0) { curCs++; if (curCs > bestCs) bestCs = curCs; }
+    // Number() 강제 — CSV 유래 문자열 '0'이 truthy라 === 0 비교가 깨지던 버그
+    if ((Number(s.keeper_games) || 0) === 0) continue; // 참석했지만 필드만 → 유지
+    if ((Number(s.conceded) || 0) === 0) { curCs++; if (curCs > bestCs) bestCs = curCs; }
     else curCs = 0;
   }
 

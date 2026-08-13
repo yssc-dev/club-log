@@ -190,7 +190,7 @@ export function calcSoccerPlayerStats(soccerMatches) {
   const ensure = (name) => {
     if (!stats[name]) stats[name] = { games: 0, fieldGames: 0, keeperGames: 0, goals: 0, assists: 0, owngoals: 0, cleanSheets: 0, conceded: 0 };
   };
-  for (const match of soccerMatches) {
+  for (const match of (soccerMatches || [])) {
     if (match.status !== "finished") continue;
     const allPlayed = new Set(getSoccerPlayedPlayers(match));
     const csPlayers = getCleanSheetPlayers(match);
@@ -227,6 +227,8 @@ export function calcSoccerPlayerPoint(playerStat, settings) {
  * 이벤트로그 시트용 로우 데이터 빌드
  */
 export function buildEventLogRows(soccerMatches, gameDate) {
+  // timestamp/startedAt 부재 시 'Invalid Date' 문자열이 시트에 영구 기록되는 것을 방지
+  const fmtTime = (ts) => (ts ? new Date(ts).toLocaleString("ko-KR") : "");
   const rows = [];
   for (const match of soccerMatches) {
     if (match.status !== "finished") continue;
@@ -243,22 +245,22 @@ export function buildEventLogRows(soccerMatches, gameDate) {
       rows.push({
         gameDate, matchNum, opponent,
         event: "출전", player: name, relatedPlayer: "", position,
-        inputTime: new Date(match.startedAt).toLocaleString("ko-KR"),
+        inputTime: fmtTime(match.startedAt),
       });
     }
-    const sorted = [...(match.events || [])].sort((a, b) => a.timestamp - b.timestamp);
+    const sorted = [...(match.events || [])].sort((a, b) => (a.timestamp || 0) - (b.timestamp || 0)); // 무timestamp NaN 비교자 → 비결정 정렬 방지
     for (const e of sorted) {
       if (e.type === "goal") {
-        rows.push({ gameDate, matchNum, opponent, event: "골", player: e.player, relatedPlayer: e.assist || "", position: "", inputTime: new Date(e.timestamp).toLocaleString("ko-KR") });
+        rows.push({ gameDate, matchNum, opponent, event: "골", player: e.player, relatedPlayer: e.assist || "", position: "", inputTime: fmtTime(e.timestamp) });
       } else if (e.type === "owngoal") {
-        rows.push({ gameDate, matchNum, opponent, event: "자책골", player: e.player, relatedPlayer: "", position: "", inputTime: new Date(e.timestamp).toLocaleString("ko-KR") });
+        rows.push({ gameDate, matchNum, opponent, event: "자책골", player: e.player, relatedPlayer: "", position: "", inputTime: fmtTime(e.timestamp) });
       } else if (e.type === "opponentGoal") {
-        rows.push({ gameDate, matchNum, opponent, event: "실점", player: e.currentGk || "", relatedPlayer: "", position: "GK", inputTime: new Date(e.timestamp).toLocaleString("ko-KR") });
+        rows.push({ gameDate, matchNum, opponent, event: "실점", player: e.currentGk || "", relatedPlayer: "", position: "GK", inputTime: fmtTime(e.timestamp) });
       } else if (e.type === "opponentOwnGoal") {
         // 상대 자책골(우리팀 +1) — 귀속 선수 없음. 이벤트 완전성을 위해 기록
-        rows.push({ gameDate, matchNum, opponent, event: "상대자책골", player: "", relatedPlayer: "", position: "", inputTime: new Date(e.timestamp).toLocaleString("ko-KR") });
+        rows.push({ gameDate, matchNum, opponent, event: "상대자책골", player: "", relatedPlayer: "", position: "", inputTime: fmtTime(e.timestamp) });
       } else if (e.type === "sub") {
-        rows.push({ gameDate, matchNum, opponent, event: "교체", player: e.playerIn, relatedPlayer: e.playerOut, position: e.position || "", inputTime: new Date(e.timestamp).toLocaleString("ko-KR") });
+        rows.push({ gameDate, matchNum, opponent, event: "교체", player: e.playerIn, relatedPlayer: e.playerOut, position: e.position || "", inputTime: fmtTime(e.timestamp) });
       }
       // gkChange: 집계 전용 배경 이벤트 — 로그_이벤트 시트에는 기록하지 않음(의도적).
       // 실점 귀속은 '실점' 행의 currentGk로, keeperGames/클린시트는 로그_선수경기(PG)로 반영됨.

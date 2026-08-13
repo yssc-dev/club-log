@@ -1,15 +1,7 @@
 import { useState, useMemo } from 'react';
 import { calcTrend, calcRelativePosition } from '../../../utils/playerAnalyticsUtils';
-import { buildRadarPopulations, calcRadarValues, getPlayerType } from '../../../utils/analyticsV2/calcRadarData';
-import { calcTrends } from '../../../utils/analyticsV2/calcTrends';
-import { calcStreaks } from '../../../utils/analyticsV2/calcStreaks';
-import { calcPersonalRecords } from '../../../utils/analyticsV2/calcPersonalRecords';
-import { calcRoundSlope } from '../../../utils/analyticsV2/calcRoundSlope';
-import { calcSoloGoalRatio } from '../../../utils/analyticsV2/calcSoloGoalRatio';
-import { calcPersonalSynergy } from '../../../utils/analyticsV2/calcPersonalSynergy';
-import { calcSynergyMatrix } from '../../../utils/analyticsV2/calcSynergyMatrix';
-import { calcAssistLinkMatrix, personalLink } from '../../../utils/analyticsV2/calcAssistLinkMatrix';
-import { calcPlayerSummary } from '../../../utils/analyticsV2/calcPlayerSummary';
+import * as futsalCalc from '../../../utils/analyticsV2';
+import * as soccerCalc from '../../../utils/soccerAnalytics';
 import RoundDistribution from './RoundDistribution';
 import SoloGoalDonut from './SoloGoalDonut';
 import PersonalSynergyCard from './PersonalSynergyCard';
@@ -134,6 +126,8 @@ export default function PersonalAnalysisTab({
   playerGameLogs, matchLogs, eventLogs,
   members, C, authUserName, isSoccer = false,
 }) {
+  // 축구는 soccerAnalytics(분리 계산층), 풋살은 analyticsV2 — 함수 스코프 셰도잉으로 본문 호출부 무변경
+  const { buildRadarPopulations, calcRadarValues, getPlayerType, calcTrends, calcStreaks, calcPersonalRecords, calcRoundSlope, calcSoloGoalRatio, calcPersonalSynergy, calcSynergyMatrix, calcAssistLinkMatrix, personalLink, calcPlayerSummary } = isSoccer ? soccerCalc : futsalCalc;
   // 6개 카드 숫자는 모두 matchLogs+eventLogs 단일 소스에서 계산.
   // (이전: playerGameLogs/defenseStats/winStats 혼용 → 같은 "경기수"가 4종 5종으로 갈렸음)
   const summaryV2 = useMemo(

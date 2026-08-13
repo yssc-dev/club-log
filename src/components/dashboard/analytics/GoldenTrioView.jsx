@@ -1,7 +1,9 @@
 import { useMemo, useState } from 'react';
-import { calcGoldenTrio } from '../../../utils/analyticsV2/calcGoldenTrio';
+import * as futsalCalc from '../../../utils/analyticsV2';
+import * as soccerCalc from '../../../utils/soccerAnalytics';
 
-export default function GoldenTrioView({ matchLogs, C }) {
+export default function GoldenTrioView({ matchLogs, C, isSoccer = false }) {
+  const { calcGoldenTrio } = isSoccer ? soccerCalc : futsalCalc;
   const trios = useMemo(() => calcGoldenTrio({ matchLogs: matchLogs || [], minRounds: 5, topN: 5 }), [matchLogs]);
   const [expanded, setExpanded] = useState(null);
 

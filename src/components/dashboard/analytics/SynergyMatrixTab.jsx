@@ -1,8 +1,10 @@
 // src/components/dashboard/analytics/SynergyMatrixTab.jsx
 import { useState, useMemo } from 'react';
-import { calcSynergyMatrix } from '../../../utils/analyticsV2/calcSynergyMatrix';
+import * as futsalCalc from '../../../utils/analyticsV2';
+import * as soccerCalc from '../../../utils/soccerAnalytics';
 
-export default function SynergyMatrixTab({ matchLogs, C }) {
+export default function SynergyMatrixTab({ matchLogs, C, isSoccer = false }) {
+  const { calcSynergyMatrix } = isSoccer ? soccerCalc : futsalCalc;
   const [hover, setHover] = useState(null);
   const [selected, setSelected] = useState(null);
   const [sortMode, setSortMode] = useState('default');
