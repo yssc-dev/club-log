@@ -5,12 +5,17 @@
 import { makeStyles } from '../../styles/theme';
 import TennisAnalyticsTab from './TennisAnalyticsTab';
 import TennisDashboard from './TennisDashboard';
+import TennisLeague from './TennisLeague';
 
 export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, onViewHistory, authUserName, C }) {
   const ds = makeStyles(C);
 
   if (activeTab === 'tdash') {
     return <TennisDashboard C={C} />;
+  }
+
+  if (activeTab === 'league') {
+    return <TennisLeague C={C} />;
   }
 
   if (activeTab === 'members') {

@@ -4,6 +4,7 @@ export function buildMainTabs({ activeSport, role, pendingCount }) {
   if (activeSport === '테니스') {
     return [
       { key: 'tdash', label: '대시보드' },
+      { key: 'league', label: '리그' },
       { key: 'records', label: '분석' },
       ...(role === '관리자' ? [{ key: 'members', label: '회원관리', beta: true }] : []),
       { key: 'games', label: '경기관리', badge },
