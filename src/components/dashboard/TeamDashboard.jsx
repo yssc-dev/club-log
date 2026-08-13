@@ -11,6 +11,7 @@ import { SunIcon, MoonIcon, SettingsIcon, HomeIcon, TrophyIcon, ChevronRight, So
 import RankingCandlestickChart from './RankingCandlestickChart';
 import PlayerAnalytics from './PlayerAnalytics';
 import DualTeamTab from './analytics/DualTeamTab';
+import DefenseTopCards from './analytics/DefenseTopCards';
 import TournamentListTab from '../tournament/TournamentListTab';
 import TennisTabs from '../tennis/TennisTabs';
 import { buildMainTabs } from './mainTabs';
@@ -389,6 +390,9 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
               </div>
             </div>
           )}
+
+          {/* 수비 TOP5 (축구 전용) — 로그_매치를 자체 지연 로드해 첫 페인트를 막지 않는다 */}
+          {activeSport === "축구" && <DefenseTopCards activeSport={activeSport} C={C} ds={ds} />}
 
           {/* 최근 핫/콜드 */}
           {activePlayers.length > 0 && (() => {
