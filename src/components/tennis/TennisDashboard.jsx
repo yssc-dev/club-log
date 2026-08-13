@@ -71,7 +71,7 @@ export default function TennisDashboard({ C: propC }) {
 
   const summary = useMemo(() => buildMonthSummary({ rows, month: targetMonth }), [rows, targetMonth]);
   const doubles = useMemo(() => buildDoublesStandings({ rows, roster }).slice(0, 5), [rows, roster]);
-  const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today }).slice(0, 5), [rows, roster, today]);
+  const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'points' }).slice(0, 5), [rows, roster, today]);
   const chem = useMemo(() => buildPairChemistry({ rows }).slice(0, 5), [rows]);
   const tb = useMemo(() => buildTbRanking({ rows, roster }), [rows, roster]);
   const bagel = useMemo(() => buildBagelRanking({ rows, roster }), [rows, roster]);
@@ -113,7 +113,7 @@ export default function TennisDashboard({ C: propC }) {
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },
           { key: 'rate', label: '승률', render: r => pct(r.rate) },
         ]} />
-      <MiniRankTable title={`단식 순위 TOP 5${yearSpan ? ` · ${yearSpan}` : ''}`} rows={singles.map(s => ({ ...s, _key: s.name }))} ds={ds}
+      <MiniRankTable title={`단식 포인트 TOP 5${yearSpan ? ` · ${yearSpan}` : ''}`} rows={singles.map(s => ({ ...s, _key: s.name }))} ds={ds}
         cols={[
           { key: 'name', label: '이름', align: 'left', render: r => r.name },
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },

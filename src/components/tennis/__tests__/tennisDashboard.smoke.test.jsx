@@ -29,7 +29,7 @@ describe('TennisDashboard 스모크', () => {
   it('빈 데이터에서 크래시 없이 렌더, 섹션 타이틀 존재', () => {
     const html = renderToStaticMarkup(createElement(ThemeProvider, null, createElement(Harness)));
     expect(html).toContain('복식 순위 TOP 5');
-    expect(html).toContain('단식 순위 TOP 5');
+    expect(html).toContain('단식 포인트 TOP 5');
     expect(html).toContain('페어 케미 TOP 5');
     expect(html).toContain('요약');
     expect(html).toContain('하이라이트');
