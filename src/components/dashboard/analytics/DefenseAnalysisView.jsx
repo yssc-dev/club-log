@@ -1,24 +1,102 @@
 // src/components/dashboard/analytics/DefenseAnalysisView.jsx
-// 수비케미(축구 전용): DF 페어 + 개인 억제율. 지표 토글 = 실점률 / 클린시트율.
+// 수비케미(축구 전용). 토글 두 축:
+//   조합 [2인 | 3인]        — 조합 섹션에만 적용
+//   지표 [실점률 | 클린시트율] — 화면 전체(조합 + 개인 억제) 적용
 // 집계 범위 = 수비수 기록(our_defenders_json)이 있는 경기만 — 레거시 구간 자동 제외.
-// 토글은 페어·개인을 함께 바꾼다(한 화면 한 기준). 정렬은 sortDefenseRows 단일소스.
+//
+// 조합 목록은 '생값으로 표시하고 생값으로 정렬'한다. Δ로 세우면 표본이 큰 조합의
+// 베이스라인이 팀 평균과 크게 달라져, 화면의 숫자가 정렬을 거스르는 역전이 보인다
+// (예: 1.37실점 19경기가 1.40실점 5경기보다 위). 부재 대비 Δ는 아래 개인 섹션이 담당.
 import { useMemo, useState } from 'react';
 import { calcDefenseAnalysis, sortDefenseRows } from '../../../utils/soccerAnalytics';
 import { DEFENSE_METRICS, DEFENSE_METRIC_KEYS } from './defenseMetrics';
 
 const fmt = (v) => (v == null ? '–' : v.toFixed(2));
 
+const COMBO_SIZES = [
+  { key: 'pair', label: '2인', rowsKey: 'pairs', minGames: 5, noun: '페어' },
+  { key: 'trio', label: '3인', rowsKey: 'trios', minGames: 3, noun: '트리오' },
+];
+
+function ToggleRow({ options, value, onChange, C }) {
+  return (
+    <div style={{ display: 'flex', gap: 4, marginBottom: 6 }}>
+      {options.map(o => (
+        <button
+          key={o.key}
+          onClick={() => onChange(o.key)}
+          style={{
+            flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer',
+            borderRadius: 6, border: `1px solid ${o.key === value ? C.accent : C.grayDarker}`,
+            background: o.key === value ? C.accent + '22' : 'transparent',
+            color: o.key === value ? C.accent : C.gray,
+          }}
+        >
+          {o.label}
+        </button>
+      ))}
+    </div>
+  );
+}
+
+export function DefenseComboSection({ d, metric, size, C }) {
+  const M = DEFENSE_METRICS[metric];
+  const spec = COMBO_SIZES.find(s => s.key === size) || COMBO_SIZES[0];
+  const rows = d[spec.rowsKey] || [];
+
+  // 표시값과 같은 축(생값)으로 세운다 — dir:'desc'가 BEST, 지표 극성은 sortDefenseRows가 흡수
+  const best = sortDefenseRows(rows, { metric, by: 'raw', dir: 'desc' }).slice(0, 5);
+  const worst = sortDefenseRows(rows, { metric, by: 'raw', dir: 'asc' }).slice(0, 5);
+
+  const Row = ({ r, sign }) => (
+    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, padding: '6px 0', borderBottom: `1px dashed ${C.grayDarker}`, fontSize: 12 }}>
+      <span style={{ color: C.gray, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+        {r.members.join('·')} <span style={{ fontSize: 10 }}>({r.games})</span>
+      </span>
+      <span style={{ color: sign === 'best' ? C.green : C.red, fontWeight: 600, flexShrink: 0 }}>
+        {M.formatValue(r)}
+      </span>
+    </div>
+  );
+
+  return (
+    <div style={{ marginBottom: 18 }}>
+      {size === 'trio' && (
+        <div style={{ fontSize: 10, color: C.orange, marginBottom: 6, lineHeight: 1.5 }}>
+          ⚠ 3인 조합은 표본이 적어 참고용입니다. 3경기 이상 함께 선 조합만 표시하며,
+          같은 날 연속 경기가 섞여 있어 실제 표본은 경기 수보다 적습니다.
+        </div>
+      )}
+      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>
+            BEST {spec.noun} ({M.bestLabel})
+          </div>
+          {best.length === 0
+            ? <div style={{ fontSize: 11, color: C.gray }}>표본 부족 ({spec.noun}당 {spec.minGames}경기 이상 필요)</div>
+            : best.map(r => <Row key={r.members.join('|')} r={r} sign="best" />)}
+        </div>
+        <div style={{ minWidth: 0 }}>
+          <div style={{ fontSize: 11, color: C.red, fontWeight: 700, marginBottom: 4 }}>WORST</div>
+          {worst.length === 0
+            ? <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
+            : worst.map(r => <Row key={r.members.join('|')} r={r} sign="worst" />)}
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function DefenseAnalysisView({ matchLogs, C }) {
   const d = useMemo(() => calcDefenseAnalysis({ matchLogs: matchLogs || [] }), [matchLogs]);
+  const [size, setSize] = useState('pair');
   const [metric, setMetric] = useState('conceded');
   const M = DEFENSE_METRICS[metric];
 
-  // 같은 집계 결과를 선택된 축으로 다시 세운다 — 재집계 없음
-  const view = useMemo(() => ({
-    individuals: sortDefenseRows(d.individuals, { metric, dir: 'desc' }),
-    best: sortDefenseRows(d.pairs, { metric, dir: 'desc' }),
-    worst: sortDefenseRows(d.pairs, { metric, dir: 'asc' }),
-  }), [d, metric]);
+  const individuals = useMemo(
+    () => sortDefenseRows(d.individuals, { metric, dir: 'desc' }),
+    [d, metric],
+  );
 
   if (d.scopeMatches === 0) {
     return (
@@ -28,65 +106,30 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
     );
   }
 
-  const PairRow = ({ p, sign }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px dashed ${C.grayDarker}`, fontSize: 12 }}>
-      <span style={{ color: C.gray }}>{p.a}·{p.b} <span style={{ fontSize: 10 }}>({p.games})</span></span>
-      <span style={{ color: sign === 'best' ? C.green : C.red, fontWeight: 600 }}>
-        {M.formatValue(p)} · {M.formatSecondary(p)}
-      </span>
-    </div>
-  );
-
   return (
     <div>
-      <div style={{ display: 'flex', gap: 4, marginBottom: 8 }}>
-        {DEFENSE_METRIC_KEYS.map(k => (
-          <button
-            key={k}
-            onClick={() => setMetric(k)}
-            style={{
-              flex: 1, padding: '5px 0', fontSize: 11, fontWeight: 700, cursor: 'pointer',
-              borderRadius: 6, border: `1px solid ${k === metric ? C.accent : C.grayDarker}`,
-              background: k === metric ? C.accent + '22' : 'transparent',
-              color: k === metric ? C.accent : C.gray,
-            }}
-          >
-            {DEFENSE_METRICS[k].label}
-          </button>
-        ))}
-      </div>
+      <ToggleRow options={COMBO_SIZES} value={size} onChange={setSize} C={C} />
+      <ToggleRow options={DEFENSE_METRIC_KEYS.map(k => ({ key: k, label: DEFENSE_METRICS[k].label }))}
+        value={metric} onChange={setMetric} C={C} />
 
-      <div style={{ fontSize: 11, color: C.gray, marginBottom: 10, lineHeight: 1.5 }}>
+      <div style={{ fontSize: 11, color: C.gray, margin: '4px 0 10px', lineHeight: 1.5 }}>
         수비수 기록 {d.scopeMatches}경기 · 팀 평균 {fmt(d.teamConcededPerGame)}실점 · 클린시트 {Math.round(d.teamCleanRate * 100)}%
-        <br />⚠️ 페어·억제율 모두 상대팀·GK 영향이 섞인 참고 지표
+        <br />⚠️ 조합·억제율 모두 상대팀·GK 영향이 섞인 참고 지표
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
-        <div>
-          <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>BEST 페어 (억제순)</div>
-          {view.best.length === 0 ? (
-            <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (페어당 5경기 이상 필요)</div>
-          ) : view.best.slice(0, 5).map(p => <PairRow key={`${p.a}|${p.b}`} p={p} sign="best" />)}
-        </div>
-        <div>
-          <div style={{ fontSize: 11, color: C.red, fontWeight: 700, marginBottom: 4 }}>WORST</div>
-          {view.worst.length === 0 ? (
-            <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
-          ) : view.worst.slice(0, 5).map(p => <PairRow key={`${p.a}|${p.b}`} p={p} sign="worst" />)}
-        </div>
-      </div>
+      <DefenseComboSection d={d} metric={metric} size={size} C={C} />
 
       <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 {M.label} 억제</div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
         {M.caption} · 8경기 이상
       </div>
-      {view.individuals.length === 0 ? (
+      {individuals.length === 0 ? (
         <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (8경기 이상 필요)</div>
       ) : (() => {
         // 다이버징 막대 스케일 — 최대 |Δ| 기준 좌우 대칭 (극성은 색+방향+부호 삼중 인코딩)
-        const deltas = view.individuals.map(x => M.deltaOf(x)).filter(v => v != null);
+        const deltas = individuals.map(x => M.deltaOf(x)).filter(v => v != null);
         const maxAbs = Math.max(0.001, ...deltas.map(Math.abs));
-        return view.individuals.map(x => {
+        return individuals.map(x => {
           const delta = M.deltaOf(x);
           return (
             <div key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>

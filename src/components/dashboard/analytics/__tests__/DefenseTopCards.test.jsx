@@ -27,6 +27,18 @@ describe('DefenseTopCardsView', () => {
     expect(html).toContain('수비수 클린시트 TOP5');
   });
 
+  it('페어 카드는 두 선수 이름을 찍는다', () => {
+    const html = render({});
+    expect(html).toContain('A·B');
+    expect(html).not.toContain('undefined');
+  });
+
+  it('생값 기준으로 정렬한다 — 표시값과 정렬축이 같아야 목록이 자기일관', () => {
+    // C·D는 A·B보다 실점이 많으므로 항상 아래
+    const html = render({});
+    expect(html.indexOf('A·B')).toBeLessThan(html.indexOf('C·D'));
+  });
+
   it('실점률 카드는 Δ가 아니라 생값을 찍는다', () => {
     const html = render({});
     expect(html).toContain('0.00');
