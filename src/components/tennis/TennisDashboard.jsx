@@ -67,8 +67,7 @@ export default function TennisDashboard({ C: propC }) {
   const months = useMemo(
     () => [...new Set((rows || []).map(r => (r.date || '').slice(0, 7)).filter(Boolean))].sort(),
     [rows]);
-  const now = new Date();
-  const curMonth = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`;
+  const curMonth = useMemo(() => { const now = new Date(); return `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}`; }, []);
   const targetMonth = months.includes(curMonth) ? curMonth : (months[months.length - 1] || curMonth);
 
   const summary = useMemo(() => buildMonthSummary({ rows, month: targetMonth }), [rows, targetMonth]);

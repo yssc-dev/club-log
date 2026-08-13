@@ -1,7 +1,7 @@
 // 테니스 대시보드 본문. Task 12에서 경기관리 탭을 채웠고,
 // Task 13에서 records(랭킹)·roster(개인기록) 탭을 추가한다.
 // Task 5에서 records 분기를 TennisAnalyticsTab으로 위임.
-// Task 4(탭 재편): roster 분기 제거(분석 개인뷰로 흡수), tdash/members placeholder 추가.
+// Task 4(탭 재편): roster 분기 제거(분석 개인뷰로 흡수), tdash=대시보드 실컴포넌트(2단계), members=placeholder.
 import { makeStyles } from '../../styles/theme';
 import TennisAnalyticsTab from './TennisAnalyticsTab';
 import TennisDashboard from './TennisDashboard';
