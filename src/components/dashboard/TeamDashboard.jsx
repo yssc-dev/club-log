@@ -922,7 +922,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
         </div>
         <div style={{ display: "flex", gap: 6, padding: 4, background: "var(--app-bg-row-hover)", borderRadius: 10, overflowX: "auto" }}>
           {teamEntries.map(e => (
-            <button key={e.mode} style={ds.sportTab(e.mode === activeSport)} onClick={() => setActiveSport(e.mode)}>
+            <button key={e.mode} style={ds.sportTab(e.mode === activeSport)} onClick={() => { setActiveSport(e.mode); setActiveTab("records"); }}>
               {e.mode}
             </button>
           ))}

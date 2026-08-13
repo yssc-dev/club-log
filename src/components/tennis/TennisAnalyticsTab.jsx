@@ -476,7 +476,7 @@ function AceDfSection({ acedf, ds, C }) {
 }
 
 // ─── 메인 컴포넌트 ──────────────────────────────────────
-export default function TennisAnalyticsTab({ C: propC, _authUserName }) {
+export default function TennisAnalyticsTab({ C: propC }) {
   const { C: themeC } = useTheme();
   const C = propC ?? themeC;
   const ds = makeStyles(C);
