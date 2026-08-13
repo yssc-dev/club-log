@@ -536,7 +536,9 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const now = new Date();
   const curYear = String(now.getFullYear());
   const effYear = year || (years.includes(curYear) ? curYear : (years[0] || curYear));
-  const mode = isRowYear({ rows, year: effYear }) ? 'row' : 'legacy';
+  const mode = isRowYear({ rows, year: effYear })
+    ? 'row'
+    : (years.includes(effYear) ? 'legacy' : 'row');  // 알려진 레거시 연도만 'legacy'
   const monthOpts = useMemo(() => availableMonths({ rows, year: effYear }), [rows, effYear]);
   const fRows = useMemo(() => filterRowsByPeriod(rows, { year: effYear, month }), [rows, effYear, month]);
   const fLegacy = useMemo(() => (legacyRows || []).filter(r => String(r.season) === String(effYear)), [legacyRows, effYear]);

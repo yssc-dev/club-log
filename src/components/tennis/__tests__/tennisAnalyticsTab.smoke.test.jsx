@@ -32,13 +32,13 @@ describe('TennisAnalyticsTab 스모크', () => {
     expect(html).toContain('전체 랭킹'); // select 빈 옵션 라벨
   });
 
-  it('빈 데이터에서 레거시 배너("집계 전적만 있습니다") + 집계 섹션 타이틀 렌더', () => {
-    // rows=[], legacyRows=[] → mode='legacy' → 배너 + legacyStandings(데이터 없음) 렌더
+  it('빈/로딩 데이터에서 레거시 배너가 뜨지 않음(row 모드 폴백)', () => {
+    // rows=[], legacyRows=[] → years=[] → years.includes('2026')=false → mode='row'
+    // 오해 배너("집계 전적만 있습니다") 미표시가 올바른 동작
     const html = renderToStaticMarkup(
       createElement(ThemeProvider, null, createElement(TennisAnalyticsTab, { C: undefined }))
     );
-    expect(html).toContain('집계 전적만 있습니다');
-    expect(html).toContain('순위 (집계)');
+    expect(html).not.toContain('집계 전적만 있습니다');
   });
 
   it('LegacyStandingsSection — buildLegacyStandings 픽스처로 직접 렌더(이름·집계 표시)', () => {
