@@ -6,6 +6,7 @@ import AssistPairList from './AssistPairList';
 import GkChemistryView from './GkChemistryView';
 import RivalryView from './RivalryView';
 import DefenseAnalysisView from './DefenseAnalysisView';
+import OpponentLeadersView from './OpponentLeadersView';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
 
 export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false }) {
@@ -36,6 +37,8 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
     ...(isSoccer ? [{ key: 'defense', label: '수비케미' }] : []),
     // 대결 케미는 클럽 내전(풋살)에서만 의미 — 축구 상대는 외부팀
     ...(!isSoccer ? [{ key: 'rival', label: '라이벌' }] : []),
+    // 축구판 대응: 외부 상대팀별 리더보드
+    ...(isSoccer ? [{ key: 'opponent', label: '상대팀별' }] : []),
   ];
 
   return (
@@ -56,6 +59,7 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
       {sub === 'gk' && <GkChemistryView chem={gkChem} C={C} />}
       {sub === 'defense' && isSoccer && <DefenseAnalysisView matchLogs={matchLogs} C={C} />}
       {sub === 'rival' && !isSoccer && <RivalryView matchLogs={matchLogs} C={C} />}
+      {sub === 'opponent' && isSoccer && <OpponentLeadersView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />}
     </div>
   );
 }
