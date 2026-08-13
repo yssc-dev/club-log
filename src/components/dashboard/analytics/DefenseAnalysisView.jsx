@@ -54,19 +54,33 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
       </div>
       {d.individuals.length === 0 ? (
         <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (8경기 이상 필요)</div>
-      ) : d.individuals.map(x => (
-        <div key={x.name} style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px dashed ${C.grayDarker}`, fontSize: 12 }}>
-          <span style={{ color: C.white }}>
-            {x.name} <span style={{ color: C.gray, fontSize: 10 }}>({x.games}경기 · CS {x.cleanSheets})</span>
-          </span>
-          <span style={{ color: C.gray, fontVariantNumeric: 'tabular-nums' }}>
-            출전 {fmt(x.concededPerGame)} / 부재 {fmt(x.baselineConcededPerGame)} ·{' '}
-            <span style={{ color: x.delta == null ? C.gray : x.delta >= 0 ? C.green : C.red, fontWeight: 700 }}>
-              Δ{x.delta == null ? '–' : (x.delta >= 0 ? '+' : '') + x.delta.toFixed(2)}
+      ) : (() => {
+        // 다이버징 막대 스케일 — 최대 |Δ| 기준 좌우 대칭 (극성은 색+방향+부호 삼중 인코딩)
+        const maxAbs = Math.max(0.1, ...d.individuals.filter(x => x.delta != null).map(x => Math.abs(x.delta)));
+        return d.individuals.map(x => (
+          <div key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>
+            <span style={{ width: 88, flexShrink: 0, fontSize: 11, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+              {x.name} <span style={{ color: C.gray, fontSize: 9 }}>{x.games}G</span>
             </span>
-          </span>
-        </div>
-      ))}
+            <div style={{ flex: 1, display: 'flex', height: 8 }}>
+              <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                {x.delta != null && x.delta < 0 && (
+                  <div style={{ width: `${(Math.abs(x.delta) / maxAbs) * 100}%`, height: '100%', background: C.red, borderRadius: '3px 0 0 3px' }} />
+                )}
+              </div>
+              <div style={{ width: 1, background: C.grayDark, flexShrink: 0 }} />
+              <div style={{ flex: 1 }}>
+                {x.delta != null && x.delta >= 0 && (
+                  <div style={{ width: `${(x.delta / maxAbs) * 100}%`, height: '100%', background: C.green, borderRadius: '0 3px 3px 0' }} />
+                )}
+              </div>
+            </div>
+            <span style={{ width: 44, flexShrink: 0, textAlign: 'right', fontSize: 11, color: x.delta == null ? C.gray : C.white, fontVariantNumeric: 'tabular-nums' }}>
+              {x.delta == null ? '–' : (x.delta >= 0 ? '+' : '') + x.delta.toFixed(2)}
+            </span>
+          </div>
+        ));
+      })()}
     </div>
   );
 }

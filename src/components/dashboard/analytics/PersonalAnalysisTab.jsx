@@ -120,6 +120,19 @@ function getChaosBadge(chaosRate) {
   return null;
 }
 
+// 상대팀별 성적 막대 한 줄 — 시리즈 색은 추세 차트와 동일(득점 red/도움 blue), 값 라벨은 잉크 토큰
+function OppBarLine({ label, value, max, color, C }) {
+  return (
+    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
+      <span style={{ width: 24, flexShrink: 0, fontSize: 9, color: C.gray }}>{label}</span>
+      <div style={{ flex: 1, height: 8 }}>
+        <div style={{ width: `${max > 0 ? (value / max) * 100 : 0}%`, minWidth: value > 0 ? 3 : 0, height: "100%", background: color, borderRadius: 3 }} />
+      </div>
+      <span style={{ width: 22, flexShrink: 0, textAlign: "right", fontSize: 10, color: C.white, fontVariantNumeric: "tabular-nums" }}>{value}</span>
+    </div>
+  );
+}
+
 // ─── Main Component ──────────────────────────────────────────────────────────
 
 export default function PersonalAnalysisTab({
@@ -401,28 +414,21 @@ export default function PersonalAnalysisTab({
           {isSoccer && oppRows.length > 0 && (
             <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, textAlign: "left" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 6 }}>상대팀별 성적</div>
-              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
-                <thead>
-                  <tr style={{ color: C.gray, fontSize: 10 }}>
-                    <th style={{ textAlign: "left", padding: "2px 4px", fontWeight: 500 }}>상대</th>
-                    <th style={{ textAlign: "center", padding: "2px 4px", fontWeight: 500 }}>경기(승-무-패)</th>
-                    <th style={{ textAlign: "center", padding: "2px 4px", fontWeight: 500 }}>골</th>
-                    <th style={{ textAlign: "center", padding: "2px 4px", fontWeight: 500 }}>어시</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {oppRows.map(r => (
-                    <tr key={r.opponent} style={{ borderTop: `1px dashed ${C.grayDarker}` }}>
-                      <td style={{ padding: "5px 4px", color: C.white }}>{r.opponent}</td>
-                      <td style={{ padding: "5px 4px", color: C.gray, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
-                        {r.games > 0 ? `${r.games} (${r.wins}-${r.draws}-${r.losses})` : "–"}
-                      </td>
-                      <td style={{ padding: "5px 4px", color: C.white, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.goals}</td>
-                      <td style={{ padding: "5px 4px", color: C.white, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.assists}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
+              {(() => {
+                const maxVal = Math.max(1, ...oppRows.map(r => Math.max(r.goals, r.assists)));
+                return oppRows.map(r => (
+                  <div key={r.opponent} style={{ padding: "7px 0", borderTop: `1px dashed ${C.grayDarker}` }}>
+                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
+                      <span style={{ color: C.white, fontWeight: 600 }}>{r.opponent}</span>
+                      <span style={{ color: C.gray, fontVariantNumeric: "tabular-nums" }}>
+                        {r.games > 0 ? `${r.games}경기 ${r.wins}-${r.draws}-${r.losses}` : "경기수 기록 없음"}
+                      </span>
+                    </div>
+                    <OppBarLine label="골" value={r.goals} max={maxVal} color="#ef4444" C={C} />
+                    <OppBarLine label="어시" value={r.assists} max={maxVal} color="#3b82f6" C={C} />
+                  </div>
+                ));
+              })()}
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
                 골·어시는 전 기간, 경기수·승패는 정식 기록 경기만.
               </div>
