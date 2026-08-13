@@ -89,10 +89,13 @@ export default function TennisDashboard({ C: propC }) {
       {/* 1. 이번달 요약 */}
       <div style={ds.sectionTitle}>{targetMonth} 요약</div>
       <div style={ds.card}>
-        <div style={{ display: 'flex' }}>
+        <div style={{ display: 'flex', marginBottom: 12 }}>
           <StatCell C={C} label="경기수" value={summary.matches} />
+          <StatCell C={C} label="경기일" value={`${summary.days}일`} />
+        </div>
+        <div style={{ display: 'flex' }}>
           <StatCell C={C} label="최다 출전" value={summary.topAttender ? `${summary.topAttender.name} (${summary.topAttender.games})` : '-'} />
-          <StatCell C={C} label="핫플레이어" value={summary.hotPlayer ? `${summary.hotPlayer.name} ${pct(summary.hotPlayer.rate)}` : '-'} />
+          <StatCell C={C} label="이달 승률 1위" value={summary.hotPlayer ? `${summary.hotPlayer.name} ${pct(summary.hotPlayer.rate)} (${summary.hotPlayer.wins}승)` : '-'} />
         </div>
       </div>
 

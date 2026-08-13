@@ -28,7 +28,8 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   const [showAnalytics, setShowAnalytics] = useState(false);
   const [rankingHistory, setRankingHistory] = useState(null);
   const [rankingLoading, setRankingLoading] = useState(false);
-  const [activeTab, setActiveTab] = useState("records");
+  // 테니스는 최초 화면이 대시보드(tdash), 그 외 종목은 대시보드=records.
+  const [activeTab, setActiveTab] = useState(() => (teamEntries[0]?.mode === "테니스" ? "tdash" : "records"));
   const [tournamentActive, setTournamentActive] = useState(false);
   const [tournamentName, setTournamentName] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -926,7 +927,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
         </div>
         <div style={{ display: "flex", gap: 6, padding: 4, background: "var(--app-bg-row-hover)", borderRadius: 10, overflowX: "auto" }}>
           {teamEntries.map(e => (
-            <button key={e.mode} style={ds.sportTab(e.mode === activeSport)} onClick={() => { setActiveSport(e.mode); setActiveTab("records"); }}>
+            <button key={e.mode} style={ds.sportTab(e.mode === activeSport)} onClick={() => { setActiveSport(e.mode); setActiveTab(e.mode === "테니스" ? "tdash" : "records"); }}>
               {e.mode}
             </button>
           ))}

@@ -47,18 +47,20 @@ function SummaryCard({ summary, player, ds, C }) {
 }
 
 // ─── 복식 순위표 ────────────────────────────────────────
-function DoublesStandingsSection({ standings, ds }) {
+function DoublesStandingsSection({ standings, periodLabel, ds }) {
   const cols = useMemo(() => ({
     name:   { accessor: s => s.name, type: 'text' },
     grade:  { accessor: s => s.grade || '', type: 'text' },
     record: { accessor: s => s.wins, type: 'num' },
     rate:   { accessor: s => s.rate, type: 'num' },
   }), []);
-  const { sorted, sort, onSort } = useSortableRows(standings, cols);
+  // #는 승률 순위(등수) — 정렬로 행이 섞여도 각 선수의 등수는 유지된다.
+  const ranked = useMemo(() => standings.map((s, i) => ({ ...s, _rank: i + 1 })), [standings]);
+  const { sorted, sort, onSort } = useSortableRows(ranked, cols);
   if (!standings.length) return null;
   return (
     <>
-      <div style={ds.sectionTitle}>복식 순위 (투몽)</div>
+      <div style={ds.sectionTitle}>복식 순위 (투몽){periodLabel ? ` · ${periodLabel}` : ''}</div>
       <div style={ds.card}>
         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
           <thead>
@@ -71,9 +73,9 @@ function DoublesStandingsSection({ standings, ds }) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((s, i) => (
+            {sorted.map((s) => (
               <tr key={s.name}>
-                <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
+                <td style={{ ...ds.td(), textAlign: 'left' }}>{s._rank}</td>
                 <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
                 <td style={{ ...ds.td(), fontSize: 10 }}>{s.grade}</td>
                 <td style={ds.td()}>{s.wins}-{s.losses}</td>
@@ -88,7 +90,7 @@ function DoublesStandingsSection({ standings, ds }) {
 }
 
 // ─── 단식 순위표 (포인트 컬럼은 단식 뷰 전용) ──────────
-function SinglesStandingsSection({ standings, ds }) {
+function SinglesStandingsSection({ standings, periodLabel, ds }) {
   const cols = useMemo(() => ({
     name:       { accessor: s => s.name, type: 'text' },
     leagueTier: { accessor: s => s.leagueTier || '', type: 'text' },
@@ -97,11 +99,13 @@ function SinglesStandingsSection({ standings, ds }) {
     rate:       { accessor: s => s.rate, type: 'num' },
     points:     { accessor: s => s.points, type: 'num' },
   }), []);
-  const { sorted, sort, onSort } = useSortableRows(standings, cols);
+  // #는 승률 순위(등수) — 정렬로 행이 섞여도 각 선수의 등수는 유지된다.
+  const ranked = useMemo(() => standings.map((s, i) => ({ ...s, _rank: i + 1 })), [standings]);
+  const { sorted, sort, onSort } = useSortableRows(ranked, cols);
   if (!standings.length) return null;
   return (
     <>
-      <div style={ds.sectionTitle}>길로틴리그 (단식 승률)</div>
+      <div style={ds.sectionTitle}>길로틴리그 (단식){periodLabel ? ` · ${periodLabel}` : ''}</div>
       <div style={ds.card}>
         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
           <thead>
@@ -116,9 +120,9 @@ function SinglesStandingsSection({ standings, ds }) {
             </tr>
           </thead>
           <tbody>
-            {sorted.map((s, i) => (
+            {sorted.map((s) => (
               <tr key={s.name}>
-                <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
+                <td style={{ ...ds.td(), textAlign: 'left' }}>{s._rank}</td>
                 <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
                 <td style={{ ...ds.td(), fontSize: 10 }}>{s.leagueTier === '흑기사' ? 'BK' : 'BR'}</td>
                 <td style={{ ...ds.td(), fontSize: 10 }}>{s.grade}</td>
@@ -577,6 +581,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
     () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, mode, hasMonth: !!month }),
     [player, format, yearlyRecords, mode, month]);
 
+  const periodLabel = month ? `${effYear}.${Number(month)}` : `${effYear} 전체`;
+
   const selectStyle = {
     background: C.cardLight,
     color: C.white,
@@ -624,8 +630,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
 
       {sectionKeys.map((key) => {
         switch (key) {
-          case 'doublesStandings': return <DoublesStandingsSection key={key} standings={doublesStandings} ds={ds} />;
-          case 'singlesStandings': return <SinglesStandingsSection key={key} standings={singlesStandings} ds={ds} />;
+          case 'doublesStandings': return <DoublesStandingsSection key={key} standings={doublesStandings} periodLabel={periodLabel} ds={ds} />;
+          case 'singlesStandings': return <SinglesStandingsSection key={key} standings={singlesStandings} periodLabel={periodLabel} ds={ds} />;
           case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
           case 'summary':          return summary ? <SummaryCard key={key} summary={summary} player={player} ds={ds} C={C} /> : null;
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
