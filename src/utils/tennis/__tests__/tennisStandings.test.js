@@ -64,27 +64,28 @@ describe('buildSinglesStandings', () => {
     expect(s.find(x => x.name === 'b').points).toBe(0);
   });
 
-  it("sortBy:'points'는 포인트 내림차순, 동점은 승률→승수→이름", () => {
-    // a(동배)가 b(은배)를 이김 → a: 1+5=6점, b: 0점. 승률은 a=1 > b=0.
-    const rows = [
-      pg({ player: 'a', result: '승', grade_at_date: '동배', match_id: 'R1_C1', side: 'A' }),
-      pg({ player: 'b', result: '패', grade_at_date: '은배', match_id: 'R1_C1', side: 'B' }),
-    ];
-    const s = buildSinglesStandings({ rows, roster, asOfDate: '2026-12-31', sortBy: 'points' });
-    expect(s.map(x => x.name)).toEqual(['a', 'b']);
-    expect(s[0].points).toBe(6);
-  });
-
-  it("sortBy 미지정(기본 rate)은 기존 승률 정렬을 보존", () => {
-    // b가 포인트는 더 높지만(업셋) a의 승률이 더 높으면 rate 기본은 a가 먼저.
+  it("sortBy로 rate/points 정렬이 갈린다 — 다른 순서를 만든다", () => {
+    // 모두 같은 날(2026-03-01, pg 기본) → 사전승률 없음 → 전원 흑기사, 리그/승률 업셋 미발동.
+    // 그래서 포인트는 기본승 + 등급업셋만.
+    // a(은배)가 b(동배)를 2번 이김: 등급업셋 없음(2<1 거짓) → a 2점, 승률 2/3.
+    // b(동배)가 a(은배)를 1번 이김: 하위등급이 상위 이김(1<2 참) → b 1+5=6점, 승률 1/3.
+    const rosterAB = [{ name: 'a', grade: '은배' }, { name: 'b', grade: '동배' }];
     const rows = [
       pg({ player: 'a', result: '승', grade_at_date: '은배', match_id: 'R1_C1', side: 'A' }),
-      pg({ player: 'b', result: '패', grade_at_date: '은배', match_id: 'R1_C1', side: 'B' }),
-      pg({ player: 'a', result: '승', date: '2026-03-02', grade_at_date: '은배', match_id: 'R2_C1', side: 'A' }),
-      pg({ player: 'b', result: '패', date: '2026-03-02', grade_at_date: '은배', match_id: 'R2_C1', side: 'B' }),
+      pg({ player: 'b', result: '패', grade_at_date: '동배', match_id: 'R1_C1', side: 'B' }),
+      pg({ player: 'a', result: '승', grade_at_date: '은배', match_id: 'R1_C2', side: 'A' }),
+      pg({ player: 'b', result: '패', grade_at_date: '동배', match_id: 'R1_C2', side: 'B' }),
+      pg({ player: 'b', result: '승', grade_at_date: '동배', match_id: 'R1_C3', side: 'A' }),
+      pg({ player: 'a', result: '패', grade_at_date: '은배', match_id: 'R1_C3', side: 'B' }),
     ];
-    const s = buildSinglesStandings({ rows, roster, asOfDate: '2026-12-31' });
-    expect(s[0].name).toBe('a'); // rate 1.0 > 0
+    // 기본(rate): a(0.667) > b(0.333)
+    const byRate = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31' });
+    expect(byRate.map(x => x.name)).toEqual(['a', 'b']);
+    // points: b(6) > a(2) — rate와 반대 순서
+    const byPoints = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31', sortBy: 'points' });
+    expect(byPoints.map(x => x.name)).toEqual(['b', 'a']);
+    expect(byPoints[0]).toMatchObject({ name: 'b', points: 6 });
+    expect(byPoints[1]).toMatchObject({ name: 'a', points: 2 });
   });
 
   it('사전(경기일 직전) 승률로 역전 보너스를 계산한다', () => {
