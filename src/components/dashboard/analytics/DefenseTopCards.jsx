@@ -62,7 +62,7 @@ export function DefenseTopCardsView({ matchLogs, C, ds }) {
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
         <Card title="🛡️ 수비 실점률 TOP5" rows={cards.conceded} nameOf={x => x.name}
           metric="conceded" color={C.green} C={C} ds={ds} />
-        <Card title="🧱 클린시트율 TOP5" rows={cards.clean} nameOf={x => x.name}
+        <Card title="🧱 수비수 클린시트 TOP5" rows={cards.clean} nameOf={x => x.name}
           metric="clean" color={C.accent} C={C} ds={ds} />
       </div>
       <div style={{ fontSize: 10, color: C.gray, marginTop: 6 }}>

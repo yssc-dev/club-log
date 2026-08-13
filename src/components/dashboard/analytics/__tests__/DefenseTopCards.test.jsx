@@ -24,7 +24,7 @@ describe('DefenseTopCardsView', () => {
     const html = render({});
     expect(html).toContain('수비 페어 TOP5');
     expect(html).toContain('수비 실점률 TOP5');
-    expect(html).toContain('클린시트율 TOP5');
+    expect(html).toContain('수비수 클린시트 TOP5');
   });
 
   it('실점률 카드는 Δ가 아니라 생값을 찍는다', () => {
