@@ -279,6 +279,25 @@ export default function PersonalAnalysisTab({
     [oppBreakdown, selected]
   );
 
+  // ── 개인 수비 지표 (축구 전용) ──
+  // 수비케미 탭과 같은 계산층을 재사용하고, 개인 화면이라 개인 임계만 푼다(individualThreshold:1).
+  // 조합 임계는 수비케미와 동일(페어 5·트리오 3) — 두 화면이 서로 다른 목록을 보여주면 안 된다.
+  const defenseAll = useMemo(
+    () => (isSoccer ? soccerCalc.calcDefenseAnalysis({ matchLogs: matchLogs || [], individualThreshold: 1 }) : null),
+    [isSoccer, matchLogs]
+  );
+  // 수비 기록이 없는 선수(GK·공격수만 뛴 선수)는 null → 섹션 자체를 숨긴다
+  const myDefense = useMemo(() => {
+    if (!defenseAll || !selected) return null;
+    const me = defenseAll.individuals.find(x => x.name === selected);
+    if (!me) return null;
+    const mine = (rows) => soccerCalc.sortDefenseRows(
+      (rows || []).filter(r => r.members.includes(selected)),
+      { metric: 'conceded', by: 'raw' },
+    ).slice(0, 3);
+    return { me, pairs: mine(defenseAll.pairs), trios: mine(defenseAll.trios) };
+  }, [defenseAll, selected]);
+
   // ── Derived display values ────────────────────────────────────────────────
   // 출전 라운드가 없으면(0경기 로스터 멤버 또는 골만 있는 이벤트only 선수) 분석 대신 '기록 없음' 표시.
   // rounds===0이면 경기당 지표가 모두 0/모순("N골 / 0경기")이 되므로 풀 분석을 막는다.
@@ -439,6 +458,49 @@ export default function PersonalAnalysisTab({
                 P/경기 = (골+어시)÷경기수.
                 <br />앱 사용 이전 경기는 출전 명단 데이터가 없어, 골·어시를 낸 경기만 잡힙니다.
                 분모(출전 경기수)가 실제 뛴 경기보다 적어 P/경기가 다소 높게 나옵니다.
+              </div>
+            </div>
+          )}
+          {isSoccer && myDefense && (
+            <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, textAlign: "left" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 6 }}>수비 기록</div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, paddingBottom: 6, borderBottom: `1px dashed ${C.grayDarker}` }}>
+                <span style={{ color: C.gray }}>{myDefense.me.games}경기 수비 출전</span>
+                <span style={{ color: C.white, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
+                  {myDefense.me.concededPerGame.toFixed(2)}실점 · 무실점 {Math.round(myDefense.me.cleanRate * 100)}%
+                </span>
+              </div>
+              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 0", fontSize: 10 }}>
+                <span style={{ color: C.gray }}>본인 부재 경기 대비</span>
+                <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", color: myDefense.me.delta == null ? C.gray : (myDefense.me.delta >= 0 ? C.green : C.red) }}>
+                  {myDefense.me.delta == null
+                    ? "– (비교할 부재 경기 없음)"
+                    : `${myDefense.me.delta >= 0 ? "+" : ""}${myDefense.me.delta.toFixed(2)}실점 ${myDefense.me.delta >= 0 ? "억제" : "허용"}`}
+                </span>
+              </div>
+              {[
+                { title: "함께 선 2인", rows: myDefense.pairs, minGames: 5 },
+                { title: "함께 선 3인", rows: myDefense.trios, minGames: 3 },
+              ].map(({ title, rows, minGames }) => (
+                <div key={title} style={{ marginTop: 6 }}>
+                  <div style={{ fontSize: 10, color: C.gray, fontWeight: 700, marginBottom: 2 }}>{title} (실점 적은순)</div>
+                  {rows.length === 0 ? (
+                    <div style={{ fontSize: 10, color: C.gray }}>{minGames}경기 이상 함께 선 조합 없음</div>
+                  ) : rows.map(r => (
+                    <div key={r.members.join("|")} style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "3px 0" }}>
+                      <span style={{ color: C.gray, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                        {r.members.join("·")} <span style={{ fontSize: 9 }}>({r.games})</span>
+                      </span>
+                      <span style={{ color: C.green, fontWeight: 600, flexShrink: 0, fontVariantNumeric: "tabular-nums" }}>
+                        {r.concededPerGame.toFixed(2)}실점
+                      </span>
+                    </div>
+                  ))}
+                </div>
+              ))}
+              <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
+                수비수로 기록된 경기만 (레코더 도입 후). 조합은 2인 5경기·3인 3경기 이상.
+                <br />⚠️ 상대팀·GK 영향이 섞인 참고 지표.
               </div>
             </div>
           )}

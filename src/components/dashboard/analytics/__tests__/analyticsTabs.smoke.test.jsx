@@ -89,6 +89,45 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
+  // 수비 섹션 픽스처: A·B·C가 5경기 동반 수비(총 1실점), D·E·F가 1경기(3실점 — A의 베이스라인)
+  const defMatches = [
+    ...Array.from({ length: 5 }, (_, i) => ({
+      date: `2026-06-1${i}`, match_id: '1', game_id: `s_${i}`, opponent_team_name: '한울',
+      our_members_json: '["A","B","C","D"]', our_defenders_json: '["A","B","C"]',
+      our_score: 2, opponent_score: i === 0 ? 1 : 0,
+    })),
+    {
+      date: '2026-07-01', match_id: '1', game_id: 's_9', opponent_team_name: '한울',
+      our_members_json: '["D","E","F"]', our_defenders_json: '["D","E","F"]',
+      our_score: 0, opponent_score: 3,
+    },
+  ];
+
+  it('PersonalAnalysisTab: 축구 — 수비 기록 있는 선수는 개인 수비 지표와 조합 목록을 본다', () => {
+    const html = wrap(PersonalAnalysisTab, {
+      playerGameLogs: [], matchLogs: defMatches, eventLogs: [],
+      members: [{ name: 'A' }, { name: 'B' }, { name: 'C' }], C, authUserName: 'A', isSoccer: true,
+    });
+    expect(html).toContain('수비 기록');
+    expect(html).toContain('A·B');     // 그가 낀 페어
+    expect(html).toContain('A·B·C');   // 그가 낀 트리오
+    expect(html).not.toContain('NaN');
+  });
+
+  it('PersonalAnalysisTab: 축구 — 수비 기록 없는 선수에겐 수비 섹션을 숨긴다', () => {
+    const html = wrap(PersonalAnalysisTab, {
+      playerGameLogs: [], matchLogs: defMatches, eventLogs: [],
+      members: [{ name: 'D' }], C, authUserName: 'D', isSoccer: true,
+    });
+    // D는 our_defenders_json에 한 번 들어가므로 대신 아예 수비 기록이 없는 선수로 확인
+    const html2 = wrap(PersonalAnalysisTab, {
+      playerGameLogs: [], matchLogs: defMatches.map(m => ({ ...m, our_defenders_json: '[]' })), eventLogs: [],
+      members: [{ name: 'A' }], C, authUserName: 'A', isSoccer: true,
+    });
+    expect(html).toContain('수비 기록');    // D는 수비 기록 있음 → 노출
+    expect(html2).not.toContain('수비 기록'); // 아무도 수비 기록 없음 → 숨김
+  });
+
   it('AwardsTab: 해트트릭/일일MVP/종합포인트/전체 옵션 렌더, 불꽃·클러치 없음', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
     expect(html).toContain('해트트릭');
