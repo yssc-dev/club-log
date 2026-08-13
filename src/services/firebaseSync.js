@@ -174,7 +174,8 @@ const FirebaseSync = {
   async saveFinalized(team, gameId, state) {
     try {
       const summary = _buildSummary(gameId, state);
-      const gameDate = _kstDateFromGameId(gameId);
+      // 실제 경기일(state.gameDate, 과거날짜 입력 반영)을 우선. 없으면 생성시각 기반 폴백(풋살/축구는 gameDate 없음 → 무변경).
+      const gameDate = state.gameDate || _kstDateFromGameId(gameId);
       await update(this._finalizedBaseRef(team), {
         [`_meta/${gameId}`]: { summary, gameDate, updatedAt: serverTimestamp() },
         [`_states/${gameId}`]: { state: JSON.stringify(state) },
@@ -183,6 +184,13 @@ const FirebaseSync = {
       console.warn("Firebase 확정 저장 실패:", e.message);
       throw e;
     }
+  },
+
+  // 과거 아카이브의 gameDate가 생성시각 기반으로 잘못 저장된 경우, 상세 조회 시 실제 경기일로 자기치유(best-effort).
+  async fixFinalizedGameDate(team, gameId, gameDate) {
+    try {
+      await update(this._finalizedMetaAllRef(team), { [`${gameId}/gameDate`]: gameDate });
+    } catch (e) { /* best-effort — 권한 없으면 조용히 무시 */ }
   },
 
   // 히스토리 목록 (메타만, 가볍게). _deletedAt 있으면 휴지통 취급하여 제외.

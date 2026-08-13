@@ -110,7 +110,17 @@ export default function HistoryView({ teamContext, onBack }) {
     setDetailLoading(true);
     try {
       const stateJson = await FirebaseSync.loadFinalizedOne(team, h.gameId);
-      setSelectedGame({ ...h, stateJson: stateJson || "" });
+      let gameDate = h.gameDate;
+      // 과거날짜 입력 케이스: 목록 gameDate가 생성시각 기반으로 어긋나면 실제 경기일(state.gameDate)로 교정.
+      try {
+        const st = JSON.parse(stateJson || '{}');
+        if (st.gameDate && st.gameDate !== h.gameDate) {
+          gameDate = st.gameDate;
+          setHistory(prev => prev.map(x => x.gameId === h.gameId ? { ...x, gameDate } : x));
+          FirebaseSync.fixFinalizedGameDate(team, h.gameId, gameDate);
+        }
+      } catch { /* ignore */ }
+      setSelectedGame({ ...h, gameDate, stateJson: stateJson || "" });
     } finally {
       setDetailLoading(false);
     }
