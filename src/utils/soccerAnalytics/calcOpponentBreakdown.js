@@ -8,17 +8,25 @@ const isTrustedRoster = (m) => !String(m.game_id || '').startsWith('legacy_');
 export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
   const oppByKey = {};
   const extraKeys = new Set();
+  // 경기수(games)에 잡히는 경기 = 경기당 포인트의 분모. 분자도 여기서만 세야 범위가 맞는다.
+  const trustedKeys = new Set();
   for (const m of matchLogs || []) {
     const key = `${m.date}|${String(m.match_id ?? '')}`;
     const opp = String(m.opponent_team_name || '').trim();
     if (opp) oppByKey[key] = opp;
     if (m.is_extra) extraKeys.add(key);
+    else if (opp && isTrustedRoster(m) && parseActualPlayers(m.our_members_json).length > 0) trustedKeys.add(key);
   }
 
   const cells = {};
   const ensure = (name, opp) => {
     if (!cells[name]) cells[name] = {};
-    if (!cells[name][opp]) cells[name][opp] = { goals: 0, assists: 0, games: 0, wins: 0, draws: 0, losses: 0 };
+    if (!cells[name][opp]) {
+      cells[name][opp] = {
+        goals: 0, assists: 0, trustedGoals: 0, trustedAssists: 0,
+        games: 0, wins: 0, draws: 0, losses: 0,
+      };
+    }
     return cells[name][opp];
   };
 
@@ -28,8 +36,9 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
     if (extraKeys.has(key)) continue;
     const opp = oppByKey[key] || String(e.opponent || '').trim();
     if (!opp) continue;
-    if (e.player) ensure(e.player, opp).goals++;
-    if (e.related_player) ensure(e.related_player, opp).assists++;
+    const trusted = trustedKeys.has(key);
+    if (e.player) { const c = ensure(e.player, opp); c.goals++; if (trusted) c.trustedGoals++; }
+    if (e.related_player) { const c = ensure(e.related_player, opp); c.assists++; if (trusted) c.trustedAssists++; }
   }
 
   for (const m of matchLogs || []) {
@@ -53,7 +62,12 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
   const byPlayer = {};
   for (const name of Object.keys(cells)) {
     byPlayer[name] = Object.entries(cells[name])
-      .map(([opponent, c]) => ({ opponent, ...c }))
+      .map(([opponent, c]) => ({
+        opponent,
+        ...c,
+        // 경기수가 없으면 null — 0으로 찍으면 '포인트 0'과 '기록 없음'이 구분되지 않는다
+        pointsPerGame: c.games > 0 ? (c.trustedGoals + c.trustedAssists) / c.games : null,
+      }))
       .sort((a, b) => b.games - a.games || b.goals - a.goals || a.opponent.localeCompare(b.opponent, 'ko'));
   }
   return {

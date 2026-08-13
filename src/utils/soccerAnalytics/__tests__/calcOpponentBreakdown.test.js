@@ -51,6 +51,59 @@ describe('calcOpponentBreakdown', () => {
     expect(r.players).toEqual([]);
   });
 
+  // 경기당 포인트는 분자와 분모의 집계 범위가 같아야 한다.
+  // 화면의 골·어시는 전 기간(legacy 포함)이지만 경기수는 정식 기록 경기만이라,
+  // 그대로 나누면 분자만 넓은 범위여서 값이 부풀려진다.
+  it('경기당 포인트는 정식 기록 경기만의 골·어시로 낸다', () => {
+    const matchLogs = [
+      { date: '2026-01-06', match_id: 1, opponent_team_name: '한울', game_id: 'legacy_2026-01-06_하버FC', our_members_json: '["A","B"]', our_score: 3, opponent_score: 1 },
+      { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_2', our_members_json: '["A","B"]', our_score: 2, opponent_score: 1 },
+    ];
+    const eventLogs = [
+      { date: '2026-01-06', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' }, // legacy — 포인트 계산 제외
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' }, // 정식
+    ];
+    const r = calcOpponentBreakdown({ eventLogs, matchLogs });
+    const a = r.byPlayer['A'].find(x => x.opponent === '한울');
+    expect(a.goals).toBe(2);          // 표시용 골은 전 기간 그대로
+    expect(a.trustedGoals).toBe(1);   // 포인트용은 정식 기록만
+    expect(a.games).toBe(1);
+    expect(a.pointsPerGame).toBeCloseTo(1); // (1골+0어시)/1경기 — 2가 아니다
+
+    const b = r.byPlayer['B'].find(x => x.opponent === '한울');
+    expect(b.assists).toBe(2);
+    expect(b.trustedAssists).toBe(1);
+    expect(b.pointsPerGame).toBeCloseTo(1);
+  });
+
+  it('경기수가 0이면 경기당 포인트는 null — 0으로 표시하지 않는다', () => {
+    const matchLogs = [
+      { date: '2026-01-06', match_id: 1, opponent_team_name: '한울', game_id: 'legacy_x', our_members_json: '["A"]', our_score: 3, opponent_score: 1 },
+    ];
+    const eventLogs = [{ date: '2026-01-06', match_id: 1, event_type: 'goal', player: 'A', related_player: '' }];
+    const r = calcOpponentBreakdown({ eventLogs, matchLogs });
+    const a = r.byPlayer['A'].find(x => x.opponent === '한울');
+    expect(a.games).toBe(0);
+    expect(a.pointsPerGame).toBeNull();
+  });
+
+  it('골과 어시가 함께면 포인트에 둘 다 들어간다', () => {
+    const matchLogs = [
+      { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_1', our_members_json: '["A"]', our_score: 2, opponent_score: 0 },
+      { date: '2026-06-17', match_id: 1, opponent_team_name: '한울', game_id: 's_2', our_members_json: '["A"]', our_score: 1, opponent_score: 0 },
+    ];
+    const eventLogs = [
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: '' },
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'X', related_player: 'A' },
+      { date: '2026-06-17', match_id: 1, event_type: 'goal', player: 'A', related_player: '' },
+    ];
+    const r = calcOpponentBreakdown({ eventLogs, matchLogs });
+    const a = r.byPlayer['A'].find(x => x.opponent === '한울');
+    expect(a.trustedGoals).toBe(2);
+    expect(a.trustedAssists).toBe(1);
+    expect(a.pointsPerGame).toBeCloseTo(1.5); // 3P / 2경기
+  });
+
   it('byPlayer 정렬: games desc → goals desc → 가나다', () => {
     const matchLogs = [
       { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_1', our_members_json: '["A"]', our_score: 1, opponent_score: 0 },

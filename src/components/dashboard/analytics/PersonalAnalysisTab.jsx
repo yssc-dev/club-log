@@ -120,7 +120,12 @@ function getChaosBadge(chaosRate) {
   return null;
 }
 
-// 상대팀별 성적 막대 한 줄 — 시리즈 색은 추세 차트와 동일(득점 red/도움 blue), 값 라벨은 잉크 토큰
+// 상대팀별 막대 색 — hue는 추세 차트와 같은 시리즈 색(득점 red/도움 blue)을 유지하되
+// 알파를 낮춰 채도를 죽인다. 이 섹션은 막대가 여러 줄 연달아 쌓여서 원색이면 화면이 무겁다.
+const OPP_GOAL_COLOR = "#ef444499";
+const OPP_ASSIST_COLOR = "#3b82f699";
+
+// 상대팀별 성적 막대 한 줄 — 값 라벨은 잉크 토큰
 function OppBarLine({ label, value, max, color, C }) {
   return (
     <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
@@ -422,15 +427,17 @@ export default function PersonalAnalysisTab({
                       <span style={{ color: C.white, fontWeight: 600 }}>{r.opponent}</span>
                       <span style={{ color: C.gray, fontVariantNumeric: "tabular-nums" }}>
                         {r.games > 0 ? `${r.games}경기 ${r.wins}-${r.draws}-${r.losses}` : "경기수 기록 없음"}
+                        {r.pointsPerGame != null && ` · ${r.pointsPerGame.toFixed(1)}P`}
                       </span>
                     </div>
-                    <OppBarLine label="골" value={r.goals} max={maxVal} color="#ef4444" C={C} />
-                    <OppBarLine label="어시" value={r.assists} max={maxVal} color="#3b82f6" C={C} />
+                    <OppBarLine label="골" value={r.goals} max={maxVal} color={OPP_GOAL_COLOR} C={C} />
+                    <OppBarLine label="어시" value={r.assists} max={maxVal} color={OPP_ASSIST_COLOR} C={C} />
                   </div>
                 ));
               })()}
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
                 골·어시는 전 기간, 경기수·승패는 정식 기록 경기만.
+                <br />P/경기 = (골+어시)÷경기수 — 분모와 맞추려 정식 기록 경기의 골·어시만 셈. 위 막대 합과 다를 수 있음.
               </div>
             </div>
           )}
