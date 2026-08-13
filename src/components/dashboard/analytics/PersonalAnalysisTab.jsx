@@ -424,7 +424,7 @@ export default function PersonalAnalysisTab({
                 </tbody>
               </table>
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-                골·어시는 전 기간 이벤트 기준. 경기수·승패는 명단이 온전한 정식 기록 경기만(레거시 부분명단 제외).
+                골·어시는 전 기간, 경기수·승패는 정식 기록 경기만.
               </div>
             </div>
           )}

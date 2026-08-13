@@ -29,13 +29,13 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: C.gray, marginBottom: 10, lineHeight: 1.5 }}>
-        수비수 기록이 있는 {d.scopeMatches}경기 기준 · 팀 평균 경기당 {fmt(d.teamConcededPerGame)}실점.
-        <br />⚠️ GK·상대 강도 미보정 — 실점은 수비수 단독 지표가 아님.
+        수비수 기록 {d.scopeMatches}경기 · 팀 평균 {fmt(d.teamConcededPerGame)}실점
+        <br />⚠️ 페어·억제율 모두 상대팀·GK 영향이 섞인 참고 지표
       </div>
 
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12, marginBottom: 18 }}>
         <div>
-          <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>BEST 페어 (억제 Δ)</div>
+          <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>BEST 페어 (억제순)</div>
           {d.pairs.length === 0 ? (
             <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (페어당 5경기 이상 필요)</div>
           ) : d.pairs.slice(0, 5).map(p => <PairRow key={`${p.a}|${p.b}`} p={p} sign="best" />)}
@@ -50,7 +50,7 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
 
       <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 실점억제율</div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
-        Δ = 부재 시 경기당 실점 − 출전 시 경기당 실점 (양수=억제) · 8경기 이상
+        Δ = 부재 − 출전 실점차 · +면 억제 · 8경기 이상
       </div>
       {d.individuals.length === 0 ? (
         <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (8경기 이상 필요)</div>
