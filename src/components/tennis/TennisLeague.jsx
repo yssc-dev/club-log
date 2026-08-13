@@ -41,6 +41,15 @@ export default function TennisLeague({ C: propC }) {
     borderRadius: 8, padding: '5px 10px', fontSize: 13, fontFamily: 'inherit', cursor: 'pointer',
   };
 
+  // 데이터가 하나도 없으면 옵션 없는 select·중복 안내를 피해 단일 안내만 (훅 이후 early return).
+  if (years.length === 0) {
+    return (
+      <div style={ds.section}>
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
+      </div>
+    );
+  }
+
   return (
     <div style={ds.section}>
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12 }}>
@@ -58,9 +67,6 @@ export default function TennisLeague({ C: propC }) {
           <LegacyStandingsSection standings={legacySingles} year={effYear} format="단식" ds={ds} C={C} />
           <LegacyStandingsSection standings={legacyDoubles} year={effYear} format="복식" ds={ds} C={C} />
         </>
-      )}
-      {years.length === 0 && (
-        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
       )}
     </div>
   );
