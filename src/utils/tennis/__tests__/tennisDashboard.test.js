@@ -21,6 +21,7 @@ describe('buildMonthSummary', () => {
     const s = buildMonthSummary({ rows, month: '2026-08' });
     expect(s.topAttender.name).toBe('박성언');
     expect(s.topAttender.games).toBe(3);
+    expect(s.topAttender.wins).toBe(2);
   });
   it('게스트는 회원 집계에서 제외', () => {
     const s = buildMonthSummary({ rows, month: '2026-08' });
@@ -38,5 +39,12 @@ describe('buildMonthSummary', () => {
   });
   it('빈 rows 안전', () => {
     expect(buildMonthSummary({ rows: [], month: '2026-08' }).matches).toBe(0);
+  });
+  it('topAttender 동수 — 이름 오름차순 선택', () => {
+    const tied = [
+      { date: '2026-08-01', match_id: 'x1', player: '홍길동', result: '승' },
+      { date: '2026-08-01', match_id: 'x1', player: '가나다', result: '패' },
+    ];
+    expect(buildMonthSummary({ rows: tied, month: '2026-08' }).topAttender.name).toBe('가나다');
   });
 });
