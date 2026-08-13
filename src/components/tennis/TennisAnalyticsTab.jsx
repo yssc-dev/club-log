@@ -4,16 +4,15 @@ import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
 import { buildSinglesStandings, buildPlayerSummary } from '../../utils/tennis/tennisStandings';
 import {
-  buildDoublesStandings, buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
+  buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
 } from '../../utils/tennis/tennisAnalytics';
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
-import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings } from '../../utils/tennis/tennisDateFilter';
+import { availableYears, availableMonths, filterRowsByPeriod } from '../../utils/tennis/tennisDateFilter';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
 import { pct } from '../../utils/tennis/tennisFormat';
-import { DoublesStandingsSection, SinglesStandingsSection, LegacyStandingsSection } from './tennisStandingsSections';
 
 // ─── 요약 카드 (개인 뷰) ────────────────────────────────
 function StatCell({ label, value, C }) {
@@ -25,7 +24,7 @@ function StatCell({ label, value, C }) {
   );
 }
 
-function SummaryCard({ summary, player, ds, C }) {
+function SummaryCard({ summary, player, points = 0, ds, C }) {
   return (
     <>
       <div style={ds.sectionTitle}>{player} 요약</div>
@@ -33,6 +32,7 @@ function SummaryCard({ summary, player, ds, C }) {
         <div style={{ display: 'flex', marginBottom: 12 }}>
           <StatCell C={C} label="단식" value={`${summary.singles.wins}-${summary.singles.losses}`} />
           <StatCell C={C} label="복식" value={`${summary.doubles.wins}-${summary.doubles.losses}`} />
+          <StatCell C={C} label="포인트" value={points} />
           <StatCell C={C} label="출석" value={`${summary.attendanceDates}일`} />
         </div>
         <div style={{ display: 'flex' }}>
@@ -411,22 +411,15 @@ export default function TennisAnalyticsTab({ C: propC }) {
   // ── 날짜 필터 state / 파생 (계산기 useMemo들 위에 무조건 호출) ──────────
   const [year, setYear] = useState('');
   const [month, setMonth] = useState('');
-  const years = useMemo(() => availableYears({ rows, legacyRows }), [rows, legacyRows]);
+  const years = useMemo(() => availableYears({ rows, legacyRows: [] }), [rows]);
   const now = new Date();
   const curYear = String(now.getFullYear());
   const effYear = year || (years.includes(curYear) ? curYear : (years[0] || curYear));
-  const mode = isRowYear({ rows, year: effYear })
-    ? 'row'
-    : (years.includes(effYear) ? 'legacy' : 'row');  // 알려진 레거시 연도만 'legacy'
   const monthOpts = useMemo(() => availableMonths({ rows, year: effYear }), [rows, effYear]);
   const fRows = useMemo(() => filterRowsByPeriod(rows, { year: effYear, month }), [rows, effYear, month]);
-  const legacyStandings = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format }), [legacyRows, effYear, format]);
-
-  const doublesStandings = useMemo(
-    () => buildDoublesStandings({ rows: fRows, roster }), [fRows, roster]);
 
   const singlesStandings = useMemo(
-    () => buildSinglesStandings({ rows: fRows, roster, asOfDate: today }), [fRows, roster, today]);
+    () => buildSinglesStandings({ rows: fRows, roster, asOfDate: today, sortBy: 'points' }), [fRows, roster, today]);
 
   const chemistry = useMemo(() => buildPairChemistry({ rows: fRows }), [fRows]);
 
@@ -453,10 +446,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
     [fRows, player]);
 
   const sectionKeys = useMemo(
-    () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, mode, hasMonth: !!month }),
-    [player, format, yearlyRecords, mode, month]);
-
-  const periodLabel = month ? `${effYear}년 ${Number(month)}월` : `${effYear}년 전체`;
+    () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),
+    [player, format, yearlyRecords, month]);
 
   const selectStyle = {
     background: C.cardLight,
@@ -479,41 +470,28 @@ export default function TennisAnalyticsTab({ C: propC }) {
         <select value={effYear} onChange={e => { setYear(e.target.value); setMonth(''); }} style={{ ...selectStyle }}>
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
-        {mode === 'row' && (
-          <select value={month} onChange={e => setMonth(e.target.value)} style={{ ...selectStyle }}>
-            <option value="">전체월</option>
-            {monthOpts.map(m => <option key={m} value={m}>{Number(m)}월</option>)}
-          </select>
-        )}
-        {mode === 'row' && (
-          <select
-            value={player}
-            onChange={e => setPlayer(e.target.value)}
-            style={{ marginLeft: 'auto', ...selectStyle }}
-          >
-            <option value="">전체 랭킹</option>
-            {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
-          </select>
-        )}
+        <select value={month} onChange={e => setMonth(e.target.value)} style={{ ...selectStyle }}>
+          <option value="">전체월</option>
+          {monthOpts.map(m => <option key={m} value={m}>{Number(m)}월</option>)}
+        </select>
+        <select
+          value={player}
+          onChange={e => setPlayer(e.target.value)}
+          style={{ marginLeft: 'auto', ...selectStyle }}
+        >
+          <option value="">전체 랭킹</option>
+          {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
+        </select>
       </div>
-
-      {mode === 'legacy' && (
-        <div style={{ ...ds.card, fontSize: 12, color: C.gray, marginBottom: 10 }}>
-          {effYear}년은 집계 전적만 있습니다. 상세 지표(케미·타이브레이크·월별 등)는 2026년부터 제공됩니다.
-        </div>
-      )}
 
       {sectionKeys.map((key) => {
         switch (key) {
-          case 'doublesStandings': return <DoublesStandingsSection key={key} standings={doublesStandings} periodLabel={periodLabel} ds={ds} />;
-          case 'singlesStandings': return <SinglesStandingsSection key={key} standings={singlesStandings} periodLabel={periodLabel} ds={ds} />;
           case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
-          case 'summary':          return summary ? <SummaryCard key={key} summary={summary} player={player} ds={ds} C={C} /> : null;
+          case 'summary':          return summary ? <SummaryCard key={key} summary={summary} player={player} points={singlesStandings.find(s => s.name === player)?.points ?? 0} ds={ds} C={C} /> : null;
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
           case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;
           case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={format} ds={ds} C={C} />;
           case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} />;
-          case 'legacyStandings':  return <LegacyStandingsSection key={key} standings={legacyStandings} year={effYear} format={format} ds={ds} C={C} />;
           case 'tb':               return <TbBagelSection key={key} tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />;
           case 'acedf':            return <AceDfSection key={key} acedf={aceDfRanking} ds={ds} C={C} />;
           default:                 return null;
