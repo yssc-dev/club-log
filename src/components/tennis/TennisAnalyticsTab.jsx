@@ -12,8 +12,7 @@ import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLe
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
-
-const pct = (r) => r > 0 ? `${Math.round(r * 100)}%` : '-';
+import { pct } from '../../utils/tennis/tennisFormat';
 
 // ─── 요약 카드 (개인 뷰) ────────────────────────────────
 function StatCell({ label, value, C }) {

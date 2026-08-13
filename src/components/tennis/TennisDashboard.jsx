@@ -6,8 +6,7 @@ import { buildDoublesStandings, buildPairChemistry, buildTbRanking, buildBagelRa
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
 import { useTheme } from '../../hooks/useTheme';
 import { makeStyles } from '../../styles/theme';
-
-const pct = (r) => r > 0 ? `${Math.round(r * 100)}%` : '-';
+import { pct } from '../../utils/tennis/tennisFormat';
 
 function StatCell({ label, value, C }) {
   return (
