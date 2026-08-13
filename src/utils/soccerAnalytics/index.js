@@ -4,6 +4,7 @@ export * from './calcAssistLinkMatrix';
 export * from './calcAssistPairs';
 export * from './calcAwards';
 export * from './calcDailyMvp';
+export * from './calcDefenseAnalysis';
 export * from './calcGkChemistry';
 export * from './calcGoldenTrio';
 export * from './calcMetricLeaders';
