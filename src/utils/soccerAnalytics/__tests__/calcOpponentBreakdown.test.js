@@ -22,7 +22,10 @@ describe('calcOpponentBreakdown', () => {
     expect(r.byPlayer['B'].find(x => x.opponent === '터틀파크').assists).toBe(1);
   });
 
-  it('경기수·승패는 legacy_ 백필 경기 제외, 골은 포함', () => {
+  // legacy 명단은 골 이벤트에서 역산한 부분 명단이지만(평균 3.2명), 그 경기에 나와
+  // 골·어시를 낸 것 자체는 사실이다. 골을 분자에 넣으면서 그 경기를 분모에서 빼면
+  // 경기당 포인트가 부풀려지므로, 명단에 잡힌 legacy 경기는 경기수·승패에도 넣는다.
+  it('legacy 경기도 명단에 잡혔으면 경기수·승패에 포함', () => {
     const matchLogs = [
       { date: '2026-01-06', match_id: 1, opponent_team_name: '한울', game_id: 'legacy_2026-01-06_하버FC', our_members_json: '["A"]', our_score: 3, opponent_score: 1 },
       { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_2', our_members_json: '["A"]', our_score: 0, opponent_score: 1 },
@@ -32,10 +35,11 @@ describe('calcOpponentBreakdown', () => {
     ];
     const r = calcOpponentBreakdown({ eventLogs, matchLogs });
     const a = r.byPlayer['A'].find(x => x.opponent === '한울');
-    expect(a.goals).toBe(1);     // legacy 경기 골도 집계
-    expect(a.games).toBe(1);     // 경기수는 신뢰 명단 경기만
-    expect(a.losses).toBe(1);
-    expect(a.wins).toBe(0);
+    expect(a.goals).toBe(1);
+    expect(a.games).toBe(2);
+    expect(a.wins).toBe(1);   // legacy 3:1 승
+    expect(a.losses).toBe(1); // 정식 0:1 패
+    expect(a.pointsPerGame).toBeCloseTo(0.5); // 1P / 2경기
   });
 
   it('is_extra 매치는 경기수·이벤트 모두 제외, 명단 빈 경기(휴식)는 경기수 제외', () => {
@@ -51,34 +55,29 @@ describe('calcOpponentBreakdown', () => {
     expect(r.players).toEqual([]);
   });
 
-  // 경기당 포인트는 분자와 분모의 집계 범위가 같아야 한다.
-  // 화면의 골·어시는 전 기간(legacy 포함)이지만 경기수는 정식 기록 경기만이라,
-  // 그대로 나누면 분자만 넓은 범위여서 값이 부풀려진다.
-  it('경기당 포인트는 정식 기록 경기만의 골·어시로 낸다', () => {
+  it('경기당 포인트는 골·어시와 경기수를 같은 범위로 나눈다', () => {
     const matchLogs = [
       { date: '2026-01-06', match_id: 1, opponent_team_name: '한울', game_id: 'legacy_2026-01-06_하버FC', our_members_json: '["A","B"]', our_score: 3, opponent_score: 1 },
       { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_2', our_members_json: '["A","B"]', our_score: 2, opponent_score: 1 },
     ];
     const eventLogs = [
-      { date: '2026-01-06', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' }, // legacy — 포인트 계산 제외
-      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' }, // 정식
+      { date: '2026-01-06', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' },
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' },
     ];
     const r = calcOpponentBreakdown({ eventLogs, matchLogs });
     const a = r.byPlayer['A'].find(x => x.opponent === '한울');
-    expect(a.goals).toBe(2);          // 표시용 골은 전 기간 그대로
-    expect(a.trustedGoals).toBe(1);   // 포인트용은 정식 기록만
-    expect(a.games).toBe(1);
-    expect(a.pointsPerGame).toBeCloseTo(1); // (1골+0어시)/1경기 — 2가 아니다
+    expect(a.goals).toBe(2);
+    expect(a.games).toBe(2);
+    expect(a.pointsPerGame).toBeCloseTo(1); // 2골 / 2경기
 
     const b = r.byPlayer['B'].find(x => x.opponent === '한울');
     expect(b.assists).toBe(2);
-    expect(b.trustedAssists).toBe(1);
     expect(b.pointsPerGame).toBeCloseTo(1);
   });
 
-  it('경기수가 0이면 경기당 포인트는 null — 0으로 표시하지 않는다', () => {
+  it('명단이 비어 경기수가 0이면 경기당 포인트는 null — 0으로 표시하지 않는다', () => {
     const matchLogs = [
-      { date: '2026-01-06', match_id: 1, opponent_team_name: '한울', game_id: 'legacy_x', our_members_json: '["A"]', our_score: 3, opponent_score: 1 },
+      { date: '2026-01-06', match_id: 1, opponent_team_name: '한울', game_id: 'legacy_x', our_members_json: '[]', our_score: 3, opponent_score: 1 },
     ];
     const eventLogs = [{ date: '2026-01-06', match_id: 1, event_type: 'goal', player: 'A', related_player: '' }];
     const r = calcOpponentBreakdown({ eventLogs, matchLogs });
@@ -99,8 +98,8 @@ describe('calcOpponentBreakdown', () => {
     ];
     const r = calcOpponentBreakdown({ eventLogs, matchLogs });
     const a = r.byPlayer['A'].find(x => x.opponent === '한울');
-    expect(a.trustedGoals).toBe(2);
-    expect(a.trustedAssists).toBe(1);
+    expect(a.goals).toBe(2);
+    expect(a.assists).toBe(1);
     expect(a.pointsPerGame).toBeCloseTo(1.5); // 3P / 2경기
   });
 
