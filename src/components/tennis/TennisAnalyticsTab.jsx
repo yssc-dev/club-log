@@ -8,6 +8,7 @@ import {
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
 } from '../../utils/tennis/tennisAnalytics';
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
+import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings } from '../../utils/tennis/tennisDateFilter';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
@@ -475,6 +476,39 @@ function AceDfSection({ acedf, ds, C }) {
   );
 }
 
+// ─── 레거시 연도 순위 (집계 데이터) ─────────────────────
+export function LegacyStandingsSection({ standings, year, format, ds, C }) {
+  return (
+    <>
+      <div style={ds.sectionTitle}>{year} {format} 순위 (집계)</div>
+      {standings.length === 0 ? (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
+      ) : (
+        <div style={ds.card}>
+          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <thead><tr>
+              <th style={{ ...ds.th, textAlign: 'left' }}>#</th>
+              <th style={{ ...ds.th, textAlign: 'left' }}>이름</th>
+              <th style={ds.th}>전적</th>
+              <th style={ds.th}>승률</th>
+            </tr></thead>
+            <tbody>
+              {standings.map((s, i) => (
+                <tr key={s.name}>
+                  <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
+                  <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
+                  <td style={ds.td()}>{s.wins}-{s.losses}</td>
+                  <td style={ds.td()}>{pct(s.rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </>
+  );
+}
+
 // ─── 메인 컴포넌트 ──────────────────────────────────────
 export default function TennisAnalyticsTab({ C: propC }) {
   const { C: themeC } = useTheme();
@@ -495,65 +529,99 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const today = new Date().toISOString().slice(0, 10);
   const rosterNames = useMemo(() => (roster || []).map(m => m.name).filter(Boolean), [roster]);
 
+  // ── 날짜 필터 state / 파생 (계산기 useMemo들 위에 무조건 호출) ──────────
+  const [year, setYear] = useState('');
+  const [month, setMonth] = useState('');
+  const years = useMemo(() => availableYears({ rows, legacyRows }), [rows, legacyRows]);
+  const now = new Date();
+  const curYear = String(now.getFullYear());
+  const effYear = year || (years.includes(curYear) ? curYear : (years[0] || curYear));
+  const mode = isRowYear({ rows, year: effYear }) ? 'row' : 'legacy';
+  const monthOpts = useMemo(() => availableMonths({ rows, year: effYear }), [rows, effYear]);
+  const fRows = useMemo(() => filterRowsByPeriod(rows, { year: effYear, month }), [rows, effYear, month]);
+  const fLegacy = useMemo(() => (legacyRows || []).filter(r => String(r.season) === String(effYear)), [legacyRows, effYear]);
+  const legacyStandings = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format }), [legacyRows, effYear, format]);
+
   const doublesStandings = useMemo(
-    () => buildDoublesStandings({ rows, roster }), [rows, roster]);
+    () => buildDoublesStandings({ rows: fRows, roster }), [fRows, roster]);
 
   const singlesStandings = useMemo(
-    () => buildSinglesStandings({ rows, roster, asOfDate: today }), [rows, roster, today]);
+    () => buildSinglesStandings({ rows: fRows, roster, asOfDate: today }), [fRows, roster, today]);
 
-  const chemistry = useMemo(() => buildPairChemistry({ rows }), [rows]);
+  const chemistry = useMemo(() => buildPairChemistry({ rows: fRows }), [fRows]);
 
   const partnerBreakdown = useMemo(
-    () => player ? buildPartnerBreakdown({ rows, player }) : [], [rows, player]);
+    () => player ? buildPartnerBreakdown({ rows: fRows, player }) : [], [fRows, player]);
 
   const h2h = useMemo(
-    () => player ? buildHeadToHead({ rows, player, format }) : [], [rows, player, format]);
+    () => player ? buildHeadToHead({ rows: fRows, player, format }) : [], [fRows, player, format]);
 
   const monthly = useMemo(
-    () => player ? buildMonthlyForm({ rows, player, format }) : [], [rows, player, format]);
+    () => player ? buildMonthlyForm({ rows: fRows, player, format }) : [], [fRows, player, format]);
 
-  const tbRanking = useMemo(() => buildTbRanking({ rows, roster, format }), [rows, roster, format]);
-  const bagelRanking = useMemo(() => buildBagelRanking({ rows, roster, format }), [rows, roster, format]);
-  const aceDfRanking = useMemo(() => buildAceDfRanking({ rows, roster, format }), [rows, roster, format]);
+  const tbRanking = useMemo(() => buildTbRanking({ rows: fRows, roster, format }), [fRows, roster, format]);
+  const bagelRanking = useMemo(() => buildBagelRanking({ rows: fRows, roster, format }), [fRows, roster, format]);
+  const aceDfRanking = useMemo(() => buildAceDfRanking({ rows: fRows, roster, format }), [fRows, roster, format]);
 
   const yearlyRecords = useMemo(
-    () => player ? buildYearlyRecords({ legacyRows, rows, player, format }) : [],
-    [legacyRows, rows, player, format]);
+    () => player ? buildYearlyRecords({ legacyRows: fLegacy, rows: fRows, player, format }) : [],
+    [fLegacy, fRows, player, format]);
 
   const summary = useMemo(
-    () => player ? buildPlayerSummary({ rows, player }) : null,
-    [rows, player]);
+    () => player ? buildPlayerSummary({ rows: fRows, player }) : null,
+    [fRows, player]);
+
+  const yearlyDisplay = useMemo(() => {
+    const real = yearlyRecords.filter(e => e.season !== '통산');
+    return real.length <= 1 ? real : yearlyRecords;
+  }, [yearlyRecords]);
 
   const sectionKeys = useMemo(
-    () => analyticsSectionKeys({ player, format, hasLegacy: legacyRows.length > 0 }),
-    [player, format, legacyRows]);
+    () => analyticsSectionKeys({ player, format, hasLegacy: yearlyDisplay.length > 0, mode, hasMonth: !!month }),
+    [player, format, yearlyDisplay, mode, month]);
+
+  const selectStyle = {
+    background: C.cardLight,
+    color: C.white,
+    border: `1px solid ${C.borderColor}`,
+    borderRadius: 8,
+    padding: '5px 10px',
+    fontSize: 13,
+    fontFamily: 'inherit',
+    cursor: 'pointer',
+  };
 
   return (
     <div style={ds.section}>
-      {/* 포맷 토글 + 선수 선택 */}
+      {/* 포맷 토글 + 연/월 필터 + 선수 선택 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         {['복식', '단식'].map(f => (
           <button key={f} onClick={() => setFormat(f)} style={ds.chip(format === f)}>{f}</button>
         ))}
+        <select value={effYear} onChange={e => { setYear(e.target.value); setMonth(''); }} style={{ ...selectStyle }}>
+          {years.map(y => <option key={y} value={y}>{y}</option>)}
+        </select>
+        {mode === 'row' && (
+          <select value={month} onChange={e => setMonth(e.target.value)} style={{ ...selectStyle }}>
+            <option value="">전체월</option>
+            {monthOpts.map(m => <option key={m} value={m}>{Number(m)}월</option>)}
+          </select>
+        )}
         <select
           value={player}
           onChange={e => setPlayer(e.target.value)}
-          style={{
-            marginLeft: 'auto',
-            background: C.cardLight,
-            color: C.white,
-            border: `1px solid ${C.borderColor}`,
-            borderRadius: 8,
-            padding: '5px 10px',
-            fontSize: 13,
-            fontFamily: 'inherit',
-            cursor: 'pointer',
-          }}
+          style={{ marginLeft: 'auto', ...selectStyle }}
         >
           <option value="">전체 랭킹</option>
           {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
         </select>
       </div>
+
+      {mode === 'legacy' && (
+        <div style={{ ...ds.card, fontSize: 12, color: C.gray, marginBottom: 10 }}>
+          {effYear}년은 집계 전적만 있습니다. 상세 지표(케미·타이브레이크·월별 등)는 2026년부터 제공됩니다.
+        </div>
+      )}
 
       {sectionKeys.map((key) => {
         switch (key) {
@@ -564,7 +632,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
           case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;
           case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={format} ds={ds} C={C} />;
-          case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} />;
+          case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyDisplay} ds={ds} />;
+          case 'legacyStandings':  return <LegacyStandingsSection key={key} standings={legacyStandings} year={effYear} format={format} ds={ds} C={C} />;
           case 'tb':               return <TbBagelSection key={key} tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />;
           case 'acedf':            return <AceDfSection key={key} acedf={aceDfRanking} ds={ds} C={C} />;
           default:                 return null;
