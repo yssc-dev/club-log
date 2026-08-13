@@ -1,5 +1,8 @@
 // 축구 전용 분석 계산층 barrel. 탭에서 `import * as soccerCalc from '.../soccerAnalytics'`로 소비.
-// analyticsV2와 공개 함수 이름이 1:1 대응해야 탭의 isSoccer 셰도잉 선택이 성립한다.
+// 탭이 `isSoccer ? soccerCalc : futsalCalc`로 '분해하는' 이름만 analyticsV2와 1:1 대응하면 된다
+// (그 이름이 한쪽에만 있으면 undefined가 되어 런타임에 터진다).
+// 축구 전용 함수는 컴포넌트가 직접 import하므로 대응 대상이 아니다 —
+// calcDefenseAnalysis / calcOpponentBreakdown / calcOpponentLeaders가 그 경우.
 export * from './calcAssistLinkMatrix';
 export * from './calcAssistPairs';
 export * from './calcAwards';

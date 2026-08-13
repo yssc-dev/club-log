@@ -54,4 +54,13 @@ describe('OpponentLeadersView', () => {
     const html = render({ matchLogs: [match(0, '길벗')], eventLogs: [] });
     expect(html).toContain('상대팀이 없습니다');
   });
+
+  // 적대적 리뷰 A-M1: 수비 기록이 0경기인데 팀 평균을 0.00으로 찍으면 '무실점 팀'으로 읽힌다
+  it('수비 기록이 0경기면 팀 평균을 0.00으로 찍지 않는다', () => {
+    const noDefenders = [0, 1, 2, 3, 4].map(i =>
+      match(i, '터틀파크', { our_defenders_json: '', opponent_score: 2 }));
+    const html = render({ matchLogs: noDefenders, eventLogs: [] });
+    expect(html).toContain('수비수 기록 0경기');
+    expect(html).not.toContain('팀 평균 0.00실점');
+  });
 });
