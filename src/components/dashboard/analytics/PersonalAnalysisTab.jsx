@@ -251,6 +251,16 @@ export default function PersonalAnalysisTab({
     selected ? calcPersonalRecords({ playerName: selected, playerLogs: playerGameLogs || [] }) : null
   , [selected, playerGameLogs]);
 
+  // ── 상대팀별 성적 (축구 전용 — 풋살은 매주 팀 로테이션이라 상대팀 축이 무의미) ──
+  const oppBreakdown = useMemo(
+    () => (isSoccer ? soccerCalc.calcOpponentBreakdown({ eventLogs: eventLogs || [], matchLogs: matchLogs || [] }) : null),
+    [isSoccer, eventLogs, matchLogs]
+  );
+  const oppRows = useMemo(
+    () => (oppBreakdown && selected ? (oppBreakdown.byPlayer[selected] || []) : []),
+    [oppBreakdown, selected]
+  );
+
   // ── Derived display values ────────────────────────────────────────────────
   // 출전 라운드가 없으면(0경기 로스터 멤버 또는 골만 있는 이벤트only 선수) 분석 대신 '기록 없음' 표시.
   // rounds===0이면 경기당 지표가 모두 0/모순("N골 / 0경기")이 되므로 풀 분석을 막는다.
@@ -386,6 +396,36 @@ export default function PersonalAnalysisTab({
                   </span>
                 </div>
               )}
+            </div>
+          )}
+          {isSoccer && oppRows.length > 0 && (
+            <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, textAlign: "left" }}>
+              <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 6 }}>상대팀별 성적</div>
+              <table style={{ width: "100%", borderCollapse: "collapse", fontSize: 11 }}>
+                <thead>
+                  <tr style={{ color: C.gray, fontSize: 10 }}>
+                    <th style={{ textAlign: "left", padding: "2px 4px", fontWeight: 500 }}>상대</th>
+                    <th style={{ textAlign: "center", padding: "2px 4px", fontWeight: 500 }}>경기(승-무-패)</th>
+                    <th style={{ textAlign: "center", padding: "2px 4px", fontWeight: 500 }}>골</th>
+                    <th style={{ textAlign: "center", padding: "2px 4px", fontWeight: 500 }}>어시</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {oppRows.map(r => (
+                    <tr key={r.opponent} style={{ borderTop: `1px dashed ${C.grayDarker}` }}>
+                      <td style={{ padding: "5px 4px", color: C.white }}>{r.opponent}</td>
+                      <td style={{ padding: "5px 4px", color: C.gray, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>
+                        {r.games > 0 ? `${r.games} (${r.wins}-${r.draws}-${r.losses})` : "–"}
+                      </td>
+                      <td style={{ padding: "5px 4px", color: C.white, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.goals}</td>
+                      <td style={{ padding: "5px 4px", color: C.white, textAlign: "center", fontVariantNumeric: "tabular-nums" }}>{r.assists}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
+                골·어시는 전 기간 이벤트 기준. 경기수·승패는 명단이 온전한 정식 기록 경기만(레거시 부분명단 제외).
+              </div>
             </div>
           )}
           {trendData && trendData.points.length >= 3 && (
