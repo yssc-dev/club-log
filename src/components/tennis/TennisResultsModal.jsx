@@ -54,14 +54,11 @@ export default function TennisResultsModal({ rounds, C, styles: s }) {
                 <div style={{ fontSize: 11, color: C.gray, marginBottom: 5 }}>
                   코트 {court.courtId} · {court.format}
                 </div>
-                {/* 이긴 쪽만 진하게 — 승자를 따로 한 줄 쓰지 않아도 바로 읽힌다 */}
-                <div style={{ display: 'flex', alignItems: 'baseline', gap: 6, fontSize: 14 }}>
+                {/* 스코어보드: 세트 스코어를 두 선수 사이에 두어 왼쪽 수=왼쪽 선수로 읽힌다. 승자만 진하게. */}
+                <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, fontSize: 14, flexWrap: 'wrap' }}>
                   <span style={{ fontWeight: aWon ? 600 : 400, color: aWon ? C.white : C.gray }}>{sideA}</span>
-                  <span style={{ fontSize: 11, color: C.gray }}>vs</span>
+                  <span style={{ fontSize: 13, color: C.gray, fontVariantNumeric: 'tabular-nums' }}>{setsStr}</span>
                   <span style={{ fontWeight: aWon ? 400 : 600, color: aWon ? C.gray : C.white }}>{sideB}</span>
-                </div>
-                <div style={{ marginTop: 4, fontSize: 13, color: C.gray, fontVariantNumeric: 'tabular-nums' }}>
-                  {setsStr}
                 </div>
               </div>
             );
