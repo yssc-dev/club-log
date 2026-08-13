@@ -4,7 +4,8 @@ import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { ThemeProvider } from '../../../hooks/useTheme';
-import TennisAnalyticsTab, { LegacyStandingsSection } from '../TennisAnalyticsTab';
+import TennisAnalyticsTab from '../TennisAnalyticsTab';
+import { LegacyStandingsSection } from '../tennisStandingsSections';
 import { buildLegacyStandings } from '../../../utils/tennis/tennisDateFilter';
 
 vi.mock('../../../services/tennisSync', () => ({
