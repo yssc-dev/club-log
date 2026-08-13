@@ -63,7 +63,7 @@ export default function TennisDashboard({ C: propC }) {
     TennisSync.getRoster().then(setRoster);
   }, []);
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
   const months = useMemo(
     () => [...new Set((rows || []).map(r => (r.date || '').slice(0, 7)).filter(Boolean))].sort(),
     [rows]);

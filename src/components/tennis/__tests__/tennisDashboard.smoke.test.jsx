@@ -18,6 +18,8 @@ describe('TennisDashboard 스모크', () => {
     const html = renderToStaticMarkup(createElement(ThemeProvider, null, createElement(Harness)));
     expect(html).toContain('복식 순위 TOP 5');
     expect(html).toContain('단식 순위 TOP 5');
+    expect(html).toContain('페어 케미 TOP 5');
+    expect(html).toContain('요약');
     expect(html).toContain('하이라이트');
   });
 });
