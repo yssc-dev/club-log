@@ -111,7 +111,8 @@ Co-Authored-By: Claude Fable 5 <noreply@anthropic.com>"
 - Modify: `src/components/dashboard/analytics/ChemistryTab.jsx` (GoldenTrioView/RivalryView에 isSoccer 전달)
 - Modify: `src/components/dashboard/analytics/AwardsTab.jsx`
 - Modify: `src/components/dashboard/analytics/GoldenTrioView.jsx` (+prop)
-- Modify: `src/components/dashboard/analytics/RivalryView.jsx` (+prop)
+- ~~Modify: `src/components/dashboard/analytics/RivalryView.jsx` (+prop)~~ ← 미실행이 맞음:
+  스펙대로 RivalryView는 기존 `!isSoccer` 가드로 풋살 전용이라 배선 제외 (플랜 작성 오류)
 - Modify: `src/components/dashboard/PlayerAnalytics.jsx` (SynergyMatrixTab에 isSoccer 전달)
 
 **Interfaces:**

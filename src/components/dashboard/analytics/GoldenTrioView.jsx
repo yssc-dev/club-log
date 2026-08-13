@@ -1,9 +1,6 @@
 import { useMemo, useState } from 'react';
-import { calcGoldenTrio } from '../../../utils/analyticsV2/calcGoldenTrio';
+import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
-
-// 종목별 계산층 선택용 (풋살 기본)
-const futsalCalc = { calcGoldenTrio };
 
 export default function GoldenTrioView({ matchLogs, C, isSoccer = false }) {
   const { calcGoldenTrio } = isSoccer ? soccerCalc : futsalCalc;

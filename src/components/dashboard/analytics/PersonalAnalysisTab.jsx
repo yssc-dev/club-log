@@ -1,15 +1,6 @@
 import { useState, useMemo } from 'react';
 import { calcTrend, calcRelativePosition } from '../../../utils/playerAnalyticsUtils';
-import { buildRadarPopulations, calcRadarValues, getPlayerType } from '../../../utils/analyticsV2/calcRadarData';
-import { calcTrends } from '../../../utils/analyticsV2/calcTrends';
-import { calcStreaks } from '../../../utils/analyticsV2/calcStreaks';
-import { calcPersonalRecords } from '../../../utils/analyticsV2/calcPersonalRecords';
-import { calcRoundSlope } from '../../../utils/analyticsV2/calcRoundSlope';
-import { calcSoloGoalRatio } from '../../../utils/analyticsV2/calcSoloGoalRatio';
-import { calcPersonalSynergy } from '../../../utils/analyticsV2/calcPersonalSynergy';
-import { calcSynergyMatrix } from '../../../utils/analyticsV2/calcSynergyMatrix';
-import { calcAssistLinkMatrix, personalLink } from '../../../utils/analyticsV2/calcAssistLinkMatrix';
-import { calcPlayerSummary } from '../../../utils/analyticsV2/calcPlayerSummary';
+import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
 import RoundDistribution from './RoundDistribution';
 import SoloGoalDonut from './SoloGoalDonut';
@@ -130,9 +121,6 @@ function getChaosBadge(chaosRate) {
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
-
-// 종목별 계산층 선택용 — 위 analyticsV2 named import 전부와 1:1 (풋살 기본)
-const futsalCalc = { buildRadarPopulations, calcRadarValues, getPlayerType, calcTrends, calcStreaks, calcPersonalRecords, calcRoundSlope, calcSoloGoalRatio, calcPersonalSynergy, calcSynergyMatrix, calcAssistLinkMatrix, personalLink, calcPlayerSummary };
 
 export default function PersonalAnalysisTab({
   playerGameLogs, matchLogs, eventLogs,

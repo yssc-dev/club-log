@@ -20,6 +20,10 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
   const isSoccer = teamMode === "축구";
   const { C } = useTheme();
   const [loading, setLoading] = useState(true);
+  // 현재 state의 로그가 어느 종목 것인지. 겸직 팀이 종목을 토글하면 setLoading(true)는
+  // effect(페인트 후)에서 실행되므로, 이 가드가 없으면 새 isSoccer + 옛 종목 데이터로
+  // 한 프레임이 그려진다(셰도잉 함수·useMemo 캐시 불일치 창).
+  const [loadedSport, setLoadedSport] = useState(null);
   const [members, setMembers] = useState(null);
   const [playerGameLogs, setPlayerGameLogs] = useState([]);
   const [matchLogs, setMatchLogs] = useState([]);
@@ -41,6 +45,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
       setMatchLogs(matchRes?.rows || []);
       setEventLogs(eventRes?.rows || []);
       setPlayerGameLogs(pgRes?.rows || []);
+      setLoadedSport(sport);
     }).finally(() => setLoading(false));
   }, [teamName, isSoccer]);
 
@@ -55,7 +60,8 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
     showCrovaGoguma && { key: "crovaguma", label: "🍀/🍠" },
   ].filter(Boolean);
 
-  if (loading) return <div style={{ textAlign: "center", padding: 30, color: C.gray }}>불러오는 중...</div>;
+  // loadedSport 불일치 = 종목 토글 직후 effect가 아직 안 돈 프레임 — 옛 종목 데이터로 그리지 않는다
+  if (loading || loadedSport !== (isSoccer ? '축구' : '풋살')) return <div style={{ textAlign: "center", padding: 30, color: C.gray }}>불러오는 중...</div>;
 
   return (
     <div>

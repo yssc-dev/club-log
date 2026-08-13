@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcMonthlyRanking } from './calcMonthlyRanking';
+import { calcMonthlyRanking } from '../calcMonthlyRanking';
 
 // 자유대진: 라운드마다 1행, our=홈자리/opponent=어웨이자리 (임의 위치)
 const row = (date, ourMembers, oppMembers, ourScore, oppScore, extra = {}) => ({

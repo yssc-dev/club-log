@@ -40,6 +40,7 @@ export function calcAwards({ playerLogs, eventLogs, topN = {}, minKeeperGames = 
     own[name] = (own[name] || 0) + 1;
   }
   for (const p of playerLogs || []) {
+    if (!p.player) continue; // 이벤트 루프와 동일 가드 — undefined 키 랭킹 방지
     if (p.date && eventDates.has(p.date)) continue;
     const og = Number(p.owngoals) || 0;
     if (og > 0) own[p.player] = (own[p.player] || 0) + og;
@@ -50,7 +51,9 @@ export function calcAwards({ playerLogs, eventLogs, topN = {}, minKeeperGames = 
   for (const e of eventLogs || []) {
     if (e.event_type !== 'goal') continue;
     if (!e.player) continue;
-    if (!e.date && !e.match_id) continue; // 매치 식별 불가 골은 해트트릭 판정 불가(레거시 합산 방지)
+    // match_id(R1_C1형)는 날짜 간 반복되므로 date·match_id 둘 다 있어야 경기를 식별한다 —
+    // 하나라도 없으면 같은 키로 다른 경기 골이 합산돼 허위 해트트릭이 된다.
+    if (!e.date || !e.match_id) continue;
     const key = `${e.player}|${e.date || ''}|${e.match_id || ''}`;
     if (!goalsPerMatch[key]) goalsPerMatch[key] = { player: e.player, cnt: 0 };
     goalsPerMatch[key].cnt++;

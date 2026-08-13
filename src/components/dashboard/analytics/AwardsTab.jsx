@@ -1,17 +1,7 @@
 // src/components/dashboard/analytics/AwardsTab.jsx
 import { useMemo, useState } from 'react';
-import { calcAwards } from '../../../utils/analyticsV2/calcAwards';
-import { calcDailyMvp } from '../../../utils/analyticsV2/calcDailyMvp';
-import { calcRoundSlope } from '../../../utils/analyticsV2/calcRoundSlope';
-import { calcSoloGoalRatio } from '../../../utils/analyticsV2/calcSoloGoalRatio';
-import { calcMonthlyRanking } from '../../../utils/analyticsV2/calcMonthlyRanking';
-import { calcVolatility } from '../../../utils/analyticsV2/calcVolatility';
-import { calcPlayerSummary } from '../../../utils/analyticsV2/calcPlayerSummary';
-import { calcMetricLeaders } from '../../../utils/analyticsV2/calcMetricLeaders';
+import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
-
-// 종목별 계산층 선택용 — 위 analyticsV2 named import 전부와 1:1 (풋살 기본)
-const futsalCalc = { calcAwards, calcDailyMvp, calcRoundSlope, calcSoloGoalRatio, calcMonthlyRanking, calcVolatility, calcPlayerSummary, calcMetricLeaders };
 
 export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isSoccer = false }) {
   // 축구는 soccerAnalytics(분리 계산층), 풋살은 analyticsV2 — 함수 스코프 셰도잉으로 본문 호출부 무변경

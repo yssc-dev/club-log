@@ -17,6 +17,21 @@ describe('리뷰픽스: calcAwards', () => {
     expect(r.hatTricks).toEqual([{ player: '박 준태', count: 1 }]);
   });
 
+  it('#8b date만 있고 match_id 없는 골도 해트트릭 제외 — 같은 날 다른 경기 골 합산 방지', () => {
+    // match_id(R1_C1형)는 날짜 간 반복되므로 (date, match_id) 둘 다 있어야 경기 식별 가능
+    const eventLogs = [1, 2, 3].map(() => ({ event_type: 'goal', player: 'A', date: '2026-01-01' }));
+    const r = calcAwards({ playerLogs: [], eventLogs });
+    expect(r.hatTricks).toEqual([]);
+  });
+
+  it('자책 폴백: player 없는 행은 무시(undefined 랭킹 방지)', () => {
+    const r = calcAwards({
+      playerLogs: [{ date: '2026-01-01', owngoals: 2 }], // player 누락
+      eventLogs: [],
+    });
+    expect(r.owngoalKings).toEqual([]);
+  });
+
   it('#15 이벤트 미커버 날짜의 playerLogs 자책도 합산', () => {
     const r = calcAwards({
       playerLogs: [{ player: 'B', date: '2026-01-01', owngoals: 2 }], // 이벤트 로그 밖 날짜

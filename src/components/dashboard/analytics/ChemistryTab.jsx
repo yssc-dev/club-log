@@ -1,16 +1,11 @@
 // src/components/dashboard/analytics/ChemistryTab.jsx
 import { useState, useMemo } from 'react';
-import { calcAssistPairs } from '../../../utils/analyticsV2/calcAssistPairs';
-import { calcGkChemistry } from '../../../utils/analyticsV2/calcGkChemistry';
-import { calcSynergyMatrix } from '../../../utils/analyticsV2/calcSynergyMatrix';
+import * as futsalCalc from '../../../utils/analyticsV2';
 import GoldenTrioView from './GoldenTrioView';
 import AssistPairList from './AssistPairList';
 import GkChemistryView from './GkChemistryView';
 import RivalryView from './RivalryView';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
-
-// 종목별 계산층 선택용 (풋살 기본)
-const futsalCalc = { calcAssistPairs, calcGkChemistry, calcSynergyMatrix };
 
 export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false }) {
   const { calcAssistPairs, calcGkChemistry, calcSynergyMatrix } = isSoccer ? soccerCalc : futsalCalc;
