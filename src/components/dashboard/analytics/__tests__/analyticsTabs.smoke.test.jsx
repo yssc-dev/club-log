@@ -69,6 +69,26 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
+  it('PersonalAnalysisTab: 축구 상대팀별 성적 — 경기당 포인트를 함께 표기', () => {
+    // A는 터틀파크 상대 2경기에서 2골 1어시(모두 정식 기록) → 3P / 2경기 = 1.5
+    const soccerMatches = [
+      { date: '2026-06-10', match_id: '1', game_id: 's_1', opponent_team_name: '터틀파크', our_members_json: '["A","B"]', our_score: 2, opponent_score: 0 },
+      { date: '2026-06-17', match_id: '1', game_id: 's_2', opponent_team_name: '터틀파크', our_members_json: '["A","B"]', our_score: 1, opponent_score: 1 },
+    ];
+    const soccerEvents = [
+      { event_type: 'goal', player: 'A', related_player: '', date: '2026-06-10', match_id: '1' },
+      { event_type: 'goal', player: 'A', related_player: '', date: '2026-06-10', match_id: '1' },
+      { event_type: 'goal', player: 'B', related_player: 'A', date: '2026-06-17', match_id: '1' },
+    ];
+    const html = wrap(PersonalAnalysisTab, {
+      playerGameLogs: [], matchLogs: soccerMatches, eventLogs: soccerEvents,
+      members: [{ name: 'A' }, { name: 'B' }], C, authUserName: 'A', isSoccer: true,
+    });
+    expect(html).toContain('상대팀별 성적');
+    expect(html).toContain('1.5P');
+    expect(html).not.toContain('NaN');
+  });
+
   it('AwardsTab: 해트트릭/일일MVP/종합포인트/전체 옵션 렌더, 불꽃·클러치 없음', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
     expect(html).toContain('해트트릭');
