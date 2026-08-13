@@ -39,3 +39,6 @@ dist-ssr
 # Claude 세션 작업트리/SDD 스크래치
 .claude/worktrees/
 .superpowers/
+
+# 브라우저 자동화 산출물(스냅샷 .yml / 콘솔 .log) — 세션 스크래치라 추적 대상 아님
+.playwright-mcp/
