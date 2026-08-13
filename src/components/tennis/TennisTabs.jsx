@@ -4,12 +4,13 @@
 // Task 4(탭 재편): roster 분기 제거(분석 개인뷰로 흡수), tdash/members placeholder 추가.
 import { makeStyles } from '../../styles/theme';
 import TennisAnalyticsTab from './TennisAnalyticsTab';
+import TennisDashboard from './TennisDashboard';
 
 export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, authUserName, C }) {
   const ds = makeStyles(C);
 
   if (activeTab === 'tdash') {
-    return <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>대시보드 · beta</div>;
+    return <TennisDashboard C={C} />;
   }
 
   if (activeTab === 'members') {
