@@ -26,6 +26,13 @@ function _kstDateFromGameId(gameId) {
 }
 
 function _buildSummary(gameId, state) {
+  const creator = state.gameCreator || state.lastEditor || '?';
+  // 테니스: 이벤트/완료경기가 풋살 필드라 0이 되므로 라운드·완료 코트로 요약.
+  if (state.sport === '테니스') {
+    const rounds = state.rounds || [];
+    const done = rounds.reduce((s, r) => s + (r.courts || []).filter(c => c.status === 'done').length, 0);
+    return `${gameId} | ${creator} | ${state.phase || '?'} | ${rounds.length}라운드 | 완료 ${done}경기`;
+  }
   const soccer = Array.isArray(state.soccerMatches) && state.soccerMatches.length > 0;
   const evtCount = soccer
     ? state.soccerMatches.reduce((s, m) => s + ((m.events || []).length), 0)
@@ -33,7 +40,6 @@ function _buildSummary(gameId, state) {
   const matchCount = soccer
     ? countFinishedSoccerMatches(state.soccerMatches)
     : (state.completedMatches || []).length;
-  const creator = state.gameCreator || state.lastEditor || '?';
   return `${gameId} | ${creator} | ${state.phase || '?'} | 이벤트 ${evtCount}건 | 완료 ${matchCount}경기`;
 }
 

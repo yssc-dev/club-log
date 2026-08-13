@@ -6,7 +6,7 @@ import { makeStyles } from '../../styles/theme';
 import TennisAnalyticsTab from './TennisAnalyticsTab';
 import TennisDashboard from './TennisDashboard';
 
-export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, authUserName, C }) {
+export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, onViewHistory, authUserName, C }) {
   const ds = makeStyles(C);
 
   if (activeTab === 'tdash') {
@@ -37,6 +37,12 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
               </button>
             ))}
         </div>
+        {onViewHistory && (
+          <button onClick={onViewHistory}
+            style={{ ...ds.card, display: 'block', width: '100%', marginTop: 14, textAlign: 'center', cursor: 'pointer', border: `1px solid ${C.borderColor}`, color: C.white, fontSize: 14, fontWeight: 500 }}>
+            📁 과거 경기 기록
+          </button>
+        )}
       </div>
     );
   }

@@ -6,6 +6,8 @@ import { calcMatchScore } from '../../utils/scoring';
 import { getEffectiveSettings } from '../../config/settings';
 import { countFinishedSoccerMatches } from '../../utils/soccerScoring';
 import SoccerArchiveDetail from './SoccerArchiveDetail';
+import TennisResultsModal from '../tennis/TennisResultsModal';
+import { makeStyles } from '../../styles/theme';
 
 function calcStandings(completedMatches, teamNames) {
   const stats = {};
@@ -156,6 +158,10 @@ export default function HistoryView({ teamContext, onBack }) {
     const isSoccer = matchMode === "soccer";
     const soccerMatches = gs?.soccerMatches || [];
     const soccerFinishedCount = countFinishedSoccerMatches(soccerMatches);
+    // 테니스: state.sport로 판별, rounds를 TennisResultsModal로 렌더(라운드별 코트 결과).
+    const isTennis = gs?.sport === '테니스';
+    const tennisRounds = gs?.rounds || [];
+    const ds = makeStyles(C);
 
     return (
       <div style={hs.container}>
@@ -168,12 +174,14 @@ export default function HistoryView({ teamContext, onBack }) {
             <div style={{ fontSize: 18, fontWeight: 800, color: "#fff" }}>{formatDate(selectedGame.gameDate)} 경기 기록</div>
           </div>
           <div style={{ fontSize: 12, color: C.headerTextDim, marginTop: 2 }}>
-            {teamContext.team} · {isSoccer ? "축구" : isPush ? "밀어내기" : matchMode === "schedule" ? "대진표" : "자유대진"} · {isSoccer ? soccerFinishedCount : matches.length}경기
+            {teamContext.team} · {isTennis ? "테니스" : isSoccer ? "축구" : isPush ? "밀어내기" : matchMode === "schedule" ? "대진표" : "자유대진"} · {isTennis ? `${tennisRounds.length}라운드` : `${isSoccer ? soccerFinishedCount : matches.length}경기`}
           </div>
         </div>
         <div style={{ padding: 16 }}>
 
-          {isSoccer ? (
+          {isTennis ? (
+            <TennisResultsModal rounds={tennisRounds} C={C} styles={ds} />
+          ) : isSoccer ? (
             <SoccerArchiveDetail soccerMatches={soccerMatches} es={es} styles={hs} />
           ) : (
           <>
