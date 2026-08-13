@@ -5,6 +5,26 @@
 // 한계(의도): GK·상대 강도 미보정 — UI 캡션에 명시.
 import { parseActualPlayers } from './parseMembers';
 
+// 정렬 축: 'conceded' = 실점률 Δ, 'clean' = 클린시트율 Δ. 두 Δ는 부호 방향이 같다(+면 억제).
+const METRIC_FIELD = { conceded: 'delta', clean: 'cleanDelta' };
+
+// 개인/페어 행 공용 정렬. calcDefenseAnalysis는 실점률 기준 정렬본을 반환하지만,
+// 지표 토글·대시보드는 같은 계산 결과를 다른 축으로 다시 세워야 해서 정렬만 분리했다
+// (metric을 calcDefenseAnalysis 인자로 받으면 축마다 전체 집계를 다시 돌아야 한다).
+// 순수 함수 — 입력 배열 불변.
+export function sortDefenseRows(rows, { metric = 'conceded', dir = 'desc' } = {}) {
+  const field = METRIC_FIELD[metric] || METRIC_FIELD.conceded;
+  // null Δ(베이스라인 없음)는 dir과 무관하게 맨 뒤 — 오염된 비교값을 순위에 올리지 않는다
+  return [...(rows || [])].sort((a, b) => {
+    const av = a[field], bv = b[field];
+    if ((av == null) !== (bv == null)) return av == null ? 1 : -1;
+    if (av != null && av !== bv) return dir === 'desc' ? bv - av : av - bv;
+    return b.games - a.games
+      || (a.name || a.a).localeCompare(b.name || b.a, 'ko')
+      || (a.b || '').localeCompare(b.b || '', 'ko');
+  });
+}
+
 export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairThreshold = 5 }) {
   const scope = [];
   for (const m of matchLogs || []) {
@@ -16,6 +36,7 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
   }
   const totalMatches = scope.length;
   const totalConceded = scope.reduce((s, x) => s + x.conceded, 0);
+  const totalCleanSheets = scope.reduce((s, x) => s + (x.conceded === 0 ? 1 : 0), 0);
 
   const indiv = {};
   const pair = {};
@@ -35,30 +56,27 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
     const baseGames = totalMatches - s.games;
     const hasBaseline = baseGames > 0;
     const concededPerGame = s.games > 0 ? s.conceded / s.games : 0;
+    const cleanRate = s.games > 0 ? s.cleanSheets / s.games : 0;
     const baselineConcededPerGame = hasBaseline ? (totalConceded - s.conceded) / baseGames : null;
+    // 클린시트 Δ는 실점률 Δ와 부호 방향을 맞춘다(+면 억제). 실점률은 '낮을수록 좋음'이라
+    // 베이스라인−출전, 클린시트율은 '높을수록 좋음'이라 출전−베이스라인.
+    const baselineCleanRate = hasBaseline ? (totalCleanSheets - s.cleanSheets) / baseGames : null;
     return {
       ...s,
       concededPerGame,
-      cleanRate: s.games > 0 ? s.cleanSheets / s.games : 0,
+      cleanRate,
       baselineConcededPerGame,
       delta: hasBaseline ? baselineConcededPerGame - concededPerGame : null,
+      baselineCleanRate,
+      cleanDelta: hasBaseline ? cleanRate - baselineCleanRate : null,
       hasBaseline,
     };
   };
-  // null delta(베이스라인 없음)는 best/worst 어느 쪽에서도 맨 뒤 — 오염된 비교값을 순위에 올리지 않는다
-  const cmp = (dir) => (a, b) => {
-    const av = a.delta, bv = b.delta;
-    if ((av == null) !== (bv == null)) return av == null ? 1 : -1;
-    if (av != null && av !== bv) return dir === 'desc' ? bv - av : av - bv;
-    return b.games - a.games
-      || (a.name || a.a).localeCompare(b.name || b.a, 'ko')
-      || (a.b || '').localeCompare(b.b || '', 'ko');
-  };
-
-  const individuals = Object.entries(indiv)
-    .map(([name, s]) => ({ name, ...finish(s) }))
-    .filter(x => x.games >= individualThreshold)
-    .sort(cmp('desc'));
+  const individuals = sortDefenseRows(
+    Object.entries(indiv)
+      .map(([name, s]) => ({ name, ...finish(s) }))
+      .filter(x => x.games >= individualThreshold),
+  );
 
   const allPairs = Object.entries(pair)
     .map(([key, s]) => { const [a, b] = key.split('|'); return { a, b, ...finish(s) }; })
@@ -67,9 +85,11 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
   return {
     scopeMatches: totalMatches,
     totalConceded,
+    totalCleanSheets,
     teamConcededPerGame: totalMatches > 0 ? totalConceded / totalMatches : 0,
+    teamCleanRate: totalMatches > 0 ? totalCleanSheets / totalMatches : 0,
     individuals,
-    pairs: [...allPairs].sort(cmp('desc')),
-    worstPairs: [...allPairs].sort(cmp('asc')),
+    pairs: sortDefenseRows(allPairs, { dir: 'desc' }),
+    worstPairs: sortDefenseRows(allPairs, { dir: 'asc' }),
   };
 }
