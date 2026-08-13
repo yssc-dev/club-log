@@ -100,7 +100,7 @@ export default function TennisDashboard({ C: propC }) {
           <StatCell C={C} label="경기일" value={`${summary.days}일`} />
         </div>
         <div style={{ display: 'flex' }}>
-          <StatCell C={C} label="최다 출전" value={summary.topAttender ? `${summary.topAttender.name} (${summary.topAttender.games})` : '-'} />
+          <StatCell C={C} label="최다 출전" value={summary.topAttender ? `${summary.topAttender.name} (${summary.topAttender.games}경기)` : '-'} />
           <StatCell C={C} label="이달 승률 1위" value={summary.hotPlayer ? `${summary.hotPlayer.name} ${pct(summary.hotPlayer.rate)} (${summary.hotPlayer.wins}승)` : '-'} />
         </div>
       </div>
