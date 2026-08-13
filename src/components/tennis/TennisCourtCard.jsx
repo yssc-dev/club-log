@@ -12,6 +12,11 @@ function DoneCourtCard({ court, roundIdx, dispatch, C, styles: s, locked }) {
   const courtKey = { roundIdx, courtId: court.courtId };
   const summ = summarizeCourt(court);
   const canUndo = (court.undoStack || []).length > 0;
+  // 세트 승리(1-0)와 세트별 게임 스코어(6:4)를 헤더에 병행 표기
+  const setScores = (court.sets || [])
+    .filter(set => setWinner(set))
+    .map(set => `${set.a}:${set.b}${(set.tbA || set.tbB) ? `(${set.tbA}-${set.tbB})` : ''}`)
+    .join(' ');
 
   return (
     <div style={{ ...s.card, marginBottom: 10, padding: open ? 14 : '10px 14px' }}>
@@ -25,20 +30,13 @@ function DoneCourtCard({ court, roundIdx, dispatch, C, styles: s, locked }) {
         <span style={{ color: C.green, fontSize: 13, fontWeight: 500 }}>✓ 코트 {court.courtId} · {court.format}</span>
         <span style={{ fontSize: 12, color: C.gray }}>
           {court.sideA.join('/')} {summ.setsA}-{summ.setsB} {court.sideB.join('/')}
+          {setScores ? <span style={{ marginLeft: 6, color: C.grayLight, fontVariantNumeric: 'tabular-nums' }}>{setScores}</span> : null}
           <span style={{ marginLeft: 6, color: C.grayLight }}>{open ? '▲' : '▼'}</span>
         </span>
       </button>
 
       {open && (
         <div style={{ marginTop: 12, borderTop: `0.5px solid ${C.borderColor}`, paddingTop: 12 }}>
-          <div style={{ fontSize: 13, color: C.gray, fontVariantNumeric: 'tabular-nums', marginBottom: 12 }}>
-            {(court.sets || []).filter(set => setWinner(set)).map((set, i) => (
-              <span key={i} style={{ marginRight: 10 }}>
-                {set.a}:{set.b}
-                {(set.tbA || set.tbB) ? <span style={{ color: C.grayLight }}> ({set.tbA}-{set.tbB})</span> : null}
-              </span>
-            ))}
-          </div>
           {locked ? (
             <div style={{ fontSize: 12, color: C.gray, textAlign: 'center', padding: '4px 0' }}>
               확정된 라운드 — 수정하려면 하단에서 확정취소
