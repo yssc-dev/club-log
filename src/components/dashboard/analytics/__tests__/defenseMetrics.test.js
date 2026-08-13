@@ -19,8 +19,8 @@ describe('DEFENSE_METRICS', () => {
     it('주값은 경기당 실점 생값', () => {
       expect(M.formatValue(row)).toBe('0.75실점');
     });
-    it('부값은 클린시트 횟수', () => {
-      expect(M.formatSecondary(row)).toBe('CS 8/16');
+    it('조합 목록 제목은 생값 정렬을 그대로 말한다', () => {
+      expect(M.bestLabel).toBe('실점 적은순');
     });
     it('Δ는 소수 2자리 + 부호', () => {
       expect(M.formatDelta(M.deltaOf(row))).toBe('+0.51');
@@ -33,8 +33,8 @@ describe('DEFENSE_METRICS', () => {
     it('주값은 클린시트율 %', () => {
       expect(M.formatValue(row)).toBe('50%');
     });
-    it('부값은 경기당 실점 — 실점률 모드와 주/부가 뒤집힌다', () => {
-      expect(M.formatSecondary(row)).toBe('0.75실점');
+    it('조합 목록 제목은 생값 정렬을 그대로 말한다', () => {
+      expect(M.bestLabel).toBe('무실점률 높은순');
     });
     it('Δ는 %p + 부호', () => {
       expect(M.formatDelta(M.deltaOf(row))).toBe('+19%p');

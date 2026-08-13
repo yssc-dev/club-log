@@ -45,11 +45,13 @@ function Card({ title, rows, nameOf, metric, color, C, ds }) {
 export function DefenseTopCardsView({ matchLogs, C, ds }) {
   const d = useMemo(() => calcDefenseAnalysis({ matchLogs: matchLogs || [] }), [matchLogs]);
 
-  // 정렬 축은 분석 탭과 같은 단일소스(sortDefenseRows) — 대시보드만 다른 순서가 되지 않게
+  // 정렬 축은 분석 탭과 같은 단일소스(sortDefenseRows) — 대시보드만 다른 순서가 되지 않게.
+  // by:'raw' = 카드에 찍는 생값 그대로 세운다. Δ로 세우면 표본이 큰 행의 베이스라인이
+  // 팀 평균과 달라져 화면 숫자가 정렬을 거스르는 역전이 보인다.
   const cards = useMemo(() => ({
-    pairs: sortDefenseRows(d.pairs, { metric: 'conceded' }).slice(0, TOP_N),
-    conceded: sortDefenseRows(d.individuals, { metric: 'conceded' }).slice(0, TOP_N),
-    clean: sortDefenseRows(d.individuals, { metric: 'clean' }).slice(0, TOP_N),
+    pairs: sortDefenseRows(d.pairs, { metric: 'conceded', by: 'raw' }).slice(0, TOP_N),
+    conceded: sortDefenseRows(d.individuals, { metric: 'conceded', by: 'raw' }).slice(0, TOP_N),
+    clean: sortDefenseRows(d.individuals, { metric: 'clean', by: 'raw' }).slice(0, TOP_N),
   }), [d]);
 
   // 임계 미달이면 빈 카드를 걸어두지 않고 통째로 숨긴다
@@ -57,7 +59,7 @@ export function DefenseTopCardsView({ matchLogs, C, ds }) {
 
   return (
     <div style={ds.section}>
-      <Card title="🤝 수비 페어 TOP5" rows={cards.pairs} nameOf={p => `${p.a}·${p.b}`}
+      <Card title="🤝 수비 페어 TOP5" rows={cards.pairs} nameOf={p => p.members.join('·')}
         metric="conceded" color={C.green} C={C} ds={ds} />
       <div style={{ display: 'flex', gap: 8, marginTop: 10 }}>
         <Card title="🛡️ 수비 실점률 TOP5" rows={cards.conceded} nameOf={x => x.name}
