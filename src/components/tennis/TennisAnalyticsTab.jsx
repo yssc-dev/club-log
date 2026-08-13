@@ -541,7 +541,6 @@ export default function TennisAnalyticsTab({ C: propC }) {
     : (years.includes(effYear) ? 'legacy' : 'row');  // 알려진 레거시 연도만 'legacy'
   const monthOpts = useMemo(() => availableMonths({ rows, year: effYear }), [rows, effYear]);
   const fRows = useMemo(() => filterRowsByPeriod(rows, { year: effYear, month }), [rows, effYear, month]);
-  const fLegacy = useMemo(() => (legacyRows || []).filter(r => String(r.season) === String(effYear)), [legacyRows, effYear]);
   const legacyStandings = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format }), [legacyRows, effYear, format]);
 
   const doublesStandings = useMemo(
@@ -565,22 +564,18 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const bagelRanking = useMemo(() => buildBagelRanking({ rows: fRows, roster, format }), [fRows, roster, format]);
   const aceDfRanking = useMemo(() => buildAceDfRanking({ rows: fRows, roster, format }), [fRows, roster, format]);
 
+  // 연도별(기간별) 전적 카드는 필터와 무관하게 전체 커리어(전연도 2024~+통산) 비교를 보여준다 — 필터는 나머지 섹션만 스코핑.
   const yearlyRecords = useMemo(
-    () => player ? buildYearlyRecords({ legacyRows: fLegacy, rows: fRows, player, format }) : [],
-    [fLegacy, fRows, player, format]);
+    () => player ? buildYearlyRecords({ legacyRows, rows, player, format }) : [],
+    [legacyRows, rows, player, format]);
 
   const summary = useMemo(
     () => player ? buildPlayerSummary({ rows: fRows, player }) : null,
     [fRows, player]);
 
-  const yearlyDisplay = useMemo(() => {
-    const real = yearlyRecords.filter(e => e.season !== '통산');
-    return real.length <= 1 ? real : yearlyRecords;
-  }, [yearlyRecords]);
-
   const sectionKeys = useMemo(
-    () => analyticsSectionKeys({ player, format, hasLegacy: yearlyDisplay.length > 0, mode, hasMonth: !!month }),
-    [player, format, yearlyDisplay, mode, month]);
+    () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, mode, hasMonth: !!month }),
+    [player, format, yearlyRecords, mode, month]);
 
   const selectStyle = {
     background: C.cardLight,
@@ -609,14 +604,16 @@ export default function TennisAnalyticsTab({ C: propC }) {
             {monthOpts.map(m => <option key={m} value={m}>{Number(m)}월</option>)}
           </select>
         )}
-        <select
-          value={player}
-          onChange={e => setPlayer(e.target.value)}
-          style={{ marginLeft: 'auto', ...selectStyle }}
-        >
-          <option value="">전체 랭킹</option>
-          {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        {mode === 'row' && (
+          <select
+            value={player}
+            onChange={e => setPlayer(e.target.value)}
+            style={{ marginLeft: 'auto', ...selectStyle }}
+          >
+            <option value="">전체 랭킹</option>
+            {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        )}
       </div>
 
       {mode === 'legacy' && (
@@ -634,7 +631,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
           case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;
           case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={format} ds={ds} C={C} />;
-          case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyDisplay} ds={ds} />;
+          case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} />;
           case 'legacyStandings':  return <LegacyStandingsSection key={key} standings={legacyStandings} year={effYear} format={format} ds={ds} C={C} />;
           case 'tb':               return <TbBagelSection key={key} tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />;
           case 'acedf':            return <AceDfSection key={key} acedf={aceDfRanking} ds={ds} C={C} />;
