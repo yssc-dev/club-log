@@ -31,7 +31,7 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
                 style={{ ...ds.card, display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.borderColor}` }}>
                 <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{g.state?.gameDate || '-'}</div>
                 <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>
-                  {(g.state?.rounds || []).length}라운드 · 참석 {(g.state?.attendees || []).length}명
+                  {g.state?.gameCreator || g.state?.lastEditor || '알 수 없음'} · {(g.state?.rounds || []).length}라운드 · 참석 {(g.state?.attendees || []).length}명
                 </div>
               </button>
             ))}
