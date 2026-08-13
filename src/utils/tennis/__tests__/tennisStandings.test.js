@@ -64,6 +64,29 @@ describe('buildSinglesStandings', () => {
     expect(s.find(x => x.name === 'b').points).toBe(0);
   });
 
+  it("sortBy:'points'는 포인트 내림차순, 동점은 승률→승수→이름", () => {
+    // a(동배)가 b(은배)를 이김 → a: 1+5=6점, b: 0점. 승률은 a=1 > b=0.
+    const rows = [
+      pg({ player: 'a', result: '승', grade_at_date: '동배', match_id: 'R1_C1', side: 'A' }),
+      pg({ player: 'b', result: '패', grade_at_date: '은배', match_id: 'R1_C1', side: 'B' }),
+    ];
+    const s = buildSinglesStandings({ rows, roster, asOfDate: '2026-12-31', sortBy: 'points' });
+    expect(s.map(x => x.name)).toEqual(['a', 'b']);
+    expect(s[0].points).toBe(6);
+  });
+
+  it("sortBy 미지정(기본 rate)은 기존 승률 정렬을 보존", () => {
+    // b가 포인트는 더 높지만(업셋) a의 승률이 더 높으면 rate 기본은 a가 먼저.
+    const rows = [
+      pg({ player: 'a', result: '승', grade_at_date: '은배', match_id: 'R1_C1', side: 'A' }),
+      pg({ player: 'b', result: '패', grade_at_date: '은배', match_id: 'R1_C1', side: 'B' }),
+      pg({ player: 'a', result: '승', date: '2026-03-02', grade_at_date: '은배', match_id: 'R2_C1', side: 'A' }),
+      pg({ player: 'b', result: '패', date: '2026-03-02', grade_at_date: '은배', match_id: 'R2_C1', side: 'B' }),
+    ];
+    const s = buildSinglesStandings({ rows, roster, asOfDate: '2026-12-31' });
+    expect(s[0].name).toBe('a'); // rate 1.0 > 0
+  });
+
   it('사전(경기일 직전) 승률로 역전 보너스를 계산한다', () => {
     // 설계 근거:
     //   x, y가 day0에 a, b를 각각 꺾어 두 사람 모두 BK 최상위에 자리 잡는다.

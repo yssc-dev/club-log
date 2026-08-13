@@ -7,7 +7,7 @@ import { calcMatchPoints, DEFAULT_POINT_RULES } from './rankPoints';
 
 const isSingles = (r) => r.format === '단식' && r.league === COMPETITION_SINGLES;
 
-export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES }) {
+export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate' }) {
   const list = (roster || []).filter(m => m && m.name);
   const acc = new Map(list.map(m => [m.name, {
     name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0, points: 0,
@@ -69,9 +69,13 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
   }
 
   const finalLeague = deriveLeagueForDate({ rows: singles, dateISO: asOfDate, roster: list });
+  const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'ko');
+  const cmp = sortBy === 'points'
+    ? (a, b) => b.points - a.points || b.rate - a.rate || b.wins - a.wins || byName(a, b)
+    : (a, b) => b.rate - a.rate || b.wins - a.wins || byName(a, b);
   return [...acc.values()]
     .map(x => ({ ...x, leagueTier: finalLeague[x.name] }))
-    .sort((a, b) => b.rate - a.rate || b.wins - a.wins || String(a.name).localeCompare(String(b.name), 'ko'));
+    .sort(cmp);
 }
 
 export function buildPlayerSummary({ rows, player }) {
