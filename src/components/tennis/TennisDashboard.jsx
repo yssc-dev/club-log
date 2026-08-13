@@ -121,7 +121,7 @@ export default function TennisDashboard({ C: propC }) {
         ]} />
 
       {/* 3. 페어 케미 TOP 5 */}
-      <MiniRankTable title="페어 케미 TOP 5" rows={chem.map(p => ({ ...p, _key: p.players.join('|') }))} ds={ds}
+      <MiniRankTable title={`페어 케미 TOP 5${yearSpan ? ` · ${yearSpan}` : ''}`} rows={chem.map(p => ({ ...p, _key: p.players.join('|') }))} ds={ds}
         cols={[
           { key: 'pair', label: '페어', align: 'left', render: r => `${r.players.join(' · ')}${r.hasGuest ? ' *' : ''}` },
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },
@@ -129,7 +129,7 @@ export default function TennisDashboard({ C: propC }) {
         ]} />
 
       {/* 4. 하이라이트 */}
-      <div style={ds.sectionTitle}>하이라이트</div>
+      <div style={ds.sectionTitle}>하이라이트{yearSpan ? ` · ${yearSpan}` : ''}</div>
       <div style={ds.card}>
         {highlight('타이브레이크', tb[0], t => `${t.name} ${t.tbWon}/${t.tbPlayed}`)}
         {highlight('베이글', bagel[0], b => `${b.name} ${b.given}개`)}
