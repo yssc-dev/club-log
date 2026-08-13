@@ -484,7 +484,7 @@ function AceDfSection({ acedf, ds, C }) {
 export function LegacyStandingsSection({ standings, year, format, ds, C }) {
   return (
     <>
-      <div style={ds.sectionTitle}>{year} {format} 순위 (집계)</div>
+      <div style={ds.sectionTitle}>{year}년 {format} 순위 (집계)</div>
       {standings.length === 0 ? (
         <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
       ) : (
@@ -581,7 +581,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
     () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, mode, hasMonth: !!month }),
     [player, format, yearlyRecords, mode, month]);
 
-  const periodLabel = month ? `${effYear}.${Number(month)}` : `${effYear} 전체`;
+  const periodLabel = month ? `${effYear}년 ${Number(month)}월` : `${effYear}년 전체`;
 
   const selectStyle = {
     background: C.cardLight,

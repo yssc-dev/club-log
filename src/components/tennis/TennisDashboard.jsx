@@ -77,12 +77,14 @@ export default function TennisDashboard({ C: propC }) {
   const tb = useMemo(() => buildTbRanking({ rows, roster }), [rows, roster]);
   const bagel = useMemo(() => buildBagelRanking({ rows, roster }), [rows, roster]);
   const acedf = useMemo(() => buildAceDfRanking({ rows, roster }), [rows, roster]);
-  // 대시보드 순위는 전체 데이터 기준 — 데이터의 연도 범위를 제목에 표기.
+  // 대시보드 순위는 전체 데이터 기준 — 데이터의 연도 범위를 제목에 표기(연도는 데이터에서 파생 → 2027 등 자동 대응).
   const yearSpan = useMemo(() => {
     const ys = [...new Set((rows || []).map(r => (r.date || '').slice(0, 4)).filter(Boolean))].sort();
     if (!ys.length) return '';
-    return ys.length === 1 ? ys[0] : `${ys[0]}~${ys[ys.length - 1]}`;
+    return ys.length === 1 ? `${ys[0]}년` : `${ys[0]}~${ys[ys.length - 1]}년`;
   }, [rows]);
+  // 하이라이트 최고값이 0이면 의미 없으므로 '-' 처리.
+  const topAce = useMemo(() => acedf.slice().sort((a, b) => b.aces - a.aces)[0], [acedf]);
 
   const highlight = (label, top, fmt) =>
     <div style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0', fontSize: 13, color: C.white }}>
@@ -93,7 +95,7 @@ export default function TennisDashboard({ C: propC }) {
   return (
     <div style={ds.section}>
       {/* 1. 이번달 요약 */}
-      <div style={ds.sectionTitle}>{targetMonth} 요약</div>
+      <div style={ds.sectionTitle}>{`${targetMonth.slice(0, 4)}년 ${Number(targetMonth.slice(5, 7))}월`} 요약</div>
       <div style={ds.card}>
         <div style={{ display: 'flex', marginBottom: 12 }}>
           <StatCell C={C} label="경기수" value={summary.matches} />
@@ -131,9 +133,9 @@ export default function TennisDashboard({ C: propC }) {
       {/* 4. 하이라이트 */}
       <div style={ds.sectionTitle}>하이라이트{yearSpan ? ` · ${yearSpan}` : ''}</div>
       <div style={ds.card}>
-        {highlight('타이브레이크', tb[0], t => `${t.name} ${t.tbWon}/${t.tbPlayed}`)}
-        {highlight('베이글', bagel[0], b => `${b.name} ${b.given}개`)}
-        {highlight('에이스', acedf.slice().sort((a, b) => b.aces - a.aces)[0], a => `${a.name} ${a.aces}개`)}
+        {highlight('타이브레이크', tb[0]?.tbPlayed > 0 ? tb[0] : null, t => `${t.name} ${t.tbWon}/${t.tbPlayed}`)}
+        {highlight('베이글', bagel[0]?.given > 0 ? bagel[0] : null, b => `${b.name} ${b.given}개`)}
+        {highlight('에이스', topAce?.aces > 0 ? topAce : null, a => `${a.name} ${a.aces}개`)}
       </div>
     </div>
   );
