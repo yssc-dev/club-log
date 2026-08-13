@@ -436,8 +436,9 @@ export default function PersonalAnalysisTab({
                 ));
               })()}
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-                골·어시는 전 기간, 경기수·승패는 정식 기록 경기만.
-                <br />P/경기 = (골+어시)÷경기수 — 분모와 맞추려 정식 기록 경기의 골·어시만 셈. 위 막대 합과 다를 수 있음.
+                P/경기 = (골+어시)÷경기수.
+                <br />앱 사용 이전 경기는 출전 명단 데이터가 없어, 골·어시를 낸 경기만 잡힙니다.
+                분모(출전 경기수)가 실제 뛴 경기보다 적어 P/경기가 다소 높게 나옵니다.
               </div>
             </div>
           )}
