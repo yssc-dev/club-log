@@ -26,4 +26,17 @@ describe('analyticsSectionKeys', () => {
     expect(analyticsSectionKeys({ player: '박성언', format: '복식', hasLegacy: false }))
       .toEqual(['summary', 'partner', 'h2h', 'monthly']);
   });
+  it('legacy 모드 = legacyStandings만', () => {
+    expect(analyticsSectionKeys({ player: '', format: '복식', hasLegacy: true, mode: 'legacy' })).toEqual(['legacyStandings']);
+    expect(analyticsSectionKeys({ player: '박성언', format: '단식', hasLegacy: true, mode: 'legacy' })).toEqual(['legacyStandings']);
+  });
+  it('월 선택 시(hasMonth) 개인뷰에서 monthly 제외', () => {
+    const k = analyticsSectionKeys({ player: '박성언', format: '복식', hasLegacy: true, mode: 'row', hasMonth: true });
+    expect(k).toEqual(['summary', 'partner', 'h2h', 'yearly']);
+    expect(k).not.toContain('monthly');
+  });
+  it('mode/hasMonth 미지정 시 기존과 동일(하위호환)', () => {
+    expect(analyticsSectionKeys({ player: '박성언', format: '복식', hasLegacy: true }))
+      .toEqual(['summary', 'partner', 'h2h', 'monthly', 'yearly']);
+  });
 });
