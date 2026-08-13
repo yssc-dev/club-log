@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { calcDefenseAnalysis } from '../calcDefenseAnalysis';
+import { calcDefenseAnalysis, sortDefenseRows } from '../calcDefenseAnalysis';
 
 // 헬퍼: 수비수 명단+실점만 다른 최소 매치 행
 const m = (dfs, conceded, extra = {}) => ({
@@ -79,5 +79,90 @@ describe('calcDefenseAnalysis', () => {
     const r = calcDefenseAnalysis({ matchLogs: [m(['A', 'A', 'B'], 1)], individualThreshold: 1, pairThreshold: 1 });
     expect(r.individuals.find(x => x.name === 'A').games).toBe(1);
     expect(r.pairs).toHaveLength(1); // A-B만, A-A 없음
+  });
+
+  it('클린시트율도 부재 대비 Δ를 낸다 (실점률 Δ와 같은 부호 방향)', () => {
+    const r = calcDefenseAnalysis({
+      matchLogs: [
+        m(['A', 'B'], 0), // A 출전: 무실점
+        m(['A', 'C'], 0), // A 출전: 무실점
+        m(['B', 'C'], 2), // A 부재: 실점
+      ],
+      individualThreshold: 2, pairThreshold: 99,
+    });
+    const a = r.individuals.find(x => x.name === 'A');
+    expect(a.cleanRate).toBeCloseTo(1);
+    expect(a.baselineCleanRate).toBeCloseTo(0);
+    expect(a.cleanDelta).toBeCloseTo(1); // 양수 = 억제
+  });
+
+  it('베이스라인 없으면 클린시트 Δ도 null', () => {
+    const r = calcDefenseAnalysis({
+      matchLogs: [m(['A', 'B'], 0), m(['A', 'C'], 2)],
+      individualThreshold: 1, pairThreshold: 99,
+    });
+    const a = r.individuals.find(x => x.name === 'A'); // 전 경기 출전
+    expect(a.baselineCleanRate).toBeNull();
+    expect(a.cleanDelta).toBeNull();
+  });
+
+  it('팀 단위 클린시트 집계를 노출한다', () => {
+    const r = calcDefenseAnalysis({
+      matchLogs: [m(['A', 'B'], 0), m(['A', 'C'], 0), m(['B', 'C'], 2)],
+      individualThreshold: 99, pairThreshold: 99,
+    });
+    expect(r.totalCleanSheets).toBe(2);
+    expect(r.teamCleanRate).toBeCloseTo(2 / 3);
+  });
+});
+
+describe('sortDefenseRows', () => {
+  // delta(실점률)와 cleanDelta(클린시트율)가 일부러 반대 순서인 행들 —
+  // metric 인자가 실제로 정렬 축을 바꾸는지 확인하는 게 목적
+  const rows = [
+    { name: 'A', games: 5, delta: 0.1, cleanDelta: 0.9 },
+    { name: 'B', games: 5, delta: 0.9, cleanDelta: 0.1 },
+  ];
+
+  it("metric 'conceded'는 실점률 Δ 내림차순", () => {
+    expect(sortDefenseRows(rows, { metric: 'conceded' }).map(x => x.name)).toEqual(['B', 'A']);
+  });
+
+  it("metric 'clean'은 클린시트 Δ 내림차순", () => {
+    expect(sortDefenseRows(rows, { metric: 'clean' }).map(x => x.name)).toEqual(['A', 'B']);
+  });
+
+  it("dir 'asc'는 worst 정렬", () => {
+    expect(sortDefenseRows(rows, { metric: 'conceded', dir: 'asc' }).map(x => x.name)).toEqual(['A', 'B']);
+  });
+
+  it('null Δ는 방향과 무관하게 맨 뒤 — 오염된 값을 순위에 올리지 않는다', () => {
+    const withNull = [{ name: 'N', games: 9, delta: null, cleanDelta: null }, ...rows];
+    expect(sortDefenseRows(withNull, { metric: 'conceded', dir: 'desc' }).at(-1).name).toBe('N');
+    expect(sortDefenseRows(withNull, { metric: 'conceded', dir: 'asc' }).at(-1).name).toBe('N');
+    expect(sortDefenseRows(withNull, { metric: 'clean', dir: 'asc' }).at(-1).name).toBe('N');
+  });
+
+  it('Δ 동률은 경기수 많은 순 → 이름순', () => {
+    const tied = [
+      { name: '나', games: 3, delta: 0.5, cleanDelta: 0.5 },
+      { name: '가', games: 3, delta: 0.5, cleanDelta: 0.5 },
+      { name: '다', games: 9, delta: 0.5, cleanDelta: 0.5 },
+    ];
+    expect(sortDefenseRows(tied, { metric: 'conceded' }).map(x => x.name)).toEqual(['다', '가', '나']);
+  });
+
+  it('페어 행(a·b)도 이름 tiebreak가 동작', () => {
+    const pairs = [
+      { a: '나', b: '가', games: 2, delta: 0, cleanDelta: 0 },
+      { a: '가', b: '다', games: 2, delta: 0, cleanDelta: 0 },
+    ];
+    expect(sortDefenseRows(pairs, { metric: 'conceded' }).map(x => x.a)).toEqual(['가', '나']);
+  });
+
+  it('입력 배열을 변형하지 않는다', () => {
+    const input = [...rows];
+    sortDefenseRows(input, { metric: 'clean' });
+    expect(input.map(x => x.name)).toEqual(['A', 'B']);
   });
 });
