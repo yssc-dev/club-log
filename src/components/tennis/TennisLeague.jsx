@@ -78,13 +78,13 @@ export default function TennisLeague({ C: propC }) {
         <>
           <div style={{ fontSize: 12, color: C.gray, marginBottom: 8 }}>경기 기록 · {periodLabel}</div>
           <LeagueDonut counts={counts} ds={ds} C={C} />
-          <SinglesStandingsSection standings={singles} periodLabel={periodLabel} ds={ds} />
+          <SinglesStandingsSection standings={singles} periodLabel={periodLabel} ds={ds} C={C} />
           {singlesAgg.length > 0 && (
             <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 14px', paddingLeft: 2 }}>
               ※ {effYear}년 1~7월 집계 포함 · 포인트는 8월~ 경기만 반영
             </div>
           )}
-          <DoublesStandingsSection standings={doubles} periodLabel={periodLabel} ds={ds} />
+          <DoublesStandingsSection standings={doubles} periodLabel={periodLabel} ds={ds} C={C} />
         </>
       ) : (
         <>

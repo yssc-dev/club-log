@@ -100,6 +100,16 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
       {showChemistry && (
         <>
           <div style={ds.sectionTitle}>페어 케미 (3경기↑)</div>
+          {chemistry.length > 0 && (
+            <HBarChart
+              rows={[...chemistry].sort((a, b) => b.rate - a.rate || b.wins - a.wins).slice(0, 8).map(p => ({
+                label: p.players.join('·') + (p.hasGuest ? ' *' : ''),
+                value: p.rate,
+                note: `${p.wins}-${p.losses} (${Math.round(p.rate * 100)}%)`,
+              }))}
+              ds={ds} C={C}
+            />
+          )}
           {chemistry.length === 0 ? (
             <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
           ) : (
@@ -255,9 +265,22 @@ function TbBagelSection({ tb, bagel, ds, C }) {
   }), []);
   const { sorted: sortedBagel, sort: sortBagel, onSort: onSortBagel } = useSortableRows(bagel, bagelCols);
 
+  // 랭킹 바(TOP 8) — TB는 승률, 베이글은 '준' 횟수(최댓값 정규화)
+  const tbBarRows = useMemo(() => [...tb]
+    .sort((a, b) => b.rate - a.rate || b.tbWon - a.tbWon).slice(0, 8)
+    .map(e => ({ label: e.name, value: e.rate, note: `${e.tbWon}/${e.tbPlayed} (${Math.round(e.rate * 100)}%)` })), [tb]);
+  const bagelBarRows = useMemo(() => {
+    const maxG = Math.max(1, ...bagel.map(b => b.given || 0));
+    return [...bagel]
+      .filter(b => (b.given || 0) > 0)
+      .sort((a, b) => b.given - a.given || a.taken - b.taken).slice(0, 8)
+      .map(e => ({ label: e.name, value: e.given / maxG, note: `준 ${e.given} · 먹음 ${e.taken}` }));
+  }, [bagel]);
+
   return (
     <>
       <div style={ds.sectionTitle}>타이브레이크</div>
+      {tb.length > 0 && <HBarChart rows={tbBarRows} ds={ds} C={C} />}
       <div style={ds.card}>
         {tb.length === 0 ? (
           <div style={{ color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
@@ -283,6 +306,7 @@ function TbBagelSection({ tb, bagel, ds, C }) {
         )}
       </div>
       <div style={ds.sectionTitle}>베이글</div>
+      {bagelBarRows.length > 0 && <HBarChart rows={bagelBarRows} ds={ds} C={C} />}
       <div style={ds.card}>
         {bagel.length === 0 ? (
           <div style={{ color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>

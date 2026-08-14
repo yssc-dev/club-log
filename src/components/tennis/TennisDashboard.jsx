@@ -7,6 +7,7 @@ import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
 import { useTheme } from '../../hooks/useTheme';
 import { makeStyles } from '../../styles/theme';
 import { pct } from '../../utils/tennis/tennisFormat';
+import { RateBar } from './tennisCharts';
 
 function StatCell({ label, value, C }) {
   return (
@@ -122,13 +123,13 @@ export default function TennisDashboard({ C: propC }) {
         cols={[
           { key: 'name', label: '이름', align: 'left', render: r => r.name },
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },
-          { key: 'rate', label: '승률', render: r => pct(r.rate) },
+          { key: 'rate', label: '승률', render: r => <RateBar rate={r.rate} pctText={pct(r.rate)} C={C} /> },
         ]} />
       <MiniRankTable title={`단식 포인트 TOP 5${yearSpan ? ` · ${yearSpan}` : ''}`} rows={singles.map(s => ({ ...s, _key: s.name }))} ds={ds}
         cols={[
           { key: 'name', label: '이름', align: 'left', render: r => r.name },
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },
-          { key: 'rate', label: '승률', render: r => pct(r.rate) },
+          { key: 'rate', label: '승률', render: r => <RateBar rate={r.rate} pctText={pct(r.rate)} C={C} /> },
           { key: 'p', label: 'P', render: r => r.points },
         ]} />
 
@@ -137,7 +138,7 @@ export default function TennisDashboard({ C: propC }) {
         cols={[
           { key: 'pair', label: '페어', align: 'left', render: r => `${r.players.join(' · ')}${r.hasGuest ? ' *' : ''}` },
           { key: 'rec', label: '전적', render: r => `${r.wins}-${r.losses}` },
-          { key: 'rate', label: '승률', render: r => pct(r.rate) },
+          { key: 'rate', label: '승률', render: r => <RateBar rate={r.rate} pctText={pct(r.rate)} C={C} /> },
         ]} />
 
       {/* 4. 하이라이트 */}

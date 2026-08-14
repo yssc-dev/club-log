@@ -5,6 +5,7 @@
 // — LeagueDonut: 경기 유형 도넛 (리그 탭)
 // — YearlyBarChart: 연도별 승률 세로 바 (개인 뷰)
 // — AceDfScatter: 에이스·DF 산점도 (전체 뷰)
+// — RateBar: 순위표 승률 칸 배경 미니바 (인라인)
 
 // ── HBarChart ───────────────────────────────────────────────
 // rows: [{ label, value(0~1), note }]  colorFor(row) → CSS 색
@@ -416,6 +417,24 @@ export function AceDfScatter({ rows, ds, C }) {
           );
         })}
       </svg>
+    </div>
+  );
+}
+
+// ── RateBar ──────────────────────────────────────────────────
+// 순위표 승률 칸 인라인 미니바 — pctText를 배경 바(0~100%) 위에 얹는다.
+// td 안에 그대로 넣어 쓴다. C 없으면(테스트 등) 바 없이 텍스트만.
+export function RateBar({ rate, pctText, C }) {
+  const v = Math.max(0, Math.min(1, rate || 0));
+  return (
+    <div style={{ position: 'relative', display: 'inline-block', minWidth: 40, padding: '0 2px' }}>
+      {C && v > 0 && (
+        <span style={{
+          position: 'absolute', left: 0, top: 1, bottom: 1, width: `${v * 100}%`,
+          background: C.accent, opacity: 0.16, borderRadius: 3,
+        }} />
+      )}
+      <span style={{ position: 'relative', fontVariantNumeric: 'tabular-nums' }}>{pctText}</span>
     </div>
   );
 }

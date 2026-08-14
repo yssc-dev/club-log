@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { ThemeProvider, useTheme } from '../../../hooks/useTheme';
 import { makeStyles } from '../../../styles/theme';
-import { HBarChart, PlayerRadarChart, LeagueDonut, YearlyBarChart, AceDfScatter } from '../tennisCharts';
+import { HBarChart, PlayerRadarChart, LeagueDonut, YearlyBarChart, AceDfScatter, RateBar } from '../tennisCharts';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -212,5 +212,22 @@ describe('AceDfScatter 스모크', () => {
     const html = render(AceDfScatter, { rows: [{ name: '신입', aces: 0, doubleFaults: 0, recordedGames: 1 }] });
     expect(html).toContain('신입');
     expect(html).toContain('<svg');
+  });
+});
+
+// ── RateBar ─────────────────────────────────────────────────
+describe('RateBar 스모크', () => {
+  it('rate>0 — 배경 바 + 텍스트 렌더', () => {
+    const html = render(RateBar, { rate: 0.75, pctText: '75%' });
+    expect(html).toContain('75%');
+  });
+
+  it('rate=0 — 바 없이 텍스트만, 크래시 없음', () => {
+    const html = render(RateBar, { rate: 0, pctText: '0%' });
+    expect(html).toContain('0%');
+  });
+
+  it('rate=null — 크래시 없음', () => {
+    expect(() => render(RateBar, { rate: null, pctText: '-' })).not.toThrow();
   });
 });

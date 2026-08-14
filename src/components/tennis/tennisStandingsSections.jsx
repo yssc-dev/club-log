@@ -3,9 +3,10 @@ import { useMemo } from 'react';
 import { useSortableRows, SortHeader } from './Sortable';
 import { pct } from '../../utils/tennis/tennisFormat';
 import { LEAGUE_BK, LEAGUE_BR } from '../../utils/tennis/tennisSchema';
+import { RateBar } from './tennisCharts';
 
 // ─── 복식 순위표 ────────────────────────────────────────
-export function DoublesStandingsSection({ standings, periodLabel, ds }) {
+export function DoublesStandingsSection({ standings, periodLabel, ds, C }) {
   const cols = useMemo(() => ({
     name:   { accessor: s => s.name, type: 'text' },
     grade:  { accessor: s => s.grade || '', type: 'text' },
@@ -37,7 +38,7 @@ export function DoublesStandingsSection({ standings, periodLabel, ds }) {
                 <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
                 <td style={{ ...ds.td(), fontSize: 10 }}>{s.grade}</td>
                 <td style={ds.td()}>{s.wins}-{s.losses}</td>
-                <td style={ds.td()}>{pct(s.rate)}</td>
+                <td style={ds.td()}><RateBar rate={s.rate} pctText={pct(s.rate)} C={C} /></td>
               </tr>
             ))}
           </tbody>
@@ -48,7 +49,7 @@ export function DoublesStandingsSection({ standings, periodLabel, ds }) {
 }
 
 // ─── 단식 순위표 (포인트 컬럼은 단식 뷰 전용) ──────────
-export function SinglesStandingsSection({ standings, periodLabel, ds }) {
+export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
   const cols = useMemo(() => ({
     name:       { accessor: s => s.name, type: 'text' },
     leagueTier: { accessor: s => s.leagueTier || '', type: 'text' },
@@ -85,7 +86,7 @@ export function SinglesStandingsSection({ standings, periodLabel, ds }) {
                 <td style={{ ...ds.td(), fontSize: 10 }}>{s.leagueTier === LEAGUE_BR ? 'BR' : s.leagueTier === LEAGUE_BK ? 'BK' : '-'}</td>
                 <td style={{ ...ds.td(), fontSize: 10 }}>{s.grade}</td>
                 <td style={ds.td()}>{s.wins}-{s.losses}</td>
-                <td style={ds.td()}>{pct(s.rate)}</td>
+                <td style={ds.td()}><RateBar rate={s.rate} pctText={pct(s.rate)} C={C} /></td>
                 <td style={ds.td()}>{s.points}</td>
               </tr>
             ))}
@@ -118,7 +119,7 @@ export function LegacyStandingsSection({ standings, year, format, ds, C }) {
                   <td style={{ ...ds.td(), textAlign: 'left' }}>{i + 1}</td>
                   <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
                   <td style={ds.td()}>{s.wins}-{s.losses}</td>
-                  <td style={ds.td()}>{pct(s.rate)}</td>
+                  <td style={ds.td()}><RateBar rate={s.rate} pctText={pct(s.rate)} C={C} /></td>
                 </tr>
               ))}
             </tbody>

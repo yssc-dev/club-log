@@ -17,7 +17,7 @@ Object.defineProperty(window, 'matchMedia', {
 function Harness({ Comp, props }) {
   const { C } = useTheme();
   const ds = makeStyles(C);
-  return createElement(Comp, { ...props, ds });
+  return createElement(Comp, { ...props, ds, C });
 }
 const render = (Comp, props) =>
   renderToStaticMarkup(createElement(ThemeProvider, null, createElement(Harness, { Comp, props })));
