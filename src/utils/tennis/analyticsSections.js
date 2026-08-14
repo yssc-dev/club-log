@@ -7,7 +7,7 @@ export function analyticsSectionKeys({ player, format, hasLegacy, hasMonth = fal
       ? ['chemistry', 'tb', 'acedf']
       : ['tb', 'acedf'];
   }
-  const keys = ['summary'];
+  const keys = ['radar', 'summary'];
   if (format === '복식') keys.push('partner');
   keys.push('h2h');
   if (!hasMonth) keys.push('monthly');   // 특정 월 선택 시 월별흐름 무의미 → 숨김

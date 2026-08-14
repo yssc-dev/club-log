@@ -9,6 +9,8 @@ import {
 } from '../../utils/tennis/tennisAnalytics';
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
 import { availableYears, availableMonths, filterRowsByPeriod, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
+import { buildPlayerRadar } from '../../utils/tennis/tennisRadar';
+import { HBarChart, PlayerRadarChart } from './tennisCharts';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
@@ -90,12 +92,7 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
   }), []);
   const { sorted: sortedChem, sort: sortChem, onSort: onSortChem } = useSortableRows(chemistry, chemCols);
 
-  const brkCols = useMemo(() => ({
-    partner: { accessor: b => b.partner, type: 'text' },
-    record:  { accessor: b => b.wins, type: 'num' },
-    rate:    { accessor: b => b.rate, type: 'num' },
-  }), []);
-  const { sorted: sortedBrk, sort: sortBrk, onSort: onSortBrk } = useSortableRows(breakdown, brkCols);
+  // 파트너별은 HBarChart로 대체 — useSortableRows 불필요
 
   return (
     <>
@@ -130,72 +127,40 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
           )}
         </>
       )}
-      {showBreakdown && player && breakdown.length > 0 && (
+      {showBreakdown && player && (
         <>
           <div style={ds.sectionTitle}>{player} 파트너별</div>
-          <div style={ds.card}>
-            <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-              <thead>
-                <tr>
-                  <SortHeader label="파트너" sortKey="partner" sort={sortBrk} onSort={onSortBrk} align="left" ds={ds} />
-                  <SortHeader label="전적" sortKey="record" sort={sortBrk} onSort={onSortBrk} ds={ds} />
-                  <SortHeader label="승률" sortKey="rate" sort={sortBrk} onSort={onSortBrk} ds={ds} />
-                </tr>
-              </thead>
-              <tbody>
-                {sortedBrk.map((b) => (
-                  <tr key={b.partner}>
-                    <td style={{ ...ds.td(), textAlign: 'left' }}>
-                      {b.partner}{b.isGuestPartner ? ' *' : ''}
-                    </td>
-                    <td style={ds.td()}>{b.wins}-{b.losses}</td>
-                    <td style={ds.td()}>{pct(b.rate)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
+          <HBarChart
+            rows={(breakdown || []).map(b => ({
+              label: b.partner + (b.isGuestPartner ? ' *' : ''),
+              value: b.rate,
+              note: `${b.wins}-${b.losses} (${Math.round(b.rate * 100)}%)`,
+            }))}
+            ds={ds}
+            C={C}
+            colorFor={(row) => row.value >= 0.5 ? C.accent : C.grayDarker}
+          />
         </>
       )}
     </>
   );
 }
 
-// ─── 상대 전적 ──────────────────────────────────────────
+// ─── 상대 전적 (HBarChart) ──────────────────────────────────
 function HeadToHeadSection({ h2h, player, ds, C }) {
-  const cols = useMemo(() => ({
-    opponent: { accessor: e => e.opponent, type: 'text' },
-    record:   { accessor: e => e.wins, type: 'num' },
-    rate:     { accessor: e => e.rate, type: 'num' },
-  }), []);
-  const { sorted, sort, onSort } = useSortableRows(h2h, cols);
+  const h2hRows = (h2h || [])
+    .slice()
+    .sort((a, b) => b.rate - a.rate || b.games - a.games)
+    .map(e => ({
+      label: e.opponent,
+      value: e.rate,
+      note: `${e.wins}-${e.losses} (${Math.round(e.rate * 100)}%)`,
+    }));
+  const colorFor = (row) => row.value >= 0.5 ? C.accent : C.grayDarker;
   return (
     <>
       <div style={ds.sectionTitle}>{player || '—'} 상대 전적</div>
-      {h2h.length === 0 ? (
-        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
-      ) : (
-        <div style={ds.card}>
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <SortHeader label="상대" sortKey="opponent" sort={sort} onSort={onSort} align="left" ds={ds} />
-                <SortHeader label="전적" sortKey="record" sort={sort} onSort={onSort} ds={ds} />
-                <SortHeader label="승률" sortKey="rate" sort={sort} onSort={onSort} ds={ds} />
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((e) => (
-                <tr key={e.opponent}>
-                  <td style={{ ...ds.td(), textAlign: 'left' }}>{e.opponent}</td>
-                  <td style={ds.td()}>{e.wins}-{e.losses}</td>
-                  <td style={ds.td()}>{pct(e.rate)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-      )}
+      <HBarChart rows={h2hRows} ds={ds} C={C} colorFor={colorFor} />
     </>
   );
 }
@@ -388,6 +353,16 @@ function AceDfSection({ acedf, ds, C }) {
   );
 }
 
+// ─── 개인 프로필 레이더 섹션 ────────────────────────────
+function RadarSection({ radar, ds, C }) {
+  return (
+    <>
+      <div style={ds.sectionTitle}>개인 프로필</div>
+      <PlayerRadarChart radar={radar} ds={ds} C={C} />
+    </>
+  );
+}
+
 // ─── 메인 컴포넌트 ──────────────────────────────────────
 export default function TennisAnalyticsTab({ C: propC }) {
   const { C: themeC } = useTheme();
@@ -455,6 +430,11 @@ export default function TennisAnalyticsTab({ C: propC }) {
     () => player ? buildPlayerSummary({ rows: fRows, player, legacySingles: singlesAgg }) : null,
     [fRows, player, singlesAgg]);
 
+  // 레이더: 선수 선택 시에만 계산 — 로스터 전체 요약을 순회하므로 useMemo 격리
+  const radar = useMemo(
+    () => player ? buildPlayerRadar({ rows: fRows, roster, player, asOfDate: today }) : null,
+    [fRows, roster, player, today]);
+
   const sectionKeys = useMemo(
     () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),
     [player, format, yearlyRecords, month]);
@@ -502,6 +482,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
 
       {sectionKeys.map((key) => {
         switch (key) {
+          case 'radar':            return radar ? <RadarSection key={key} radar={radar} ds={ds} C={C} /> : null;
           case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
           case 'summary':          return summary ? <SummaryCard key={key} summary={summary} player={player} points={singlesStandings.find(s => s.name === player)?.points ?? 0} ds={ds} C={C} /> : null;
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;

@@ -12,27 +12,27 @@ describe('analyticsSectionKeys', () => {
     expect(analyticsSectionKeys({ player: '', format: '단식', hasLegacy: true }))
       .toEqual(['tb', 'acedf']);
   });
-  it('개인 복식 = 요약·파트너·상대·월별·연도별, 전체랭킹 없음', () => {
+  it('개인 복식 = 레이더·요약·파트너·상대·월별·연도별, 전체랭킹 없음', () => {
     const k = analyticsSectionKeys({ player: '박성언', format: '복식', hasLegacy: true });
-    expect(k).toEqual(['summary', 'partner', 'h2h', 'monthly', 'yearly']);
+    expect(k).toEqual(['radar', 'summary', 'partner', 'h2h', 'monthly', 'yearly']);
     expect(k).not.toContain('doublesStandings');
     expect(k).not.toContain('tb');
   });
-  it('개인 단식 = 요약·상대·월별·연도별(파트너 없음)', () => {
+  it('개인 단식 = 레이더·요약·상대·월별·연도별(파트너 없음)', () => {
     expect(analyticsSectionKeys({ player: '박성언', format: '단식', hasLegacy: true }))
-      .toEqual(['summary', 'h2h', 'monthly', 'yearly']);
+      .toEqual(['radar', 'summary', 'h2h', 'monthly', 'yearly']);
   });
   it('레거시 없으면 yearly 제외', () => {
     expect(analyticsSectionKeys({ player: '박성언', format: '복식', hasLegacy: false }))
-      .toEqual(['summary', 'partner', 'h2h', 'monthly']);
+      .toEqual(['radar', 'summary', 'partner', 'h2h', 'monthly']);
   });
   it('월 선택 시(hasMonth) 개인뷰에서 monthly 제외', () => {
     const k = analyticsSectionKeys({ player: '박성언', format: '복식', hasLegacy: true, hasMonth: true });
-    expect(k).toEqual(['summary', 'partner', 'h2h', 'yearly']);
+    expect(k).toEqual(['radar', 'summary', 'partner', 'h2h', 'yearly']);
     expect(k).not.toContain('monthly');
   });
-  it('mode/hasMonth 미지정 시 기존과 동일(하위호환)', () => {
+  it('mode/hasMonth 미지정 시 레이더 포함(Tier 1 추가)', () => {
     expect(analyticsSectionKeys({ player: '박성언', format: '복식', hasLegacy: true }))
-      .toEqual(['summary', 'partner', 'h2h', 'monthly', 'yearly']);
+      .toEqual(['radar', 'summary', 'partner', 'h2h', 'monthly', 'yearly']);
   });
 });
