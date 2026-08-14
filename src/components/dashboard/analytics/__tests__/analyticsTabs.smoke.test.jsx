@@ -187,8 +187,8 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
-  it('RivalryView: 천적/맛집 렌더', () => {
-    const html = wrap(RivalryView, { matchLogs, C });
+  it('RivalryView: 천적/맛집 렌더 — 선수는 개인분석 탭이 넘긴다', () => {
+    const html = wrap(RivalryView, { matchLogs, player: 'A', C });
     expect(html).toContain('천적');
     expect(html).not.toContain('NaN');
   });
