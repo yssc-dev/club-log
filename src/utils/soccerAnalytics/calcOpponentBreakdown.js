@@ -1,29 +1,37 @@
 // 상대팀별 개인성적 (축구 전용): 선수별 × 상대팀별 골/어시/경기/승패/경기당 포인트.
 // 상대팀명은 로그_매치 (date|match_id) 조인으로 정규화 — 이벤트쪽 표기 흔들림('터틀' 등) 방지.
 //
-// 집계 범위는 골·어시와 경기수를 일치시킨다(전 기간). legacy 구간의 our_members_json은
-// 앱 도입 전이라 출전 명단 원본이 없어 골 이벤트에서 역산한 부분 명단이지만(평균 3.2명,
-// 검증상 59경기 전부가 '골·어시 참여자 집합'과 정확히 일치), 그 경기에 나와 포인트를 낸
-// 것 자체는 사실이다. 골을 분자에 넣으면서 그 경기를 분모에서 빼면 경기당 포인트가
-// 크게 부풀려지므로(김형욱 터틀파크 0.94 → 1.36), 명단에 잡힌 legacy 경기는 경기수·승패에도 넣는다.
-// 남는 한계: 뛰었지만 공격포인트가 없던 legacy 경기는 어디에도 안 잡혀 분모가 과소집계된다
-//           → 경기당 포인트가 실제보다 다소 높다. UI 캡션에 명시.
+// 주 지표(goals/assists/games/승패/pointsPerGame)는 **앱 기록 구간만** 집계한다.
+// 앱 이전 명단은 골 이벤트 역산 부분명단이라 분모로 못 쓴다(appEraScope 주석 참고).
+// 분자만 전 기간으로 두면 경기당 포인트가 크게 부풀려진다
+// (김형욱 터틀파크: 전기간골 15 / 앱구간경기 11 = 1.36 vs 앱구간 10/11 = 0.91).
+//
+// 통산 골·어시는 careerGoals/careerAssists로 따로 남긴다 — 화면이 "통산 8골 7어시,
+// 앱 이전 2골 3어시 포함"처럼 차이를 밝힐 수 있게. 이벤트 기반이라 앱 이전도 원본이 정확하다.
 import { parseActualPlayers } from './parseMembers';
+import { isLegacyMatch } from './appEraScope';
 
 export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
   const oppByKey = {};
   const extraKeys = new Set();
+  const appEraKeys = new Set();
   for (const m of matchLogs || []) {
     const key = `${m.date}|${String(m.match_id ?? '')}`;
     const opp = String(m.opponent_team_name || '').trim();
     if (opp) oppByKey[key] = opp;
     if (m.is_extra) extraKeys.add(key);
+    else if (!isLegacyMatch(m)) appEraKeys.add(key);
   }
 
   const cells = {};
   const ensure = (name, opp) => {
     if (!cells[name]) cells[name] = {};
-    if (!cells[name][opp]) cells[name][opp] = { goals: 0, assists: 0, games: 0, wins: 0, draws: 0, losses: 0 };
+    if (!cells[name][opp]) {
+      cells[name][opp] = {
+        goals: 0, assists: 0, careerGoals: 0, careerAssists: 0,
+        games: 0, wins: 0, draws: 0, losses: 0,
+      };
+    }
     return cells[name][opp];
   };
 
@@ -33,14 +41,16 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
     if (extraKeys.has(key)) continue;
     const opp = oppByKey[key] || String(e.opponent || '').trim();
     if (!opp) continue;
-    if (e.player) ensure(e.player, opp).goals++;
-    if (e.related_player) ensure(e.related_player, opp).assists++;
+    const appEra = appEraKeys.has(key);
+    if (e.player) { const c = ensure(e.player, opp); c.careerGoals++; if (appEra) c.goals++; }
+    if (e.related_player) { const c = ensure(e.related_player, opp); c.careerAssists++; if (appEra) c.assists++; }
   }
 
   for (const m of matchLogs || []) {
     if (m.is_extra) continue;
+    if (isLegacyMatch(m)) continue; // 부분명단 — 경기수·승패의 분모로 못 쓴다
     const members = parseActualPlayers(m.our_members_json);
-    if (members.length === 0) continue; // 명단 자체가 없는 행(휴식 등)은 경기수에 안 넣는다
+    if (members.length === 0) continue;
     const opp = String(m.opponent_team_name || '').trim();
     if (!opp) continue;
     const our = Number(m.our_score) || 0;

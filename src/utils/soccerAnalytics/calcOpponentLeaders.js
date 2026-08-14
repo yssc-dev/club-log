@@ -10,9 +10,9 @@
 // 이벤트의 opponent 컬럼으로 폴백해 legacy 골을 그대로 집계한다.
 import { calcOpponentBreakdown } from './calcOpponentBreakdown';
 import { calcDefenseAnalysis, sortDefenseRows } from './calcDefenseAnalysis';
+import { isLegacyMatch } from './appEraScope';
 
 const matchKey = (r) => `${r.date}|${String(r.match_id ?? '')}`;
-const isLegacy = (m) => String(m.game_id || '').startsWith('legacy_');
 const oppName = (m) => String(m.opponent_team_name || '').trim();
 
 export function calcOpponentLeaders({
@@ -21,7 +21,7 @@ export function calcOpponentLeaders({
   minGames = 3,
   topN = 5,
 } = {}) {
-  const scoped = (matchLogs || []).filter(m => !m.is_extra && !isLegacy(m) && oppName(m));
+  const scoped = (matchLogs || []).filter(m => !m.is_extra && !isLegacyMatch(m) && oppName(m));
   const keys = new Set(scoped.map(matchKey));
   const scopedEvents = (eventLogs || []).filter(e => keys.has(matchKey(e)));
 

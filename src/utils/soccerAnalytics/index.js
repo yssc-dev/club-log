@@ -12,6 +12,7 @@ export * from './calcGkChemistry';
 export * from './calcGoldenTrio';
 export * from './calcMetricLeaders';
 export * from './calcMonthlyRanking';
+export * from './appEraScope';
 export * from './calcOpponentBreakdown';
 export * from './calcOpponentLeaders';
 export * from './calcPersonalRecords';
