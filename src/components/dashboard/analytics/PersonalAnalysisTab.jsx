@@ -512,10 +512,13 @@ export default function PersonalAnalysisTab({
         <SoloGoalDonut data={soloRatio.perPlayer[selected]} C={C} />
       </div>
 
-      {/* ── C5: Personal Synergy Card ── */}
+      {/* ── C5: Personal Synergy Card — 2026-08-14 노출 보류 ──
+          시너지 탭(PersonalSynergyChart)이 상하위 요약을 맡으면서 역할이 겹쳐 숨김.
+          복구하려면 아래 블록의 주석만 풀면 된다(myPair 계산·컴포넌트 모두 살아 있음).
       <div style={cardStyle}>
         <PersonalSynergyCard data={myPair} C={C} />
       </div>
+      */}
 
       {/* ── PR: Personal Records (selected player와 연동) ── */}
       <div style={cardStyle}>

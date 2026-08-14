@@ -37,8 +37,8 @@ function Row({ p, color, C }) {
       <span style={{ width: 30, flexShrink: 0, textAlign: 'right', color, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
         {Math.round(p.winRate * 100)}%
       </span>
-      <span style={{ width: 34, flexShrink: 0, textAlign: 'right', fontSize: 9, color: C.grayDark }}>
-        {p.games}경기
+      <span style={{ width: 56, flexShrink: 0, textAlign: 'right', fontSize: 9, color: C.grayDark, whiteSpace: 'nowrap' }}>
+        {p.comboGoals}골/{p.games}경기
       </span>
     </div>
   );
@@ -55,21 +55,34 @@ function Column({ label, rows, color, C }) {
   );
 }
 
-export default function PersonalSynergyChart({ matchLogs, C, isSoccer = false, authUserName }) {
-  const { calcSynergyMatrix, calcPersonalSynergy } = isSoccer ? soccerCalc : futsalCalc;
+export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer = false, authUserName }) {
+  const { calcSynergyMatrix, calcPersonalSynergy, calcAssistLinkMatrix, personalLink } = isSoccer ? soccerCalc : futsalCalc;
   const matrix = useMemo(
     () => calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: MIN_ROUNDS }),
     [matchLogs, calcSynergyMatrix],
+  );
+  // 합작 골 = 내 어시로 그가 넣은 골 + 내 골에 그가 어시한 골 (골-어시로 연결된 횟수).
+  // 골 하나당 두 사람이 1P씩 가져가므로 '공격포인트'가 아니라 '합작 N골'로 부른다.
+  const linkMatrix = useMemo(
+    () => calcAssistLinkMatrix({ eventLogs: eventLogs || [] }),
+    [eventLogs, calcAssistLinkMatrix],
   );
   const players = matrix.players || [];
   const [picked, setPicked] = useState(null);
   const player = (picked && players.includes(picked)) ? picked
     : (players.includes(authUserName) ? authUserName : players[0] ?? null);
 
-  const personal = useMemo(
-    () => (player ? calcPersonalSynergy({ matrix, player }) : { partners: [] }),
-    [matrix, player, calcPersonalSynergy],
-  );
+  const personal = useMemo(() => {
+    if (!player) return { partners: [] };
+    const base = calcPersonalSynergy({ matrix, player });
+    return {
+      ...base,
+      partners: base.partners.map(p => ({
+        ...p,
+        comboGoals: personalLink({ linkMatrix, player, partner: p.partner }).total,
+      })),
+    };
+  }, [matrix, player, linkMatrix, calcPersonalSynergy, personalLink]);
   const { best, worst, eligible } = splitSynergy(personal.partners);
 
   // 기준선 — 이 선수가 뛴 모든 매치의 승률. "이 동료와 뛰면 평소보다 나은가"를 재는 축.
@@ -115,7 +128,7 @@ export default function PersonalSynergyChart({ matchLogs, C, isSoccer = false, a
 
       <div style={{ marginTop: 8, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
         {myWinRate != null && <>내 전체 승률 <b style={{ color: C.white }}>{Math.round(myWinRate * 100)}%</b> · </>}
-        같은 팀으로 뛴 매치의 승률 기준. {MIN_ROUNDS}경기 미만 동료는 제외했습니다.
+        같은 팀으로 뛴 매치의 승률 기준 · 합작 = 서로 골–어시로 연결된 골 수. {MIN_ROUNDS}경기 미만 동료는 제외.
       </div>
     </div>
   );

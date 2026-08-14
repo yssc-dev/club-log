@@ -63,6 +63,26 @@ describe('PersonalSynergyChart', () => {
     expect(html).toContain('6경기');
   });
 
+  // 합작 = 내 어시로 그가 넣은 골 + 내 골에 그가 어시한 골 (personalLink().total)
+  it('합작 골 수를 경기수와 함께 n골/n경기로 찍는다', () => {
+    const eventLogs = [
+      // A 어시 → B 골 (2건)
+      { event_type: 'goal', player: 'B', related_player: 'A', date: '2026-06-10', match_id: 'R0_C1' },
+      { event_type: 'goal', player: 'B', related_player: 'A', date: '2026-06-11', match_id: 'R1_C1' },
+      // B 어시 → A 골 (1건)
+      { event_type: 'goal', player: 'A', related_player: 'B', date: '2026-06-12', match_id: 'R2_C1' },
+      // 짝꿍 아닌 조합 — 합작에 안 들어가야 한다
+      { event_type: 'goal', player: 'C', related_player: 'D', date: '2026-06-13', match_id: 'R3_C1' },
+    ];
+    const html = render({ eventLogs });
+    expect(html).toContain('3골/6경기'); // A·B 합작 3골, 함께 6경기
+  });
+
+  it('합작이 없으면 0골로 표기', () => {
+    const html = render({ eventLogs: [] });
+    expect(html).toContain('0골/6경기');
+  });
+
   it('선수 선택 드롭다운을 제공하고 기본값은 로그인 사용자', () => {
     const html = render({});
     expect(html).toContain('<select');
