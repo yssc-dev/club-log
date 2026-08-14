@@ -278,11 +278,6 @@ export default function PersonalAnalysisTab({
     () => (oppBreakdown && selected ? (oppBreakdown.byPlayer[selected] || []) : []),
     [oppBreakdown, selected]
   );
-  // 캡션의 "언제 이후"를 하드코딩하지 않고 데이터에서 뽑는다
-  const appEraStartDate = useMemo(
-    () => (isSoccer ? soccerCalc.appEraStart(matchLogs || []) : null),
-    [isSoccer, matchLogs]
-  );
 
   // ── 개인 수비 지표 (축구 전용) ──
   // 수비케미 탭과 같은 계산층을 재사용하고, 개인 화면이라 개인 임계만 푼다(individualThreshold:1).
@@ -456,23 +451,12 @@ export default function PersonalAnalysisTab({
                     </div>
                     <OppBarLine label="골" value={r.goals} max={maxVal} color={OPP_GOAL_COLOR} C={C} />
                     <OppBarLine label="어시" value={r.assists} max={maxVal} color={OPP_ASSIST_COLOR} C={C} />
-                    {/* 주 지표는 앱 구간만이라 통산과 다르다 — 차이가 있을 때만 이유와 함께 밝힌다 */}
-                    {(r.careerGoals > r.goals || r.careerAssists > r.assists) && (
-                      <div style={{ fontSize: 9.5, color: C.gray, marginTop: 3, textAlign: "right" }}>
-                        통산 {r.careerGoals}골 {r.careerAssists}어시
-                        <span style={{ color: C.grayDark }}>
-                          {" · 앱 이전 "}{r.careerGoals - r.goals}골 {r.careerAssists - r.assists}어시 포함
-                        </span>
-                      </div>
-                    )}
                   </div>
                 ));
               })()}
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-                {appEraStartDate
-                  ? <>골·어시·경기수·승패·P/경기 모두 <b>{appEraStartDate} 이후</b> 기록만 집계.</>
-                  : '골·어시·경기수·승패·P/경기 모두 앱 기록 구간만 집계.'}
-                <br />그 이전 경기는 출전 명단 데이터가 없어 분모로 쓸 수 없습니다. 통산 골·어시만 따로 표기합니다.
+                P/경기 = (골+어시)÷경기수. 골·어시·경기수 모두 로그 전 기간 기준입니다.
+                <br />앱 전환 이전 출전 기록 결핍은 상단 안내를 참고하세요.
               </div>
             </div>
           )}

@@ -69,8 +69,8 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
-  it('PersonalAnalysisTab: 상대팀별 성적 — 주 지표는 앱 구간, 통산은 차이와 함께 별도 표기', () => {
-    // 앱 이전 1골 1어시 + 앱 구간 2경기 1골 1어시 → 주 지표 1골1어시/2경기, 통산 2골2어시
+  it('PersonalAnalysisTab: 상대팀별 성적 — 앱 이전 경기도 골·어시와 경기수에 함께 들어간다', () => {
+    // 앱 이전 1경기(1골1어시) + 현행 2경기(1골1어시) → 3경기 2골2어시
     const matchLogsMixed = [
       { date: '2026-01-06', match_id: '1', game_id: 'legacy_2026-01-06', opponent_team_name: '한울', our_members_json: '["A","B"]', our_score: 3, opponent_score: 0 },
       { date: '2026-06-10', match_id: '1', game_id: 's_1', opponent_team_name: '한울', our_members_json: '["A","B"]', our_score: 1, opponent_score: 0 },
@@ -84,10 +84,8 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
       playerGameLogs: [], matchLogs: matchLogsMixed, eventLogs: eventsMixed,
       members: [{ name: 'A' }, { name: 'B' }], C, authUserName: 'A', isSoccer: true,
     });
-    expect(html).toContain('2경기');       // 앱 구간 2경기 — legacy 1경기는 빠짐
-    expect(html).toContain('통산');        // 통산 별도 표기
-    expect(html).toContain('앱 이전');     // 차이가 왜 나는지
-    expect(html).toContain('2026-06-10');  // 집계 시작일을 데이터에서 뽑아 표기
+    expect(html).toContain('3경기');      // 앱 이전 1경기 포함
+    expect(html).not.toContain('통산');   // 별도 통산 표기는 더 이상 없다(주 지표가 곧 전 기간)
     expect(html).not.toContain('NaN');
   });
 
