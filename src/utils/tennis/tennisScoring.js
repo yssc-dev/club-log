@@ -5,10 +5,11 @@
 //   - tbA/tbB: 타이브레이크 포인트 (5:5 도달 후에만 쌓인다)
 //   - done  : 세트 종료 여부
 //
-// 규칙(클럽 커스텀): 6게임 선취. 5:5가 되면 노애드 타이브레이크 7점 선취.
-// 타이브레이크 승자가 6번째 게임을 가져가므로 최종 세트 스코어는 6:5가 된다.
-// 6:5는 타이브레이크로만 나온다 — 5:4에서 다음 게임은 6:4 아니면 5:5이기 때문.
-// 타이브레이크는 7점 노애드가 기본, 팀 설정에 따라 1포인트 단판 데스도 가능.
+// 규칙(클럽 커스텀): 6게임 선취. 5:5가 되면 타이브레이크.
+//   - 노에드7(기본, 7point): 노애드 7점 선취 → 승자 7게임 → 최종 7:5.
+//   - 단판1점(1point): 단판 데스 1점 → 승자 6게임 → 최종 6:5.
+// 7:5·6:5는 타이브레이크로만 나온다 — 5:4에서 다음 게임은 6:4 아니면 5:5이기 때문.
+// (기존에 저장된 6:5 타이브레이크 세트는 소급 변경하지 않는다. 집계는 그대로 유효.)
 
 const GAMES_TO_WIN_SET = 6;
 export const TIEBREAK_POINTS_TO_WIN = 7;
@@ -64,11 +65,14 @@ export function incrementTiebreakPoint(set, side, rules = {}) {
   if (!set || set.done || !isTiebreakActive(set)) return set;
   const key = side === 'A' ? 'tbA' : 'tbB';
   const next = { ...set, [key]: (set[key] || 0) + 1 };
-  const threshold = rules.tiebreakMode === '1point' ? 1 : TIEBREAK_POINTS_TO_WIN;
+  const oneMode = rules.tiebreakMode === '1point';
+  const threshold = oneMode ? 1 : TIEBREAK_POINTS_TO_WIN;
   if (next[key] >= threshold) {
-    // 승자가 6번째 게임을 가져간다 → 6:5
-    if (side === 'A') next.a = GAMES_TO_WIN_SET;
-    else next.b = GAMES_TO_WIN_SET;
+    // 단판1점: 승자 6게임 → 6:5.  노에드7: 승자 7게임 → 7:5.
+    // (둘 다 5:5에서만 발생. 기존에 저장된 6:5 타이브레이크 세트는 그대로 유효하다.)
+    const winGames = oneMode ? GAMES_TO_WIN_SET : GAMES_TO_WIN_SET + 1;
+    if (side === 'A') next.a = winGames;
+    else next.b = winGames;
   }
   return next;
 }

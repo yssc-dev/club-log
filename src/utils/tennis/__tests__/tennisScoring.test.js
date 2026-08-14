@@ -37,26 +37,26 @@ describe('타이브레이크', () => {
     expect(incrementTiebreakPoint(s, 'A')).toEqual(s);
   });
 
-  it('7점 선취 시 승자 게임이 6으로 확정되고 세트가 6:5로 끝난다', () => {
+  it('노에드7 — 7점 선취 시 승자 7게임 → 세트 7:5로 끝난다', () => {
     let s = set(5, 5);
     for (let i = 0; i < 7; i++) s = incrementTiebreakPoint(s, 'A');
-    expect(s).toMatchObject({ a: 6, b: 5, tbA: 7, tbB: 0 });
+    expect(s).toMatchObject({ a: 7, b: 5, tbA: 7, tbB: 0 });
     expect(isSetComplete(s)).toBe(true);
     expect(setWinner(s)).toBe('A');
   });
 
-  it('7:4로 끝나는 실제 케이스', () => {
+  it('타이브레이크 7:4 케이스 → 세트 7:5', () => {
     let s = set(5, 5);
     for (let i = 0; i < 4; i++) { s = incrementTiebreakPoint(s, 'A'); s = incrementTiebreakPoint(s, 'B'); }
     expect(s).toMatchObject({ tbA: 4, tbB: 4 });
     for (let i = 0; i < 3; i++) s = incrementTiebreakPoint(s, 'A');
-    expect(s).toMatchObject({ a: 6, b: 5, tbA: 7, tbB: 4 });
+    expect(s).toMatchObject({ a: 7, b: 5, tbA: 7, tbB: 4 });
   });
 
-  it('노애드 — 6:6에서 7점째를 딴 쪽이 즉시 이긴다 (2점차 불필요)', () => {
+  it('노애드 — 6:6에서 7점째를 딴 쪽이 즉시 이긴다 → 세트 5:7', () => {
     let s = set(5, 5, 6, 6);
     s = incrementTiebreakPoint(s, 'B');
-    expect(s).toMatchObject({ a: 5, b: 6, tbA: 6, tbB: 7 });
+    expect(s).toMatchObject({ a: 5, b: 7, tbA: 6, tbB: 7 });
     expect(setWinner(s)).toBe('B');
   });
 
@@ -132,18 +132,25 @@ describe('summarizeCourt', () => {
 describe('incrementTiebreakPoint — 모드별', () => {
   const tbSet = { a: 5, b: 5, tbA: 0, tbB: 0, done: false }; // 5:5 TB 활성
 
-  it("기본(7point): 6점까진 게임 안 오르고 7점에 6:5", () => {
+  it("노에드7(7point): 6점까진 게임 안 오르고 7점에 7:5", () => {
     let s = tbSet;
     for (let i = 0; i < 6; i++) s = incrementTiebreakPoint(s, 'A', { tiebreakMode: '7point' });
     expect(s).toMatchObject({ tbA: 6, a: 5 }); // 아직 게임 안 오름
     s = incrementTiebreakPoint(s, 'A', { tiebreakMode: '7point' });
-    expect(s).toMatchObject({ tbA: 7, a: 6, b: 5 }); // 7점 → 6게임
+    expect(s).toMatchObject({ tbA: 7, a: 7, b: 5 }); // 7점 → 7게임(7:5)
   });
 
-  it("rules 없으면 7point 기본", () => {
+  it("단판1점(1point): 5:5에서 1점에 6:5 (노에드7과 대비)", () => {
+    let s = tbSet;
+    s = incrementTiebreakPoint(s, 'A', { tiebreakMode: '1point' });
+    expect(s).toMatchObject({ tbA: 1, a: 6, b: 5 }); // 단판 → 6게임(6:5)
+    expect(setWinner(s)).toBe('A');
+  });
+
+  it("rules 없으면 7point 기본 → 7:5", () => {
     let s = tbSet;
     for (let i = 0; i < 7; i++) s = incrementTiebreakPoint(s, 'A');
-    expect(s).toMatchObject({ tbA: 7, a: 6 });
+    expect(s).toMatchObject({ tbA: 7, a: 7 });
   });
 
   it("5:5 아니면(TB 비활성) 변화 없음", () => {
