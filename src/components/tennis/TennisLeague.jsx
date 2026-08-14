@@ -3,6 +3,7 @@ import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
 import { buildDoublesStandings, buildLeagueCounts } from '../../utils/tennis/tennisAnalytics';
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
+import { priorYearSinglesOrder } from '../../utils/tennis/leagueDerivation';
 import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
 import { DoublesStandingsSection, SinglesStandingsSection, LegacyStandingsSection } from './tennisStandingsSections';
 import { LeagueDonut } from './tennisCharts';
@@ -42,7 +43,9 @@ export default function TennisLeague({ C: propC }) {
   const singlesAgg = useMemo(() => (month ? [] : legacySinglesForYear(legacyRows, effYear)), [legacyRows, effYear, month]);
   const counts = useMemo(() => buildLeagueCounts({ rows: yearRows }), [yearRows]);
   const doubles = useMemo(() => buildDoublesStandings({ rows: yearRows, roster }), [yearRows, roster]);
-  const singles = useMemo(() => buildSinglesStandings({ rows: yearRows, roster, asOfDate: today, sortBy: 'points', legacySingles: singlesAgg }), [yearRows, roster, today, singlesAgg]);
+  // 시즌 초(그 해 단식 기록 0) 자동 시드 — 전년도 단식 순위. 기록 쌓이면 승률이 대체.
+  const seedOrder = useMemo(() => priorYearSinglesOrder({ rows, legacyRows, roster, year: effYear }), [rows, legacyRows, roster, effYear]);
+  const singles = useMemo(() => buildSinglesStandings({ rows: yearRows, roster, asOfDate: today, sortBy: 'points', legacySingles: singlesAgg, seedOrder }), [yearRows, roster, today, singlesAgg, seedOrder]);
   const legacyDoubles = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format: '복식' }), [legacyRows, effYear]);
   const legacySingles = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format: '단식' }), [legacyRows, effYear]);
 

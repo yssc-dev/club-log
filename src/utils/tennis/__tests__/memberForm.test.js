@@ -4,7 +4,7 @@ import {
   MEMBER_TYPES, MEMBER_STATUSES, GRADES,
 } from '../memberForm';
 
-const M = (over = {}) => ({ row: 2, name: '박성언', nickname: '', grade: '금배', memberType: '정회원', status: '활동', seasonStartRank: '', joinDate: '', note: '', ...over });
+const M = (over = {}) => ({ row: 2, name: '박성언', nickname: '', grade: '금배', memberType: '정회원', status: '활동', joinDate: '', note: '', ...over });
 
 describe('memberForm 상수', () => {
   it('GRADES는 tennisSchema 재사용(재선언 아님)', () => {
@@ -23,7 +23,6 @@ describe('blankMember', () => {
     expect(b.memberType).toBe('정회원');
     expect(b.status).toBe('활동');
     expect(b.name).toBe('');
-    expect(b.seasonStartRank).toBe('');
   });
 });
 
@@ -55,35 +54,22 @@ describe('validateMember', () => {
     expect(r.ok).toBe(false);
     expect(r.errors.name).toBeTruthy();
   });
-  it('시즌시작순위 숫자 아니면 에러, 빈값은 통과', () => {
-    expect(validateMember(M({ seasonStartRank: 'abc' }), []).ok).toBe(false);
-    expect(validateMember(M({ seasonStartRank: '' }), []).ok).toBe(true);
-    expect(validateMember(M({ seasonStartRank: '3' }), []).ok).toBe(true);
-  });
 });
 
 describe('memberToForm', () => {
-  it('admin member → 폼 초안. seasonStartRank null→"" (인풋 표시용)', () => {
-    const f = memberToForm({ row: 5, name: '박성언', nickname: '성언', grade: '금배', memberType: '게스트', status: '탈퇴', seasonStartRank: null, joinDate: '2024-01-01', note: '메모' });
+  it('admin member → 폼 초안(구분·상태·비고 보존)', () => {
+    const f = memberToForm({ row: 5, name: '박성언', nickname: '성언', grade: '금배', memberType: '게스트', status: '탈퇴', joinDate: '2024-01-01', note: '메모' });
     expect(f.row).toBe(5);
-    expect(f.seasonStartRank).toBe('');      // null → 빈 문자열
     expect(f.memberType).toBe('게스트');
     expect(f.status).toBe('탈퇴');
     expect(f.note).toBe('메모');
   });
-  it('seasonStartRank 숫자는 문자열로', () => {
-    expect(memberToForm({ name: 'x', seasonStartRank: 3 }).seasonStartRank).toBe('3');
-  });
 });
 
 describe('toWritePayload', () => {
-  it('seasonStartRank 빈값은 "" 유지 (Number("")===0 트랩 방지)', () => {
-    const p = toWritePayload(M({ seasonStartRank: '' }), { row: 2 });
-    expect(p.seasonStartRank).toBe('');   // 0이 아님
-  });
-  it('seasonStartRank 값은 Number로', () => {
-    const p = toWritePayload(M({ seasonStartRank: '3' }), { row: 2 });
-    expect(p.seasonStartRank).toBe(3);
+  it('시즌시작순위는 payload에 없다(폐기)', () => {
+    const p = toWritePayload(M(), { row: 2 });
+    expect('seasonStartRank' in p).toBe(false);
   });
   it('row 없으면 payload에 row 키 없음(=신규 append)', () => {
     const p = toWritePayload(blankMember(), {});

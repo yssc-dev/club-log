@@ -100,7 +100,6 @@ describe('TennisMembers 실렌더', () => {
     expect(payload.row).toBe(2);
     expect(payload.status).toBe('탈퇴');
     expect(payload.name).toBe('박성언');
-    expect(payload.seasonStartRank).toBe(1);  // 숫자 보존
   });
 
   it('생년월일은 UI에 노출되지 않음(서버가 내려도 방어)', async () => {

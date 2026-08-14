@@ -9,7 +9,7 @@ import { matchKey } from './tennisAnalytics';
 const isSingles = (r) => r.format === '단식' && r.league === COMPETITION_SINGLES;
 
 // legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — W/L(승률)에만 가산, 포인트 불가.
-export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate', legacySingles = [] }) {
+export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate', legacySingles = [], seedOrder = [] }) {
   const list = (roster || []).filter(m => m && m.name);
   const acc = new Map(list.map(m => [m.name, {
     name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0, points: 0,
@@ -49,7 +49,7 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
   }
 
   for (const [date, dayRows] of [...byDate.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
-    const leagueMap = deriveLeagueForDate({ rows: singles, dateISO: date, roster: list });
+    const leagueMap = deriveLeagueForDate({ rows: singles, dateISO: date, roster: list, seedOrder });
     const rates = singlesWinRatesBefore(singles, date);
     const rateOf = (n) => rates.get(n)?.rate ?? 0;
 

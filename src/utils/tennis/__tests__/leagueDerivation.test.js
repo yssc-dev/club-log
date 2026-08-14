@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { singlesWinRatesBefore, deriveLeagueForDate } from '../leagueDerivation';
+import { singlesWinRatesBefore, deriveLeagueForDate, priorYearSinglesOrder } from '../leagueDerivation';
 import { LEAGUE_BK, LEAGUE_BR } from '../tennisSchema';
 
 const row = (player, date, result, format = '단식', league = '길로틴') =>
@@ -34,8 +34,7 @@ describe('singlesWinRatesBefore', () => {
 });
 
 describe('deriveLeagueForDate', () => {
-  const roster = (names, seeds = {}) =>
-    names.map(n => ({ name: n, seasonStartRank: seeds[n] }));
+  const roster = (names) => names.map(n => ({ name: n }));
 
   it('승률 순으로 상위 절반이 흑기사', () => {
     const rows = [
@@ -64,10 +63,11 @@ describe('deriveLeagueForDate', () => {
     expect(Object.values(out).every(v => v === LEAGUE_BK)).toBe(true);
   });
 
-  it('시드가 있으면 시드 순으로 가른다', () => {
+  it('시즌초 seedOrder(전년도 순위)로 가른다', () => {
     const out = deriveLeagueForDate({
       rows: [], dateISO: '2026-01-10',
-      roster: roster(['a', 'b', 'c', 'd'], { a: 3, b: 1, c: 4, d: 2 }),
+      roster: roster(['a', 'b', 'c', 'd']),
+      seedOrder: ['b', 'd', 'a', 'c'], // best→worst
     });
     expect(out.b).toBe(LEAGUE_BK);
     expect(out.d).toBe(LEAGUE_BK);
@@ -75,14 +75,14 @@ describe('deriveLeagueForDate', () => {
     expect(out.c).toBe(LEAGUE_BR);
   });
 
-  it('시드가 일부만 있으면 미시드는 뒤로 붙고 가나다순', () => {
+  it('seedOrder에 일부만 있으면 미시드는 뒤로 붙고 가나다순', () => {
     const out = deriveLeagueForDate({
       rows: [], dateISO: '2026-01-10',
-      roster: roster(['하늘', '가람', '나무', '다솜'], { 나무: 1, 다솜: 2 }),
+      roster: roster(['하늘', '가람', '나무', '다솜']),
+      seedOrder: ['나무', '다솜'],
     });
     expect(out['나무']).toBe(LEAGUE_BK);
     expect(out['다솜']).toBe(LEAGUE_BK);
-    // 미시드 2명은 가나다순으로 3·4위 → 둘 다 흑장미
     expect(out['가람']).toBe(LEAGUE_BR);
     expect(out['하늘']).toBe(LEAGUE_BR);
   });
@@ -97,5 +97,40 @@ describe('deriveLeagueForDate', () => {
 
   it('로스터가 비면 빈 객체', () => {
     expect(deriveLeagueForDate({ rows: [], dateISO: '2026-08-06', roster: [] })).toEqual({});
+  });
+});
+
+describe('priorYearSinglesOrder', () => {
+  const rosterList = ['박성언', '김성환', '문형민'].map(n => ({ name: n }));
+
+  it('전년도 단식 승률↓ 순 이름 배열 (상세 로우)', () => {
+    const rows = [
+      row('박성언', '2025-03-01', '승'), row('박성언', '2025-03-02', '승'), // 1.0
+      row('김성환', '2025-03-01', '승'), row('김성환', '2025-03-02', '패'), // 0.5
+      row('문형민', '2025-03-01', '패'),                                   // 0.0
+      row('박성언', '2026-04-01', '패'),                                   // 올해 → 제외
+    ];
+    expect(priorYearSinglesOrder({ rows, legacyRows: [], roster: rosterList, year: '2026' }))
+      .toEqual(['박성언', '김성환', '문형민']);
+  });
+
+  it('집계(legacy) 전적도 합산, 로스터·경기有만', () => {
+    const legacyRows = [
+      { season: '2025', format: '단식', player: '문형민', wins: 9, losses: 1 }, // 0.9
+      { season: '2025', format: '단식', player: '김성환', wins: 1, losses: 9 }, // 0.1
+      { season: '2024', format: '단식', player: '박성언', wins: 5, losses: 0 }, // 다른 연도 → 제외
+      { season: '2025', format: '단식', player: '외부인', wins: 9, losses: 0 }, // 로스터 밖 → 제외
+    ];
+    expect(priorYearSinglesOrder({ rows: [], legacyRows, roster: rosterList, year: '2026' }))
+      .toEqual(['문형민', '김성환']);
+  });
+
+  it('복식/게스트/미성립은 제외', () => {
+    const rows = [
+      row('박성언', '2025-03-01', '승', '복식', '투몽'),      // 복식 제외
+      { ...row('김성환', '2025-03-01', '승'), is_guest: true }, // 게스트 제외
+      row('문형민', '2025-03-01', '승', '단식', '미반영'),      // 미성립 제외
+    ];
+    expect(priorYearSinglesOrder({ rows, legacyRows: [], roster: rosterList, year: '2026' })).toEqual([]);
   });
 });

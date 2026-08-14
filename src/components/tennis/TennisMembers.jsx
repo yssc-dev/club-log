@@ -37,19 +37,11 @@ function MemberForm({ initial, isNew, members, saving, onSave, onCancel, onDelet
       <div style={label}>닉네임</div>
       <input style={inputStyle} value={form.nickname} onChange={e => set('nickname', e.target.value)} />
 
-      <div style={{ display: 'flex', gap: 10 }}>
-        <div style={{ flex: 1 }}>
-          <div style={label}>등급</div>
-          <select style={inputStyle} value={form.grade} onChange={e => set('grade', e.target.value)}>
-            <option value="">-</option>
-            {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
-          </select>
-        </div>
-        <div style={{ flex: 1 }}>
-          <div style={label}>시즌시작순위</div>
-          <input style={inputStyle} value={form.seasonStartRank} onChange={e => set('seasonStartRank', e.target.value)} placeholder="빈값=미지정" />
-        </div>
-      </div>
+      <div style={label}>등급</div>
+      <select style={inputStyle} value={form.grade} onChange={e => set('grade', e.target.value)}>
+        <option value="">-</option>
+        {GRADES.map(g => <option key={g} value={g}>{g}</option>)}
+      </select>
 
       <div style={label}>구분</div>
       <div style={{ display: 'flex', gap: 6 }}>

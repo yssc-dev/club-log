@@ -3,6 +3,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
 import { buildSinglesStandings, buildPlayerSummary } from '../../utils/tennis/tennisStandings';
+import { priorYearSinglesOrder } from '../../utils/tennis/leagueDerivation';
 import {
   buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
@@ -494,8 +495,9 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const monthOpts = useMemo(() => availableMonths({ rows, year: effYear }), [rows, effYear]);
   const fRows = useMemo(() => filterRowsByPeriod(rows, { year: effYear, month }), [rows, effYear, month]);
 
+  const seedOrder = useMemo(() => priorYearSinglesOrder({ rows, legacyRows, roster, year: effYear }), [rows, legacyRows, roster, effYear]);
   const singlesStandings = useMemo(
-    () => buildSinglesStandings({ rows: fRows, roster, asOfDate: today, sortBy: 'points' }), [fRows, roster, today]);
+    () => buildSinglesStandings({ rows: fRows, roster, asOfDate: today, sortBy: 'points', seedOrder }), [fRows, roster, today, seedOrder]);
 
   const chemistry = useMemo(() => buildPairChemistry({ rows: fRows }), [fRows]);
 

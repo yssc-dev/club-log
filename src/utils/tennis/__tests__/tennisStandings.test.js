@@ -12,8 +12,8 @@ const pg = (o) => ({
 
 describe('buildSinglesStandings', () => {
   const roster = [
-    { name: 'a', grade: '동배', seasonStartRank: 1 },
-    { name: 'b', grade: '은배', seasonStartRank: 2 },
+    { name: 'a', grade: '동배' },
+    { name: 'b', grade: '은배' },
   ];
 
   it('승률로 줄 세운다', () => {

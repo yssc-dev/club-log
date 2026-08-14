@@ -9,11 +9,11 @@ export const MEMBER_STATUSES = ['활동', '탈퇴'];
 export function blankMember() {
   return {
     row: null, name: '', nickname: '', grade: '',
-    memberType: '정회원', status: '활동', seasonStartRank: '', joinDate: '', note: '',
+    memberType: '정회원', status: '활동', joinDate: '', note: '',
   };
 }
 
-// 폼 검증: 이름 필수, 같은 팀 활동 동일 이름 중복(자기 자신 row 제외), 시즌시작순위 숫자/빈값.
+// 폼 검증: 이름 필수, 같은 팀 활동 동일 이름 중복(자기 자신 row 제외).
 // 신규/수정 구분은 row(=null이면 신규)로 자연 처리되므로 별도 플래그 불필요.
 export function validateMember(form, existingMembers = []) {
   const errors = {};
@@ -27,17 +27,12 @@ export function validateMember(form, existingMembers = []) {
       m.row !== form.row);
     if (dup) errors.name = '같은 이름의 활동 회원이 이미 있습니다';
   }
-  const r = form.seasonStartRank;
-  if (r !== '' && r !== null && r !== undefined && !Number.isFinite(Number(r))) {
-    errors.seasonStartRank = '숫자를 입력하세요';
-  }
   return { ok: Object.keys(errors).length === 0, errors };
 }
 
-// 서버 전송용 객체. seasonStartRank는 빈값이면 ""(Number("")===0 트랩 방지), 값이면 Number.
+// 서버 전송용 객체. (시즌시작순위는 폐기 — 리그 시드는 전년도 단식 승률로 자동 산출.)
 export function toWritePayload(form, { row = null } = {}) {
   const trim = (s) => (typeof s === 'string' ? s.trim() : (s ?? ''));
-  const rank = form.seasonStartRank;
   return {
     ...(row != null ? { row } : {}),
     name: trim(form.name),
@@ -45,7 +40,6 @@ export function toWritePayload(form, { row = null } = {}) {
     grade: trim(form.grade),
     memberType: form.memberType || '정회원',
     status: form.status || '활동',
-    seasonStartRank: rank === '' || rank === null || rank === undefined ? '' : Number(rank),
     joinDate: trim(form.joinDate),
     note: trim(form.note),
   };
@@ -60,7 +54,7 @@ export function partitionMembers(members = []) {
   };
 }
 
-// admin 조회 member → 폼 초안(blankMember의 역/counterpart). seasonStartRank null→""(인풋 표시용).
+// admin 조회 member → 폼 초안(blankMember의 역/counterpart).
 export function memberToForm(m) {
   return {
     row: m.row ?? null,
@@ -69,7 +63,6 @@ export function memberToForm(m) {
     grade: m.grade || '',
     memberType: m.memberType || '정회원',
     status: m.status || '활동',
-    seasonStartRank: m.seasonStartRank == null ? '' : String(m.seasonStartRank),
     joinDate: m.joinDate || '',
     note: m.note || '',
   };
