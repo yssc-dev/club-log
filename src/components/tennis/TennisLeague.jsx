@@ -5,6 +5,7 @@ import { buildDoublesStandings, buildLeagueCounts } from '../../utils/tennis/ten
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
 import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
 import { DoublesStandingsSection, SinglesStandingsSection, LegacyStandingsSection } from './tennisStandingsSections';
+import { LeagueDonut } from './tennisCharts';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 
@@ -75,9 +76,8 @@ export default function TennisLeague({ C: propC }) {
       </div>
       {isRow ? (
         <>
-          <div style={{ fontSize: 12, color: C.gray, marginBottom: 10 }}>
-            경기 기록 · {periodLabel} — 투몽 {counts.tumong} · 길로틴 {counts.guillotine} · 번외 {counts.exhibition} · 전체 {counts.total}
-          </div>
+          <div style={{ fontSize: 12, color: C.gray, marginBottom: 8 }}>경기 기록 · {periodLabel}</div>
+          <LeagueDonut counts={counts} ds={ds} C={C} />
           <SinglesStandingsSection standings={singles} periodLabel={periodLabel} ds={ds} />
           {singlesAgg.length > 0 && (
             <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 14px', paddingLeft: 2 }}>

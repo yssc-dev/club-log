@@ -6,7 +6,7 @@ import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
 import { ThemeProvider, useTheme } from '../../../hooks/useTheme';
 import { makeStyles } from '../../../styles/theme';
-import { HBarChart, PlayerRadarChart } from '../tennisCharts';
+import { HBarChart, PlayerRadarChart, LeagueDonut, YearlyBarChart, AceDfScatter } from '../tennisCharts';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -127,5 +127,90 @@ describe('PlayerRadarChart 스모크', () => {
   it('radar.axes=[] → "데이터 없음" 렌더, 크래시 없음', () => {
     const html = render(PlayerRadarChart, { radar: { axes: [], player: '박준태' } });
     expect(html).toContain('데이터 없음');
+  });
+});
+
+// ── LeagueDonut ─────────────────────────────────────────────
+describe('LeagueDonut 스모크', () => {
+  it('3세그먼트 데이터로 크래시 없이 렌더 — 범례·전체 수', () => {
+    const html = render(LeagueDonut, { counts: { tumong: 5, guillotine: 3, exhibition: 2, total: 10 } });
+    expect(html).toContain('<svg');
+    expect(html).toContain('투몽');
+    expect(html).toContain('길로틴');
+    expect(html).toContain('번외');
+    expect(html).toContain('10');        // 중앙 전체 수
+    expect(html).toContain('50%');       // 투몽 5/10
+  });
+
+  it('일부 세그먼트 0 — 0인 항목은 범례에서 제외', () => {
+    const html = render(LeagueDonut, { counts: { tumong: 4, guillotine: 0, exhibition: 0, total: 4 } });
+    expect(html).toContain('투몽');
+    expect(html).not.toContain('길로틴');
+  });
+
+  it('total=0 → null (아무것도 렌더 안 함)', () => {
+    const html = render(LeagueDonut, { counts: { tumong: 0, guillotine: 0, exhibition: 0, total: 0 } });
+    expect(html).toBe('');
+  });
+
+  it('counts=null → null, 크래시 없음', () => {
+    expect(() => render(LeagueDonut, { counts: null })).not.toThrow();
+  });
+});
+
+// ── YearlyBarChart ──────────────────────────────────────────
+const YEARLY = [
+  { season: '2024', wins: 8, losses: 4, rate: 0.667 },
+  { season: '2025', wins: 10, losses: 6, rate: 0.625 },
+  { season: '통산', wins: 18, losses: 10, rate: 0.643 },
+];
+describe('YearlyBarChart 스모크', () => {
+  it('연도별 데이터로 크래시 없이 렌더 — 시즌·전적·승률', () => {
+    const html = render(YearlyBarChart, { entries: YEARLY });
+    expect(html).toContain('<svg');
+    expect(html).toContain('2024');
+    expect(html).toContain('통산');
+    expect(html).toContain('8-4');       // 전적 라벨
+    expect(html).toContain('67%');       // 승률 라벨(반올림)
+  });
+
+  it('빈 배열 → null, 크래시 없음', () => {
+    const html = render(YearlyBarChart, { entries: [] });
+    expect(html).toBe('');
+  });
+
+  it('rate=0 시즌도 크래시 없이 렌더', () => {
+    const html = render(YearlyBarChart, { entries: [{ season: '2023', wins: 0, losses: 5, rate: 0 }] });
+    expect(html).toContain('2023');
+    expect(html).toContain('0-5');
+  });
+});
+
+// ── AceDfScatter ────────────────────────────────────────────
+const ACEDF = [
+  { name: '박준태', aces: 12, doubleFaults: 4, recordedGames: 8 },
+  { name: '문형민', aces: 6, doubleFaults: 9, recordedGames: 5 },
+  { name: '박성언', aces: 0, doubleFaults: 0, recordedGames: 2 },
+];
+describe('AceDfScatter 스모크', () => {
+  it('산점도 데이터로 크래시 없이 렌더 — 선수명·축 라벨', () => {
+    const html = render(AceDfScatter, { rows: ACEDF });
+    expect(html).toContain('<svg');
+    expect(html).toContain('박준태');
+    expect(html).toContain('문형민');
+    expect(html).toContain('에이스');
+    expect(html).toContain('DF');
+    expect(html).toContain('<circle');
+  });
+
+  it('빈 배열 → null, 크래시 없음', () => {
+    const html = render(AceDfScatter, { rows: [] });
+    expect(html).toBe('');
+  });
+
+  it('전원 0(에이스·DF) 이어도 크래시 없음 (maxAxis 가드)', () => {
+    const html = render(AceDfScatter, { rows: [{ name: '신입', aces: 0, doubleFaults: 0, recordedGames: 1 }] });
+    expect(html).toContain('신입');
+    expect(html).toContain('<svg');
   });
 });

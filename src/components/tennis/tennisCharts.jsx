@@ -2,6 +2,9 @@
 // 외부 라이브러리 없음. C 토큰으로 테마 반응형. MonthlyFormSection 스타일 준용.
 // — HBarChart: 가로 바 (상대 전적·파트너별 공용)
 // — PlayerRadarChart: 5축 정오각형 레이더 (개인 프로필)
+// — LeagueDonut: 경기 유형 도넛 (리그 탭)
+// — YearlyBarChart: 연도별 승률 세로 바 (개인 뷰)
+// — AceDfScatter: 에이스·DF 산점도 (전체 뷰)
 
 // ── HBarChart ───────────────────────────────────────────────
 // rows: [{ label, value(0~1), note }]  colorFor(row) → CSS 색
@@ -229,6 +232,189 @@ export function PlayerRadarChart({ radar, ds, C }) {
 
         {/* 중심 점 */}
         <circle cx={cx} cy={cy} r={2.5} fill={C.grayDarker} />
+      </svg>
+    </div>
+  );
+}
+
+// ── LeagueDonut ──────────────────────────────────────────────
+// counts: buildLeagueCounts 반환 { tumong, guillotine, exhibition, total }
+// 3세그먼트 도넛(투몽=accent·길로틴=purple·번외=grayDark) + 중앙 전체 수 + 범례.
+// total 0이면 null (호출부가 숨김 판단). role="img".
+export function LeagueDonut({ counts, ds, C }) {
+  const { tumong = 0, guillotine = 0, exhibition = 0, total = 0 } = counts || {};
+  if (!total) return null;
+
+  const segs = [
+    { label: '투몽', value: tumong, color: C.accent },
+    { label: '길로틴', value: guillotine, color: C.purple },
+    { label: '번외', value: exhibition, color: C.grayDark },
+  ].filter(s => s.value > 0);
+
+  const cx = 55, cy = 55, r = 42, sw = 15;
+  const circ = 2 * Math.PI * r;
+  let acc = 0; // 누적 길이(오프셋)
+
+  return (
+    <div style={ds.card}>
+      <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+        <svg
+          viewBox="0 0 110 110"
+          width={110}
+          style={{ flexShrink: 0, display: 'block' }}
+          role="img"
+          aria-label={`경기 유형 분포 — 전체 ${total}`}
+        >
+          {/* 트랙 */}
+          <circle cx={cx} cy={cy} r={r} fill="none" stroke={C.grayDarker} strokeWidth={sw} fillOpacity={0} />
+          {/* 세그먼트 (12시 방향 시작: -90도 회전) */}
+          <g transform={`rotate(-90 ${cx} ${cy})`}>
+            {segs.map((s) => {
+              const dash = (s.value / total) * circ;
+              const el = (
+                <circle
+                  key={s.label}
+                  cx={cx}
+                  cy={cy}
+                  r={r}
+                  fill="none"
+                  stroke={s.color}
+                  strokeWidth={sw}
+                  strokeDasharray={`${dash} ${circ - dash}`}
+                  strokeDashoffset={-acc}
+                />
+              );
+              acc += dash;
+              return el;
+            })}
+          </g>
+          {/* 중앙 전체 수 */}
+          <text x={cx} y={cy - 2} textAnchor="middle" fontSize={22} fontWeight="700" fill={C.white}
+            style={{ fontVariantNumeric: 'tabular-nums' }}>{total}</text>
+          <text x={cx} y={cy + 13} textAnchor="middle" fontSize={9} fill={C.gray}>경기</text>
+        </svg>
+        <div style={{ display: 'flex', flexDirection: 'column', gap: 7, fontSize: 12, minWidth: 0 }}>
+          {segs.map((s) => (
+            <div key={s.label} style={{ display: 'flex', alignItems: 'center', gap: 7 }}>
+              <span style={{ width: 10, height: 10, borderRadius: 3, background: s.color, flexShrink: 0 }} />
+              <span style={{ color: C.white }}>{s.label}</span>
+              <span style={{ marginLeft: 'auto', color: C.gray, fontVariantNumeric: 'tabular-nums' }}>
+                {s.value} ({Math.round((s.value / total) * 100)}%)
+              </span>
+            </div>
+          ))}
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ── YearlyBarChart ───────────────────────────────────────────
+// entries: buildYearlyRecords 반환 [{ season, wins, losses, rate(0~1) }], 마지막='통산'
+// 세로 바(승률) + 바 위 전적 라벨 + 축에 시즌. '통산'은 purple로 구분. 빈 배열이면 null.
+export function YearlyBarChart({ entries, ds, C }) {
+  if (!entries || !entries.length) return null;
+
+  const n = entries.length;
+  const colW = 46;
+  const plotH = 88;
+  const padT = 18;   // 바 위 전적 라벨
+  const padB = 30;   // 시즌 + 승률 라벨
+  const vW = n * colW;
+  const vH = padT + plotH + padB;
+  const baseY = padT + plotH;
+  const barW = 24;
+
+  return (
+    <div style={ds.card}>
+      <svg
+        viewBox={`0 0 ${vW} ${vH}`}
+        style={{ width: '100%', display: 'block' }}
+        role="img"
+        aria-label="연도별 승률 세로 바 차트"
+      >
+        {/* 기준선 */}
+        <line x1={0} y1={baseY} x2={vW} y2={baseY} stroke={C.grayDarker} strokeWidth={0.75} />
+        {entries.map((e, i) => {
+          const cx = i * colW + colW / 2;
+          const v = Math.max(0, Math.min(1, e.rate || 0));
+          const barH = v * plotH;
+          const barY = baseY - barH;
+          const isTotal = e.season === '통산';
+          const color = isTotal ? C.purple : C.accent;
+          return (
+            <g key={e.season}>
+              {/* 바 */}
+              {barH > 0 && (
+                <rect x={cx - barW / 2} y={barY} width={barW} height={barH} rx={3} fill={color} />
+              )}
+              {/* 전적 라벨 (바 위) */}
+              <text x={cx} y={barY - 4} textAnchor="middle" fontSize={9} fill={C.gray}
+                style={{ fontVariantNumeric: 'tabular-nums' }}>{e.wins}-{e.losses}</text>
+              {/* 시즌 라벨 */}
+              <text x={cx} y={baseY + 13} textAnchor="middle" fontSize={9.5}
+                fontWeight={isTotal ? '700' : '400'} fill={isTotal ? C.white : C.gray}>{e.season}</text>
+              {/* 승률 라벨 */}
+              <text x={cx} y={baseY + 24} textAnchor="middle" fontSize={9} fill={C.gray}
+                style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(v * 100)}%</text>
+            </g>
+          );
+        })}
+      </svg>
+    </div>
+  );
+}
+
+// ── AceDfScatter ─────────────────────────────────────────────
+// rows: buildAceDfRanking 반환 [{ name, aces, doubleFaults, recordedGames }]
+// x=에이스, y=DF, 점=선수(이름 라벨). 대각선(에이스=DF) 안내선 — 우하=좋은 서버.
+// x·y 공유 스케일(대각선이 45°가 되도록). 빈 배열이면 null.
+export function AceDfScatter({ rows, ds, C }) {
+  if (!rows || !rows.length) return null;
+
+  const maxAxis = Math.max(1, ...rows.map(r => Math.max(r.aces || 0, r.doubleFaults || 0)));
+  const padL = 32, padT = 10, padB = 26, padR = 12;
+  const plot = 150;
+  const vW = padL + plot + padR;
+  const vH = padT + plot + padB;
+  const sx = v => padL + (v / maxAxis) * plot;
+  const sy = v => padT + plot - (v / maxAxis) * plot;
+
+  return (
+    <div style={ds.card}>
+      <svg
+        viewBox={`0 0 ${vW} ${vH}`}
+        style={{ width: '100%', display: 'block', overflow: 'visible' }}
+        role="img"
+        aria-label="에이스·더블폴트 산점도"
+      >
+        {/* 대각선 안내선 (에이스=DF) */}
+        <line x1={sx(0)} y1={sy(0)} x2={sx(maxAxis)} y2={sy(maxAxis)}
+          stroke={C.grayDark} strokeWidth={0.75} strokeDasharray="4 3" />
+        {/* 축 */}
+        <line x1={padL} y1={padT} x2={padL} y2={padT + plot} stroke={C.grayDarker} strokeWidth={0.75} />
+        <line x1={padL} y1={padT + plot} x2={padL + plot} y2={padT + plot} stroke={C.grayDarker} strokeWidth={0.75} />
+        {/* 축 라벨 */}
+        <text x={padL + plot} y={padT + plot + 16} textAnchor="end" fontSize={8.5} fill={C.gray}>에이스 →</text>
+        <text x={padL - 4} y={padT + 4} textAnchor="end" fontSize={8.5} fill={C.gray}>DF ↑</text>
+        {/* 최댓값 눈금 */}
+        <text x={padL - 4} y={sy(maxAxis) + 3} textAnchor="end" fontSize={8} fill={C.gray}
+          style={{ fontVariantNumeric: 'tabular-nums' }}>{maxAxis}</text>
+        <text x={sx(maxAxis)} y={padT + plot + 16} textAnchor="middle" fontSize={8} fill={C.gray}
+          style={{ fontVariantNumeric: 'tabular-nums' }}>{maxAxis}</text>
+        {/* 점 + 이름 */}
+        {rows.map((r) => {
+          const x = sx(r.aces || 0);
+          const y = sy(r.doubleFaults || 0);
+          const rad = 3.5 + Math.min(r.recordedGames || 0, 10) * 0.2;
+          return (
+            <g key={r.name}>
+              <circle cx={x} cy={y} r={rad} fill={C.accent} fillOpacity={0.85}
+                stroke={C.card} strokeWidth={1} />
+              <text x={x + rad + 2} y={y + 3} fontSize={8} fill={C.white}>{r.name}</text>
+            </g>
+          );
+        })}
       </svg>
     </div>
   );

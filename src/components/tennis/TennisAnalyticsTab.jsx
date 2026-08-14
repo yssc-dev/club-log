@@ -10,7 +10,7 @@ import {
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
 import { availableYears, availableMonths, filterRowsByPeriod, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
 import { buildPlayerRadar } from '../../utils/tennis/tennisRadar';
-import { HBarChart, PlayerRadarChart } from './tennisCharts';
+import { HBarChart, PlayerRadarChart, YearlyBarChart, AceDfScatter } from './tennisCharts';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
@@ -49,11 +49,12 @@ function SummaryCard({ summary, player, points = 0, ds, C }) {
 }
 
 // ─── 연도별 전적 (legacyRows 비면 숨김) ─────────────────
-function YearlyRecordsSection({ entries, ds }) {
+function YearlyRecordsSection({ entries, ds, C }) {
   if (!entries.length) return null;
   return (
     <>
       <div style={ds.sectionTitle}>연도별 전적</div>
+      <YearlyBarChart entries={entries} ds={ds} C={C} />
       <div style={ds.card}>
         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
           <thead>
@@ -322,8 +323,9 @@ function AceDfSection({ acedf, ds, C }) {
   return (
     <>
       <div style={ds.sectionTitle}>에이스 · 더블폴트</div>
+      <AceDfScatter rows={acedf} ds={ds} C={C} />
       <div style={ds.card}>
-        <div style={{ fontSize: 10, color: C.gray, marginBottom: 8 }}>2026.8~ 앱 기록 기준</div>
+        <div style={{ fontSize: 10, color: C.gray, marginBottom: 8 }}>2026.8~ 앱 기록 기준 · 점=선수(우하=에이스↑DF↓)</div>
         {acedf.length === 0 ? (
           <div style={{ color: C.gray, fontSize: 12, textAlign: 'center', padding: 8 }}>기록 없음</div>
         ) : (
@@ -504,7 +506,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
           case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;
           case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={format} ds={ds} C={C} />;
-          case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} />;
+          case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} C={C} />;
           case 'tb':               return <TbBagelSection key={key} tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />;
           case 'acedf':            return <AceDfSection key={key} acedf={aceDfRanking} ds={ds} C={C} />;
           default:                 return null;
