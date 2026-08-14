@@ -4,6 +4,7 @@ import { calcMatchScore } from '../utils/scoring';
 import { calcSoccerScore, remapPlayerInSoccerEvents } from '../utils/soccerScoring';
 import { createInitialPushState, calcNextPushMatch } from '../utils/pushMatch';
 import { FORMATIONS, swapFormationSlots, defendersFromPositionMap, revertSubInFormation } from '../utils/formations';
+import { teamAbsentList, pruneAbsentPlayer } from '../utils/absentees';
 
 const initialState = {
   phase: "setup",
@@ -133,10 +134,9 @@ function snapshotMatchResult(result, teams, liveMercs, scopeMatchIds, absentees)
   const awayBaseEff = awayBase.filter(p => !borrowedOut.has(p) && !ownMercPlayers.has(p));
   const homePlayers = [...homeBaseEff, ...homeMercs];
   const awayPlayers = [...awayBaseEff, ...awayMercs];
-  // 매치별 휴식 스냅샷
-  const matchAbs = (absentees && result?.matchId) ? (absentees[result.matchId] || {}) : {};
-  const homeAbsent = matchAbs[result.homeIdx] || [];
-  const awayAbsent = matchAbs[result.awayIdx] || [];
+  // 매치별 휴식 스냅샷 — 그 팀 명단에 실제로 있는 사람만 박제(유령 레코드 차단)
+  const homeAbsent = teamAbsentList(absentees, result?.matchId, result.homeIdx, homePlayers);
+  const awayAbsent = teamAbsentList(absentees, result?.matchId, result.awayIdx, awayPlayers);
   return {
     ...result,
     homePlayers,
@@ -436,8 +436,21 @@ function gameReducer(state, action) {
     case 'ADD_LIVE_MERC': {
       const { matchId, player, teamIdx } = action;
       const list = state.liveMercs[matchId] || [];
-      // 같은 player가 본 매치에 이미 있으면 무시 (중복 추가 방지)
-      if (list.some(m => m.player === player)) return state;
+      const existing = list.find(m => m.player === player);
+      // 같은 팀에 다시 추가하면 무시 (중복 추가 방지)
+      if (existing && existing.teamIdx === teamIdx) return state;
+      // 같은 매치의 다른 팀으로 추가 = 팀 이동. 순서는 유지해 카드 위치가 튀지 않게.
+      // (제거→재추가를 강요하면 그 사이 휴식 기록이 이전 팀에 남아 유령이 됨)
+      if (existing) {
+        return {
+          ...state,
+          liveMercs: {
+            ...state.liveMercs,
+            [matchId]: list.map(m => (m.player === player ? { ...m, teamIdx } : m)),
+          },
+          absentees: pruneAbsentPlayer(state.absentees, player, { keep: { matchId, teamIdx } }),
+        };
+      }
       // 다른 라이브 매치에 차출돼 있으면 그쪽에서 제거하고 본 매치로 이동 (한 player는 한 매치에만)
       const nextLiveMercs = { ...state.liveMercs };
       for (const otherId of Object.keys(nextLiveMercs)) {
@@ -449,7 +462,10 @@ function gameReducer(state, action) {
         else nextLiveMercs[otherId] = filtered;
       }
       nextLiveMercs[matchId] = [...list, { player, teamIdx }];
-      return { ...state, liveMercs: nextLiveMercs };
+      // 다른 팀/매치에 남아있던 휴식 기록 정리 — 소속이 바뀌면 그쪽 휴식은 무효.
+      // (안 지우면 화면엔 표시 안 되는데 골/GK 입력만 막히는 유령 휴식이 됨)
+      const nextAbsenteesAM = pruneAbsentPlayer(state.absentees, player, { keep: { matchId, teamIdx } });
+      return { ...state, liveMercs: nextLiveMercs, absentees: nextAbsenteesAM };
     }
     case 'REMOVE_LIVE_MERC': {
       const { matchId, player } = action;
@@ -457,7 +473,9 @@ function gameReducer(state, action) {
       const next = list.filter(m => m.player !== player);
       const nextLiveMercs = { ...state.liveMercs };
       if (next.length === 0) delete nextLiveMercs[matchId]; else nextLiveMercs[matchId] = next;
-      return { ...state, liveMercs: nextLiveMercs };
+      // 이 매치에서 빠졌으므로 이 매치의 휴식 기록도 함께 정리
+      const nextAbsenteesRM = pruneAbsentPlayer(state.absentees, player, { onlyMatchId: matchId });
+      return { ...state, liveMercs: nextLiveMercs, absentees: nextAbsenteesRM };
     }
     case 'EDIT_PAST_ABSENT_TOGGLE': {
       // 과거 매치의 휴식 토글 — completedMatches[idx].homeAbsent/awayAbsent 스냅샷 직접 변경.

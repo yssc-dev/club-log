@@ -30,6 +30,32 @@ describe('gameReducer — 용병 차출 모델', () => {
       expect(next.liveMercs['R1_C1']).toEqual([{ player: '이영문', teamIdx: 2 }]);
     });
 
+    it('같은 매치의 다른 팀으로 추가하면 팀 이동 (제거 후 재추가 불필요)', () => {
+      const state = withState({
+        teams: baseTeams,
+        liveMercs: { 'R1_C0': [{ player: '이동규', teamIdx: 0 }, { player: '이영문', teamIdx: 0 }] },
+      });
+      const next = gameReducer(state, {
+        type: 'ADD_LIVE_MERC', matchId: 'R1_C0', player: '이영문', teamIdx: 1,
+      });
+      // 순서 유지 — 카드 위치가 튀지 않게
+      expect(next.liveMercs['R1_C0']).toEqual([
+        { player: '이동규', teamIdx: 0 }, { player: '이영문', teamIdx: 1 },
+      ]);
+    });
+
+    it('팀 이동 시 이전 팀에 남은 휴식 기록도 정리', () => {
+      const state = withState({
+        teams: baseTeams,
+        liveMercs: { 'R1_C0': [{ player: '이영문', teamIdx: 0 }] },
+        absentees: { 'R1_C0': { 0: ['이영문', '김장수'] } },
+      });
+      const next = gameReducer(state, {
+        type: 'ADD_LIVE_MERC', matchId: 'R1_C0', player: '이영문', teamIdx: 1,
+      });
+      expect(next.absentees['R1_C0']).toEqual({ 0: ['김장수'] });
+    });
+
     it('같은 매치에 이미 mercs로 있으면 무시', () => {
       const state = withState({
         teams: baseTeams,
