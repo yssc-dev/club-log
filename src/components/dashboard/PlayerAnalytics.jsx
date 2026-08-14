@@ -5,7 +5,7 @@ import { fetchSheetData } from '../../services/sheetService';
 import { getEffectiveSettings } from '../../config/settings';
 
 import PersonalAnalysisTab from './analytics/PersonalAnalysisTab';
-import SynergyMatrixTab from './analytics/SynergyMatrixTab';
+import PersonalSynergyChart from './analytics/PersonalSynergyChart';
 import ChemistryTab from './analytics/ChemistryTab';
 import AwardsTab from './analytics/AwardsTab';
 import CrovaGogumaRankTab from './analytics/CrovaGogumaRankTab';
@@ -55,7 +55,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
 
   const tabs = [
     { key: "personal", label: "개인분석" },
-    { key: "synergy", label: "시너지매트릭스" },
+    { key: "synergy", label: "시너지" },
     { key: "chem", label: "케미" },
     { key: "awards", label: "어워드" },
     showCrovaGoguma && { key: "crovaguma", label: "🍀/🍠" },
@@ -87,7 +87,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
           members={members || []} C={C} authUserName={authUserName} isSoccer={isSoccer}
         />
       )}
-      {tab === "synergy" && <SynergyMatrixTab matchLogs={matchLogs} C={C} isSoccer={isSoccer} />}
+      {tab === "synergy" && <PersonalSynergyChart matchLogs={matchLogs} C={C} isSoccer={isSoccer} authUserName={authUserName} />}
       {tab === "chem" && <ChemistryTab matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
       {tab === "awards" && <AwardsTab playerGameLogs={playerGameLogs} matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
       {tab === "crovaguma" && showCrovaGoguma && (
