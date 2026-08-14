@@ -372,6 +372,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const [legacyRows, setLegacyRows] = useState([]);
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [view, setView] = useState('individual');         // 서브탭: 개인지표(기본) / 전체지표
   const [format, setFormat] = useState('복식');           // 복식 기본 (스펙 §5)
   const [player, setPlayer] = useState('');
 
@@ -436,8 +437,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
     [fRows, roster, player, today]);
 
   const sectionKeys = useMemo(
-    () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),
-    [player, format, yearlyRecords, month]);
+    () => analyticsSectionKeys({ view, player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),
+    [view, player, format, yearlyRecords, month]);
 
   const selectStyle = {
     background: C.cardLight,
@@ -458,7 +459,14 @@ export default function TennisAnalyticsTab({ C: propC }) {
 
   return (
     <div style={ds.section}>
-      {/* 포맷 토글 + 연/월 필터 + 선수 선택 */}
+      {/* 서브탭: 개인지표 / 전체지표 (성격이 다른 지표를 분리) */}
+      <div style={{ display: 'flex', gap: 6, marginBottom: 10 }}>
+        {[['individual', '개인지표'], ['overall', '전체지표']].map(([v, label]) => (
+          <button key={v} onClick={() => setView(v)} style={ds.chip(view === v)}>{label}</button>
+        ))}
+      </div>
+
+      {/* 포맷 토글 + 연/월 필터 + (개인지표) 선수 선택 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
         {['복식', '단식'].map(f => (
           <button key={f} onClick={() => setFormat(f)} style={ds.chip(format === f)}>{f}</button>
@@ -470,15 +478,23 @@ export default function TennisAnalyticsTab({ C: propC }) {
           <option value="">전체월</option>
           {monthOpts.map(m => <option key={m} value={m}>{Number(m)}월</option>)}
         </select>
-        <select
-          value={player}
-          onChange={e => setPlayer(e.target.value)}
-          style={{ marginLeft: 'auto', ...selectStyle }}
-        >
-          <option value="">전체 랭킹</option>
-          {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
+        {view === 'individual' && (
+          <select
+            value={player}
+            onChange={e => setPlayer(e.target.value)}
+            style={{ marginLeft: 'auto', ...selectStyle }}
+          >
+            <option value="">선수 선택</option>
+            {rosterNames.map(n => <option key={n} value={n}>{n}</option>)}
+          </select>
+        )}
       </div>
+
+      {view === 'individual' && !player && (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 13, textAlign: 'center', padding: 20 }}>
+          선수를 선택하면 개인 지표(레이더·전적·상대·파트너·월별)가 표시됩니다.
+        </div>
+      )}
 
       {sectionKeys.map((key) => {
         switch (key) {
