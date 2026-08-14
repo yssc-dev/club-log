@@ -455,9 +455,8 @@ export default function PersonalAnalysisTab({
                 ));
               })()}
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-                P/경기 = (골+어시)÷경기수.
-                <br />앱 사용 이전 경기는 출전 명단 데이터가 없어, 골·어시를 낸 경기만 잡힙니다.
-                분모(출전 경기수)가 실제 뛴 경기보다 적어 P/경기가 다소 높게 나옵니다.
+                P/경기 = (골+어시)÷경기수. 골·어시·경기수 모두 로그 전 기간 기준입니다.
+                <br />앱 전환 이전 출전 기록 결핍은 상단 안내를 참고하세요.
               </div>
             </div>
           )}

@@ -9,6 +9,7 @@ import SynergyMatrixTab from './analytics/SynergyMatrixTab';
 import ChemistryTab from './analytics/ChemistryTab';
 import AwardsTab from './analytics/AwardsTab';
 import CrovaGogumaRankTab from './analytics/CrovaGogumaRankTab';
+import LegacyDataNotice from './analytics/LegacyDataNotice';
 
 const LEGACY_TAB_MAP = {
   playercard: 'personal',
@@ -77,6 +78,8 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
             }}>{t.label}</button>
         ))}
       </div>
+      {/* 모든 분석 지표가 같은 한계를 공유하므로 서브탭 위(상단)에 한 번만 띄운다 */}
+      {isSoccer && <LegacyDataNotice matchLogs={matchLogs} C={C} />}
 
       {tab === "personal" && (
         <PersonalAnalysisTab

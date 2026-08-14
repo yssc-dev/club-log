@@ -80,7 +80,7 @@ export default function OpponentLeadersView({ matchLogs, eventLogs, C }) {
       </div>
 
       <div style={{ marginTop: 10, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-        앱 기록 구간만 집계 — 그 이전 경기는 출전 명단이 없어 선수 간 비교가 성립하지 않습니다.
+        골·어시·출전횟수 모두 로그 전 기간 기준. 앱 전환 이전 출전 기록 결핍은 상단 안내를 참고하세요.
         <br />⚠️ 상대팀 전력·GK 영향이 섞인 참고 지표.
       </div>
     </div>

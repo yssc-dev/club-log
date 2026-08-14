@@ -46,8 +46,10 @@ describe('OpponentLeadersView', () => {
     expect(html).toContain('0.40실점'); // B·C: 5경기 2실점
   });
 
-  it('집계 구간을 캡션에 밝힌다', () => {
-    expect(render({})).toContain('앱 기록 구간');
+  it('집계 범위와 한계 안내 위치를 캡션에 밝힌다', () => {
+    const html = render({});
+    expect(html).toContain('로그 전 기간');
+    expect(html).toContain('상단 안내');
   });
 
   it('자격 있는 상대팀이 없으면 안내문', () => {

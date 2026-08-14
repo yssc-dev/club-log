@@ -69,6 +69,26 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
+  it('PersonalAnalysisTab: 상대팀별 성적 — 앱 이전 경기도 골·어시와 경기수에 함께 들어간다', () => {
+    // 앱 이전 1경기(1골1어시) + 현행 2경기(1골1어시) → 3경기 2골2어시
+    const matchLogsMixed = [
+      { date: '2026-01-06', match_id: '1', game_id: 'legacy_2026-01-06', opponent_team_name: '한울', our_members_json: '["A","B"]', our_score: 3, opponent_score: 0 },
+      { date: '2026-06-10', match_id: '1', game_id: 's_1', opponent_team_name: '한울', our_members_json: '["A","B"]', our_score: 1, opponent_score: 0 },
+      { date: '2026-06-17', match_id: '1', game_id: 's_2', opponent_team_name: '한울', our_members_json: '["A","B"]', our_score: 0, opponent_score: 1 },
+    ];
+    const eventsMixed = [
+      { event_type: 'goal', player: 'A', related_player: 'B', date: '2026-01-06', match_id: '1' },
+      { event_type: 'goal', player: 'A', related_player: 'B', date: '2026-06-10', match_id: '1' },
+    ];
+    const html = wrap(PersonalAnalysisTab, {
+      playerGameLogs: [], matchLogs: matchLogsMixed, eventLogs: eventsMixed,
+      members: [{ name: 'A' }, { name: 'B' }], C, authUserName: 'A', isSoccer: true,
+    });
+    expect(html).toContain('3경기');      // 앱 이전 1경기 포함
+    expect(html).not.toContain('통산');   // 별도 통산 표기는 더 이상 없다(주 지표가 곧 전 기간)
+    expect(html).not.toContain('NaN');
+  });
+
   it('PersonalAnalysisTab: 축구 상대팀별 성적 — 경기당 포인트를 함께 표기', () => {
     // A는 터틀파크 상대 2경기에서 2골 1어시(모두 정식 기록) → 3P / 2경기 = 1.5
     const soccerMatches = [

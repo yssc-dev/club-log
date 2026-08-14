@@ -1,18 +1,17 @@
 // 상대팀별 리더보드 (축구 전용): 상대팀 하나를 골랐을 때의 경기당 포인트 TOP / 수비 실점률 TOP.
 //
-// 개인 화면(calcOpponentBreakdown)과 달리 **legacy 구간을 통째로 뺀다.**
-// legacy의 our_members_json은 골 이벤트에서 역산한 부분 명단이라, 그 구간에서 한 선수의
-// '경기수'는 사실상 '골·어시를 낸 경기수'다. 개인 기록 표시에는 그래도 쓸 값이지만
-// 선수 간 순위에는 못 쓴다 — 분모가 서로 비교 가능하지 않기 때문이다.
-// (실측: 박동휘는 터틀파크 5경기가 전부 legacy·정식 0경기여서 전 기간 기준이면 2.0P로 1위가 됐다.)
+// 집계 정책은 앱 전체와 동일 — 분자 = 로그의 모든 골·어시, 분모 = 앱 이전 + 현행 출전횟수 전부.
+// 앱 전환 이전 구간은 출전 명단 원본이 없어 '골·어시를 낸 경기'만 출전으로 잡히므로,
+// 그 시절 기록만 있는 선수는 경기당 포인트가 높게 나온다
+// (실측: 박동휘 터틀파크 5경기 전부 앱 이전 → 2.00P로 1위). 이 결핍은 감안하고
+// 화면 상단 LegacyDataNotice 배너로 밝힌다 — 화면마다 기준이 갈리지 않는 쪽을 택했다.
 //
-// 이벤트도 같은 키 집합으로 걸러야 한다. matchLogs만 좁히면 calcOpponentBreakdown이
-// 이벤트의 opponent 컬럼으로 폴백해 legacy 골을 그대로 집계한다.
+// 이벤트는 scoped 매치의 키 집합으로 거른다. 그래야 is_extra 매치의 골이 새지 않고,
+// calcOpponentBreakdown의 e.opponent 폴백이 스코프 밖 골을 끌어오지 않는다.
 import { calcOpponentBreakdown } from './calcOpponentBreakdown';
 import { calcDefenseAnalysis, sortDefenseRows } from './calcDefenseAnalysis';
 
 const matchKey = (r) => `${r.date}|${String(r.match_id ?? '')}`;
-const isLegacy = (m) => String(m.game_id || '').startsWith('legacy_');
 const oppName = (m) => String(m.opponent_team_name || '').trim();
 
 export function calcOpponentLeaders({
@@ -21,7 +20,7 @@ export function calcOpponentLeaders({
   minGames = 3,
   topN = 5,
 } = {}) {
-  const scoped = (matchLogs || []).filter(m => !m.is_extra && !isLegacy(m) && oppName(m));
+  const scoped = (matchLogs || []).filter(m => !m.is_extra && oppName(m));
   const keys = new Set(scoped.map(matchKey));
   const scopedEvents = (eventLogs || []).filter(e => keys.has(matchKey(e)));
 

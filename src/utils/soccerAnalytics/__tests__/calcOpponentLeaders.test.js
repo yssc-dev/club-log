@@ -12,20 +12,22 @@ const goal = (i, player, assist = '') => ({
 });
 
 describe('calcOpponentLeaders', () => {
-  it('legacy 경기는 리더보드에서 통째로 뺀다 — 출전 명단이 없어 분모 비교가 성립하지 않는다', () => {
+  // 앱 이전 구간도 분자·분모 양쪽에 함께 넣는다(출전 결핍은 감안하고 화면 상단에 표기).
+  it('앱 이전 경기도 골·어시와 출전횟수에 함께 들어간다', () => {
     const matchLogs = [
-      // legacy: L만 명단에 있고 골도 L이 넣음 → 그대로 두면 1.0P로 1위가 된다
-      { date: '2026-01-06', match_id: '1', game_id: 'legacy_2026-01-06', opponent_team_name: '한울', our_members_json: '["L"]', our_score: 1, opponent_score: 0 },
+      { date: '2026-01-06', match_id: '1', game_id: 'legacy_2026-01-06', opponent_team_name: '한울', our_members_json: '["A"]', our_score: 1, opponent_score: 0 },
       ...[0, 1, 2].map(i => match(i, '한울')),
     ];
     const eventLogs = [
-      { date: '2026-01-06', match_id: '1', event_type: 'goal', player: 'L', related_player: '', opponent: '한울' },
+      { date: '2026-01-06', match_id: '1', event_type: 'goal', player: 'A', related_player: '', opponent: '한울' },
       goal(0, 'A'),
     ];
     const r = calcOpponentLeaders({ eventLogs, matchLogs, minOpponentMatches: 3, minGames: 3 });
-    const names = r.byOpponent['한울'].pointLeaders.map(x => x.name);
-    expect(names).not.toContain('L');
-    expect(names).toContain('A');
+    const a = r.byOpponent['한울'].pointLeaders.find(x => x.name === 'A');
+    expect(a.games).toBe(4);   // 앱 이전 1 + 현행 3
+    expect(a.goals).toBe(2);   // 앱 이전 1 + 현행 1
+    expect(a.pointsPerGame).toBeCloseTo(0.5);
+    expect(r.byOpponent['한울'].matches).toBe(4);
   });
 
   it('경기당 포인트는 높은 순, minGames 미만은 제외', () => {
