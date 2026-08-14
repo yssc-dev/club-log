@@ -14,6 +14,7 @@ export * from './calcMetricLeaders';
 export * from './calcMonthlyRanking';
 export * from './appEraScope';
 export * from './calcOpponentBreakdown';
+export * from './calcOpponentDefense';
 export * from './calcOpponentLeaders';
 export * from './calcPersonalRecords';
 export * from './calcPersonalSynergy';

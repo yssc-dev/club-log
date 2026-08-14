@@ -5,6 +5,7 @@ import * as soccerCalc from '../../../utils/soccerAnalytics';
 import RoundDistribution from './RoundDistribution';
 import SoloGoalDonut from './SoloGoalDonut';
 import PersonalSynergyCard from './PersonalSynergyCard';
+import OpponentBreakdownList from './OpponentBreakdownList';
 
 // ─── Radar Chart ────────────────────────────────────────────────────────────
 
@@ -118,24 +119,6 @@ function getChaosBadge(chaosRate) {
   if (chaosRate >= 0.3) return { emoji: "💣", label: "돌발왕", color: "#ef4444" };
   if (chaosRate >= 0.1) return { emoji: "⚡", label: "돌발주의", color: "#f97316" };
   return null;
-}
-
-// 상대팀별 막대 색 — hue는 추세 차트와 같은 시리즈 색(득점 red/도움 blue)을 유지하되
-// 알파를 낮춰 채도를 죽인다. 이 섹션은 막대가 여러 줄 연달아 쌓여서 원색이면 화면이 무겁다.
-const OPP_GOAL_COLOR = "#ef444499";
-const OPP_ASSIST_COLOR = "#3b82f699";
-
-// 상대팀별 성적 막대 한 줄 — 값 라벨은 잉크 토큰
-function OppBarLine({ label, value, max, color, C }) {
-  return (
-    <div style={{ display: "flex", alignItems: "center", gap: 6, marginBottom: 2 }}>
-      <span style={{ width: 24, flexShrink: 0, fontSize: 9, color: C.gray }}>{label}</span>
-      <div style={{ flex: 1, height: 8 }}>
-        <div style={{ width: `${max > 0 ? (value / max) * 100 : 0}%`, minWidth: value > 0 ? 3 : 0, height: "100%", background: color, borderRadius: 3 }} />
-      </div>
-      <span style={{ width: 22, flexShrink: 0, textAlign: "right", fontSize: 10, color: C.white, fontVariantNumeric: "tabular-nums" }}>{value}</span>
-    </div>
-  );
 }
 
 // ─── Main Component ──────────────────────────────────────────────────────────
@@ -277,6 +260,15 @@ export default function PersonalAnalysisTab({
   const oppRows = useMemo(
     () => (oppBreakdown && selected ? (oppBreakdown.byPlayer[selected] || []) : []),
     [oppBreakdown, selected]
+  );
+  // 상대팀별 개인 수비 기록 — our_defenders_json이 있는 경기만이라 없는 상대는 '없음'으로 표기된다
+  const oppDefense = useMemo(
+    () => (isSoccer ? soccerCalc.calcOpponentDefense({ matchLogs: matchLogs || [] }) : null),
+    [isSoccer, matchLogs]
+  );
+  const myOppDefense = useMemo(
+    () => (oppDefense && selected ? (oppDefense.byPlayer[selected] || []) : []),
+    [oppDefense, selected]
   );
 
   // ── 개인 수비 지표 (축구 전용) ──
@@ -438,25 +430,11 @@ export default function PersonalAnalysisTab({
           {isSoccer && oppRows.length > 0 && (
             <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, textAlign: "left" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 6 }}>상대팀별 성적</div>
-              {(() => {
-                const maxVal = Math.max(1, ...oppRows.map(r => Math.max(r.goals, r.assists)));
-                return oppRows.map(r => (
-                  <div key={r.opponent} style={{ padding: "7px 0", borderTop: `1px dashed ${C.grayDarker}` }}>
-                    <div style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 4 }}>
-                      <span style={{ color: C.white, fontWeight: 600 }}>{r.opponent}</span>
-                      <span style={{ color: C.gray, fontVariantNumeric: "tabular-nums" }}>
-                        {r.games > 0 ? `${r.games}경기 ${r.wins}-${r.draws}-${r.losses}` : "경기수 기록 없음"}
-                        {r.pointsPerGame != null && ` · ${r.pointsPerGame.toFixed(1)}P`}
-                      </span>
-                    </div>
-                    <OppBarLine label="골" value={r.goals} max={maxVal} color={OPP_GOAL_COLOR} C={C} />
-                    <OppBarLine label="어시" value={r.assists} max={maxVal} color={OPP_ASSIST_COLOR} C={C} />
-                  </div>
-                ));
-              })()}
+              <OpponentBreakdownList rows={oppRows} defenseRows={myOppDefense} C={C} />
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-                P/경기 = (골+어시)÷경기수. 골·어시·경기수 모두 로그 전 기간 기준입니다.
-                <br />앱 전환 이전 출전 기록 결핍은 상단 안내를 참고하세요.
+                순위 = 그 상대팀과 붙어본 선수 중 공격포인트(골+어시) 총합 기준.
+                수비 순위는 경기당 실점이 적은 순이며, 수비수로 기록된 경기만 집계됩니다.
+                <br />골·어시·경기수는 로그 전 기간 기준. 앱 전환 이전 출전 기록 결핍은 상단 안내를 참고하세요.
               </div>
             </div>
           )}
