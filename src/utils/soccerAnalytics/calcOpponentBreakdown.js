@@ -8,6 +8,7 @@
 // 크게 부풀려지기 때문(김형욱 터틀파크: 15골 / 앱구간 11경기 = 1.36 vs 15/16 = 0.94).
 // 남는 한계(분모 과소집계)는 화면 상단 배너로 밝힌다.
 import { parseActualPlayers } from './parseMembers';
+import { rankMap } from './rankUtils';
 
 export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
   const oppByKey = {};
@@ -53,6 +54,20 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
     }
   }
 
+  // 상대팀별 공격포인트(골+어시) 순위 — 그 상대팀 기록이 있는 전원이 모집단.
+  // 경기당이 아니라 총합 기준이라 1~2경기만 뛴 선수가 상위를 차지하지 않는다(임계 불필요).
+  const rowsByOpp = {};
+  for (const name of Object.keys(cells)) {
+    for (const [opp, c] of Object.entries(cells[name])) {
+      if (!rowsByOpp[opp]) rowsByOpp[opp] = [];
+      rowsByOpp[opp].push({ name, attackPoints: c.goals + c.assists });
+    }
+  }
+  const attackRankByOpp = {};
+  for (const [opp, rows] of Object.entries(rowsByOpp)) {
+    attackRankByOpp[opp] = rankMap(rows, r => r.attackPoints);
+  }
+
   const byPlayer = {};
   for (const name of Object.keys(cells)) {
     byPlayer[name] = Object.entries(cells[name])
@@ -61,6 +76,9 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
         ...c,
         // 경기수가 없으면 null — 0으로 찍으면 '포인트 0'과 '기록 없음'이 구분되지 않는다
         pointsPerGame: c.games > 0 ? (c.goals + c.assists) / c.games : null,
+        attackPoints: c.goals + c.assists,
+        attackRank: attackRankByOpp[opponent].get(name),
+        attackPool: rowsByOpp[opponent].length,
       }))
       .sort((a, b) => b.games - a.games || b.goals - a.goals || a.opponent.localeCompare(b.opponent, 'ko'));
   }

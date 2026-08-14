@@ -89,6 +89,41 @@ describe('calcOpponentBreakdown', () => {
     expect(a.pointsPerGame).toBeCloseTo(1.5); // 3P / 2경기
   });
 
+  it('공격포인트(골+어시) 총합 기준 상대팀별 순위와 모집단을 낸다', () => {
+    const matchLogs = [
+      { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_1', our_members_json: '["A","B","C"]', our_score: 3, opponent_score: 0 },
+    ];
+    const eventLogs = [
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' },
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: '' },
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'B', related_player: '' },
+    ];
+    const r = calcOpponentBreakdown({ eventLogs, matchLogs });
+    const at = (n) => r.byPlayer[n].find(x => x.opponent === '한울');
+    expect(at('A').attackPoints).toBe(2); // 2골
+    expect(at('B').attackPoints).toBe(2); // 1골 1어시
+    expect(at('C').attackPoints).toBe(0);
+    expect(at('A').attackRank).toBe(1);   // 동점 공동 1위
+    expect(at('B').attackRank).toBe(1);
+    expect(at('C').attackRank).toBe(3);   // 2가 아니라 3
+    expect(at('A').attackPool).toBe(3);
+  });
+
+  it('순위는 상대팀별로 독립적으로 매겨진다', () => {
+    const matchLogs = [
+      { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_1', our_members_json: '["A","B"]', our_score: 1, opponent_score: 0 },
+      { date: '2026-06-17', match_id: 1, opponent_team_name: '아이콘', game_id: 's_2', our_members_json: '["A","B"]', our_score: 1, opponent_score: 0 },
+    ];
+    const eventLogs = [
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: '' },
+      { date: '2026-06-17', match_id: 1, event_type: 'goal', player: 'B', related_player: '' },
+    ];
+    const r = calcOpponentBreakdown({ eventLogs, matchLogs });
+    expect(r.byPlayer['A'].find(x => x.opponent === '한울').attackRank).toBe(1);
+    expect(r.byPlayer['A'].find(x => x.opponent === '아이콘').attackRank).toBe(2);
+    expect(r.byPlayer['B'].find(x => x.opponent === '아이콘').attackRank).toBe(1);
+  });
+
   it('byPlayer 정렬: games desc → goals desc → 가나다', () => {
     const matchLogs = [
       { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_1', our_members_json: '["A"]', our_score: 1, opponent_score: 0 },

@@ -105,7 +105,8 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
       members: [{ name: 'A' }, { name: 'B' }], C, authUserName: 'A', isSoccer: true,
     });
     expect(html).toContain('상대팀별 성적');
-    expect(html).toContain('1.5P');
+    expect(html).toContain('3P');      // 공격포인트 총합 (2골 1어시)
+    expect(html).toContain('위/');     // 상대팀별 순위
     expect(html).not.toContain('NaN');
   });
 
@@ -144,8 +145,9 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
       playerGameLogs: [], matchLogs: defMatches.map(m => ({ ...m, our_defenders_json: '[]' })), eventLogs: [],
       members: [{ name: 'A' }], C, authUserName: 'A', isSoccer: true,
     });
-    expect(html).toContain('수비 기록');    // D는 수비 기록 있음 → 노출
-    expect(html2).not.toContain('수비 기록'); // 아무도 수비 기록 없음 → 숨김
+    // '수비 기록'은 상대팀별 목록의 '수비 기록 없음'과 겹치므로 이 섹션 고유 문구로 확인
+    expect(html).toContain('수비 출전');     // D는 수비 기록 있음 → 노출
+    expect(html2).not.toContain('수비 출전'); // 아무도 수비 기록 없음 → 숨김
   });
 
   it('AwardsTab: 해트트릭/일일MVP/종합포인트/전체 옵션 렌더, 불꽃·클러치 없음', () => {

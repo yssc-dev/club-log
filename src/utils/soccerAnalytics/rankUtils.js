@@ -14,6 +14,24 @@ export function buildRankedTop(rows, { limit = 5 } = {}) {
   return ranked.filter(r => r.rank <= limit);
 }
 
+// 이름 → 순위 맵. buildRankedTop과 같은 공동 순위 규약(1,1,3)이지만 잘라내지 않고,
+// 낮을수록 좋은 축(실점률 등)도 받는다. 개인 화면에서 "내가 몇 위인지" 조회용.
+export function rankMap(rows, valueOf, { lowerIsBetter = false } = {}) {
+  const nameOf = (r) => r.player ?? r.name ?? '';
+  const arr = [...(rows || [])].sort((a, b) => {
+    const d = lowerIsBetter ? valueOf(a) - valueOf(b) : valueOf(b) - valueOf(a);
+    return d || nameOf(a).localeCompare(nameOf(b), 'ko');
+  });
+  const map = new Map();
+  let rank = 0, prev = null;
+  arr.forEach((row, i) => {
+    const v = valueOf(row);
+    if (v !== prev) { rank = i + 1; prev = v; }
+    map.set(nameOf(row), rank);
+  });
+  return map;
+}
+
 // gameStateAnalyzer(orphan)에서 인라인 — soccerAnalytics는 orphan 모듈에 의존하지 않는다
 export function percentile(values, value, lowerIsBetter = false) {
   if (values.length === 0) return 50;
