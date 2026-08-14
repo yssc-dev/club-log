@@ -1,12 +1,22 @@
-import { useState, useEffect, useMemo } from 'react';
+import { useState, useEffect, useMemo, useRef } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import { calcMatchScore } from '../../utils/scoring';
+import { teamAbsentList } from '../../utils/absentees';
 import { XIcon, PlusIcon, GloveIcon } from '../common/icons';
 import EventLog from './EventLog';
 
 function MercPicker({ side, candidates, opposingPlayers, teamName, onAdd, onClose }) {
+  // 용병 목록은 팀 카드 그리드 아래에 붙어서 모바일에선 화면 밖에 열린다.
+  // 열릴 때(그리고 좌/우 팀을 바꿔 열 때) 목록으로 스크롤해 바로 보이게 함.
+  const boxRef = useRef(null);
+  useEffect(() => {
+    const el = boxRef.current;
+    if (el && typeof el.scrollIntoView === 'function') {
+      el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    }
+  }, [side]);
   return (
-    <div style={{
+    <div ref={boxRef} style={{
       background: "var(--app-bg-row)", borderRadius: 12, padding: 14, marginTop: 10,
       border: "0.5px solid var(--app-divider)",
     }}>
@@ -106,12 +116,14 @@ export default function CourtRecorder({ matchInfo, homePlayers: initHomePlayers,
 
   const homeMercs = mercs.filter(m => m.side === "home").map(m => m.player);
   const awayMercs = mercs.filter(m => m.side === "away").map(m => m.player);
-  // 매치별 휴식 (teamIdx 기준)
-  const homeAbsent = (absentees && absentees[matchId] && absentees[matchId][homeIdx]) || [];
-  const awayAbsent = (absentees && absentees[matchId] && absentees[matchId][awayIdx]) || [];
   // initHomePlayers가 이미 mercs를 포함할 수 있어(confirmed 스냅샷) 중복 방지를 위해 mercs는 한 번만 append
   const homePlayers = [...initHomePlayers.filter(p => !awayMercs.includes(p) && !homeMercs.includes(p)), ...homeMercs].sort((a, b) => a.localeCompare(b, 'ko'));
   const awayPlayers = [...initAwayPlayers.filter(p => !homeMercs.includes(p) && !awayMercs.includes(p)), ...awayMercs].sort((a, b) => a.localeCompare(b, 'ko'));
+  // 매치별 휴식 (teamIdx 기준). 지금 그 팀 명단에 있는 사람만 인정 —
+  // 용병이 팀을 옮기면 이전 팀에 이름이 남는데, 그걸 그대로 믿으면
+  // 🪑 표시는 안 되면서 입력만 막히는 유령 휴식이 된다.
+  const homeAbsent = teamAbsentList(absentees, matchId, homeIdx, homePlayers);
+  const awayAbsent = teamAbsentList(absentees, matchId, awayIdx, awayPlayers);
   const getMercCandidates = (side) => {
     const myPlayers = side === "home" ? homePlayers : awayPlayers;
     return (attendees || []).filter(p => !myPlayers.includes(p));
@@ -158,11 +170,13 @@ export default function CourtRecorder({ matchInfo, homePlayers: initHomePlayers,
   };
 
   const isPlayerHome = (player) => homePlayers.includes(player);
-  const isPlayerAbsent = (player) => homeAbsent.includes(player) || awayAbsent.includes(player);
+  // 휴식 판정은 그 선수가 서 있는 팀 기준. 양 팀 명단을 합집합으로 보면
+  // 반대 팀에 남은 이름 때문에 🪑 표시 없이 입력만 막히는 상태가 된다.
+  const isPlayerAbsent = (player, isHome) => (isHome ? homeAbsent : awayAbsent).includes(player);
 
   const toggleGk = (player, isHome) => {
     if (readOnly) { readOnlyAlert(); return; }
-    if (isPlayerAbsent(player)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
+    if (isPlayerAbsent(player, isHome)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
     const currentGk = isHome ? homeGk : awayGk;
     const newGk = currentGk === player ? null : player;
     if (isHome) { setHomeGk(newGk); } else { setAwayGk(newGk); }
@@ -204,7 +218,7 @@ export default function CourtRecorder({ matchInfo, homePlayers: initHomePlayers,
   // ── 역할 조작 ──
   const applyGoalRole = (player, isHome) => {
     if (readOnly) { readOnlyAlert(); return; }
-    if (isPlayerAbsent(player)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
+    if (isPlayerAbsent(player, isHome)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
     if (myCompose?.scorer === player) { setComposeState(null); return; }
     if (!checkGk()) return;
     setComposeState({ pitchId: matchId, scorer: player, scorerIsHome: isHome, assist: null });
@@ -223,23 +237,23 @@ export default function CourtRecorder({ matchInfo, homePlayers: initHomePlayers,
   // 어시 먼저 — 어시 지정 후 같은 팀의 다른 선수를 탭하면 그 선수가 득점자가 되어 저장
   const applyAssistFirstRole = (player, isHome) => {
     if (readOnly) { readOnlyAlert(); return; }
-    if (isPlayerAbsent(player)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
+    if (isPlayerAbsent(player, isHome)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
     // 이미 본인이 assist로 잡혀있으면 해제 토글
     if (myCompose?.assist === player && !myCompose.scorer) { setComposeState(null); return; }
     if (!checkGk()) return;
     setComposeState({ pitchId: matchId, scorer: null, assist: player, scorerIsHome: isHome });
   };
 
-  const applyOwnGoalRole = (player) => {
+  const applyOwnGoalRole = (player, isHome) => {
     if (readOnly) { readOnlyAlert(); return; }
-    if (isPlayerAbsent(player)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
+    if (isPlayerAbsent(player, isHome)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
     if (!checkGk()) return;
     recordOwnGoalEvent(player);
   };
 
-  const applyFoulRole = (player) => {
+  const applyFoulRole = (player, isHome) => {
     if (readOnly) { readOnlyAlert(); return; }
-    if (isPlayerAbsent(player)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
+    if (isPlayerAbsent(player, isHome)) { alert("휴식 중인 선수입니다. 먼저 휴식을 해제해 주세요."); return; }
     // 반칙은 GK 실점 귀속이 없으므로 키퍼 미지정이어도 기록 가능
     recordFoulEvent(player);
   };
@@ -458,11 +472,11 @@ export default function CourtRecorder({ matchInfo, homePlayers: initHomePlayers,
               {/* Row 2: 자책 / 반칙 / 휴식 */}
               <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)" }}>
                 <button
-                  onClick={(e) => { e.stopPropagation(); applyOwnGoalRole(player); setOpenPopover(null); }}
+                  onClick={(e) => { e.stopPropagation(); applyOwnGoalRole(player, isHome); setOpenPopover(null); }}
                   style={popoverBtn()}
                 >🔴 자책</button>
                 <button
-                  onClick={(e) => { e.stopPropagation(); applyFoulRole(player); setOpenPopover(null); }}
+                  onClick={(e) => { e.stopPropagation(); applyFoulRole(player, isHome); setOpenPopover(null); }}
                   style={popoverBtn()}
                 >🟨 반칙</button>
                 <button
