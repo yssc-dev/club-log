@@ -7,7 +7,8 @@ import { calcMatchPoints, DEFAULT_POINT_RULES } from './rankPoints';
 
 const isSingles = (r) => r.format === '단식' && r.league === COMPETITION_SINGLES;
 
-export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate' }) {
+// legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — W/L(승률)에만 가산, 포인트 불가.
+export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate', legacySingles = [] }) {
   const list = (roster || []).filter(m => m && m.name);
   const acc = new Map(list.map(m => [m.name, {
     name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0, points: 0,
@@ -21,6 +22,16 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     cur.games++;
     if (r.result === '승') cur.wins++;
     else if (r.result === '패') cur.losses++;
+    cur.rate = cur.games > 0 ? cur.wins / cur.games : 0;
+  }
+
+  // 집계 전적(예: 2026 1~7월) 가산 — 전적/승률에만 반영. 포인트는 로우 기반이라 아래 루프에서 로우만 쌓는다.
+  for (const L of legacySingles || []) {
+    const cur = acc.get(L?.player);
+    if (!cur) continue;
+    cur.wins += Number(L.wins) || 0;
+    cur.losses += Number(L.losses) || 0;
+    cur.games = cur.wins + cur.losses;
     cur.rate = cur.games > 0 ? cur.wins / cur.games : 0;
   }
 
@@ -78,7 +89,9 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     .sort(cmp);
 }
 
-export function buildPlayerSummary({ rows, player }) {
+// legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — 단식 전적/승률에만 가산.
+// (에이스/DF/타이브레이크/베이글/출석 등 경기별 지표는 로우만.)
+export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
   const mine = (rows || []).filter(r => r.player === player);
   const blank = () => ({ games: 0, wins: 0, losses: 0, rate: 0 });
   const out = {
@@ -101,6 +114,14 @@ export function buildPlayerSummary({ rows, player }) {
     bucket.games++;
     if (r.result === '승') bucket.wins++;
     else if (r.result === '패') bucket.losses++;
+  }
+
+  // 집계 단식 전적 가산(예: 2026 1~7월) — 단식 버킷의 W/L·게임수에만.
+  for (const L of legacySingles || []) {
+    if (String(L?.player) !== String(player)) continue;
+    out.singles.wins += Number(L.wins) || 0;
+    out.singles.losses += Number(L.losses) || 0;
+    out.singles.games += (Number(L.wins) || 0) + (Number(L.losses) || 0);
   }
 
   for (const b of [out.singles, out.doubles]) b.rate = b.games > 0 ? b.wins / b.games : 0;

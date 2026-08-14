@@ -31,6 +31,14 @@ export function filterRowsByPeriod(rows, { year, month }) {
   });
 }
 
+// 특정 연도의 단식 집계(상세 로우 없는 legacy) → buildSinglesStandings의 legacySingles 형태.
+// 로우가 있는 연도(2026)에도 1~7월 집계 같은 부분전적을 W/L로 합산하는 데 쓴다.
+export function legacySinglesForYear(legacyRows, year) {
+  return (legacyRows || [])
+    .filter(r => r && String(r.season) === String(year) && r.format === '단식')
+    .map(r => ({ player: r.player, wins: Number(r.wins) || 0, losses: Number(r.losses) || 0 }));
+}
+
 // 레거시 연도 클럽 순위(집계). legacy 필드: player·season·format·wins·losses(확인됨).
 export function buildLegacyStandings({ legacyRows, year, format }) {
   const acc = new Map();

@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildDoublesStandings, buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
+  buildLeagueCounts,
 } from '../tennisAnalytics';
 
 const roster = [{ name: '갑', grade: '금배' }, { name: '을', grade: '은배' }, { name: '병', grade: '동배' }];
@@ -24,15 +25,35 @@ function doublesMatch({ date = '2026-01-10', a = ['갑', '을'], b = ['병', '�
 }
 
 describe('buildDoublesStandings', () => {
-  it('투몽 행만 집계하고 게스트·미반영은 제외, 명부 전원 표시', () => {
+  const roster4 = [...roster, { name: '정', grade: '동배' }];
+  it('전원 회원 복식만 집계 — 게스트 낀 판·미반영은 번외로 통째 제외', () => {
     const rows = [
-      ...doublesMatch({ winner: 'A' }),
-      ...doublesMatch({ league: '미반영', winner: 'B' }), // 순위표에서 무시
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),           // 전원 회원 → 집계
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '민환'], guests: ['민환'], winner: 'A' }),    // 게스트 낀 판(league='투몽'이어도) → 번외 제외
+      ...doublesMatch({ league: '미반영', guests: [], a: ['갑', '을'], b: ['병', '정'], winner: 'B' }),
     ];
-    const out = buildDoublesStandings({ rows, roster });
+    const out = buildDoublesStandings({ rows, roster: roster4 });
+    // 전원회원 1판만 집계: 갑 1승, 병 1패 (게스트 판의 회원 행도 제외됨)
     expect(out.find(x => x.name === '갑')).toMatchObject({ games: 1, wins: 1, rate: 1 });
     expect(out.find(x => x.name === '병')).toMatchObject({ games: 1, losses: 1 });
-    expect(out.some(x => x.name === '정')).toBe(false);
+    expect(out.some(x => x.name === '민환')).toBe(false);
+  });
+});
+
+describe('buildLeagueCounts', () => {
+  it('판 분류 수 — 전체 = 투몽 + 길로틴 + 번외', () => {
+    const rows = [
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),        // 투몽
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '민환'], guests: ['민환'], winner: 'A' }), // 번외(게스트)
+      // 단식 2판: 전원회원(길로틴) + 게스트(번외)
+      { date: '2026-08-01', game_id: 'g_s1', match_id: 'R9_C1', format: '단식', league: '길로틴', player: '갑', side: 'A', is_guest: false, result: '승' },
+      { date: '2026-08-01', game_id: 'g_s1', match_id: 'R9_C1', format: '단식', league: '길로틴', player: '을', side: 'B', is_guest: false, result: '패' },
+      { date: '2026-08-01', game_id: 'g_s2', match_id: 'R9_C2', format: '단식', league: '미반영', player: '갑', side: 'A', is_guest: false, result: '승' },
+      { date: '2026-08-01', game_id: 'g_s2', match_id: 'R9_C2', format: '단식', league: '미반영', player: '민환', side: 'B', is_guest: true, result: '패' },
+    ];
+    const c = buildLeagueCounts({ rows });
+    expect(c).toEqual({ tumong: 1, guillotine: 1, exhibition: 2, total: 4 });
+    expect(c.tumong + c.guillotine + c.exhibition).toBe(c.total);
   });
 });
 

@@ -1,9 +1,9 @@
 // 리그 탭 — 투몽리그(복식)·길로틴리그(단식 포인트), 연도 단위. 정적·비인터랙티브.
 import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
-import { buildDoublesStandings } from '../../utils/tennis/tennisAnalytics';
+import { buildDoublesStandings, buildLeagueCounts } from '../../utils/tennis/tennisAnalytics';
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
-import { availableYears, isRowYear, filterRowsByPeriod, buildLegacyStandings } from '../../utils/tennis/tennisDateFilter';
+import { availableYears, isRowYear, filterRowsByPeriod, buildLegacyStandings, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
 import { DoublesStandingsSection, SinglesStandingsSection, LegacyStandingsSection } from './tennisStandingsSections';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
@@ -30,8 +30,10 @@ export default function TennisLeague({ C: propC }) {
   const isRow = isRowYear({ rows, year: effYear });
 
   const yearRows = useMemo(() => filterRowsByPeriod(rows, { year: effYear, month: '' }), [rows, effYear]);
+  const singlesAgg = useMemo(() => legacySinglesForYear(legacyRows, effYear), [legacyRows, effYear]);
+  const counts = useMemo(() => buildLeagueCounts({ rows: yearRows }), [yearRows]);
   const doubles = useMemo(() => buildDoublesStandings({ rows: yearRows, roster }), [yearRows, roster]);
-  const singles = useMemo(() => buildSinglesStandings({ rows: yearRows, roster, asOfDate: today, sortBy: 'points' }), [yearRows, roster, today]);
+  const singles = useMemo(() => buildSinglesStandings({ rows: yearRows, roster, asOfDate: today, sortBy: 'points', legacySingles: singlesAgg }), [yearRows, roster, today, singlesAgg]);
   const legacyDoubles = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format: '복식' }), [legacyRows, effYear]);
   const legacySingles = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format: '단식' }), [legacyRows, effYear]);
 
@@ -59,7 +61,15 @@ export default function TennisLeague({ C: propC }) {
       </div>
       {isRow ? (
         <>
+          <div style={{ fontSize: 12, color: C.gray, marginBottom: 10 }}>
+            경기 기록 · {periodLabel} — 투몽 {counts.tumong} · 길로틴 {counts.guillotine} · 번외 {counts.exhibition} · 전체 {counts.total}
+          </div>
           <SinglesStandingsSection standings={singles} periodLabel={periodLabel} ds={ds} />
+          {singlesAgg.length > 0 && (
+            <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 14px', paddingLeft: 2 }}>
+              ※ {effYear}년 1~7월 집계 포함 · 포인트는 8월~ 경기만 반영
+            </div>
+          )}
           <DoublesStandingsSection standings={doubles} periodLabel={periodLabel} ds={ds} />
         </>
       ) : (

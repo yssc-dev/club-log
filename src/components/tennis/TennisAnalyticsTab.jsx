@@ -8,7 +8,7 @@ import {
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
 } from '../../utils/tennis/tennisAnalytics';
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
-import { availableYears, availableMonths, filterRowsByPeriod } from '../../utils/tennis/tennisDateFilter';
+import { availableYears, availableMonths, filterRowsByPeriod, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
@@ -441,9 +441,14 @@ export default function TennisAnalyticsTab({ C: propC }) {
     () => player ? buildYearlyRecords({ legacyRows, rows, player, format }) : [],
     [legacyRows, rows, player, format]);
 
+  // 상세 로우 없는 단식 집계(예: 2026 1~7월)를 전적에 가산 — 특정 월 선택 시엔 월 귀속 불가라 제외.
+  const singlesAgg = useMemo(
+    () => (!month ? legacySinglesForYear(legacyRows, effYear) : []),
+    [legacyRows, effYear, month]);
+
   const summary = useMemo(
-    () => player ? buildPlayerSummary({ rows: fRows, player }) : null,
-    [fRows, player]);
+    () => player ? buildPlayerSummary({ rows: fRows, player, legacySingles: singlesAgg }) : null,
+    [fRows, player, singlesAgg]);
 
   const sectionKeys = useMemo(
     () => analyticsSectionKeys({ player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),

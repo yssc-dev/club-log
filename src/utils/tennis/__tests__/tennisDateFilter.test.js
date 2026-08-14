@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings } from '../tennisDateFilter';
+import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings, legacySinglesForYear } from '../tennisDateFilter';
 
 const rows = [
   { date: '2026-01-05', player: 'A', format: '복식', result: '승' },
@@ -49,4 +49,20 @@ describe('buildLegacyStandings', () => {
     expect(buildLegacyStandings({ legacyRows: legacy, year: '2025', format: '단식' })).toEqual([]);
   });
   it('빈 legacy 안전', () => { expect(buildLegacyStandings({ legacyRows: [], year: '2025', format: '복식' })).toEqual([]); });
+});
+
+describe('legacySinglesForYear', () => {
+  const legacyRows = [
+    { season: '2026', format: '단식', player: '박성언', wins: 71, losses: 4 },
+    { season: '2026', format: '복식', player: '박성언', wins: 3, losses: 1 },  // 복식은 제외
+    { season: '2025', format: '단식', player: '박성언', wins: 2, losses: 2 },  // 다른 연도 제외
+  ];
+  it('해당 연도 단식만 {player,wins,losses}로', () => {
+    expect(legacySinglesForYear(legacyRows, '2026')).toEqual([{ player: '박성언', wins: 71, losses: 4 }]);
+  });
+  it('연도는 숫자/문자 무관, 빈 입력 안전', () => {
+    expect(legacySinglesForYear(legacyRows, 2026)).toHaveLength(1);
+    expect(legacySinglesForYear([], '2026')).toEqual([]);
+    expect(legacySinglesForYear(undefined, '2026')).toEqual([]);
+  });
 });

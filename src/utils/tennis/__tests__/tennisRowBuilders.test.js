@@ -30,8 +30,9 @@ describe('determineCompetition', () => {
     expect(determineCompetition('단식', ['성언'], ['민환'], members)).toBe('미반영');
   });
 
-  it('복식은 4명 중 회원 3명 이상이면 투몽', () => {
-    expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '민환'], members)).toBe('투몽');
+  it('복식은 4명 전원 회원이어야 투몽 — 게스트 1명이면 번외(미반영)', () => {
+    expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '철우'], members)).toBe('투몽');
+    expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '민환'], members)).toBe('미반영'); // 게스트 1명
     expect(determineCompetition('복식', ['성언', '다빈'], ['용병1', '용병2'], members)).toBe('미반영');
   });
 });
@@ -53,7 +54,7 @@ describe('buildTennisMatchRows', () => {
       game_id: 'g_1', round_idx: 1, court_id: 1, match_idx: 1, match_id: 'R1_C1',
       format: '복식', best_of: 1,
       sets_a: 1, sets_b: 0, games_a: 6, games_b: 1, winner: 'A',
-      league: '투몽',
+      league: '미반영',   // 민환(게스트) 포함 → 번외
     });
   });
 
@@ -96,7 +97,7 @@ describe('buildTennisPlayerGameRows', () => {
       tb_played: 0, tb_won: 0,
       aces: 2, double_faults: 1,
       bagels_taken: 0, bagels_given: 0,
-      grade_at_date: '은배', is_guest: false, league: '투몽',
+      grade_at_date: '은배', is_guest: false, league: '미반영',   // 민환(게스트) 포함 → 번외
     });
     expect(JSON.parse(r.opponents_json)).toEqual(['원희', '민환']);
   });

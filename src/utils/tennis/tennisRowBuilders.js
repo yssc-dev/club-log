@@ -6,6 +6,8 @@
 import { TENNIS_SPORT, COMPETITION_SINGLES, COMPETITION_DOUBLES, COMPETITION_NONE } from './tennisSchema';
 import { summarizeCourt } from './tennisScoring';
 
+// 리그 성립 = 참가자 전원이 회원일 때만. 게스트가 1명이라도 끼면 번외(미반영).
+// 그래야 전체경기 = 투몽 + 길로틴 + 번외 로 합계가 맞아떨어진다.
 export function determineCompetition(format, sideA, sideB, memberSet) {
   const all = [...(sideA || []), ...(sideB || [])];
   const memberCount = all.filter(n => memberSet && memberSet.has(n)).length;
@@ -13,7 +15,7 @@ export function determineCompetition(format, sideA, sideB, memberSet) {
     return memberCount === all.length && all.length === 2 ? COMPETITION_SINGLES : COMPETITION_NONE;
   }
   if (format === '복식') {
-    return all.length === 4 && memberCount >= 3 ? COMPETITION_DOUBLES : COMPETITION_NONE;
+    return all.length === 4 && memberCount === 4 ? COMPETITION_DOUBLES : COMPETITION_NONE;
   }
   return COMPETITION_NONE;
 }

@@ -43,16 +43,16 @@ describe('buildLegacyDoublesRows', () => {
   const { map } = deriveNameMap(roster);
   const base = { team: '몽피스', nameMap: map, inputTime: '2026-08-10 12:00:00' };
 
-  it('6-5는 TB sentinel, 6-0은 베이글, 회원3인+게스트1인은 투몽', () => {
+  it('6-5는 TB sentinel, 6-0은 베이글, 회원3인+게스트1인은 미반영(번외)·전원회원은 투몽', () => {
     const matches = [
-      { date: '2026-02-02', a1: '성언', a2: '현철', b1: '원희', b2: '두리', scoreA: 6, scoreB: 5 },
-      { date: '2026-02-02', a1: '성언', a2: '현철', b1: '원희', b2: '윤택', scoreA: 6, scoreB: 0 },
+      { date: '2026-02-02', a1: '성언', a2: '현철', b1: '원희', b2: '두리', scoreA: 6, scoreB: 5 }, // 두리=게스트 → 번외
+      { date: '2026-02-02', a1: '성언', a2: '현철', b1: '원희', b2: '윤택', scoreA: 6, scoreB: 0 }, // 전원 회원 → 투몽
     ];
     const { matchRows, playerGameRows, report } = buildLegacyDoublesRows({ ...base, matches });
 
     expect(matchRows[0]).toMatchObject({
       game_id: 'legacy_2026-02-02', round_idx: 1, court_id: 1, match_idx: 1,
-      match_id: 'R1_C1', format: '복식', best_of: 1, season: 2026, winner: 'A', league: '투몽',
+      match_id: 'R1_C1', format: '복식', best_of: 1, season: 2026, winner: 'A', league: '미반영',
     });
     expect(matchRows[1].match_id).toBe('R2_C1'); // 판별 유일
     expect(JSON.parse(matchRows[0].sets_json)).toEqual([{ a: 6, b: 5, tbA: 1, tbB: 0 }]);
@@ -71,7 +71,7 @@ describe('buildLegacyDoublesRows', () => {
 
     const bagel = playerGameRows.find(r => r.match_id === 'R2_C1' && r.player === '김원희');
     expect(bagel.bagels_taken).toBe(1);
-    expect(report.leagueDist).toEqual({ 투몽: 2 });
+    expect(report.leagueDist).toEqual({ 미반영: 1, 투몽: 1 });
     expect(report.guests).toEqual({ 두리: 1 });
   });
 

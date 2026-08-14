@@ -123,6 +123,23 @@ describe('buildSinglesStandings', () => {
     expect(get('x').points).toBe(1);
     expect(get('y').points).toBe(1);
   });
+
+  it("legacySingles(집계 전적)는 전적·승률에 가산되고 포인트는 불변", () => {
+    // rows 없음 + legacy로 a 10승 2패 → games 12, rate 10/12, points 0(로우 없음)
+    const s = buildSinglesStandings({
+      rows: [], roster, asOfDate: '2026-12-31',
+      legacySingles: [{ player: 'a', wins: 10, losses: 2 }],
+    });
+    const a = s.find(x => x.name === 'a');
+    expect(a).toMatchObject({ wins: 10, losses: 2, games: 12, points: 0 });
+    expect(a.rate).toBeCloseTo(10 / 12);
+    // 로스터 밖 이름은 무시(추가 안 됨)
+    const s2 = buildSinglesStandings({
+      rows: [], roster, asOfDate: '2026-12-31',
+      legacySingles: [{ player: '용병X', wins: 5, losses: 0 }],
+    });
+    expect(s2.some(x => x.name === '용병X')).toBe(false);
+  });
 });
 
 describe('buildPlayerSummary', () => {
@@ -151,5 +168,15 @@ describe('buildPlayerSummary', () => {
     const s = buildPlayerSummary({ rows, player: '없는사람' });
     expect(s.singles.games).toBe(0);
     expect(s.attendanceDates).toBe(0);
+  });
+
+  it('legacySingles는 단식 전적에만 가산 — 다른 지표(에이스·출석 등)는 로우만', () => {
+    // 로우: a 단식 1승1패(games 2) + 복식 1패. legacy로 단식 5승3패 가산 → 6승4패(games 10).
+    const s = buildPlayerSummary({ rows, player: 'a', legacySingles: [{ player: 'a', wins: 5, losses: 3 }] });
+    expect(s.singles).toMatchObject({ wins: 6, losses: 4, games: 10 });
+    expect(s.singles.rate).toBeCloseTo(6 / 10);
+    expect(s.doubles).toMatchObject({ games: 1, wins: 0, losses: 1 }); // 복식 불변
+    expect(s.aces).toBe(3);          // legacy는 에이스 미반영
+    expect(s.attendanceDates).toBe(2); // 출석도 로우만
   });
 });

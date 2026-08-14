@@ -5,13 +5,26 @@ import { COMPETITION_DOUBLES } from './tennisSchema';
 const isDoubles = (r) => r.format === '복식';
 const memberNames = (roster) => new Set((roster || []).map(m => m.name));
 const rate = (w, g) => (g > 0 ? w / g : 0);
+const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 
-// 복식 순위표: 투몽 행만, 게스트 제외, 명부 전원 포함(0판도 표시)
+// 게스트가 하나라도 낀 판(game_id|match_id) 키 집합 — 번외 판정용.
+// 리그 성립은 참가자 전원 회원일 때만이므로, 게스트 판은 회원 행까지 통째로 리그에서 뺀다.
+export function guestMatchKeys(rows) {
+  const keys = new Set();
+  for (const r of rows || []) {
+    if (r && r.is_guest === true) keys.add(matchKey(r));
+  }
+  return keys;
+}
+
+// 복식 순위표: 투몽 행만, 번외(게스트 낀 판) 통째 제외, 명부 전원 포함(0판도 표시)
 export function buildDoublesStandings({ rows, roster }) {
   const acc = new Map((roster || []).filter(m => m?.name).map(m =>
     [m.name, { name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0 }]));
+  const guests = guestMatchKeys(rows);
   for (const r of rows || []) {
     if (!isDoubles(r) || r.league !== COMPETITION_DOUBLES || r.is_guest === true) continue;
+    if (guests.has(matchKey(r))) continue; // 게스트 낀 판 전체 제외(번외)
     const cur = acc.get(r.player);
     if (!cur) continue; // 로스터 밖(용병·탈퇴) 제외
     cur.games++;
@@ -20,6 +33,28 @@ export function buildDoublesStandings({ rows, roster }) {
   }
   return [...acc.values()].sort((a, b) =>
     b.rate - a.rate || b.wins - a.wins || String(a.name).localeCompare(String(b.name), 'ko'));
+}
+
+// 판(game_id|match_id) 단위 분류 수. 전체 = 투몽 + 길로틴 + 번외.
+// 게스트 낀 판=번외, 아니면 형식으로 투몽(복식)/길로틴(단식). (집계 데이터 없이 로우 기준)
+export function buildLeagueCounts({ rows }) {
+  const byMatch = new Map(); // key → { format, hasGuest }
+  for (const r of rows || []) {
+    if (!r || !r.match_id) continue;
+    const key = matchKey(r);
+    const cur = byMatch.get(key) || { format: r.format, hasGuest: false };
+    if (r.is_guest === true) cur.hasGuest = true;
+    if (r.format) cur.format = r.format;
+    byMatch.set(key, cur);
+  }
+  let tumong = 0, guillotine = 0, exhibition = 0;
+  for (const m of byMatch.values()) {
+    if (m.hasGuest) exhibition++;
+    else if (m.format === '복식') tumong++;
+    else if (m.format === '단식') guillotine++;
+    else exhibition++; // 형식 불명(전원 회원이지만 비표준)도 번외로
+  }
+  return { tumong, guillotine, exhibition, total: byMatch.size };
 }
 
 // 페어 케미: 복식 전 행(미반영 포함), game_id|match_id|side 그룹핑으로 판 중복 제거
