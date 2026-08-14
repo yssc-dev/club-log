@@ -16,8 +16,10 @@ describe('DEFENSE_METRICS', () => {
 
   describe('실점률', () => {
     const M = DEFENSE_METRICS.conceded;
-    it('주값은 경기당 실점 생값', () => {
-      expect(M.formatValue(row)).toBe('0.75실점');
+    // '1.00실점'처럼 정수로 떨어지면 총 실점으로 오해된다 — 단위를 값에 붙여 둔다
+    it('주값은 경기당 실점 생값 — 평균이라는 걸 값 자체가 말한다', () => {
+      expect(M.formatValue(row)).toBe('경기당 0.75실점');
+      expect(M.formatValue({ ...row, concededPerGame: 1 })).toBe('경기당 1.00실점');
     });
     it('조합 목록 제목은 생값 정렬을 그대로 말한다', () => {
       expect(M.bestLabel).toBe('실점 적은순');

@@ -15,7 +15,8 @@ export const DEFENSE_METRICS = {
   conceded: {
     key: 'conceded',
     label: '실점률',
-    formatValue: (r) => `${r.concededPerGame.toFixed(2)}실점`,
+    // '경기당'을 값에 붙인다 — 1.00처럼 정수로 떨어지면 총 실점으로 읽힌다
+    formatValue: (r) => `경기당 ${r.concededPerGame.toFixed(2)}실점`,
     bestLabel: '실점 적은순',
     deltaOf: (r) => r.delta,
     formatDelta: (d) => (d == null ? '–' : signed(d.toFixed(2), d)),
