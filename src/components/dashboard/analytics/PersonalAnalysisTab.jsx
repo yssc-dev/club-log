@@ -6,6 +6,7 @@ import RoundDistribution from './RoundDistribution';
 import SoloGoalDonut from './SoloGoalDonut';
 import PersonalSynergyCard from './PersonalSynergyCard';
 import PersonalSynergyChart from './PersonalSynergyChart';
+import RivalryView from './RivalryView';
 import OpponentBreakdownList from './OpponentBreakdownList';
 
 // ─── Radar Chart ────────────────────────────────────────────────────────────
@@ -520,6 +521,14 @@ export default function PersonalAnalysisTab({
           player={selected} C={C} isSoccer={isSoccer}
         />
       </div>
+
+      {/* ── 대결 케미(라이벌) — 풋살 전용. 축구 상대는 외부팀이라 성립하지 않는다.
+             선수 선택은 이 탭 상단 드롭다운(selected)을 따른다 ── */}
+      {!isSoccer && (
+        <div style={cardStyle}>
+          <RivalryView matchLogs={matchLogs} player={selected} C={C} />
+        </div>
+      )}
 
       {/* ── PersonalSynergyCard('나의 짝꿍') — 2026-08-14 노출 보류 ──
           위 시너지 차트가 상하위 요약을 맡으면서 역할이 겹쳐 숨김.
