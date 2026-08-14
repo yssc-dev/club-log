@@ -37,8 +37,13 @@ export function calcOpponentDefense({ matchLogs } = {}) {
 
   // 실점 적을수록 1위. 동점은 공동 순위(다음 순위는 건너뜀).
   const rankByOpp = {};
+  const rankedByOpp = {};
   for (const [opp, rows] of Object.entries(byOpponent)) {
     rankByOpp[opp] = rankMap(rows, r => r.concededPerGame, { lowerIsBetter: true });
+    // 차트가 '내 위아래 순위'를 그리려면 순위 정렬된 전체 목록이 필요하다
+    rankedByOpp[opp] = rows
+      .map(r => ({ ...r, rank: rankByOpp[opp].get(r.name) }))
+      .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ko'));
   }
 
   const byPlayer = {};
@@ -52,5 +57,5 @@ export function calcOpponentDefense({ matchLogs } = {}) {
       })
       .sort((a, b) => b.games - a.games || a.opponent.localeCompare(b.opponent, 'ko'));
   }
-  return { byPlayer };
+  return { byPlayer, byOpponent: rankedByOpp };
 }

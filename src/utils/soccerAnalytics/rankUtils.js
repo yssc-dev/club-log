@@ -32,6 +32,21 @@ export function rankMap(rows, valueOf, { lowerIsBetter = false } = {}) {
   return map;
 }
 
+// 순위 정렬된 목록에서 특정 인물 주변만 잘라낸다 — 43명 전체를 그리면 읽히지 않으므로
+// "내 위 2명 + 나 + 아래 2명"만 본다. 경계(1위·꼴등)에서는 반대쪽으로 밀어 창 크기를 유지한다.
+// rows는 이미 순위순이어야 한다(정렬하지 않는다).
+export function rankWindow(rows, name, radius = 2) {
+  const list = rows || [];
+  if (list.length === 0) return [];
+  const size = radius * 2 + 1;
+  const idx = list.findIndex(r => (r.player ?? r.name) === name);
+  if (idx === -1) return list.slice(0, size); // 본인이 없으면 상위부터
+  let start = Math.max(0, idx - radius);
+  let end = start + size;
+  if (end > list.length) { end = list.length; start = Math.max(0, end - size); }
+  return list.slice(start, end);
+}
+
 // gameStateAnalyzer(orphan)에서 인라인 — soccerAnalytics는 orphan 모듈에 의존하지 않는다
 export function percentile(values, value, lowerIsBetter = false) {
   if (values.length === 0) return 50;

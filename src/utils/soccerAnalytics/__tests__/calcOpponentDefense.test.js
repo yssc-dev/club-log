@@ -67,6 +67,18 @@ describe('calcOpponentDefense', () => {
     expect(r.byPlayer['A'].find(x => x.opponent === '아이콘')).toBeUndefined();
   });
 
+  it('byOpponent로 상대팀별 순위 정렬 목록을 낸다 — 차트가 이웃 순위를 그리는 데 쓴다', () => {
+    const r = calcOpponentDefense({ matchLogs: [
+      m(0, '한울', ['A'], 2),
+      m(1, '한울', ['B'], 0),
+      m(2, '한울', ['C'], 1),
+    ] });
+    const list = r.byOpponent['한울'];
+    expect(list.map(x => x.name)).toEqual(['B', 'C', 'A']); // 0, 1, 2 실점
+    expect(list.map(x => x.rank)).toEqual([1, 2, 3]);
+    expect(list[0]).toMatchObject({ games: 1, concededPerGame: 0 });
+  });
+
   it('빈 입력에 안전', () => {
     expect(calcOpponentDefense({ matchLogs: [] }).byPlayer).toEqual({});
     expect(calcOpponentDefense({}).byPlayer).toEqual({});

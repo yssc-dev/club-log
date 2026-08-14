@@ -124,6 +124,23 @@ describe('calcOpponentBreakdown', () => {
     expect(r.byPlayer['B'].find(x => x.opponent === '아이콘').attackRank).toBe(1);
   });
 
+  // 차트가 '내 위아래 순위'를 그리려면 그 상대팀의 순위 정렬 전체 목록이 필요하다
+  it('byOpponent로 상대팀별 순위 정렬 목록을 낸다', () => {
+    const matchLogs = [
+      { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_1', our_members_json: '["A","B","C"]', our_score: 3, opponent_score: 0 },
+    ];
+    const eventLogs = [
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: 'B' },
+      { date: '2026-06-10', match_id: 1, event_type: 'goal', player: 'A', related_player: '' },
+    ];
+    const r = calcOpponentBreakdown({ eventLogs, matchLogs });
+    const list = r.byOpponent['한울'];
+    expect(list.map(x => x.name)).toEqual(['A', 'B', 'C']); // 2P, 1P, 0P
+    expect(list.map(x => x.rank)).toEqual([1, 2, 3]);
+    expect(list[0]).toMatchObject({ attackPoints: 2, goals: 2, assists: 0 });
+    expect(list[1]).toMatchObject({ attackPoints: 1, goals: 0, assists: 1 });
+  });
+
   it('byPlayer 정렬: games desc → goals desc → 가나다', () => {
     const matchLogs = [
       { date: '2026-06-10', match_id: 1, opponent_team_name: '한울', game_id: 's_1', our_members_json: '["A"]', our_score: 1, opponent_score: 0 },

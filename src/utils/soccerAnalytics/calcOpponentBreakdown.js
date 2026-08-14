@@ -64,8 +64,18 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
     }
   }
   const attackRankByOpp = {};
+  const byOpponent = {};
   for (const [opp, rows] of Object.entries(rowsByOpp)) {
     attackRankByOpp[opp] = rankMap(rows, r => r.attackPoints);
+    // 차트가 '내 위아래 순위'를 그리려면 순위 정렬된 전체 목록이 필요하다
+    byOpponent[opp] = rows
+      .map(r => ({
+        ...r,
+        goals: cells[r.name][opp].goals,
+        assists: cells[r.name][opp].assists,
+        rank: attackRankByOpp[opp].get(r.name),
+      }))
+      .sort((a, b) => a.rank - b.rank || a.name.localeCompare(b.name, 'ko'));
   }
 
   const byPlayer = {};
@@ -85,5 +95,6 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
   return {
     players: Object.keys(byPlayer).sort((a, b) => a.localeCompare(b, 'ko')),
     byPlayer,
+    byOpponent,
   };
 }
