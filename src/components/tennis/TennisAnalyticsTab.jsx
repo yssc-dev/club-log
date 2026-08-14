@@ -349,7 +349,7 @@ function AceDfSection({ acedf, ds, C }) {
       <div style={ds.sectionTitle}>에이스 · 더블폴트</div>
       <AceDfScatter rows={acedf} ds={ds} C={C} />
       <div style={ds.card}>
-        <div style={{ fontSize: 10, color: C.gray, marginBottom: 8 }}>2026.8~ 앱 기록 기준 · 점=선수(우하=에이스↑DF↓)</div>
+        <div style={{ fontSize: 10, color: C.gray, marginBottom: 8 }}>2026.8~ 앱 기록 기준</div>
         {acedf.length === 0 ? (
           <div style={{ color: C.gray, fontSize: 12, textAlign: 'center', padding: 8 }}>기록 없음</div>
         ) : (

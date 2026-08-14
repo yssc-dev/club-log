@@ -193,7 +193,7 @@ const ACEDF = [
   { name: '박성언', aces: 0, doubleFaults: 0, recordedGames: 2 },
 ];
 describe('AceDfScatter 스모크', () => {
-  it('산점도 데이터로 크래시 없이 렌더 — 선수명·축 라벨', () => {
+  it('산점도 데이터로 크래시 없이 렌더 — 선수명·축 라벨, 0/0 선수 제외', () => {
     const html = render(AceDfScatter, { rows: ACEDF });
     expect(html).toContain('<svg');
     expect(html).toContain('박준태');
@@ -201,6 +201,8 @@ describe('AceDfScatter 스모크', () => {
     expect(html).toContain('에이스');
     expect(html).toContain('DF');
     expect(html).toContain('<circle');
+    // 박성언(에이스0·DF0)은 점에서 제외 → 원점 뭉침 방지
+    expect(html).not.toContain('박성언');
   });
 
   it('빈 배열 → null, 크래시 없음', () => {
@@ -208,10 +210,9 @@ describe('AceDfScatter 스모크', () => {
     expect(html).toBe('');
   });
 
-  it('전원 0(에이스·DF) 이어도 크래시 없음 (maxAxis 가드)', () => {
+  it('전원 0(에이스·DF) → 유효 점 없음 → null(표만)', () => {
     const html = render(AceDfScatter, { rows: [{ name: '신입', aces: 0, doubleFaults: 0, recordedGames: 1 }] });
-    expect(html).toContain('신입');
-    expect(html).toContain('<svg');
+    expect(html).toBe('');
   });
 });
 

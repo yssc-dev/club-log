@@ -369,11 +369,14 @@ export function YearlyBarChart({ entries, ds, C }) {
 // ── AceDfScatter ─────────────────────────────────────────────
 // rows: buildAceDfRanking 반환 [{ name, aces, doubleFaults, recordedGames }]
 // x=에이스, y=DF, 점=선수(이름 라벨). 대각선(에이스=DF) 안내선 — 우하=좋은 서버.
-// x·y 공유 스케일(대각선이 45°가 되도록). 빈 배열이면 null.
+// x·y 공유 스케일(대각선이 45°가 되도록).
+// 에이스·DF가 둘 다 0인 선수는 점에서 제외(원점 뭉침 방지) — 표는 호출부가 전체 유지.
+// 유효 점이 없으면 null(표만 표시).
 export function AceDfScatter({ rows, ds, C }) {
-  if (!rows || !rows.length) return null;
+  const pts = (rows || []).filter(r => (r.aces || 0) > 0 || (r.doubleFaults || 0) > 0);
+  if (!pts.length) return null;
 
-  const maxAxis = Math.max(1, ...rows.map(r => Math.max(r.aces || 0, r.doubleFaults || 0)));
+  const maxAxis = Math.max(1, ...pts.map(r => Math.max(r.aces || 0, r.doubleFaults || 0)));
   const padL = 32, padT = 10, padB = 26, padR = 12;
   const plot = 150;
   const vW = padL + plot + padR;
@@ -403,8 +406,8 @@ export function AceDfScatter({ rows, ds, C }) {
           style={{ fontVariantNumeric: 'tabular-nums' }}>{maxAxis}</text>
         <text x={sx(maxAxis)} y={padT + plot + 16} textAnchor="middle" fontSize={8} fill={C.gray}
           style={{ fontVariantNumeric: 'tabular-nums' }}>{maxAxis}</text>
-        {/* 점 + 이름 */}
-        {rows.map((r) => {
+        {/* 점 + 이름 (에이스·DF 둘 다 0인 선수 제외) */}
+        {pts.map((r) => {
           const x = sx(r.aces || 0);
           const y = sy(r.doubleFaults || 0);
           const rad = 3.5 + Math.min(r.recordedGames || 0, 10) * 0.2;
