@@ -313,18 +313,20 @@ export function LeagueDonut({ counts, ds, C }) {
 // ── YearlyBarChart ───────────────────────────────────────────
 // entries: buildYearlyRecords 반환 [{ season, wins, losses, rate(0~1) }], 마지막='통산'
 // 세로 바(승률) + 바 위 전적 라벨 + 축에 시즌. '통산'은 purple로 구분. 빈 배열이면 null.
+// viewBox 폭 고정(300) — 월별흐름 차트와 동일 확대율이라 화면 글자 크기가 일치한다
+// (시즌 수에 따라 폭이 바뀌면 확대율이 달라져 폰트가 들쭉날쭉해지는 문제 방지).
 export function YearlyBarChart({ entries, ds, C }) {
   if (!entries || !entries.length) return null;
 
   const n = entries.length;
-  const colW = 46;
+  const vW = 300;    // 고정 폭(월별흐름 준용)
   const plotH = 88;
-  const padT = 18;   // 바 위 전적 라벨
+  const padT = 16;   // 바 위 전적 라벨
   const padB = 30;   // 시즌 + 승률 라벨
-  const vW = n * colW;
   const vH = padT + plotH + padB;
   const baseY = padT + plotH;
-  const barW = 24;
+  const colStep = vW / n;
+  const barW = Math.min(30, colStep * 0.5);
 
   return (
     <div style={ds.card}>
@@ -337,7 +339,7 @@ export function YearlyBarChart({ entries, ds, C }) {
         {/* 기준선 */}
         <line x1={0} y1={baseY} x2={vW} y2={baseY} stroke={C.grayDarker} strokeWidth={0.75} />
         {entries.map((e, i) => {
-          const cx = i * colW + colW / 2;
+          const cx = (i + 0.5) * colStep;
           const v = Math.max(0, Math.min(1, e.rate || 0));
           const barH = v * plotH;
           const barY = baseY - barH;
@@ -350,13 +352,13 @@ export function YearlyBarChart({ entries, ds, C }) {
                 <rect x={cx - barW / 2} y={barY} width={barW} height={barH} rx={3} fill={color} />
               )}
               {/* 전적 라벨 (바 위) */}
-              <text x={cx} y={barY - 4} textAnchor="middle" fontSize={9} fill={C.gray}
+              <text x={cx} y={barY - 4} textAnchor="middle" fontSize={8} fill={C.gray}
                 style={{ fontVariantNumeric: 'tabular-nums' }}>{e.wins}-{e.losses}</text>
               {/* 시즌 라벨 */}
-              <text x={cx} y={baseY + 13} textAnchor="middle" fontSize={9.5}
+              <text x={cx} y={baseY + 13} textAnchor="middle" fontSize={9}
                 fontWeight={isTotal ? '700' : '400'} fill={isTotal ? C.white : C.gray}>{e.season}</text>
               {/* 승률 라벨 */}
-              <text x={cx} y={baseY + 24} textAnchor="middle" fontSize={9} fill={C.gray}
+              <text x={cx} y={baseY + 23} textAnchor="middle" fontSize={8} fill={C.gray}
                 style={{ fontVariantNumeric: 'tabular-nums' }}>{Math.round(v * 100)}%</text>
             </g>
           );
