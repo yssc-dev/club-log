@@ -430,11 +430,14 @@ export default function PersonalAnalysisTab({
           {isSoccer && oppRows.length > 0 && (
             <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, textAlign: "left" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 6 }}>상대팀별 성적</div>
-              <OpponentBreakdownList rows={oppRows} defenseRows={myOppDefense} C={C} />
+              <OpponentBreakdownList
+                rows={oppRows} playerName={selected}
+                attackByOpponent={oppBreakdown?.byOpponent}
+                defenseByOpponent={oppDefense?.byOpponent}
+                C={C}
+              />
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-                순위 = 그 상대팀과 붙어본 선수 중 공격포인트(골+어시) 총합 기준.
-                수비 순위는 경기당 실점이 적은 순이며, 수비수로 기록된 경기만 집계됩니다.
-                <br />골·어시·경기수는 로그 전 기간 기준. 앱 전환 이전 출전 기록 결핍은 상단 안내를 참고하세요.
+                공격 = 골+어시 총합 · 수비 = 경기당 실점(수비수 기록 경기만). 내 순위 ±2명만 표시.
               </div>
             </div>
           )}

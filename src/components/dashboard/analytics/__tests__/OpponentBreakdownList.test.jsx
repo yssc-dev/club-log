@@ -4,54 +4,78 @@ import { createElement } from 'react';
 import OpponentBreakdownList from '../OpponentBreakdownList';
 import { C } from '../../../../config/constants';
 
-const attackRow = {
-  opponent: '한울', games: 17, wins: 11, draws: 4, losses: 2,
-  goals: 6, assists: 9, attackPoints: 15, attackRank: 3, attackPool: 43,
-  pointsPerGame: 15 / 17,
+const rows = [{ opponent: '한울', games: 17, wins: 11, draws: 4, losses: 2 }];
+
+// 나(김형욱)는 공격 3위, 수비 2위 — 위아래 이웃이 모두 있는 자리
+const attackByOpponent = {
+  한울: [
+    { name: '주건호', attackPoints: 20, goals: 12, assists: 8, rank: 1 },
+    { name: '김준식', attackPoints: 18, goals: 10, assists: 8, rank: 2 },
+    { name: '김형욱', attackPoints: 15, goals: 6, assists: 9, rank: 3 },
+    { name: '정경훈', attackPoints: 9, goals: 5, assists: 4, rank: 4 },
+    { name: '박성언', attackPoints: 4, goals: 2, assists: 2, rank: 5 },
+    { name: '양병선', attackPoints: 1, goals: 1, assists: 0, rank: 6 },
+  ],
 };
-const defenseRows = [
-  { opponent: '한울', games: 9, conceded: 4, concededPerGame: 4 / 9, rank: 2, pool: 12 },
-];
+const defenseByOpponent = {
+  한울: [
+    { name: '김민중', concededPerGame: 0.17, games: 6, rank: 1 },
+    { name: '김형욱', concededPerGame: 0.22, games: 9, rank: 2 },
+    { name: '신관수', concededPerGame: 0.4, games: 10, rank: 3 },
+  ],
+};
 
 const render = (props) => renderToStaticMarkup(
-  createElement(OpponentBreakdownList, { rows: [attackRow], defenseRows, C, ...props }),
+  createElement(OpponentBreakdownList, {
+    rows, playerName: '김형욱', attackByOpponent, defenseByOpponent, C, ...props,
+  }),
 );
 
 describe('OpponentBreakdownList', () => {
-  it('상대팀 헤더에 경기수와 승무패를 표기', () => {
+  it('상대팀 헤더에 경기수와 승무패', () => {
     const html = render({});
     expect(html).toContain('한울');
     expect(html).toContain('17경기');
     expect(html).toContain('11-4-2');
   });
 
-  it('공격칸: 공격포인트 총합 · 골/어시 · 순위', () => {
+  it('공격 차트는 내 순위 위아래 2명씩만 보여준다', () => {
+    const html = render({});
+    for (const n of ['주건호', '김준식', '김형욱', '정경훈', '박성언']) expect(html).toContain(n);
+    expect(html).not.toContain('양병선'); // 6위 — 창 밖
+  });
+
+  it('행마다 등수·이름·값·골어시를 찍는다', () => {
+    const html = render({});
+    expect(html).toContain('3위');
+    expect(html).toContain('15P');
+    expect(html).toContain('6골 9어시');
+  });
+
+  it('수비 차트는 경기당 실점과 경기수를 찍는다', () => {
     const html = render({});
     expect(html).toContain('공격');
-    expect(html).toContain('15P');
-    expect(html).toContain('6골');
-    expect(html).toContain('9어시');
-    expect(html).toContain('3위');
-    expect(html).toContain('43명');
-  });
-
-  it('수비칸: 경기당 실점 · 순위', () => {
-    const html = render({});
     expect(html).toContain('수비');
-    expect(html).toContain('0.44실점');
-    expect(html).toContain('2위');
-    expect(html).toContain('12명');
+    expect(html).toContain('0.22실점');
+    expect(html).toContain('9경기');
   });
 
-  it('수비 기록이 없는 상대는 없음으로 표기한다', () => {
-    const html = render({ defenseRows: [] });
+  it('내 수비 기록이 없는 상대는 없음으로 표기', () => {
+    const html = render({ defenseByOpponent: { 한울: [{ name: '김민중', concededPerGame: 0.17, games: 6, rank: 1 }] } });
     expect(html).toContain('수비 기록 없음');
     expect(html).not.toContain('NaN');
   });
 
-  it('상대가 달라도 수비 행을 상대팀으로 맞춰 붙인다', () => {
-    const html = render({ defenseRows: [{ ...defenseRows[0], opponent: '아이콘' }] });
-    expect(html).toContain('수비 기록 없음'); // 한울 행에 아이콘 수비가 붙으면 안 된다
+  it('수비 목록 자체가 없어도 안전', () => {
+    const html = render({ defenseByOpponent: {} });
+    expect(html).toContain('수비 기록 없음');
+    expect(html).not.toContain('NaN');
+  });
+
+  it('내 행을 강조한다 — 이웃과 구분되는 표시가 있다', () => {
+    const html = render({});
+    // 강조 마커(◀)가 정확히 두 번: 공격 1회 + 수비 1회
+    expect(html.split('◀').length - 1).toBe(2);
   });
 
   it('기록이 없으면 아무것도 안 그린다', () => {

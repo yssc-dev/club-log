@@ -105,8 +105,8 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
       members: [{ name: 'A' }, { name: 'B' }], C, authUserName: 'A', isSoccer: true,
     });
     expect(html).toContain('상대팀별 성적');
-    expect(html).toContain('3P');      // 공격포인트 총합 (2골 1어시)
-    expect(html).toContain('위/');     // 상대팀별 순위
+    expect(html).toContain('3P');   // 공격포인트 총합 (2골 1어시)
+    expect(html).toContain('1위');  // 순위 막대차트의 등수 범례
     expect(html).not.toContain('NaN');
   });
 
