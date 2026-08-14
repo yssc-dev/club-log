@@ -8,6 +8,10 @@
 // 개인분석 탭의 '나의 짝꿍' 표에 그대로 남아 있다.
 // 표본 부족(minRounds 미만) 동료는 양쪽에서 제외한다 — 1~2경기짜리가 상하위를 차지하면
 // 순위가 무작위가 된다.
+//
+// 행 모양은 RankBarList와 같지만 막대는 절대 척도(승률 그대로)를 쓴다 — 일부러 옮기지 않았다.
+// 잘 맞는/안 맞는 두 열을 목록 안 최댓값으로 상대화하면 '안 맞는' 열 최상단이 꽉 찬 막대가 되어
+// 잘한 사람으로 읽힌다. 승률은 0~100%라는 고정 척도가 있으므로 절대값이 맞다.
 import { useMemo } from 'react';
 import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';

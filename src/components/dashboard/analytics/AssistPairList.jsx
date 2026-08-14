@@ -1,4 +1,6 @@
 // src/components/dashboard/analytics/AssistPairList.jsx
+import RankBarList from './RankBarList';
+
 export default function AssistPairList({ pairs, C }) {
   if (!pairs || pairs.length === 0) {
     return (
@@ -12,27 +14,16 @@ export default function AssistPairList({ pairs, C }) {
       <div style={{ fontSize: 11, color: C.gray, marginBottom: 10, lineHeight: 1.5 }}>
         같은 페어가 반복적으로 만든 골. 페어당 누적 ≥ 3회. 괄호는 함께 뛴 라운드 수 대비 빈도 — 오래 함께 뛴 조합의 노출 편향 보정.
       </div>
-      {pairs.map((p, i) => (
-        <div key={`${p.assister}|${p.scorer}`} style={{
-          display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-          padding: '10px 12px', borderBottom: `1px dashed ${C.grayDarker}`,
-        }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-            <span style={{ fontSize: 11, color: C.gray, width: 22, textAlign: 'right' }}>#{i + 1}</span>
-            <span style={{ fontSize: 13, color: C.gray, fontWeight: 600 }}>
-              {p.assister} <span style={{ color: C.accent }}>→</span> {p.scorer}
-            </span>
-          </div>
-          <span style={{ fontSize: 12, color: C.green, fontWeight: 700 }}>
-            {p.count}회
-            {p.sharedGames != null && (
-              <span style={{ color: C.gray, fontWeight: 400, fontSize: 10, marginLeft: 6 }}>
-                (함께 {p.sharedGames}R · {p.perSharedGame.toFixed(2)}/R)
-              </span>
-            )}
-          </span>
-        </div>
-      ))}
+      {/* 이름 칸이 'A → B' 방향쌍이라 일반 순위 목록보다 넓게 잡는다 */}
+      <RankBarList
+        rows={pairs.map(p => ({
+          name: `${p.assister} → ${p.scorer}`,
+          value: p.count,
+          // 함께 뛴 라운드 수는 빈도 해석에 필요한 표본 정보 — 위 설명문이 이걸 전제한다
+          sub: p.sharedGames != null ? `${p.sharedGames}R·${p.perSharedGame.toFixed(2)}/R` : null,
+        }))}
+        formatValue={v => `${v}회`} color={C.green} C={C} limit={10} nameWidth={92} subWidth={62}
+      />
     </div>
   );
 }

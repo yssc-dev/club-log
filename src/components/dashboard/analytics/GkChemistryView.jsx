@@ -1,5 +1,6 @@
 // src/components/dashboard/analytics/GkChemistryView.jsx
 import { useState, useMemo } from 'react';
+import RankBarList from './RankBarList';
 
 export default function GkChemistryView({ chem, C }) {
   const [selected, setSelected] = useState(null);
@@ -15,13 +16,15 @@ export default function GkChemistryView({ chem, C }) {
     );
   }
 
-  const Row = ({ p, sign }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', padding: '6px 0', borderBottom: `1px dashed ${C.grayDarker}`, fontSize: 12 }}>
-      <span style={{ color: C.gray }}>{p.field}</span>
-      <span style={{ color: sign === 'best' ? C.green : C.red, fontWeight: 600 }}>
-        {Math.round(p.cleanRate * 100)}% · {p.cleanSheets}/{p.rounds}
-      </span>
-    </div>
+  const toRows = (list) => (list || []).slice(0, 5).map(p => ({
+    name: p.field, value: p.cleanRate, sub: `${p.cleanSheets}/${p.rounds}`,
+  }));
+  // BEST/WORST가 나란히 놓이므로 척도를 공유한다 — 각자 최댓값을 쓰면
+  // 무실점률 80%와 40%가 같은 길이로 그려져 두 열을 비교할 수 없다.
+  const scaleRef = (data) => Math.max(
+    0.0001,
+    ...toRows(data?.pairs).map(r => r.value),
+    ...toRows(data?.worst).map(r => r.value),
   );
 
   return (
@@ -45,15 +48,20 @@ export default function GkChemistryView({ chem, C }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <div>
             <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>BEST 무실점</div>
-            {data.pairs.length === 0 ? (
-              <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (페어당 5라운드 이상 필요)</div>
-            ) : data.pairs.slice(0, 5).map(p => <Row key={p.field} p={p} sign="best" />)}
+            <RankBarList
+              rows={toRows(data.pairs)} formatValue={v => `${Math.round(v * 100)}%`}
+              scaleRef={scaleRef(data)}
+              color={C.green} C={C} emptyText="표본 부족 (페어당 5라운드 이상 필요)"
+            />
           </div>
           <div>
             <div style={{ fontSize: 11, color: C.red, fontWeight: 700, marginBottom: 4 }}>WORST</div>
-            {data.worst.length === 0 ? (
-              <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
-            ) : data.worst.slice(0, 5).map(p => <Row key={p.field} p={p} sign="worst" />)}
+            {/* 하위 목록에 1·2위를 붙이면 '잘한 사람'으로 읽힌다 */}
+            <RankBarList
+              rows={toRows(data.worst)} formatValue={v => `${Math.round(v * 100)}%`}
+              scaleRef={scaleRef(data)}
+              color={C.red} C={C} showRank={false} emptyText="표본 부족"
+            />
           </div>
         </div>
       )}

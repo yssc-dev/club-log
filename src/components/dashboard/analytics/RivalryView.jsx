@@ -2,6 +2,7 @@
 // 매주 팀 로테이션 도메인에서만 성립 (동 클럽 선수들이 서로 상대가 됨).
 import { useMemo, useState } from 'react';
 import { calcRivalry, calcPersonalRivalry } from '../../../utils/analyticsV2/calcRivalry';
+import RankBarList from './RankBarList';
 
 export default function RivalryView({ matchLogs, players, C }) {
   const rivalry = useMemo(() => calcRivalry({ matchLogs: matchLogs || [] }), [matchLogs]);
@@ -21,6 +22,9 @@ export default function RivalryView({ matchLogs, players, C }) {
   const lowSample = personal.opponents.filter(o => o.isLowSample);
   const nemesis = [...eligible].sort((a, b) => a.winRate - b.winRate || b.games - a.games).slice(0, 3);
   const favorite = [...eligible].sort((a, b) => b.winRate - a.winRate || b.games - a.games).slice(0, 3);
+  // 천적/맛집이 나란히 놓이므로 척도를 공유한다 — 각자 최댓값을 쓰면
+  // 천적 상단(승률 20%)과 맛집 상단(승률 80%)이 같은 길이가 된다.
+  const rivalScale = Math.max(0.0001, ...[...nemesis, ...favorite].map(o => o.winRate));
 
   const Row = ({ o }) => (
     <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, padding: '4px 0', borderBottom: `1px dashed ${C.grayDarker}`, opacity: o.isLowSample ? 0.45 : 1 }}>
@@ -49,21 +53,20 @@ export default function RivalryView({ matchLogs, players, C }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           <div style={{ background: C.cardLight, borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', marginBottom: 6 }}>😈 천적</div>
-            {nemesis.map(o => (
-              <div key={o.opponent} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                <span style={{ color: C.white }}>{o.opponent}</span>
-                <span style={{ color: C.gray }}>{Math.round(o.winRate * 100)}% ({o.games}전)</span>
-              </div>
-            ))}
+            {/* 못 이기는 상대 목록이라 순위 번호는 '잘한 순'으로 오독된다 */}
+            <RankBarList
+              rows={nemesis.map(o => ({ name: o.opponent, value: o.winRate, sub: `${o.games}전` }))}
+              formatValue={v => `${Math.round(v * 100)}%`} scaleRef={rivalScale}
+              color="#ef4444" C={C} showRank={false} emptyText="-"
+            />
           </div>
           <div style={{ background: C.cardLight, borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', marginBottom: 6 }}>😋 맛집</div>
-            {favorite.map(o => (
-              <div key={o.opponent} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                <span style={{ color: C.white }}>{o.opponent}</span>
-                <span style={{ color: C.gray }}>{Math.round(o.winRate * 100)}% ({o.games}전)</span>
-              </div>
-            ))}
+            <RankBarList
+              rows={favorite.map(o => ({ name: o.opponent, value: o.winRate, sub: `${o.games}전` }))}
+              formatValue={v => `${Math.round(v * 100)}%`} scaleRef={rivalScale}
+              color="#22c55e" C={C} emptyText="-"
+            />
           </div>
         </div>
       )}
