@@ -54,4 +54,10 @@ describe('DEFENSE_METRICS', () => {
   it('두 지표 모두 sortDefenseRows에 넘길 metric 키를 갖는다', () => {
     for (const k of DEFENSE_METRIC_KEYS) expect(DEFENSE_METRICS[k].key).toBe(k);
   });
+
+  // 막대 길이를 그리려면 포맷 문자열이 아니라 원시 숫자가 필요하다
+  it('막대용 원시값을 꺼낼 수 있다', () => {
+    expect(DEFENSE_METRICS.conceded.rawOf(row)).toBeCloseTo(0.75);
+    expect(DEFENSE_METRICS.clean.rawOf(row)).toBeCloseTo(0.5);
+  });
 });

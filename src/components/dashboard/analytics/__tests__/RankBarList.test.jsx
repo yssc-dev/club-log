@@ -78,6 +78,39 @@ describe('RankBarList', () => {
     expect(html).toContain('2위');
   });
 
+  // WORST 목록(나쁜 순)은 첫 행이 최댓값이 아니다 — rows[0]을 기준으로 삼으면
+  // 나머지가 전부 100%로 잘려 막대가 다 꽉 찬다.
+  it('나쁜 순으로 정렬된 목록도 실제 최댓값을 기준으로 그린다', () => {
+    const worstFirst = [
+      { player: '가', value: 1 },
+      { player: '나', value: 5 },
+      { player: '다', value: 10 },
+    ];
+    const html = render({ rows: worstFirst });
+    expect(html).toContain('width:10%');  // 1/10
+    expect(html).toContain('width:50%');  // 5/10
+    expect(html).toContain('width:100%'); // 10/10
+  });
+
+  it('lowerIsBetter도 실제 최솟값을 기준으로 그린다', () => {
+    const html = render({ rows: [{ player: '가', value: 2 }, { player: '나', value: 1 }], lowerIsBetter: true });
+    expect(html).toContain('width:50%');  // 1/2
+    expect(html).toContain('width:100%'); // 1/1
+  });
+
+  // 하위 N명 목록에 1·2위를 붙이면 '잘한 사람'으로 읽힌다
+  it('showRank=false면 순위 번호를 숨긴다', () => {
+    const html = render({ showRank: false });
+    expect(html).not.toContain('1위');
+    expect(html).toContain('가');
+  });
+
+  // 'A → B' 같은 방향쌍은 기본 이름폭에 안 들어간다
+  it('nameWidth로 이름 칸 폭을 넓힐 수 있다', () => {
+    expect(render({ nameWidth: 92 })).toContain('width:92px');
+    expect(render({})).toContain('width:40px'); // 기본값
+  });
+
   it('빈 목록은 안내문', () => {
     expect(render({ rows: [] })).toContain('표본 부족');
     expect(render({ rows: [], emptyText: '기록 없음' })).toContain('기록 없음');

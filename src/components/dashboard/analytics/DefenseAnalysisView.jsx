@@ -9,6 +9,7 @@
 // (예: 1.37실점 19경기가 1.40실점 5경기보다 위). 부재 대비 Δ는 아래 개인 섹션이 담당.
 import { useMemo, useState } from 'react';
 import { calcDefenseAnalysis, sortDefenseRows } from '../../../utils/soccerAnalytics';
+import RankBarList from './RankBarList';
 import { DEFENSE_METRICS, DEFENSE_METRIC_KEYS } from './defenseMetrics';
 
 const fmt = (v) => (v == null ? '–' : v.toFixed(2));
@@ -48,16 +49,11 @@ export function DefenseComboSection({ d, metric, size, C }) {
   const best = sortDefenseRows(rows, { metric, by: 'raw', dir: 'desc' }).slice(0, 5);
   const worst = sortDefenseRows(rows, { metric, by: 'raw', dir: 'asc' }).slice(0, 5);
 
-  const Row = ({ r, sign }) => (
-    <div style={{ display: 'flex', justifyContent: 'space-between', gap: 6, padding: '6px 0', borderBottom: `1px dashed ${C.grayDarker}`, fontSize: 12 }}>
-      <span style={{ color: C.gray, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-        {r.members.join('·')} <span style={{ fontSize: 10 }}>({r.games})</span>
-      </span>
-      <span style={{ color: sign === 'best' ? C.green : C.red, fontWeight: 600, flexShrink: 0 }}>
-        {M.formatValue(r)}
-      </span>
-    </div>
-  );
+  // 실점률은 낮을수록 좋고 클린시트율은 높을수록 좋다 — 막대 극성을 지표에 맞춘다
+  const lowerIsBetter = metric === 'conceded';
+  const toRows = (list) => list.map(r => ({
+    name: r.members.join('·'), value: M.rawOf(r), sub: `${r.games}경기`, formatted: M.formatValue(r),
+  }));
 
   return (
     <div style={{ marginBottom: 18 }}>
@@ -72,15 +68,20 @@ export function DefenseComboSection({ d, metric, size, C }) {
           <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>
             BEST {spec.noun} ({M.bestLabel})
           </div>
-          {best.length === 0
-            ? <div style={{ fontSize: 11, color: C.gray }}>표본 부족 ({spec.noun}당 {spec.minGames}경기 이상 필요)</div>
-            : best.map(r => <Row key={r.members.join('|')} r={r} sign="best" />)}
+          <RankBarList
+            rows={toRows(best)} formatValue={(v, r) => r.formatted}
+            lowerIsBetter={lowerIsBetter} color={C.green} C={C} nameWidth={80}
+            emptyText={`표본 부족 (${spec.noun}당 ${spec.minGames}경기 이상 필요)`}
+          />
         </div>
         <div style={{ minWidth: 0 }}>
           <div style={{ fontSize: 11, color: C.red, fontWeight: 700, marginBottom: 4 }}>WORST</div>
-          {worst.length === 0
-            ? <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
-            : worst.map(r => <Row key={r.members.join('|')} r={r} sign="worst" />)}
+          {/* 하위 목록이라 순위 번호는 '잘한 순'으로 오독된다 */}
+          <RankBarList
+            rows={toRows(worst)} formatValue={(v, r) => r.formatted}
+            lowerIsBetter={lowerIsBetter} color={C.red} C={C} nameWidth={80} showRank={false}
+            emptyText="표본 부족"
+          />
         </div>
       </div>
     </div>

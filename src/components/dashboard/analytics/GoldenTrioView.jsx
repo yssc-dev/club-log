@@ -17,6 +17,12 @@ export default function GoldenTrioView({ matchLogs, C, isSoccer = false }) {
   const outcomeColor = (o) => o === 'W' ? '#22c55e' : o === 'D' ? C.gray : '#ef4444';
   const outcomeLabel = (o) => o === 'W' ? '승' : o === 'D' ? '무' : '패';
 
+  // 케미는 음수가 가능해(같이 뛰면 평소보다 못함) 좌우 다이버징 — 수비 억제 막대와 같은 규약.
+  // 스케일은 목록 안 최대 |케미| 기준. 측정 불가(항상 동행)는 막대를 그리지 않는다.
+  const maxAbsChem = Math.max(0.001, ...trios
+    .filter(t => !t.baselineUnavailable)
+    .map(t => Math.abs(t.chemistry)));
+
   return (
     <div>
       <div style={{ fontSize: 11, color: C.gray, marginBottom: 10, lineHeight: 1.5 }}>
@@ -62,6 +68,21 @@ export default function GoldenTrioView({ matchLogs, C, isSoccer = false }) {
                 </div>
               )}
             </div>
+            {!t.baselineUnavailable && (
+              <div style={{ display: 'flex', height: 5, margin: '0 12px 8px' }}>
+                <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                  {t.chemistry < 0 && (
+                    <div style={{ width: `${(Math.abs(t.chemistry) / maxAbsChem) * 100}%`, height: '100%', background: '#ef4444', borderRadius: '3px 0 0 3px' }} />
+                  )}
+                </div>
+                <div style={{ width: 1, background: C.grayDark, flexShrink: 0 }} />
+                <div style={{ flex: 1 }}>
+                  {t.chemistry > 0 && (
+                    <div style={{ width: `${(t.chemistry / maxAbsChem) * 100}%`, height: '100%', background: '#22c55e', borderRadius: '0 3px 3px 0' }} />
+                  )}
+                </div>
+              </div>
+            )}
             {isOpen && (
               <div style={{ padding: "0 12px 10px", borderTop: `1px dashed ${C.grayDarker}` }}>
                 {t.matches

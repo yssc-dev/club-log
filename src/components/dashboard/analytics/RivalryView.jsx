@@ -2,6 +2,7 @@
 // 매주 팀 로테이션 도메인에서만 성립 (동 클럽 선수들이 서로 상대가 됨).
 import { useMemo, useState } from 'react';
 import { calcRivalry, calcPersonalRivalry } from '../../../utils/analyticsV2/calcRivalry';
+import RankBarList from './RankBarList';
 
 export default function RivalryView({ matchLogs, players, C }) {
   const rivalry = useMemo(() => calcRivalry({ matchLogs: matchLogs || [] }), [matchLogs]);
@@ -49,21 +50,20 @@ export default function RivalryView({ matchLogs, players, C }) {
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>
           <div style={{ background: C.cardLight, borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#ef4444', marginBottom: 6 }}>😈 천적</div>
-            {nemesis.map(o => (
-              <div key={o.opponent} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                <span style={{ color: C.white }}>{o.opponent}</span>
-                <span style={{ color: C.gray }}>{Math.round(o.winRate * 100)}% ({o.games}전)</span>
-              </div>
-            ))}
+            {/* 못 이기는 상대 목록이라 순위 번호는 '잘한 순'으로 오독된다 */}
+            <RankBarList
+              rows={nemesis.map(o => ({ name: o.opponent, value: o.winRate, sub: `${o.games}전` }))}
+              formatValue={v => `${Math.round(v * 100)}%`}
+              color="#ef4444" C={C} showRank={false} emptyText="-"
+            />
           </div>
           <div style={{ background: C.cardLight, borderRadius: 10, padding: '10px 12px' }}>
             <div style={{ fontSize: 11, fontWeight: 700, color: '#22c55e', marginBottom: 6 }}>😋 맛집</div>
-            {favorite.map(o => (
-              <div key={o.opponent} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                <span style={{ color: C.white }}>{o.opponent}</span>
-                <span style={{ color: C.gray }}>{Math.round(o.winRate * 100)}% ({o.games}전)</span>
-              </div>
-            ))}
+            <RankBarList
+              rows={favorite.map(o => ({ name: o.opponent, value: o.winRate, sub: `${o.games}전` }))}
+              formatValue={v => `${Math.round(v * 100)}%`}
+              color="#22c55e" C={C} emptyText="-"
+            />
           </div>
         </div>
       )}

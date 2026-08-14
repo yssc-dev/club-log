@@ -20,23 +20,28 @@ const nameOf = (r) => r.player ?? r.name ?? '';
 
 export default function RankBarList({
   rows, formatValue, C,
-  lowerIsBetter = false, color, limit = 5, emptyText = '표본 부족',
+  lowerIsBetter = false, color, limit = 5, emptyText = '표본 부족', showRank = true, nameWidth = 40,
 }) {
   const list = (rows || []).slice(0, limit);
   if (list.length === 0) {
     return <div style={{ fontSize: 10.5, color: C.grayDark }}>{emptyText}</div>;
   }
-  const best = list[0]?.value ?? 0;
+  // 기준값은 실제 극값에서 뽑는다 — WORST 목록은 첫 행이 최댓값이 아니라
+  // rows[0]을 기준 삼으면 나머지가 전부 100%로 잘린다.
+  const values = list.map(r => r.value);
+  const best = lowerIsBetter ? Math.min(...values) : Math.max(...values);
   const barColor = color || C.accent;
 
   return (
     <>
       {list.map((r, i) => (
         <div key={nameOf(r)} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0', fontSize: 10 }}>
-          <span style={{ width: 22, flexShrink: 0, textAlign: 'right', color: C.grayDark }}>
-            {r.rank ?? i + 1}위
-          </span>
-          <span style={{ width: 40, flexShrink: 0, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+          {showRank && (
+            <span style={{ width: 22, flexShrink: 0, textAlign: 'right', color: C.grayDark }}>
+              {r.rank ?? i + 1}위
+            </span>
+          )}
+          <span style={{ width: nameWidth, flexShrink: 0, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
             {nameOf(r)}
           </span>
           <div style={{ flex: 1, minWidth: 8, height: 6 }}>
