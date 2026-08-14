@@ -45,19 +45,25 @@ describe('OpponentBreakdownList', () => {
     expect(html).not.toContain('양병선'); // 6위 — 창 밖
   });
 
-  it('행마다 등수·이름·값·골어시를 찍는다', () => {
+  it('행에는 등수·이름·값만 — 폭이 절반이라 행마다 골/어시를 붙이지 않는다', () => {
     const html = render({});
     expect(html).toContain('3위');
     expect(html).toContain('15P');
-    expect(html).toContain('6골 9어시');
+    // 이웃(1위 주건호 12골 8어시)의 골/어시는 행에 안 나온다
+    expect(html).not.toContain('12골');
   });
 
-  it('수비 차트는 경기당 실점과 경기수를 찍는다', () => {
+  it('내 골/어시·경기수는 각 열 아래 요약으로 한 번만', () => {
+    const html = render({});
+    expect(html).toContain('6골 9어시'); // 내 공격
+    expect(html).toContain('9경기');     // 내 수비 출전
+  });
+
+  it('공격·수비 두 열을 나란히 둔다', () => {
     const html = render({});
     expect(html).toContain('공격');
     expect(html).toContain('수비');
     expect(html).toContain('0.22실점');
-    expect(html).toContain('9경기');
   });
 
   it('내 수비 기록이 없는 상대는 없음으로 표기', () => {
