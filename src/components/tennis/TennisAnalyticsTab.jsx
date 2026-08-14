@@ -16,6 +16,33 @@ import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
 import { pct } from '../../utils/tennis/tennisFormat';
 
+// ─── 전체지표 공용 헬퍼 ─────────────────────────────────
+// 랭킹바 정렬 토글 (다승/승률·준/먹음 등). options: [[value, label], ...]
+function SortToggle({ value, onChange, options, ds }) {
+  return (
+    <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+      {options.map(([v, l]) => (
+        <button key={v} onClick={() => onChange(v)} style={ds.chip(value === v)}>{l}</button>
+      ))}
+    </div>
+  );
+}
+
+// 전체 표 접기: 기본 접힘, "▸ 전체 N 보기"로 펼침. 바가 요약이라 표는 온디맨드.
+function CollapsibleTable({ label, children, C }) {
+  const [open, setOpen] = useState(false);
+  const btn = {
+    background: 'none', border: 'none', color: C.accent, cursor: 'pointer',
+    fontSize: 11, fontFamily: 'inherit', padding: '2px 2px', margin: '2px 0 8px',
+  };
+  return (
+    <>
+      <button onClick={() => setOpen(o => !o)} style={btn}>{open ? '▾ 접기' : `▸ ${label}`}</button>
+      {open && children}
+    </>
+  );
+}
+
 // ─── 요약 카드 (개인 뷰) ────────────────────────────────
 function StatCell({ label, value, C }) {
   return (
@@ -115,41 +142,37 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
       {showChemistry && (
         <>
           <div style={ds.sectionTitle}>페어 케미 (3경기↑)</div>
-          {chemistry.length > 0 && (
-            <>
-              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
-                {[['wins', '다승'], ['rate', '승률']].map(([v, l]) => (
-                  <button key={v} onClick={() => setChemSort(v)} style={ds.chip(chemSort === v)}>{l}</button>
-                ))}
-              </div>
-              <HBarChart rows={chemBarRows} ds={ds} C={C} />
-            </>
-          )}
           {chemistry.length === 0 ? (
             <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
           ) : (
-            <div style={ds.card}>
-              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                <thead>
-                  <tr>
-                    <SortHeader label="페어" sortKey="pair" sort={sortChem} onSort={onSortChem} align="left" ds={ds} />
-                    <SortHeader label="전적" sortKey="record" sort={sortChem} onSort={onSortChem} ds={ds} />
-                    <SortHeader label="승률" sortKey="rate" sort={sortChem} onSort={onSortChem} ds={ds} />
-                  </tr>
-                </thead>
-                <tbody>
-                  {sortedChem.map((p) => (
-                    <tr key={p.players.join('|')}>
-                      <td style={{ ...ds.td(), textAlign: 'left', fontSize: 11 }}>
-                        {p.players.join(' · ')}{p.hasGuest ? ' *' : ''}
-                      </td>
-                      <td style={ds.td()}>{p.wins}-{p.losses}</td>
-                      <td style={ds.td()}>{pct(p.rate)}</td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
+            <>
+              <SortToggle value={chemSort} onChange={setChemSort} options={[['wins', '다승'], ['rate', '승률']]} ds={ds} />
+              <HBarChart rows={chemBarRows} ds={ds} C={C} />
+              <CollapsibleTable label={`전체 ${chemistry.length}쌍 보기`} C={C}>
+                <div style={ds.card}>
+                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                    <thead>
+                      <tr>
+                        <SortHeader label="페어" sortKey="pair" sort={sortChem} onSort={onSortChem} align="left" ds={ds} />
+                        <SortHeader label="전적" sortKey="record" sort={sortChem} onSort={onSortChem} ds={ds} />
+                        <SortHeader label="승률" sortKey="rate" sort={sortChem} onSort={onSortChem} ds={ds} />
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {sortedChem.map((p) => (
+                        <tr key={p.players.join('|')}>
+                          <td style={{ ...ds.td(), textAlign: 'left', fontSize: 11 }}>
+                            {p.players.join(' · ')}{p.hasGuest ? ' *' : ''}
+                          </td>
+                          <td style={ds.td()}>{p.wins}-{p.losses}</td>
+                          <td style={ds.td()}>{pct(p.rate)}</td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              </CollapsibleTable>
+            </>
           )}
         </>
       )}
@@ -280,72 +303,94 @@ function TbBagelSection({ tb, bagel, ds, C }) {
   }), []);
   const { sorted: sortedBagel, sort: sortBagel, onSort: onSortBagel } = useSortableRows(bagel, bagelCols);
 
-  // 랭킹 바(TOP 8) — TB는 승률, 베이글은 '준' 횟수(최댓값 정규화)
-  const tbBarRows = useMemo(() => [...tb]
-    .sort((a, b) => b.rate - a.rate || b.tbWon - a.tbWon).slice(0, 8)
-    .map(e => ({ label: e.name, value: e.rate, note: `${e.tbWon}/${e.tbPlayed} (${Math.round(e.rate * 100)}%)` })), [tb]);
+  // 랭킹 바 정렬 토글 — TB: 승률(기본)/다승, 베이글: 준(기본)/먹음. 바 길이도 정렬기준 반영.
+  const [tbSort, setTbSort] = useState('rate');
+  const [bagelSort, setBagelSort] = useState('given');
+
+  const tbBarRows = useMemo(() => {
+    const maxWon = Math.max(1, ...tb.map(e => e.tbWon || 0));
+    const sorter = tbSort === 'won'
+      ? (a, b) => b.tbWon - a.tbWon || b.rate - a.rate
+      : (a, b) => b.rate - a.rate || b.tbWon - a.tbWon;
+    return [...tb].sort(sorter).slice(0, 8)
+      .map(e => ({ label: e.name, value: tbSort === 'won' ? e.tbWon / maxWon : e.rate, note: `${e.tbWon}/${e.tbPlayed} (${Math.round(e.rate * 100)}%)` }));
+  }, [tb, tbSort]);
+
   const bagelBarRows = useMemo(() => {
-    const maxG = Math.max(1, ...bagel.map(b => b.given || 0));
+    const k = bagelSort; // 'given' | 'taken'
+    const maxV = Math.max(1, ...bagel.map(b => b[k] || 0));
     return [...bagel]
-      .filter(b => (b.given || 0) > 0)
-      .sort((a, b) => b.given - a.given || a.taken - b.taken).slice(0, 8)
-      .map(e => ({ label: e.name, value: e.given / maxG, note: `준 ${e.given} · 먹음 ${e.taken}` }));
-  }, [bagel]);
+      .filter(b => (b[k] || 0) > 0)
+      .sort((a, b) => b[k] - a[k] || String(a.name).localeCompare(String(b.name), 'ko')).slice(0, 8)
+      .map(e => ({ label: e.name, value: e[k] / maxV, note: `준 ${e.given} · 먹음 ${e.taken}` }));
+  }, [bagel, bagelSort]);
 
   return (
     <>
       <div style={ds.sectionTitle}>타이브레이크</div>
-      {tb.length > 0 && <HBarChart rows={tbBarRows} ds={ds} C={C} />}
-      <div style={ds.card}>
-        {tb.length === 0 ? (
-          <div style={{ color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
-        ) : (
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <SortHeader label="이름" sortKey="name" sort={sortTb} onSort={onSortTb} align="left" ds={ds} />
-                <SortHeader label="승/판" sortKey="won" sort={sortTb} onSort={onSortTb} ds={ds} />
-                <SortHeader label="승률" sortKey="rate" sort={sortTb} onSort={onSortTb} ds={ds} />
-              </tr>
-            </thead>
-            <tbody>
-              {sortedTb.map((e) => (
-                <tr key={e.name}>
-                  <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
-                  <td style={ds.td()}>{e.tbWon}/{e.tbPlayed}</td>
-                  <td style={ds.td()}>{pct(e.rate)}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {tb.length === 0 ? (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
+      ) : (
+        <>
+          <SortToggle value={tbSort} onChange={setTbSort} options={[['rate', '승률'], ['won', '다승']]} ds={ds} />
+          <HBarChart rows={tbBarRows} ds={ds} C={C} />
+          <CollapsibleTable label={`전체 ${tb.length}명 보기`} C={C}>
+            <div style={ds.card}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <SortHeader label="이름" sortKey="name" sort={sortTb} onSort={onSortTb} align="left" ds={ds} />
+                    <SortHeader label="승/판" sortKey="won" sort={sortTb} onSort={onSortTb} ds={ds} />
+                    <SortHeader label="승률" sortKey="rate" sort={sortTb} onSort={onSortTb} ds={ds} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedTb.map((e) => (
+                    <tr key={e.name}>
+                      <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
+                      <td style={ds.td()}>{e.tbWon}/{e.tbPlayed}</td>
+                      <td style={ds.td()}>{pct(e.rate)}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CollapsibleTable>
+        </>
+      )}
       <div style={ds.sectionTitle}>베이글</div>
-      {bagelBarRows.length > 0 && <HBarChart rows={bagelBarRows} ds={ds} C={C} />}
-      <div style={ds.card}>
-        {bagel.length === 0 ? (
-          <div style={{ color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
-        ) : (
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <SortHeader label="이름" sortKey="name" sort={sortBagel} onSort={onSortBagel} align="left" ds={ds} />
-                <SortHeader label="준" sortKey="given" sort={sortBagel} onSort={onSortBagel} ds={ds} />
-                <SortHeader label="먹음" sortKey="taken" sort={sortBagel} onSort={onSortBagel} ds={ds} />
-              </tr>
-            </thead>
-            <tbody>
-              {sortedBagel.map((e) => (
-                <tr key={e.name}>
-                  <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
-                  <td style={ds.td()}>{e.given}</td>
-                  <td style={ds.td()}>{e.taken}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {bagel.length === 0 ? (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
+      ) : (
+        <>
+          <SortToggle value={bagelSort} onChange={setBagelSort} options={[['given', '준'], ['taken', '먹음']]} ds={ds} />
+          {bagelBarRows.length > 0
+            ? <HBarChart rows={bagelBarRows} ds={ds} C={C} />
+            : <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>해당 기록 없음</div>}
+          <CollapsibleTable label={`전체 ${bagel.length}명 보기`} C={C}>
+            <div style={ds.card}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <SortHeader label="이름" sortKey="name" sort={sortBagel} onSort={onSortBagel} align="left" ds={ds} />
+                    <SortHeader label="준" sortKey="given" sort={sortBagel} onSort={onSortBagel} ds={ds} />
+                    <SortHeader label="먹음" sortKey="taken" sort={sortBagel} onSort={onSortBagel} ds={ds} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sortedBagel.map((e) => (
+                    <tr key={e.name}>
+                      <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
+                      <td style={ds.td()}>{e.given}</td>
+                      <td style={ds.td()}>{e.taken}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CollapsibleTable>
+        </>
+      )}
     </>
   );
 }
@@ -362,34 +407,38 @@ function AceDfSection({ acedf, ds, C }) {
   return (
     <>
       <div style={ds.sectionTitle}>에이스 · 더블폴트</div>
-      <AceDfScatter rows={acedf} ds={ds} C={C} />
-      <div style={ds.card}>
-        <div style={{ fontSize: 10, color: C.gray, marginBottom: 8 }}>2026.8~ 앱 기록 기준</div>
-        {acedf.length === 0 ? (
-          <div style={{ color: C.gray, fontSize: 12, textAlign: 'center', padding: 8 }}>기록 없음</div>
-        ) : (
-          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-            <thead>
-              <tr>
-                <SortHeader label="이름" sortKey="name" sort={sort} onSort={onSort} align="left" ds={ds} />
-                <SortHeader label="에이스" sortKey="aces" sort={sort} onSort={onSort} ds={ds} />
-                <SortHeader label="DF" sortKey="doubleFaults" sort={sort} onSort={onSort} ds={ds} />
-                <SortHeader label="경기수" sortKey="recordedGames" sort={sort} onSort={onSort} ds={ds} />
-              </tr>
-            </thead>
-            <tbody>
-              {sorted.map((e) => (
-                <tr key={e.name}>
-                  <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
-                  <td style={ds.td()}>{e.aces}</td>
-                  <td style={ds.td()}>{e.doubleFaults}</td>
-                  <td style={{ ...ds.td(), fontSize: 10, color: C.gray }}>{e.recordedGames}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        )}
-      </div>
+      {acedf.length === 0 ? (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>기록 없음</div>
+      ) : (
+        <>
+          <AceDfScatter rows={acedf} ds={ds} C={C} />
+          <div style={{ fontSize: 10, color: C.gray, margin: '2px 2px 2px' }}>2026.8~ 앱 기록 기준</div>
+          <CollapsibleTable label={`전체 ${acedf.length}명 보기`} C={C}>
+            <div style={ds.card}>
+              <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+                <thead>
+                  <tr>
+                    <SortHeader label="이름" sortKey="name" sort={sort} onSort={onSort} align="left" ds={ds} />
+                    <SortHeader label="에이스" sortKey="aces" sort={sort} onSort={onSort} ds={ds} />
+                    <SortHeader label="DF" sortKey="doubleFaults" sort={sort} onSort={onSort} ds={ds} />
+                    <SortHeader label="경기수" sortKey="recordedGames" sort={sort} onSort={onSort} ds={ds} />
+                  </tr>
+                </thead>
+                <tbody>
+                  {sorted.map((e) => (
+                    <tr key={e.name}>
+                      <td style={{ ...ds.td(), textAlign: 'left' }}>{e.name}</td>
+                      <td style={ds.td()}>{e.aces}</td>
+                      <td style={ds.td()}>{e.doubleFaults}</td>
+                      <td style={{ ...ds.td(), fontSize: 10, color: C.gray }}>{e.recordedGames}</td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </CollapsibleTable>
+        </>
+      )}
     </>
   );
 }
