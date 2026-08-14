@@ -2,7 +2,7 @@ import { useMemo } from 'react';
 import TennisResultsModal from './TennisResultsModal';
 
 // 마감 확인 화면(phase 'summary'/'done'). 풋살 summary phase 이식 —
-// 여기서만 시트 전송이 일어나고(관리자), 성공 후 아카이브로 마무리한다.
+// 여기서만 시트 전송이 일어나고(관리자 전용), 성공 후 아카이브 저장(관리자 전용)으로 마무리한다.
 export default function TennisSummaryView({ state, isAdmin, busy, onBack, onSubmit, onArchive, C, styles: s }) {
   const finalized = state.gameFinalized === true;
 
@@ -48,9 +48,9 @@ export default function TennisSummaryView({ state, isAdmin, busy, onBack, onSubm
           style={{ ...s.btnFull(finalized ? C.green : isAdmin ? C.accent : C.cardLight), opacity: isAdmin || finalized ? 1 : 0.5 }}>
           {finalized ? '전송 완료' : busy ? '전송 중...' : isAdmin ? '기록확정 (구글시트 전송)' : '기록확정 (관리자만)'}
         </button>
-        <button disabled={!finalized || busy} onClick={onArchive}
-          style={{ ...s.btnFull(finalized ? C.accent : C.cardLight), opacity: finalized ? 1 : 0.5 }}>
-          아카이브 저장
+        <button disabled={!finalized || busy || !isAdmin} onClick={onArchive}
+          style={{ ...s.btnFull(finalized && isAdmin ? C.accent : C.cardLight), opacity: finalized && isAdmin ? 1 : 0.5 }}>
+          {isAdmin ? '아카이브 저장' : '아카이브 저장 (관리자만)'}
         </button>
       </div>
     </div>
