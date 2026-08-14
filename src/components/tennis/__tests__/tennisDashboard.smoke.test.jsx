@@ -26,13 +26,9 @@ const FIXTURE_ROWS = [
 const FIXTURE_ROSTER = [{ name:'박성언' }, { name:'김원희' }];
 
 describe('TennisDashboard 스모크', () => {
-  it('빈 데이터에서 크래시 없이 렌더, 섹션 타이틀 존재', () => {
+  it('초기(로딩중)에 크래시 없이 렌더 — SSR은 useEffect 미실행이라 loading 유지', () => {
     const html = renderToStaticMarkup(createElement(ThemeProvider, null, createElement(Harness)));
-    expect(html).toContain('복식 순위 TOP 5');
-    expect(html).toContain('단식 포인트 TOP 5');
-    expect(html).toContain('페어 케미 TOP 5');
-    expect(html).toContain('요약');
-    expect(html).toContain('하이라이트');
+    expect(html).toContain('데이터 로딩중');
   });
 
   // useEffect는 renderToStaticMarkup(SSR)에서 실행되지 않으므로 TennisDashboard 직접 마운트로

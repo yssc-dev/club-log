@@ -396,13 +396,18 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const [rows, setRows] = useState([]);
   const [legacyRows, setLegacyRows] = useState([]);
   const [roster, setRoster] = useState([]);
+  const [loading, setLoading] = useState(true);
   const [format, setFormat] = useState('복식');           // 복식 기본 (스펙 §5)
   const [player, setPlayer] = useState('');
 
   useEffect(() => {
-    TennisSync.getPlayerGames().then(setRows);
-    TennisSync.getLegacyRecords().then(setLegacyRows);
-    TennisSync.getRoster().then(setRoster);
+    let alive = true;
+    Promise.all([
+      TennisSync.getPlayerGames().then(setRows),
+      TennisSync.getLegacyRecords().then(setLegacyRows),
+      TennisSync.getRoster().then(setRoster),
+    ]).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, []);
 
   const today = new Date().toISOString().slice(0, 10);
@@ -464,6 +469,12 @@ export default function TennisAnalyticsTab({ C: propC }) {
     fontFamily: 'inherit',
     cursor: 'pointer',
   };
+
+  if (loading) return (
+    <div style={ds.section}>
+      <div style={{ ...ds.card, color: C.gray, fontSize: 13, textAlign: 'center', padding: 24 }}>데이터 로딩중…</div>
+    </div>
+  );
 
   return (
     <div style={ds.section}>

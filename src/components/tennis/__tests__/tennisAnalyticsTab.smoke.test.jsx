@@ -26,11 +26,11 @@ const mockDs = {
 };
 
 describe('TennisAnalyticsTab 스모크', () => {
-  it('빈 데이터·기본(전체) 상태에서 크래시 없이 렌더', () => {
+  it('초기(로딩중)에 크래시 없이 렌더 — SSR은 useEffect 미실행이라 loading 유지', () => {
     const html = renderToStaticMarkup(
       createElement(ThemeProvider, null, createElement(TennisAnalyticsTab, { C: undefined, authUserName: '박성언' }))
     );
-    expect(html).toContain('전체 랭킹'); // select 빈 옵션 라벨
+    expect(html).toContain('데이터 로딩중');
   });
 
   it('빈/로딩 데이터에서 레거시 배너가 뜨지 않음(row 모드 폴백)', () => {

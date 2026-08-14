@@ -56,10 +56,15 @@ export default function TennisDashboard({ C: propC }) {
   const ds = makeStyles(C);
   const [rows, setRows] = useState([]);
   const [roster, setRoster] = useState([]);
+  const [loading, setLoading] = useState(true);
 
   useEffect(() => {
-    TennisSync.getPlayerGames().then(setRows);
-    TennisSync.getRoster().then(setRoster);
+    let alive = true;
+    Promise.all([
+      TennisSync.getPlayerGames().then(setRows),
+      TennisSync.getRoster().then(setRoster),
+    ]).finally(() => { if (alive) setLoading(false); });
+    return () => { alive = false; };
   }, []);
 
   const today = useMemo(() => new Date().toISOString().slice(0, 10), []);
@@ -90,6 +95,12 @@ export default function TennisDashboard({ C: propC }) {
       <span style={{ color: C.gray }}>{label}</span>
       <span>{top ? fmt(top) : '-'}</span>
     </div>;
+
+  if (loading) return (
+    <div style={ds.section}>
+      <div style={{ ...ds.card, color: C.gray, fontSize: 13, textAlign: 'center', padding: 24 }}>데이터 로딩중…</div>
+    </div>
+  );
 
   return (
     <div style={ds.section}>

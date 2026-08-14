@@ -16,11 +16,11 @@ Object.defineProperty(window, 'matchMedia', {
 });
 
 describe('TennisLeague 스모크', () => {
-  it('빈 데이터에서 크래시 없이 렌더', () => {
+  it('초기(로딩중)에 크래시 없이 렌더 — SSR은 useEffect 미실행이라 loading 유지', () => {
     const html = renderToStaticMarkup(
       createElement(ThemeProvider, null, createElement(TennisLeague, { C: undefined }))
     );
-    // 빈 데이터(연도 없음) → "데이터 없음" 안내
-    expect(html).toContain('데이터 없음');
+    // 로딩중엔 옵션 없는 select·오해 안내 대신 "데이터 로딩중" 단일 표시
+    expect(html).toContain('데이터 로딩중');
   });
 });
