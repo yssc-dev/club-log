@@ -41,9 +41,9 @@ const RADAR_FULL = {
   axes: [
     { key: 'singlesRate', label: '단식승률', value: 0.75, raw: '75%' },
     { key: 'doublesRate', label: '복식승률', value: 0.6,  raw: '60%' },
+    { key: 'tbRate',      label: 'TB승률',   value: 0.5,  raw: '65%' },
     { key: 'points',      label: '포인트',   value: 0.8,  raw: '16' },
     { key: 'attendance',  label: '참석',     value: 1.0,  raw: '12일' },
-    { key: 'aces',        label: '에이스',   value: 0.5,  raw: '5' },
   ],
 };
 
@@ -52,9 +52,9 @@ const RADAR_ALL_ZERO = {
   axes: [
     { key: 'singlesRate', label: '단식승률', value: 0, raw: '0%' },
     { key: 'doublesRate', label: '복식승률', value: 0, raw: '0%' },
+    { key: 'tbRate',      label: 'TB승률',   value: 0, raw: '0%' },
     { key: 'points',      label: '포인트',   value: 0, raw: '0' },
     { key: 'attendance',  label: '참석',     value: 0, raw: '0일' },
-    { key: 'aces',        label: '에이스',   value: 0, raw: '0' },
   ],
 };
 
@@ -101,7 +101,7 @@ describe('PlayerRadarChart 스모크', () => {
     expect(html).toContain('복식승률');
     expect(html).toContain('포인트');
     expect(html).toContain('참석');
-    expect(html).toContain('에이스');
+    expect(html).toContain('TB승률');
     expect(html).toContain('75%');             // raw 값
     expect(html).toContain('16');              // 포인트 raw
     expect(html).toContain('12일');            // 참석 raw

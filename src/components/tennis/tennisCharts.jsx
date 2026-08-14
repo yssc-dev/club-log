@@ -145,7 +145,7 @@ export function PlayerRadarChart({ radar, ds, C }) {
     <div style={ds.card}>
       <svg
         viewBox={`0 0 ${vW} ${vH}`}
-        style={{ width: '100%', display: 'block', overflow: 'visible' }}
+        style={{ width: '100%', maxWidth: 280, margin: '0 auto', display: 'block', overflow: 'visible' }}
         role="img"
         aria-label={`${player || '선수'} 개인 프로필 레이더 차트`}
       >

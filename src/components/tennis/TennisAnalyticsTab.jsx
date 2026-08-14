@@ -95,20 +95,35 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
 
   // 파트너별은 HBarChart로 대체 — useSortableRows 불필요
 
+  // 랭킹바 정렬: 다승(기본) / 승률. 바 길이도 정렬 기준을 따른다.
+  const [chemSort, setChemSort] = useState('wins');
+  const chemBarRows = useMemo(() => {
+    if (!chemistry.length) return [];
+    const maxWins = Math.max(1, ...chemistry.map(p => p.wins));
+    const sorter = chemSort === 'wins'
+      ? (a, b) => b.wins - a.wins || b.rate - a.rate
+      : (a, b) => b.rate - a.rate || b.wins - a.wins;
+    return [...chemistry].sort(sorter).slice(0, 8).map(p => ({
+      label: p.players.join('·') + (p.hasGuest ? ' *' : ''),
+      value: chemSort === 'wins' ? p.wins / maxWins : p.rate,
+      note: `${p.wins}-${p.losses} (${Math.round(p.rate * 100)}%)`,
+    }));
+  }, [chemistry, chemSort]);
+
   return (
     <>
       {showChemistry && (
         <>
           <div style={ds.sectionTitle}>페어 케미 (3경기↑)</div>
           {chemistry.length > 0 && (
-            <HBarChart
-              rows={[...chemistry].sort((a, b) => b.rate - a.rate || b.wins - a.wins).slice(0, 8).map(p => ({
-                label: p.players.join('·') + (p.hasGuest ? ' *' : ''),
-                value: p.rate,
-                note: `${p.wins}-${p.losses} (${Math.round(p.rate * 100)}%)`,
-              }))}
-              ds={ds} C={C}
-            />
+            <>
+              <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
+                {[['wins', '다승'], ['rate', '승률']].map(([v, l]) => (
+                  <button key={v} onClick={() => setChemSort(v)} style={ds.chip(chemSort === v)}>{l}</button>
+                ))}
+              </div>
+              <HBarChart rows={chemBarRows} ds={ds} C={C} />
+            </>
           )}
           {chemistry.length === 0 ? (
             <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
@@ -385,6 +400,9 @@ function RadarSection({ radar, ds, C }) {
     <>
       <div style={ds.sectionTitle}>개인 프로필</div>
       <PlayerRadarChart radar={radar} ds={ds} C={C} />
+      <div style={{ fontSize: 10, color: C.gray, textAlign: 'center', margin: '-6px 0 4px' }}>
+        모양 = 회원 대비 순위(백분위) · 라벨 = 실제값 · 승률축은 3경기↑ 회원 기준
+      </div>
     </>
   );
 }
