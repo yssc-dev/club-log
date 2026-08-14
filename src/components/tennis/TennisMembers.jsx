@@ -98,25 +98,21 @@ function MemberForm({ initial, isNew, members, saving, onSave, onCancel, onDelet
   );
 }
 
-// ── 회원 카드 한 줄 ─────────────────────────────────────────
+// ── 회원 한 줄(1인 1행) ─────────────────────────────────────
 // 활동 회원은 '편집'만(탈퇴는 편집 폼 하단으로). 탈퇴 회원은 '복원'.
-function MemberRow({ m, deleted, onEdit, onRestore, saving, ds, C }) {
+function MemberRow({ m, deleted, first, onEdit, onRestore, saving, ds, C }) {
   const badgeBg = m.memberType === '게스트' ? C.grayDarker : C.accent;
+  const smallBtn = { ...ds.chip(false), padding: '3px 10px', fontSize: 12, flexShrink: 0, cursor: saving ? 'default' : 'pointer' };
   return (
-    <div style={{ ...ds.card, display: 'flex', alignItems: 'center', gap: 8, opacity: deleted ? 0.55 : 1, marginBottom: 8 }}>
-      <div style={{ minWidth: 0, flex: 1 }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-          <span style={{ color: C.white, fontSize: 14, fontWeight: 600 }}>{m.name}</span>
-          <span style={{ fontSize: 10, color: C.white, background: badgeBg, borderRadius: 4, padding: '1px 6px' }}>{m.memberType}</span>
-          {m.grade && <span style={{ fontSize: 10, color: C.gray }}>{m.grade}</span>}
-        </div>
-        {m.nickname && <div style={{ fontSize: 11, color: C.gray, marginTop: 2 }}>{m.nickname}</div>}
-      </div>
-      {deleted ? (
-        <button onClick={() => onRestore(m)} disabled={saving} style={{ ...ds.chip(false), cursor: saving ? 'default' : 'pointer' }}>복원</button>
-      ) : (
-        <button onClick={() => onEdit(m)} disabled={saving} style={{ ...ds.chip(false), cursor: saving ? 'default' : 'pointer' }}>편집</button>
-      )}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '9px 2px', borderTop: first ? 'none' : `1px solid ${C.borderColor}`, opacity: deleted ? 0.55 : 1, minWidth: 0 }}>
+      <span style={{ color: C.white, fontSize: 13, fontWeight: 600, flexShrink: 0 }}>{m.name}</span>
+      <span style={{ fontSize: 9, color: C.white, background: badgeBg, borderRadius: 4, padding: '1px 5px', flexShrink: 0 }}>{m.memberType}</span>
+      {m.grade && <span style={{ fontSize: 10, color: C.gray, flexShrink: 0 }}>{m.grade}</span>}
+      {m.nickname && <span style={{ fontSize: 11, color: C.gray, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>· {m.nickname}</span>}
+      <span style={{ flex: 1 }} />
+      {deleted
+        ? <button onClick={() => onRestore(m)} disabled={saving} style={smallBtn}>복원</button>
+        : <button onClick={() => onEdit(m)} disabled={saving} style={smallBtn}>편집</button>}
     </div>
   );
 }
@@ -201,14 +197,15 @@ export default function TennisMembers({ C: propC }) {
     );
   }
 
+  const addBtn = {
+    background: C.accent, color: C.white, border: 'none', borderRadius: 8,
+    padding: '6px 12px', fontSize: 13, fontWeight: 600, fontFamily: 'inherit', cursor: 'pointer', flexShrink: 0,
+  };
+
   return (
     <div style={ds.section}>
-      {!editing && (
-        <button onClick={() => setEditing(blankMember())} style={ds.btnFull(C.accent)}>+ 회원 추가</button>
-      )}
-
       {status && (
-        <div style={{ fontSize: 12, textAlign: 'center', margin: '10px 0', color: status.type === 'ok' ? C.green : C.red }}>
+        <div style={{ fontSize: 12, textAlign: 'center', margin: '0 0 10px', color: status.type === 'ok' ? C.green : C.red }}>
           {status.msg}
         </div>
       )}
@@ -227,23 +224,32 @@ export default function TennisMembers({ C: propC }) {
         />
       )}
 
-      <div style={{ marginTop: 12 }}>
-        <div style={ds.sectionTitle}>정회원 · 게스트 ({active.length})</div>
-        {active.length === 0
-          ? <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>회원이 없습니다</div>
-          : active.map(m => (
-            <MemberRow key={m.row} m={m} onEdit={mm => setEditing(memberToForm(mm))} saving={saving} ds={ds} C={C} />
-          ))}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 8 }}>
+        <div style={{ ...ds.sectionTitle, marginBottom: 0, flex: 1 }}>정회원 · 게스트 ({active.length})</div>
+        {!editing && <button onClick={() => setEditing(blankMember())} style={addBtn}>+ 회원 추가</button>}
       </div>
+      {active.length === 0
+        ? <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>회원이 없습니다</div>
+        : (
+          <div style={{ ...ds.card, padding: '2px 12px' }}>
+            {active.map((m, i) => (
+              <MemberRow key={m.row} m={m} first={i === 0} onEdit={mm => setEditing(memberToForm(mm))} saving={saving} ds={ds} C={C} />
+            ))}
+          </div>
+        )}
 
       {deleted.length > 0 && (
         <div style={{ marginTop: 12 }}>
           <button onClick={() => setShowDeleted(s => !s)} style={{ background: 'none', border: 'none', color: C.accent, cursor: 'pointer', fontSize: 12, fontFamily: 'inherit', padding: '2px 2px' }}>
             {showDeleted ? '▾ 탈퇴 회원 숨기기' : `▸ 탈퇴 회원 보기 (${deleted.length})`}
           </button>
-          {showDeleted && deleted.map(m => (
-            <MemberRow key={m.row} m={m} deleted onRestore={onRestore} saving={saving} ds={ds} C={C} />
-          ))}
+          {showDeleted && (
+            <div style={{ ...ds.card, padding: '2px 12px', marginTop: 6 }}>
+              {deleted.map((m, i) => (
+                <MemberRow key={m.row} m={m} deleted first={i === 0} onRestore={onRestore} saving={saving} ds={ds} C={C} />
+              ))}
+            </div>
+          )}
         </div>
       )}
     </div>
