@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  blankMember, validateMember, toWritePayload, partitionMembers,
+  blankMember, validateMember, toWritePayload, partitionMembers, memberToForm,
   MEMBER_TYPES, MEMBER_STATUSES, GRADES,
 } from '../memberForm';
 
@@ -29,36 +29,50 @@ describe('blankMember', () => {
 
 describe('validateMember', () => {
   it('이름 공백이면 에러', () => {
-    const r = validateMember({ ...M(), name: '  ' }, [], { isNew: true });
+    const r = validateMember({ ...M(), name: '  ' }, []);
     expect(r.ok).toBe(false);
     expect(r.errors.name).toBeTruthy();
   });
   it('신규 추가 시 같은 팀 활동 동일 이름은 중복 경고', () => {
     const existing = [M({ row: 5, name: '문형민', status: '활동' })];
-    const r = validateMember({ ...blankMember(), name: '문형민' }, existing, { isNew: true });
+    const r = validateMember({ ...blankMember(), name: '문형민' }, existing);
     expect(r.ok).toBe(false);
     expect(r.errors.name).toBeTruthy();
   });
   it('탈퇴 회원과 이름이 같아도 신규 추가 허용', () => {
     const existing = [M({ row: 5, name: '문형민', status: '탈퇴' })];
-    const r = validateMember({ ...blankMember(), name: '문형민' }, existing, { isNew: true });
+    const r = validateMember({ ...blankMember(), name: '문형민' }, existing);
     expect(r.ok).toBe(true);
   });
   it('수정 시 자기 자신은 중복으로 안 잡음(row 제외)', () => {
     const existing = [M({ row: 2, name: '박성언', status: '활동' })];
-    const r = validateMember(M({ row: 2, name: '박성언' }), existing, { isNew: false });
+    const r = validateMember(M({ row: 2, name: '박성언' }), existing);
     expect(r.ok).toBe(true);
   });
   it('수정으로 다른 활동회원 이름과 충돌하면 중복 경고', () => {
     const existing = [M({ row: 2, name: '박성언' }), M({ row: 5, name: '문형민' })];
-    const r = validateMember(M({ row: 2, name: '문형민' }), existing, { isNew: false });
+    const r = validateMember(M({ row: 2, name: '문형민' }), existing);
     expect(r.ok).toBe(false);
     expect(r.errors.name).toBeTruthy();
   });
   it('시즌시작순위 숫자 아니면 에러, 빈값은 통과', () => {
-    expect(validateMember(M({ seasonStartRank: 'abc' }), [], {}).ok).toBe(false);
-    expect(validateMember(M({ seasonStartRank: '' }), [], {}).ok).toBe(true);
-    expect(validateMember(M({ seasonStartRank: '3' }), [], {}).ok).toBe(true);
+    expect(validateMember(M({ seasonStartRank: 'abc' }), []).ok).toBe(false);
+    expect(validateMember(M({ seasonStartRank: '' }), []).ok).toBe(true);
+    expect(validateMember(M({ seasonStartRank: '3' }), []).ok).toBe(true);
+  });
+});
+
+describe('memberToForm', () => {
+  it('admin member → 폼 초안. seasonStartRank null→"" (인풋 표시용)', () => {
+    const f = memberToForm({ row: 5, name: '박성언', nickname: '성언', grade: '금배', memberType: '게스트', status: '탈퇴', seasonStartRank: null, joinDate: '2024-01-01', note: '메모' });
+    expect(f.row).toBe(5);
+    expect(f.seasonStartRank).toBe('');      // null → 빈 문자열
+    expect(f.memberType).toBe('게스트');
+    expect(f.status).toBe('탈퇴');
+    expect(f.note).toBe('메모');
+  });
+  it('seasonStartRank 숫자는 문자열로', () => {
+    expect(memberToForm({ name: 'x', seasonStartRank: 3 }).seasonStartRank).toBe('3');
   });
 });
 

@@ -14,7 +14,8 @@ export function blankMember() {
 }
 
 // 폼 검증: 이름 필수, 같은 팀 활동 동일 이름 중복(자기 자신 row 제외), 시즌시작순위 숫자/빈값.
-export function validateMember(form, existingMembers = [], { isNew = false } = {}) { // eslint-disable-line no-unused-vars
+// 신규/수정 구분은 row(=null이면 신규)로 자연 처리되므로 별도 플래그 불필요.
+export function validateMember(form, existingMembers = []) {
   const errors = {};
   const name = (form.name || '').trim();
   if (!name) {
@@ -56,5 +57,20 @@ export function partitionMembers(members = []) {
   return {
     active: (members || []).filter(m => m.status !== '탈퇴').slice().sort(byName),
     deleted: (members || []).filter(m => m.status === '탈퇴').slice().sort(byName),
+  };
+}
+
+// admin 조회 member → 폼 초안(blankMember의 역/counterpart). seasonStartRank null→""(인풋 표시용).
+export function memberToForm(m) {
+  return {
+    row: m.row ?? null,
+    name: m.name || '',
+    nickname: m.nickname || '',
+    grade: m.grade || '',
+    memberType: m.memberType || '정회원',
+    status: m.status || '활동',
+    seasonStartRank: m.seasonStartRank == null ? '' : String(m.seasonStartRank),
+    joinDate: m.joinDate || '',
+    note: m.note || '',
   };
 }

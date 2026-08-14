@@ -3094,13 +3094,18 @@ function _getTennisRosterAdmin(team) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: true, members: [] };
-  var values = sheet.getRange(2, 1, lastRow - 1, TENNIS_ROSTER_HEADERS.length).getValues();
+  var ncol = Math.min(TENNIS_ROSTER_HEADERS.length, sheet.getMaxColumns());
+  var values = sheet.getRange(2, 1, lastRow - 1, ncol).getValues();
   var members = [];
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
     if (String(v[0]).trim() !== String(team).trim()) continue;
     var name = String(v[1] || "").trim();
     if (!name) continue;
+    var jd = v[7];
+    var joinStr = (jd instanceof Date)
+      ? Utilities.formatDate(jd, Session.getScriptTimeZone(), "yyyy-MM-dd")
+      : (jd === "" || jd == null ? "" : String(jd));
     members.push({
       row: i + 2,                              // 실제 시트 행번호(2-base)
       name: name,
@@ -3108,8 +3113,8 @@ function _getTennisRosterAdmin(team) {
       grade: String(v[4] || "").trim(),
       memberType: String(v[9] || "정회원").trim() || "정회원",
       status: String(v[5] || "활동").trim() || "활동",
-      seasonStartRank: v[6] === "" || v[6] === null ? null : Number(v[6]),
-      joinDate: v[7] === "" || v[7] === null ? "" : String(v[7]),
+      seasonStartRank: v[6] === "" || v[6] == null ? null : Number(v[6]),
+      joinDate: joinStr,
       note: String(v[8] || "").trim()
       // 생년월일(v[3])은 반환하지 않는다(클라 미전송 원칙)
     });
@@ -3120,7 +3125,8 @@ function _getTennisRosterAdmin(team) {
 // 관리자 전용 upsert(+소프트삭제). row 있으면 수정(팀 소유 검증·생년월일 보존), 없으면 append.
 function _writeTennisRosterMember(team, body) {
   if (!team || !String(team).trim()) return { success: false, error: "team 필수" };
-  var name = _sanitizeCell(body && body.name).trim();
+  // 모든 자유입력은 trim 먼저→_sanitizeCell(선행공백+수식으로 우회 방지). enum은 화이트리스트.
+  var name = _sanitizeCell(String((body && body.name) || "").trim());
   if (!name) return { success: false, error: "이름은 필수입니다" };
 
   _ensureTennisSheets();
@@ -3128,14 +3134,14 @@ function _writeTennisRosterMember(team, body) {
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
   var ncol = TENNIS_ROSTER_HEADERS.length;
 
-  var nickname = _sanitizeCell(body.nickname);
-  var grade = String(body.grade || "").trim();
-  var memberType = String(body.memberType || "정회원").trim() || "정회원";
-  var status = String(body.status || "활동").trim() || "활동";
+  var nickname = _sanitizeCell(String(body.nickname || "").trim());
+  var grade = _sanitizeCell(String(body.grade || "").trim());
+  var memberType = (String(body.memberType || "").trim() === "게스트") ? "게스트" : "정회원"; // 화이트리스트
+  var status = (String(body.status || "").trim() === "탈퇴") ? "탈퇴" : "활동";               // 화이트리스트
   var rank = (body.seasonStartRank === "" || body.seasonStartRank === null || body.seasonStartRank === undefined)
     ? "" : Number(body.seasonStartRank);
-  var joinDate = String(body.joinDate || "").trim();
-  var note = _sanitizeCell(body.note);
+  var joinDate = _sanitizeCell(String(body.joinDate || "").trim());
+  var note = _sanitizeCell(String(body.note || "").trim());
 
   if (body.row !== undefined && body.row !== null && body.row !== "") {
     var row = Number(body.row);
@@ -3144,6 +3150,7 @@ function _writeTennisRosterMember(team, body) {
     var existing = sheet.getRange(row, 1, 1, ncol).getValues()[0];
     if (String(existing[0]).trim() !== String(team).trim()) return { success: false, error: "행 팀 불일치" };
     var birth = existing[3]; // 생년월일 보존
+    // 열 순서는 TENNIS_ROSTER_HEADERS와 동일: 팀이름,이름,닉네임,생년월일,등급,상태,시즌시작순위,가입일,비고,구분
     sheet.getRange(row, 1, 1, ncol).setValues([[
       String(team).trim(), name, nickname, birth, grade, status, rank, (joinDate || existing[7] || ""), note, memberType
     ]]);

@@ -76,8 +76,9 @@ const TennisSync = {
   },
 
   // 관리자 전용 — 전체 회원(정회원+게스트, 활동+탈퇴)+행번호. 서버가 role/team 게이트.
+  // _post(throw)로 실패(권한/네트워크)를 호출부가 구분(로드실패 vs 빈 목록)할 수 있게 한다.
   getRosterAdmin() {
-    return _safeRead({ action: "getTennisRosterAdmin" }, "members", []);
+    return _post({ action: "getTennisRosterAdmin" }).then(r => r.members || []);
   },
 
   // 회원 upsert(+소프트삭제). member 필드를 최상위로 펼쳐 전송(team/authToken은 _post가 주입).

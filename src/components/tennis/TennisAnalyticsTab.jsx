@@ -6,6 +6,7 @@ import { buildSinglesStandings, buildPlayerSummary } from '../../utils/tennis/te
 import {
   buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
+  playerDropdownNames,
 } from '../../utils/tennis/tennisAnalytics';
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
 import { availableYears, availableMonths, filterRowsByPeriod, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
@@ -480,12 +481,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
   }, []);
 
   const today = new Date().toISOString().slice(0, 10);
-  // 선수 드롭다운 = 정회원 로스터 ∪ 기록 보유자. roster에서 빠진 게스트(재분류 포함)도 본인 기록을 조회할 수 있게.
-  const rosterNames = useMemo(() => {
-    const names = new Set((roster || []).map(m => m.name).filter(Boolean));
-    for (const r of (rows || [])) if (r.player) names.add(r.player);
-    return [...names].sort((a, b) => String(a).localeCompare(String(b), 'ko'));
-  }, [roster, rows]);
+  // 선수 드롭다운 = 정회원 로스터 ∪ 기록 보유자(playerDropdownNames). 게스트 재분류 회귀 방지.
+  const rosterNames = useMemo(() => playerDropdownNames(roster, rows), [roster, rows]);
 
   // ── 날짜 필터 state / 파생 (계산기 useMemo들 위에 무조건 호출) ──────────
   const [year, setYear] = useState('');

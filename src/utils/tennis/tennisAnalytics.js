@@ -8,6 +8,14 @@ const rate = (w, g) => (g > 0 ? w / g : 0);
 // 판 식별 키 — game_id + match_id (match_id는 R{round}_C{court}라 날짜 넘어 재사용됨).
 export const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 
+// 개인분석 선수 드롭다운 = 정회원 로스터 ∪ 기록 보유자(가나다순).
+// roster에서 빠진 게스트(재분류 포함)도 본인 기록을 조회할 수 있게 union한다.
+export function playerDropdownNames(roster, rows) {
+  const names = new Set((roster || []).map(m => m && m.name).filter(Boolean));
+  for (const r of (rows || [])) if (r && r.player) names.add(r.player);
+  return [...names].sort((a, b) => String(a).localeCompare(String(b), 'ko'));
+}
+
 // 게스트가 하나라도 낀 판(game_id|match_id) 키 집합 — 번외 판정용.
 // 리그 성립은 참가자 전원 회원일 때만이므로, 게스트 판은 회원 행까지 통째로 리그에서 뺀다.
 export function guestMatchKeys(rows) {

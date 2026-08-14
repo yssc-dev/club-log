@@ -2,8 +2,25 @@ import { describe, it, expect } from 'vitest';
 import {
   buildDoublesStandings, buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
-  buildLeagueCounts,
+  buildLeagueCounts, playerDropdownNames,
 } from '../tennisAnalytics';
+
+describe('playerDropdownNames (개인분석 드롭다운 union)', () => {
+  it('정회원 로스터 ∪ 기록 보유자, 가나다순', () => {
+    const roster = [{ name: '박성언' }, { name: '문형민' }];
+    const rows = [{ player: '박성언' }, { player: '김게스트' }]; // 김게스트=roster 밖 기록보유
+    expect(playerDropdownNames(roster, rows)).toEqual(['김게스트', '문형민', '박성언']);
+  });
+  it('roster에서 빠진 게스트도 기록 있으면 드롭다운에 등장(회귀 방지)', () => {
+    const roster = [{ name: '문형민' }];      // 박성언이 게스트로 재분류돼 roster에서 빠짐
+    const rows = [{ player: '박성언' }];       // 하지만 과거 기록 있음
+    expect(playerDropdownNames(roster, rows)).toContain('박성언');
+  });
+  it('빈 입력 안전', () => {
+    expect(playerDropdownNames(null, null)).toEqual([]);
+    expect(playerDropdownNames([{ name: '' }], [{}])).toEqual([]);
+  });
+});
 
 const roster = [{ name: '갑', grade: '금배' }, { name: '을', grade: '은배' }, { name: '병', grade: '동배' }];
 

@@ -5,18 +5,18 @@ import TennisSync from '../../services/tennisSync';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import {
-  blankMember, validateMember, toWritePayload, partitionMembers, GRADES, MEMBER_TYPES,
+  blankMember, validateMember, toWritePayload, partitionMembers, memberToForm, GRADES, MEMBER_TYPES,
 } from '../../utils/tennis/memberForm';
 
 // ── 회원 폼 (추가/수정 공용) ────────────────────────────────
 function MemberForm({ initial, isNew, members, saving, onSave, onCancel, ds, C }) {
   const [form, setForm] = useState(initial);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
-  const v = validateMember(form, members, { isNew });
+  const v = validateMember(form, members);
 
   const inputStyle = {
-    background: C.cardLight, color: C.white, border: `1px solid ${C.borderColor}`,
-    borderRadius: 8, padding: '6px 10px', fontSize: 13, fontFamily: 'inherit', width: '100%', boxSizing: 'border-box',
+    ...ds.input, fontSize: 13, padding: '6px 10px', borderRadius: 8,
+    border: `1px solid ${C.borderColor}`, boxSizing: 'border-box',
   };
   const label = { fontSize: 11, color: C.gray, margin: '8px 0 3px' };
 
@@ -120,19 +120,22 @@ export default function TennisMembers({ C: propC }) {
   const ds = makeStyles(C);
   const [members, setMembers] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState(false);      // 조회 실패(권한/네트워크) — 빈 목록과 구분
   const [showDeleted, setShowDeleted] = useState(false);
   const [editing, setEditing] = useState(null); // null | {form draft} (row null=신규)
   const [saving, setSaving] = useState(false);
   const [status, setStatus] = useState(null);    // { type:'ok'|'err', msg }
 
   const reload = () => TennisSync.getRosterAdmin()
-    .then(ms => setMembers(Array.isArray(ms) ? ms : []))
+    .then(ms => { setError(false); setMembers(Array.isArray(ms) ? ms : []); })
+    .catch(() => setError(true))
     .finally(() => setLoading(false));
 
   useEffect(() => {
     let alive = true;
     TennisSync.getRosterAdmin()
-      .then(ms => { if (alive) setMembers(Array.isArray(ms) ? ms : []); })
+      .then(ms => { if (alive) { setError(false); setMembers(Array.isArray(ms) ? ms : []); } })
+      .catch(() => { if (alive) setError(true); })
       .finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
@@ -149,7 +152,7 @@ export default function TennisMembers({ C: propC }) {
   };
 
   const onSave = (form, isNew) => {
-    const v = validateMember(form, members, { isNew });
+    const v = validateMember(form, members);
     if (!v.ok) { setStatus({ type: 'err', msg: Object.values(v.errors)[0] }); return; }
     const name = (form.name || '').trim();
     const msg = isNew ? `${form.memberType} '${name}' 추가할까요?` : `'${name}' 변경사항을 저장할까요?`;
@@ -175,6 +178,19 @@ export default function TennisMembers({ C: propC }) {
     return <div style={ds.section}><div style={{ ...ds.card, color: C.gray, fontSize: 13, textAlign: 'center', padding: 24 }}>데이터 로딩중…</div></div>;
   }
 
+  if (error) {
+    return (
+      <div style={ds.section}>
+        <div style={{ ...ds.card, color: C.red, fontSize: 13, textAlign: 'center', padding: 24 }}>
+          불러오지 못했습니다
+          <div style={{ marginTop: 10 }}>
+            <button onClick={() => { setLoading(true); reload(); }} style={ds.chip(false)}>다시 시도</button>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div style={ds.section}>
       {!editing && (
@@ -189,6 +205,7 @@ export default function TennisMembers({ C: propC }) {
 
       {editing && (
         <MemberForm
+          key={editing.row ?? 'new'}
           initial={editing}
           isNew={editing.row == null}
           members={members}
@@ -220,19 +237,4 @@ export default function TennisMembers({ C: propC }) {
       )}
     </div>
   );
-}
-
-// admin 조회 결과(member) → 폼 초안. seasonStartRank null → "" (인풋 표시용).
-function memberToForm(m) {
-  return {
-    row: m.row ?? null,
-    name: m.name || '',
-    nickname: m.nickname || '',
-    grade: m.grade || '',
-    memberType: m.memberType || '정회원',
-    status: m.status || '활동',
-    seasonStartRank: m.seasonStartRank == null ? '' : String(m.seasonStartRank),
-    joinDate: m.joinDate || '',
-    note: m.note || '',
-  };
 }

@@ -21,9 +21,7 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
 
   if (activeTab === 'members') {
     // 서버 ADMIN_ACTIONS 게이트가 1차 방어, 이 가드는 2차(탭이 다른 경로로 활성화돼도 비관리자엔 미노출).
-    return role === '관리자'
-      ? <TennisMembers C={C} />
-      : <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>관리자 전용</div>;
+    return role === '관리자' ? <TennisMembers C={C} /> : null;
   }
 
   if (activeTab === 'games') {

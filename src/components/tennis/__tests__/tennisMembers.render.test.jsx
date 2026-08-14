@@ -6,20 +6,19 @@ import { createElement } from 'react';
 import { ThemeProvider } from '../../../hooks/useTheme';
 import TennisMembers from '../TennisMembers';
 
-const { writeMock, MEMBERS } = vi.hoisted(() => ({
+const { writeMock, getAdminMock, MEMBERS } = vi.hoisted(() => ({
   writeMock: vi.fn(() => Promise.resolve({ success: true })),
+  getAdminMock: vi.fn(),
   MEMBERS: [
-    { row: 2, name: '박성언', nickname: '성언', grade: '금배', memberType: '정회원', status: '활동', seasonStartRank: 1, joinDate: '2024-01-01', note: '' },
+    // 박성언에 birthDate 주입 — 서버가 실수로 내려도 UI가 노출 안 하는지 방어 검증
+    { row: 2, name: '박성언', nickname: '성언', grade: '금배', memberType: '정회원', status: '활동', seasonStartRank: 1, joinDate: '2024-01-01', note: '', birthDate: '1990-05-05' },
     { row: 3, name: '김게스트', nickname: '', grade: '', memberType: '게스트', status: '활동', seasonStartRank: null, joinDate: '', note: '자주옴' },
     { row: 4, name: '탈퇴자', nickname: '', grade: '동배', memberType: '정회원', status: '탈퇴', seasonStartRank: null, joinDate: '', note: '' },
   ],
 }));
 
 vi.mock('../../../services/tennisSync', () => ({
-  default: {
-    getRosterAdmin: () => Promise.resolve(MEMBERS.map(m => ({ ...m }))),
-    writeRosterMember: writeMock,
-  },
+  default: { getRosterAdmin: getAdminMock, writeRosterMember: writeMock },
 }));
 
 Object.defineProperty(window, 'matchMedia', {
@@ -28,7 +27,13 @@ Object.defineProperty(window, 'matchMedia', {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let container, root;
-beforeEach(() => { container = document.createElement('div'); document.body.appendChild(container); writeMock.mockClear(); window.confirm = vi.fn(() => true); });
+beforeEach(() => {
+  container = document.createElement('div'); document.body.appendChild(container);
+  writeMock.mockClear();
+  getAdminMock.mockReset();
+  getAdminMock.mockResolvedValue(MEMBERS.map(m => ({ ...m })));
+  window.confirm = vi.fn(() => true);
+});
 afterEach(() => { act(() => root?.unmount()); container.remove(); });
 
 async function mount() {
@@ -84,5 +89,18 @@ describe('TennisMembers 실렌더', () => {
     expect(payload.status).toBe('탈퇴');
     expect(payload.name).toBe('박성언');
     expect(payload.seasonStartRank).toBe(1);  // 숫자 보존
+  });
+
+  it('생년월일은 UI에 노출되지 않음(서버가 내려도 방어)', async () => {
+    await mount();
+    expect(container.textContent).not.toContain('1990');   // 박성언 birthDate 미표시
+  });
+
+  it('조회 실패 시 "불러오지 못했습니다" (빈 목록과 구분)', async () => {
+    getAdminMock.mockReset();
+    getAdminMock.mockRejectedValue(new Error('관리자 권한이 필요합니다'));
+    await mount();
+    expect(container.textContent).toContain('불러오지 못했습니다');
+    expect(container.textContent).not.toContain('회원이 없습니다');
   });
 });
