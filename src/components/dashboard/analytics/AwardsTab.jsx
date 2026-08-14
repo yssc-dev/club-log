@@ -1,5 +1,6 @@
 // src/components/dashboard/analytics/AwardsTab.jsx
 import { useMemo, useState } from 'react';
+import RankBarList from './RankBarList';
 import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
 
@@ -38,24 +39,13 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     effectiveMonth ? calcMonthlyRanking({ yearMonth: effectiveMonth, playerLogs: playerGameLogs || [], matchLogs: matchLogs || [] }) : null
   , [effectiveMonth, playerGameLogs, matchLogs]);
 
-  const Card = ({ title, items, valueKey, valueFmt, valueRender }) => (
+  const Card = ({ title, items, valueKey, valueFmt }) => (
     <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
       <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 8 }}>{title}</div>
-      {(!items || items.length === 0) ? (
-        <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
-      ) : items.map((it, i) => (
-        <div key={`${it.player}|${i}`} style={{
-          display: 'flex', justifyContent: 'space-between',
-          padding: '4px 0', fontSize: 12,
-          borderBottom: i < items.length - 1 ? `1px dashed ${C.grayDarker}` : 'none',
-        }}>
-          <span style={{ color: C.gray }}>#{i + 1} {it.player}</span>
-          {valueRender
-            ? valueRender(it)
-            : <span style={{ color: C.green, fontWeight: 600 }}>{valueFmt(it[valueKey])}</span>
-          }
-        </div>
-      ))}
+      <RankBarList
+        rows={(items || []).map(it => ({ player: it.player, value: it[valueKey], rank: it.rank }))}
+        formatValue={valueFmt} color={C.green} C={C}
+      />
     </div>
   );
 
@@ -134,47 +124,17 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     );
   };
 
-  // 지표 Top5 전용 — 막대 길이는 1위 대비 상대값(단일 색, 크기 인코딩).
-  // invert(낮을수록 좋음)는 min/value로 환산해 1위가 항상 최장.
-  const MetricBarCol = ({ title, rows, fmt, invert = false }) => {
-    const best = rows.length ? rows[0].value : 0;
-    const ratioOf = (v) => {
-      if (invert) return v <= 0 ? 1 : Math.min(1, best / v);
-      return best <= 0 ? 0 : Math.max(0, Math.min(1, v / best));
-    };
-    return (
-      <div>
-        <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>{title}</div>
-        {rows.length === 0 ? (
-          <div style={{ fontSize: 10, color: C.gray }}>-</div>
-        ) : rows.map((r, i) => (
-          <div key={r.player} style={{ marginBottom: 6 }}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-              <span style={{ color: C.white }}>{i + 1}. {r.player}</span>
-              <span style={{ color: C.white, fontWeight: 700 }}>{fmt(r.value)}</span>
-            </div>
-            {/* 막대는 보조 비교용 — 저채도(투명도↓)로 텍스트보다 뒤에 물러나게 */}
-            <div style={{ height: 3, borderRadius: 2, background: C.grayDarker, opacity: 0.6 }}>
-              <div style={{ width: `${Math.round(ratioOf(r.value) * 100)}%`, height: '100%', borderRadius: 2, background: C.accent, opacity: 0.35 }} />
-            </div>
-          </div>
-        ))}
-      </div>
-    );
-  };
-
-  const RankingCol = ({ title, rows, suffix }) => (
+  // 지표 Top5 / 랭킹 공통 열 — 막대 표현은 RankBarList가 맡는다(앱 전체 순위 목록과 같은 형태).
+  // invert=낮을수록 좋음(실점률·편차) → 1위가 항상 최장.
+  const MetricBarCol = ({ title, rows, fmt, invert = false, color }) => (
     <div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>{title}</div>
-      {(!rows || rows.length === 0) ? (
-        <div style={{ fontSize: 10, color: C.gray }}>-</div>
-      ) : rows.map((r, i) => (
-        <div key={r.player} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
-          <span style={{ color: C.white }}>{r.rank ?? i + 1}. {r.player}</span>
-          <span style={{ color: C.white, fontWeight: 700 }}>{r.value}{suffix}</span>
-        </div>
-      ))}
+      <RankBarList rows={rows} formatValue={fmt} lowerIsBetter={invert} color={color || C.accent} C={C} emptyText="-" />
     </div>
+  );
+
+  const RankingCol = ({ title, rows, suffix = '', fmt }) => (
+    <MetricBarCol title={title} rows={rows} fmt={fmt || (v => `${v}${suffix}`)} />
   );
 
   return (
@@ -238,18 +198,12 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
               suffix="회" />
             <div>
               <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🧱 실점률 (경기당)</div>
-              {awards.keepers.stingiest.length === 0
-                ? <div style={{ fontSize: 10, color: C.gray }}>-</div>
-                : awards.keepers.stingiest.map((k, i) => (
-                  <div key={k.player} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                    <span style={{ color: C.white }}>{i + 1}. {k.player}</span>
-                    <span>
-                      <b style={{ color: C.white, fontWeight: 700 }}>{k.concededRate.toFixed(1)}</b>
-                      <span style={{ color: C.gray, fontSize: 10 }}> ({k.keeperGames}경기)</span>
-                    </span>
-                  </div>
-                ))
-              }
+              <RankBarList
+                rows={awards.keepers.stingiest.map(k => ({
+                  player: k.player, value: k.concededRate, sub: `${k.keeperGames}경기`,
+                }))}
+                formatValue={v => v.toFixed(1)} lowerIsBetter color={C.accent} C={C} emptyText="-"
+              />
             </div>
           </div>
         )}
@@ -312,30 +266,16 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <div>
-              <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>💥 몰빵형 (편차 ↑)</div>
-              {volatility.streaky.length === 0
-                ? <div style={{ fontSize: 10, color: C.gray }}>-</div>
-                : volatility.streaky.map((it, i) => (
-                  <div key={it.player} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                    <span style={{ color: C.white }}>{i + 1}. {it.player}</span>
-                    <span style={{ color: C.white, fontWeight: 700 }}>σ {it.std.toFixed(1)}</span>
-                  </div>
-                ))
-              }
-            </div>
-            <div>
-              <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🎯 꾸준형 (편차 ↓)</div>
-              {volatility.consistent.length === 0
-                ? <div style={{ fontSize: 10, color: C.gray }}>-</div>
-                : volatility.consistent.map((it, i) => (
-                  <div key={it.player} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 3 }}>
-                    <span style={{ color: C.white }}>{i + 1}. {it.player}</span>
-                    <span style={{ color: C.white, fontWeight: 700 }}>σ {it.std.toFixed(1)}</span>
-                  </div>
-                ))
-              }
-            </div>
+            <MetricBarCol
+              title="💥 몰빵형 (편차 ↑)" color={C.orange}
+              rows={volatility.streaky.map(it => ({ player: it.player, value: it.std }))}
+              fmt={v => `σ ${v.toFixed(1)}`}
+            />
+            <MetricBarCol
+              title="🎯 꾸준형 (편차 ↓)" color={C.green} invert
+              rows={volatility.consistent.map(it => ({ player: it.player, value: it.std }))}
+              fmt={v => `σ ${v.toFixed(1)}`}
+            />
           </div>
         )}
       </div>
@@ -360,7 +300,8 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             <RankingCol title="⚡ 공격포인트 (G+A)" rows={ranking.attackPoints} suffix="pt" />
             <RankingCol title="⚽ 득점" rows={ranking.goals} suffix="골" />
             <RankingCol title="🅰 어시" rows={ranking.assists} suffix="어시" />
-            <RankingCol title="🏁 승률" rows={ranking.winRate.map(x => ({ player: x.player, rank: x.rank, value: `${Math.round(x.value * 100)}%` }))} suffix="" />
+            {/* value를 문자열로 미리 바꾸면 막대 비율을 못 낸다 — 숫자를 넘기고 포맷만 지정 */}
+            <RankingCol title="🏁 승률" rows={ranking.winRate} fmt={v => `${Math.round(v * 100)}%`} />
           </div>
         ) : (
           <div style={{ fontSize: 11, color: C.gray }}>월 데이터 없음</div>
