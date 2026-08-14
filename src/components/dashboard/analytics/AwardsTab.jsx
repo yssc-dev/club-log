@@ -137,6 +137,22 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     <MetricBarCol title={title} rows={rows} fmt={fmt || (v => `${v}${suffix}`)} />
   );
 
+  // 일일 MVP는 막대 전환 대상이 아니다(합의). RankingCol이 RankBarList로 바뀌면서
+  // 이 열까지 딸려가는 걸 막으려고 텍스트 렌더를 별도로 남긴다.
+  const PlainRankingCol = ({ title, rows, suffix }) => (
+    <div>
+      <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>{title}</div>
+      {(!rows || rows.length === 0) ? (
+        <div style={{ fontSize: 10, color: C.gray }}>-</div>
+      ) : rows.map((r, i) => (
+        <div key={r.player} style={{ display: "flex", justifyContent: "space-between", fontSize: 11, marginBottom: 2 }}>
+          <span style={{ color: C.white }}>{r.rank ?? i + 1}. {r.player}</span>
+          <span style={{ color: C.white, fontWeight: 700 }}>{r.value}{suffix}</span>
+        </div>
+      ))}
+    </div>
+  );
+
   return (
     <div>
       {/* 🏆 일일 MVP — 그날 최종포인트(랭크점수+크로바+고구마) 1위 */}
@@ -149,7 +165,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
         ) : (
           <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <RankingCol title="👑 MVP 횟수" rows={dailyMvp.ranking} suffix="회" />
+            <PlainRankingCol title="👑 MVP 횟수" rows={dailyMvp.ranking} suffix="회" />
             <div>
               <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🗓 최근 세션 MVP</div>
               {dailyMvp.recent.map(r => (

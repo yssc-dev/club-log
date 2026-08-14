@@ -33,9 +33,15 @@ describe('GkChemistryView', () => {
     expect(html).not.toContain('NaN');
   });
 
-  it('WORST 목록은 실제 최댓값 기준이라 막대가 다 차지 않는다', () => {
+  // BEST/WORST가 나란히 놓이므로 척도를 공유해야 한다. 각 열이 자기 최댓값을 쓰면
+  // BEST 0.8과 WORST 0.4가 둘 다 100%로 그려져 두 열을 비교할 수 없다.
+  it('BEST와 WORST가 같은 척도를 쓴다', () => {
     const html = render(GkChemistryView, { chem });
-    expect(html).toContain('width:25%'); // 0.1 / 0.4
+    expect(html).toContain('width:100%');  // BEST 0.8 = 기준
+    expect(html).toContain('width:50%');   // WORST 0.4 → 0.4/0.8
+    expect(html).toContain('width:12.5%'); // WORST 0.1 → 0.1/0.8
+    // WORST 최상단이 꽉 찬 막대로 그려지면 '잘한 사람'으로 읽힌다
+    expect(html.split('width:100%').length - 1).toBe(1);
   });
 
   it('WORST에는 순위 번호를 붙이지 않는다 — 하위 목록이라 오독된다', () => {

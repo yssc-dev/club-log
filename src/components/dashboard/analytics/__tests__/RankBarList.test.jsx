@@ -111,6 +111,34 @@ describe('RankBarList', () => {
     expect(render({})).toContain('width:40px'); // 기본값
   });
 
+  // BEST/WORST를 나란히 놓는 화면은 두 열이 같은 척도를 써야 비교가 성립한다.
+  // 각 열이 자기 최댓값을 기준 삼으면 80%와 40%가 같은 길이로 그려진다.
+  it('scaleRef를 주면 그 값을 기준으로 그린다 — 짝 열이 척도를 공유하도록', () => {
+    const html = render({ rows: [{ player: '가', value: 0.4 }], scaleRef: 0.8 });
+    expect(html).toContain('width:50%'); // 0.4 / 0.8
+  });
+
+  it('scaleRef가 lowerIsBetter에서도 기준이 된다', () => {
+    const html = render({ rows: [{ player: '가', value: 2 }], scaleRef: 1, lowerIsBetter: true });
+    expect(html).toContain('width:50%'); // 1 / 2
+  });
+
+  it('scaleRef가 없으면 종전처럼 목록 안 극값을 쓴다', () => {
+    const html = render({ rows: [{ player: '가', value: 0.4 }] });
+    expect(html).toContain('width:100%');
+  });
+
+  it('이름이 비어도 key가 충돌하지 않는다', () => {
+    // 이름 없는 행이 둘이면 종전 key는 둘 다 '' 이라 React가 행을 잘못 재사용한다
+    const html = render({ rows: [{ value: 5 }, { value: 3 }] });
+    expect(html).not.toContain('NaN');
+  });
+
+  it('subWidth로 부가정보 칸을 넓힐 수 있다', () => {
+    expect(render({ rows: [{ player: '가', value: 1, sub: '12R·0.50/R' }], subWidth: 58 }))
+      .toContain('width:58px');
+  });
+
   it('빈 목록은 안내문', () => {
     expect(render({ rows: [] })).toContain('표본 부족');
     expect(render({ rows: [], emptyText: '기록 없음' })).toContain('기록 없음');

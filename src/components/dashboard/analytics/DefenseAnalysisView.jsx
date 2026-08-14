@@ -54,6 +54,11 @@ export function DefenseComboSection({ d, metric, size, C }) {
   const toRows = (list) => list.map(r => ({
     name: r.members.join('·'), value: M.rawOf(r), sub: `${r.games}경기`, formatted: M.formatValue(r),
   }));
+  // BEST/WORST가 나란히 놓이므로 척도를 공유한다 — 각자 극값을 쓰면 두 열의
+  // 같은 길이가 서로 다른 값을 뜻해 비교가 성립하지 않는다.
+  const allValues = [...toRows(best), ...toRows(worst)].map(r => r.value);
+  const scaleRef = allValues.length === 0 ? undefined
+    : (lowerIsBetter ? Math.min(...allValues) : Math.max(...allValues));
 
   return (
     <div style={{ marginBottom: 18 }}>
@@ -70,7 +75,7 @@ export function DefenseComboSection({ d, metric, size, C }) {
           </div>
           <RankBarList
             rows={toRows(best)} formatValue={(v, r) => r.formatted}
-            lowerIsBetter={lowerIsBetter} color={C.green} C={C} nameWidth={80}
+            lowerIsBetter={lowerIsBetter} scaleRef={scaleRef} color={C.green} C={C} nameWidth={80}
             emptyText={`표본 부족 (${spec.noun}당 ${spec.minGames}경기 이상 필요)`}
           />
         </div>
@@ -79,7 +84,7 @@ export function DefenseComboSection({ d, metric, size, C }) {
           {/* 하위 목록이라 순위 번호는 '잘한 순'으로 오독된다 */}
           <RankBarList
             rows={toRows(worst)} formatValue={(v, r) => r.formatted}
-            lowerIsBetter={lowerIsBetter} color={C.red} C={C} nameWidth={80} showRank={false}
+            lowerIsBetter={lowerIsBetter} scaleRef={scaleRef} color={C.red} C={C} nameWidth={80} showRank={false}
             emptyText="표본 부족"
           />
         </div>

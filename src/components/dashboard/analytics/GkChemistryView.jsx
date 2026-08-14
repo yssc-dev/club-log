@@ -19,6 +19,13 @@ export default function GkChemistryView({ chem, C }) {
   const toRows = (list) => (list || []).slice(0, 5).map(p => ({
     name: p.field, value: p.cleanRate, sub: `${p.cleanSheets}/${p.rounds}`,
   }));
+  // BEST/WORST가 나란히 놓이므로 척도를 공유한다 — 각자 최댓값을 쓰면
+  // 무실점률 80%와 40%가 같은 길이로 그려져 두 열을 비교할 수 없다.
+  const scaleRef = (data) => Math.max(
+    0.0001,
+    ...toRows(data?.pairs).map(r => r.value),
+    ...toRows(data?.worst).map(r => r.value),
+  );
 
   return (
     <div>
@@ -43,6 +50,7 @@ export default function GkChemistryView({ chem, C }) {
             <div style={{ fontSize: 11, color: C.green, fontWeight: 700, marginBottom: 4 }}>BEST 무실점</div>
             <RankBarList
               rows={toRows(data.pairs)} formatValue={v => `${Math.round(v * 100)}%`}
+              scaleRef={scaleRef(data)}
               color={C.green} C={C} emptyText="표본 부족 (페어당 5라운드 이상 필요)"
             />
           </div>
@@ -51,6 +59,7 @@ export default function GkChemistryView({ chem, C }) {
             {/* 하위 목록에 1·2위를 붙이면 '잘한 사람'으로 읽힌다 */}
             <RankBarList
               rows={toRows(data.worst)} formatValue={v => `${Math.round(v * 100)}%`}
+              scaleRef={scaleRef(data)}
               color={C.red} C={C} showRank={false} emptyText="표본 부족"
             />
           </div>

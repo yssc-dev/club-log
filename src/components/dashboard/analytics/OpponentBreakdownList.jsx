@@ -7,6 +7,9 @@
 //
 // 두 차트를 좌우로 놓아 세로를 절반으로 줄인 만큼 한 행의 폭이 좁다. 그래서 행에는
 // 등수·이름·값만 두고, 골/어시·출전경기수는 '내 행'것만 열 아래에 한 번 요약한다.
+//
+// 행 모양은 RankBarList와 같지만 일부러 옮기지 않았다 — 이 화면은 '내 행'을 색·굵기·◀로
+// 강조하고 나머지를 흐리게 깔아야 하는데(isMe), RankBarList는 그 개념이 없다.
 import { rankWindow } from '../../../utils/soccerAnalytics';
 
 function ChartRow({ row, isMe, valueText, ratio, color, C }) {

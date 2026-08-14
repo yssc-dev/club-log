@@ -19,9 +19,10 @@ export default function AssistPairList({ pairs, C }) {
         rows={pairs.map(p => ({
           name: `${p.assister} → ${p.scorer}`,
           value: p.count,
-          sub: p.sharedGames != null ? `${p.perSharedGame.toFixed(2)}/R` : null,
+          // 함께 뛴 라운드 수는 빈도 해석에 필요한 표본 정보 — 위 설명문이 이걸 전제한다
+          sub: p.sharedGames != null ? `${p.sharedGames}R·${p.perSharedGame.toFixed(2)}/R` : null,
         }))}
-        formatValue={v => `${v}회`} color={C.green} C={C} limit={10} nameWidth={92}
+        formatValue={v => `${v}회`} color={C.green} C={C} limit={10} nameWidth={92} subWidth={62}
       />
     </div>
   );
