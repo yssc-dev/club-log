@@ -231,7 +231,7 @@ export function tennisReducer(state, action) {
     case 'END_SET':
       return mapCourt(state, action.roundIdx, action.courtId, (c) => {
         const cur = currentSetOf(c);
-        if (!cur || !isSetComplete(cur)) return c;
+        if (!cur || !isSetComplete(cur, state.scoringRules)) return c;
         const sets = [...c.sets];
         sets[c.currentSet] = { ...cur, done: true };
         const finished = !!matchWinner(sets, c.bestOf);

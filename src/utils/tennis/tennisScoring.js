@@ -5,60 +5,64 @@
 //   - tbA/tbB: 타이브레이크 포인트 (5:5 도달 후에만 쌓인다)
 //   - done  : 세트 종료 여부
 //
-// 규칙(클럽 커스텀): 6게임 선취. 5:5가 되면 타이브레이크.
-//   - 노에드7(기본, 7point): 노애드 7점 선취 → 승자 7게임 → 최종 7:5.
-//   - 단판1점(1point): 단판 데스 1점 → 승자 6게임 → 최종 6:5.
-// 7:5·6:5는 타이브레이크로만 나온다 — 5:4에서 다음 게임은 6:4 아니면 5:5이기 때문.
-// (기존에 저장된 6:5 타이브레이크 세트는 소급 변경하지 않는다. 집계는 그대로 유효.)
+// 규칙(클럽 커스텀): 6게임 선취(예: 6:0~6:4).
+//   - 노에드7(기본, 7point): 5:5가 되면 별도 미니게임 없이 게임을 계속 —
+//     먼저 7게임을 선취한 쪽이 승. 6:5는 승리 아님, 6:6이면 다음 게임 딴 쪽이 7:6/6:7로 승(win-by-1).
+//     가능 스코어: 6:0~6:4, 7:5, 7:6, 6:7, 5:7.
+//   - 단판1점(1point): 5:5가 되면 단판 데스 1게임으로 결정 → 6:5. (6:6 금지)
+// (기존에 저장된 6:5 타이브레이크 세트(tbA/tbB)는 소급 변경하지 않는다. 집계는 그대로 유효.
+//  타이브레이크 미니게임은 폐지 — isTiebreakActive/incrementTiebreakPoint는 레거시 데이터·미사용.)
 
 const GAMES_TO_WIN_SET = 6;
-export const TIEBREAK_POINTS_TO_WIN = 7;
+export const TIEBREAK_POINTS_TO_WIN = 7; // 레거시(폐지된 타이브레이크). 남겨둔 상수.
 
 export function emptySet() {
   return { a: 0, b: 0, tbA: 0, tbB: 0, done: false };
 }
 
-export function isSetComplete(set) {
+// 세트 완료 판정(모드별).
+//   노에드7: 6게임 & 2게임차, 또는 7게임 도달(7:5·7:6). → 6:5·6:6은 미완료(계속).
+//   그 외(단판1점·기본): 6게임 도달이면 완료(6:5 포함).
+export function isSetComplete(set, rules = {}) {
   if (!set) return false;
-  return set.a >= GAMES_TO_WIN_SET || set.b >= GAMES_TO_WIN_SET;
+  const a = set.a || 0, b = set.b || 0;
+  const max = Math.max(a, b), diff = Math.abs(a - b);
+  if (rules.tiebreakMode === '7point') {
+    return max >= GAMES_TO_WIN_SET + 1 || (max >= GAMES_TO_WIN_SET && diff >= 2);
+  }
+  return max >= GAMES_TO_WIN_SET;
 }
 
+// 레거시: 폐지된 타이브레이크 판정(리듀서 dead path만 참조). 신규 경기에선 발동 안 함.
 export function isTiebreakActive(set) {
   if (!set || set.done) return false;
   return set.a === 5 && set.b === 5;
 }
 
+// 완료된(또는 저장된 종료) 세트의 승자 = 게임 많은 쪽. 6:7·5:7 같은 역전 스코어도 정확.
 export function setWinner(set) {
   if (!set) return null;
-  if (set.a >= GAMES_TO_WIN_SET) return 'A';
-  if (set.b >= GAMES_TO_WIN_SET) return 'B';
-  return null;
+  const a = set.a || 0, b = set.b || 0;
+  if (Math.max(a, b) < GAMES_TO_WIN_SET) return null;
+  return a > b ? 'A' : 'B';
 }
 
 export function incrementGame(set, side, rules = {}) {
   if (!set || set.done) return set;
+  if (isSetComplete(set, rules)) return set;   // 이미 끝난 세트는 못 올린다
   const key = side === 'A' ? 'a' : 'b';
   const other = side === 'A' ? 'b' : 'a';
-  const oneMode = rules.tiebreakMode === '1point';
+  const next = (set[key] || 0) + 1;
 
-  // 이미 6게임인 쪽은 더 올릴 수 없다 (7 금지)
-  if ((set[key] || 0) >= GAMES_TO_WIN_SET) return set;
-
-  if (oneMode) {
-    // 1점 데스 모드: 5:5에서도 게임 +1 허용 — 단, 6:6 금지
-    const nextVal = (set[key] || 0) + 1;
-    if (nextVal >= GAMES_TO_WIN_SET && (set[other] || 0) >= GAMES_TO_WIN_SET) return set;
-    return { ...set, [key]: nextVal };
+  if (rules.tiebreakMode === '7point') {
+    // 노에드7: 최대 7게임(6:5·6:6·7:6 허용, 8 금지). 완료 판정은 isSetComplete가 담당.
+    if (next > GAMES_TO_WIN_SET + 1) return set;
+    return { ...set, [key]: next };
   }
-
-  // 7점 모드(기본): 5:5는 타이브레이크로만 처리
-  if (isTiebreakActive(set)) return set;
-  // 6:5·6:6 금지 — 6:5는 타이브레이크 승자만 만들 수 있는 스코어
-  const nextVal = (set[key] || 0) + 1;
-  const otherVal = set[other] || 0;
-  if (nextVal === GAMES_TO_WIN_SET && otherVal >= 5) return set;  // 자기가 6이 될 때 상대≥5 금지
-  if (nextVal === 5 && otherVal === GAMES_TO_WIN_SET) return set; // 역방향 6:5 금지
-  return { ...set, [key]: nextVal };
+  // 단판1점 & 기본: 6게임까지. 6:6 금지(5:5→6:5 단판).
+  if (next > GAMES_TO_WIN_SET) return set;
+  if (next === GAMES_TO_WIN_SET && (set[other] || 0) >= GAMES_TO_WIN_SET) return set;
+  return { ...set, [key]: next };
 }
 
 export function incrementTiebreakPoint(set, side, rules = {}) {

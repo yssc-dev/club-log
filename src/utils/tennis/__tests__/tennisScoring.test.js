@@ -25,9 +25,9 @@ describe('게임 증분', () => {
     expect(isSetComplete(s)).toBe(false);
   });
 
-  it('타이브레이크 중에는 게임 증분이 먹히지 않는다', () => {
-    const tb = set(5, 5);
-    expect(incrementGame(tb, 'A')).toEqual(tb);
+  it('완료된 세트는 게임 증분이 막힌다', () => {
+    const done = set(6, 4);   // 기본 모드에선 6게임 완료
+    expect(incrementGame(done, 'B')).toBe(done);
   });
 });
 
@@ -161,27 +161,56 @@ describe('incrementTiebreakPoint — 모드별', () => {
 
 describe('incrementGame — rules', () => {
   const s = (a, b) => ({ a, b, tbA: 0, tbB: 0, done: false });
-  it('7점 모드(기본): 6게임 후 상대 6:4까지 순서무관, 6:5 금지', () => {
-    expect(incrementGame(s(6, 0), 'B')).toMatchObject({ a: 6, b: 1 });    // 6:0→6:1 허용
+
+  it('기본 모드: 미완료는 +1, 6게임 완료면 막힘', () => {
+    expect(incrementGame(s(5, 0), 'A')).toMatchObject({ a: 6, b: 0 });   // 5:0→6:0
+    const s60 = s(6, 0);
+    expect(incrementGame(s60, 'B')).toBe(s60);   // 6:0 완료 → 막힘(6:1 아님)
     const s64 = s(6, 4);
-    expect(incrementGame(s64, 'B')).toBe(s64);  // 6:4→6:5 금지(변화없음, 참조 동일)
-    expect(incrementGame(s(6, 2), 'A')).toMatchObject({ a: 6, b: 2 });    // 7 금지
-    expect(incrementGame(s(5, 0), 'A')).toMatchObject({ a: 6, b: 0 });    // 5:0→6:0 허용
+    expect(incrementGame(s64, 'A')).toBe(s64);   // 완료 → 막힘
   });
-  it('7점 모드: 6:5에서 게임+1이 6:6 생성 안 함(회귀)', () => {
-    const s65 = s(6, 5);
-    expect(incrementGame(s65, 'B')).toBe(s65); // 6:6 금지(변화없음, 참조 동일)
-  });
-  it('7점 모드: 5:5는 게임+1 무시(TB로)', () => {
-    const t = s(5, 5);
-    expect(incrementGame(t, 'A')).toBe(t); // 변화 없음(참조 동일)
-  });
-  it('1점 모드: 5:5→6:5 세트승, 6:6 금지', () => {
+
+  it('단판1점: 5:5→6:5 완료, 6:6 금지', () => {
     const r = { tiebreakMode: '1point' };
-    expect(incrementGame(s(5, 5), 'A', r)).toMatchObject({ a: 6, b: 5 });
-    expect(incrementGame(s(6, 0), 'B', r)).toMatchObject({ a: 6, b: 1 });
-    const s65r = s(6, 5);
-    expect(incrementGame(s65r, 'B', r)).toBe(s65r); // 6:6 금지(변화없음, 참조 동일)
-    expect(incrementGame(s(6, 2), 'A', r)).toMatchObject({ a: 6, b: 2 }); // 7 금지
+    expect(incrementGame(s(5, 5), 'A', r)).toMatchObject({ a: 6, b: 5 });  // 5:5→6:5
+    const s65 = s(6, 5);
+    expect(incrementGame(s65, 'B', r)).toBe(s65);   // 6:5 완료 → 6:6 안 됨
+    const s60 = s(6, 0);
+    expect(incrementGame(s60, 'B', r)).toBe(s60);   // 6:0 완료 → 막힘
+  });
+
+  it('노에드7: 5:5부터 7게임 선취(6:5·6:6·7:6 허용, 8 금지)', () => {
+    const r = { tiebreakMode: '7point' };
+    expect(incrementGame(s(5, 5), 'A', r)).toMatchObject({ a: 6, b: 5 });  // 5:5→6:5 (승리 아님)
+    expect(incrementGame(s(6, 5), 'A', r)).toMatchObject({ a: 7, b: 5 });  // 6:5→7:5 (승)
+    expect(incrementGame(s(6, 5), 'B', r)).toMatchObject({ a: 6, b: 6 });  // 6:5→6:6
+    expect(incrementGame(s(6, 6), 'B', r)).toMatchObject({ a: 6, b: 7 });  // 6:6→6:7 (승)
+    expect(incrementGame(s(5, 4), 'A', r)).toMatchObject({ a: 6, b: 4 });  // 5:4→6:4 (5:5 전 정상 승)
+    const s75 = s(7, 5);
+    expect(incrementGame(s75, 'A', r)).toBe(s75);   // 7:5 완료 → 막힘(8 금지)
+  });
+});
+
+describe('isSetComplete / setWinner — 모드별·역전 스코어', () => {
+  const s = (a, b) => ({ a, b, tbA: 0, tbB: 0, done: false });
+  it('isSetComplete 노에드7: 6:5·6:6 미완료, 7:5·7:6·6:4 완료', () => {
+    const r = { tiebreakMode: '7point' };
+    expect(isSetComplete(s(6, 5), r)).toBe(false);
+    expect(isSetComplete(s(6, 6), r)).toBe(false);
+    expect(isSetComplete(s(7, 5), r)).toBe(true);
+    expect(isSetComplete(s(6, 7), r)).toBe(true);
+    expect(isSetComplete(s(6, 4), r)).toBe(true);
+  });
+  it('isSetComplete 단판1점/기본: 6게임 도달이면 완료(6:5 포함)', () => {
+    expect(isSetComplete(s(6, 5), { tiebreakMode: '1point' })).toBe(true);
+    expect(isSetComplete(s(6, 5))).toBe(true);       // 기본
+    expect(isSetComplete(s(5, 5))).toBe(false);
+  });
+  it('setWinner: 게임 많은 쪽(6:7→B, 7:6→A, 6:5→A)', () => {
+    expect(setWinner(s(6, 7))).toBe('B');
+    expect(setWinner(s(5, 7))).toBe('B');
+    expect(setWinner(s(7, 6))).toBe('A');
+    expect(setWinner(s(6, 5))).toBe('A');
+    expect(setWinner(s(5, 4))).toBeNull();
   });
 });

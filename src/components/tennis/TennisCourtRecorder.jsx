@@ -1,4 +1,4 @@
-import { isTiebreakActive, isSetComplete } from '../../utils/tennis/tennisScoring';
+import { isSetComplete } from '../../utils/tennis/tennisScoring';
 
 // 좌우 축을 그대로 유지한다: 이름·스코어·▲·에이스/DF가 한 세로줄.
 // 5:5가 되면 ▲가 게임이 아니라 타이브레이크 포인트를 올린다.
@@ -81,9 +81,9 @@ function Column({ side, court, cur, tb, courtKey, dispatch, C, s, scoringRules }
 export default function TennisCourtRecorder({ court, roundIdx, dispatch, C, styles: s, scoringRules }) {
   const courtKey = { roundIdx, courtId: court.courtId };
   const cur = court.sets[court.currentSet] || { a: 0, b: 0, tbA: 0, tbB: 0 };
-  const tb = isTiebreakActive(cur) && scoringRules?.tiebreakMode !== '1point';
-  const canEndSet = isSetComplete(cur);
-  const tbLabel = scoringRules?.tiebreakMode === '1point' ? '타이브레이크 (1점 데스)' : '타이브레이크 (7점)';
+  const tb = false; // 타이브레이크 미니게임 폐지 — 5:5에서도 게임(▲)을 계속 올린다(노에드7=7게임 선취)
+  const canEndSet = isSetComplete(cur, scoringRules);
+  const tbLabel = '';
 
   return (
     <div>

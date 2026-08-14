@@ -118,29 +118,30 @@ describe('게임 증분과 타이브레이크', () => {
     expect(games(s)).toEqual([1, 0]);
   });
 
-  it('5:5가 되면 게임 증분이 막히고 타이브레이크 포인트로 넘어간다', () => {
-    let s = playingState();
+  it('노에드7(기본): 5:5부터 게임을 계속해 7게임 선취(7:5)', () => {
+    let s = playingState();   // 기본 scoringRules = 노에드7(7point)
     for (let i = 0; i < 5; i++) {
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' }));
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'B' }));
     }
     expect(games(s)).toEqual([5, 5]);
-
     s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' }));
-    expect(games(s)).toEqual([5, 5]);   // 게임 증분은 무시
-
-    s = tennisReducer(s, A('INCREMENT_TIEBREAK_POINT', { ...C, side: 'A' }));
-    expect(findCourt(s, 1, 1).sets[0].tbA).toBe(1);
+    expect(games(s)).toEqual([6, 5]);   // 5:5→6:5 (승리 아님, 계속)
+    s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' }));
+    expect(games(s)).toEqual([7, 5]);   // 6:5→7:5 (승)
   });
 
-  it('노에드7 타이브레이크 7점이면 7:5로 세트가 확정된다', () => {
+  it('노에드7: 6:6이면 다음 게임 딴 쪽이 6:7로 승(win-by-1)', () => {
     let s = playingState();
     for (let i = 0; i < 5; i++) {
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' }));
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'B' }));
     }
-    for (let i = 0; i < 7; i++) s = tennisReducer(s, A('INCREMENT_TIEBREAK_POINT', { ...C, side: 'A' }));
-    expect(findCourt(s, 1, 1).sets[0]).toMatchObject({ a: 7, b: 5, tbA: 7 });
+    s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' })); // 6:5
+    s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'B' })); // 6:6
+    expect(games(s)).toEqual([6, 6]);
+    s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'B' })); // 6:7 (B 승)
+    expect(games(s)).toEqual([6, 7]);
   });
 
   it('타이브레이크가 아닐 때 포인트 증분은 무시된다', () => {
@@ -205,30 +206,28 @@ describe('세트/판 종료와 되돌리기', () => {
     expect(games(s)).toEqual([1, 0]);
   });
 
-  it('되돌리기는 타이브레이크 포인트도 취소한다', () => {
+  it('노에드7: 5:5→6:5 되돌리면 5:5', () => {
     let s = playingState();
     for (let i = 0; i < 5; i++) {
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' }));
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'B' }));
     }
-    s = tennisReducer(s, A('INCREMENT_TIEBREAK_POINT', { ...C, side: 'A' }));
+    s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' })); // 6:5
     s = tennisReducer(s, A('UNDO', C));
-    expect(findCourt(s, 1, 1).sets[0].tbA).toBe(0);
+    expect(games(s)).toEqual([5, 5]);
   });
 
-  it('타이브레이크 7점째 되돌리기는 게임도 7→5로 함께 돌린다', () => {
+  it('노에드7: 7:5 되돌리면 6:5로 돌아간다', () => {
     let s = playingState();
     for (let i = 0; i < 5; i++) {
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' }));
       s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'B' }));
     }
-    for (let i = 0; i < 7; i++) s = tennisReducer(s, A('INCREMENT_TIEBREAK_POINT', { ...C, side: 'A' }));
-    // 노에드7 7점 직후: a=7, tbA=7
-    expect(findCourt(s, 1, 1).sets[0]).toMatchObject({ a: 7, tbA: 7 });
+    s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' })); // 6:5
+    s = tennisReducer(s, A('INCREMENT_GAME', { ...C, side: 'A' })); // 7:5
+    expect(games(s)).toEqual([7, 5]);
     s = tennisReducer(s, A('UNDO', C));
-    // 되돌리면 7점이 취소되고, 7점으로 승격됐던 게임도 함께 5로 내려야 한다
-    expect(findCourt(s, 1, 1).sets[0].tbA).toBe(6);
-    expect(findCourt(s, 1, 1).sets[0].a).toBe(5);
+    expect(games(s)).toEqual([6, 5]);
   });
 
   it('되돌리기는 에이스/DF도 취소한다', () => {
