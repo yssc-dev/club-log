@@ -74,12 +74,24 @@ describe('TennisMembers 실렌더', () => {
     expect(btn('복원')).toBeTruthy();
   });
 
-  it('탈퇴 클릭 → 확인창 후 writeRosterMember에 status 탈퇴 payload', async () => {
+  it('활동 회원 카드엔 탈퇴 버튼이 없다(편집만)', async () => {
     await mount();
-    // 박성언 카드의 탈퇴 버튼(정렬상 김게스트가 먼저라 텍스트로 카드 특정)
-    const delBtn = [...container.querySelectorAll('button')]
-      .filter(b => b.textContent.trim() === '탈퇴')
+    const listDelete = [...container.querySelectorAll('button')].filter(b => b.textContent.trim() === '탈퇴');
+    expect(listDelete.length).toBe(0);           // 목록에서 탈퇴 직접 접근 불가
+    const edit = [...container.querySelectorAll('button')].filter(b => b.textContent.trim() === '편집');
+    expect(edit.length).toBeGreaterThan(0);
+  });
+
+  it('편집 폼 하단 탈퇴 → 확인창 후 writeRosterMember status 탈퇴 payload', async () => {
+    await mount();
+    // 박성언 카드의 편집 버튼(정렬상 김게스트가 먼저라 텍스트로 카드 특정)
+    const editBtn = [...container.querySelectorAll('button')]
+      .filter(b => b.textContent.trim() === '편집')
       .find(b => b.parentElement.textContent.includes('박성언'));
+    expect(editBtn).toBeTruthy();
+    await act(() => editBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })));
+    // 폼 하단 탈퇴 버튼
+    const delBtn = [...container.querySelectorAll('button')].find(b => b.textContent.includes('탈퇴 처리'));
     expect(delBtn).toBeTruthy();
     await act(async () => { delBtn.dispatchEvent(new window.MouseEvent('click', { bubbles: true })); });
     expect(window.confirm).toHaveBeenCalled();

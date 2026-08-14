@@ -1,4 +1,4 @@
-// 홈 상단 탭 배열. 테니스만 대시보드·분석·회원관리(beta)·경기관리, 그 외는 기존 구성.
+// 홈 상단 탭 배열. 테니스만 대시보드·리그·분석·회원관리·경기관리, 그 외는 기존 구성.
 export function buildMainTabs({ activeSport, role, pendingCount }) {
   const badge = pendingCount > 0;
   if (activeSport === '테니스') {
@@ -6,7 +6,7 @@ export function buildMainTabs({ activeSport, role, pendingCount }) {
       { key: 'tdash', label: '대시보드' },
       { key: 'league', label: '리그' },
       { key: 'records', label: '분석' },
-      ...(role === '관리자' ? [{ key: 'members', label: '회원관리', beta: true }] : []),
+      ...(role === '관리자' ? [{ key: 'members', label: '회원관리' }] : []),
       { key: 'games', label: '경기관리', badge },
     ];
   }

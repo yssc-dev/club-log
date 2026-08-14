@@ -4,11 +4,11 @@ import { buildMainTabs } from '../mainTabs';
 const keys = (arr) => arr.map(t => t.key);
 
 describe('buildMainTabs 테니스', () => {
-  it('관리자 = 대시보드·리그·분석·회원관리·경기관리, 대시보드 beta 없음·회원관리 beta', () => {
+  it('관리자 = 대시보드·리그·분석·회원관리·경기관리, beta 배지 없음(회원관리 실기능화)', () => {
     const t = buildMainTabs({ activeSport: '테니스', role: '관리자', pendingCount: 0 });
     expect(keys(t)).toEqual(['tdash', 'league', 'records', 'members', 'games']);
     expect(t.find(x => x.key === 'tdash').beta).toBeFalsy();     // 대시보드 beta 제거됨
-    expect(t.find(x => x.key === 'members').beta).toBe(true);    // 회원관리는 유지
+    expect(t.find(x => x.key === 'members').beta).toBeFalsy();   // 회원관리 실기능화 → beta 제거
     expect(keys(t)).not.toContain('roster');
   });
   it('비관리자 = 회원관리 없음 (대시보드·리그·분석·경기관리)', () => {

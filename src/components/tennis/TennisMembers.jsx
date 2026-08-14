@@ -9,7 +9,7 @@ import {
 } from '../../utils/tennis/memberForm';
 
 // ── 회원 폼 (추가/수정 공용) ────────────────────────────────
-function MemberForm({ initial, isNew, members, saving, onSave, onCancel, ds, C }) {
+function MemberForm({ initial, isNew, members, saving, onSave, onCancel, onDelete, ds, C }) {
   const [form, setForm] = useState(initial);
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const v = validateMember(form, members);
@@ -84,12 +84,23 @@ function MemberForm({ initial, isNew, members, saving, onSave, onCancel, ds, C }
         <button onClick={onCancel} disabled={saving}
           style={{ ...ds.btnFull(C.grayDarker), cursor: saving ? 'default' : 'pointer' }}>취소</button>
       </div>
+
+      {/* 탈퇴는 드문 파괴적 액션 — 목록이 아니라 수정모드 하단에만 노출 */}
+      {!isNew && (
+        <div style={{ marginTop: 16, paddingTop: 12, borderTop: `1px solid ${C.borderColor}` }}>
+          <button onClick={() => onDelete(form)} disabled={saving}
+            style={{ background: 'none', border: `1px solid ${C.red}`, color: C.red, borderRadius: 8, padding: '8px 12px', fontSize: 13, fontFamily: 'inherit', cursor: saving ? 'default' : 'pointer', width: '100%' }}>
+            이 회원 탈퇴 처리 (명부에서 숨김, 기록은 보존)
+          </button>
+        </div>
+      )}
     </div>
   );
 }
 
 // ── 회원 카드 한 줄 ─────────────────────────────────────────
-function MemberRow({ m, deleted, onEdit, onDelete, onRestore, saving, ds, C }) {
+// 활동 회원은 '편집'만(탈퇴는 편집 폼 하단으로). 탈퇴 회원은 '복원'.
+function MemberRow({ m, deleted, onEdit, onRestore, saving, ds, C }) {
   const badgeBg = m.memberType === '게스트' ? C.grayDarker : C.accent;
   return (
     <div style={{ ...ds.card, display: 'flex', alignItems: 'center', gap: 8, opacity: deleted ? 0.55 : 1, marginBottom: 8 }}>
@@ -104,10 +115,7 @@ function MemberRow({ m, deleted, onEdit, onDelete, onRestore, saving, ds, C }) {
       {deleted ? (
         <button onClick={() => onRestore(m)} disabled={saving} style={{ ...ds.chip(false), cursor: saving ? 'default' : 'pointer' }}>복원</button>
       ) : (
-        <>
-          <button onClick={() => onEdit(m)} disabled={saving} style={{ ...ds.chip(false), cursor: saving ? 'default' : 'pointer' }}>편집</button>
-          <button onClick={() => onDelete(m)} disabled={saving} style={{ ...ds.chip(false), color: C.red, cursor: saving ? 'default' : 'pointer' }}>탈퇴</button>
-        </>
+        <button onClick={() => onEdit(m)} disabled={saving} style={{ ...ds.chip(false), cursor: saving ? 'default' : 'pointer' }}>편집</button>
       )}
     </div>
   );
@@ -160,9 +168,11 @@ export default function TennisMembers({ C: propC }) {
     runWrite(toWritePayload(form, { row: form.row }), isNew ? '추가되었습니다' : '저장되었습니다');
   };
 
-  const onDelete = (m) => {
-    if (!window.confirm(`'${m.name}'을(를) 탈퇴 처리할까요? (기록은 보존, 명부에서 숨김)`)) return;
-    const payload = toWritePayload(memberToForm(m), { row: m.row });
+  // 편집 폼 하단의 탈퇴 — form(수정 중 데이터)을 그대로 받아 status만 탈퇴로.
+  const onDelete = (form) => {
+    const name = (form.name || '').trim();
+    if (!window.confirm(`'${name}'을(를) 탈퇴 처리할까요? (기록은 보존, 명부에서 숨김)`)) return;
+    const payload = toWritePayload(form, { row: form.row });
     payload.status = '탈퇴';
     runWrite(payload, '탈퇴 처리했습니다');
   };
@@ -212,6 +222,7 @@ export default function TennisMembers({ C: propC }) {
           saving={saving}
           onSave={onSave}
           onCancel={() => setEditing(null)}
+          onDelete={onDelete}
           ds={ds} C={C}
         />
       )}
@@ -221,7 +232,7 @@ export default function TennisMembers({ C: propC }) {
         {active.length === 0
           ? <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>회원이 없습니다</div>
           : active.map(m => (
-            <MemberRow key={m.row} m={m} onEdit={mm => setEditing(memberToForm(mm))} onDelete={onDelete} saving={saving} ds={ds} C={C} />
+            <MemberRow key={m.row} m={m} onEdit={mm => setEditing(memberToForm(mm))} saving={saving} ds={ds} C={C} />
           ))}
       </div>
 
