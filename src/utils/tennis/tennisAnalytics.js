@@ -5,7 +5,8 @@ import { COMPETITION_DOUBLES } from './tennisSchema';
 const isDoubles = (r) => r.format === '복식';
 const memberNames = (roster) => new Set((roster || []).map(m => m.name));
 const rate = (w, g) => (g > 0 ? w / g : 0);
-const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
+// 판 식별 키 — game_id + match_id (match_id는 R{round}_C{court}라 날짜 넘어 재사용됨).
+export const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 
 // 게스트가 하나라도 낀 판(game_id|match_id) 키 집합 — 번외 판정용.
 // 리그 성립은 참가자 전원 회원일 때만이므로, 게스트 판은 회원 행까지 통째로 리그에서 뺀다.

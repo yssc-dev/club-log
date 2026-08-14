@@ -261,7 +261,7 @@ export function tennisReducer(state, action) {
           const key = last.side === 'A' ? 'tbA' : 'tbB';
           const games = last.side === 'A' ? 'a' : 'b';
           const nextPoint = Math.max(0, (s[key] || 0) - 1);
-          // threshold 도달로 6게임이 확정됐던 경우 게임도 5로 되돌린다.
+          // threshold 도달로 게임이 확정됐던 경우(노에드7=7게임, 단판1점=6게임) 게임도 5로 되돌린다.
           const threshold = state.scoringRules?.tiebreakMode === '1point' ? 1 : TIEBREAK_POINTS_TO_WIN;
           const nextGames = (s[key] || 0) >= threshold ? 5 : s[games];
           sets[last.setIdx] = { ...s, [key]: nextPoint, [games]: nextGames };

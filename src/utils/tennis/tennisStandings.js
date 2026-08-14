@@ -4,6 +4,7 @@
 import { COMPETITION_SINGLES } from './tennisSchema';
 import { deriveLeagueForDate, singlesWinRatesBefore } from './leagueDerivation';
 import { calcMatchPoints, DEFAULT_POINT_RULES } from './rankPoints';
+import { matchKey } from './tennisAnalytics';
 
 const isSingles = (r) => r.format === '단식' && r.league === COMPETITION_SINGLES;
 
@@ -14,6 +15,8 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0, points: 0,
   }]));
 
+  // 게스트 낀 단식은 애초에 league='미반영'(determineCompetition: 단식은 전원 회원일 때만 길로틴)이라
+  // isSingles(league==='길로틴')에서 이미 통째로 빠진다 → 복식처럼 별도 guestMatchKeys 제외가 불필요.
   const singles = (rows || []).filter(r => isSingles(r) && r.is_guest !== true);
 
   for (const r of singles) {
@@ -29,9 +32,11 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
   for (const L of legacySingles || []) {
     const cur = acc.get(L?.player);
     if (!cur) continue;
-    cur.wins += Number(L.wins) || 0;
-    cur.losses += Number(L.losses) || 0;
-    cur.games = cur.wins + cur.losses;
+    const lw = Number(L.wins) || 0;
+    const ll = Number(L.losses) || 0;
+    cur.wins += lw;
+    cur.losses += ll;
+    cur.games += lw + ll;   // 로우 게임수에 집계분 증분(재대입 아님 — 미결 행 유실 방지, buildPlayerSummary와 일치)
     cur.rate = cur.games > 0 ? cur.wins / cur.games : 0;
   }
 
@@ -50,7 +55,7 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
 
     const pairs = new Map();
     for (const r of dayRows) {
-      const k = `${r.game_id || ''}|${r.match_id}`;
+      const k = matchKey(r);
       if (!pairs.has(k)) pairs.set(k, []);
       pairs.get(k).push(r);
     }
