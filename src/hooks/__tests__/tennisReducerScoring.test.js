@@ -40,11 +40,11 @@ describe('INCREMENT_STAT 스코어 반영', () => {
       { type: 'INCREMENT_STAT', roundIdx: 1, courtId: 1, player: '갑', stat: 'df' });
     expect(court0(s).sets[0]).toMatchObject({ a: 2, b: 2 }); // 갑 DF → 상대 b+1
   });
-  it('true지만 TB 활성 중: stats만', () => {
+  it('노에드7 5:5에서도 에이스가 게임에 반영(타이브레이크 폐지)', () => {
     const s = tennisReducer(base({ tiebreakMode: '7point', acesDfAffectScore: true }, { sets: [{ a: 5, b: 5, tbA: 0, tbB: 0, done: false }] }),
       { type: 'INCREMENT_STAT', roundIdx: 1, courtId: 1, player: '갑', stat: 'aces' });
     expect(court0(s).stats['갑'].aces).toBe(1);
-    expect(court0(s).sets[0]).toMatchObject({ a: 5, b: 5 }); // 게임 불변
+    expect(court0(s).sets[0]).toMatchObject({ a: 6, b: 5 }); // 5:5→6:5 (에이스=서버측, 이제 5:5도 반영)
   });
   it('UNDO: 스코어 반영분도 함께 되돌림', () => {
     const s1 = tennisReducer(base({ tiebreakMode: '7point', acesDfAffectScore: true }),

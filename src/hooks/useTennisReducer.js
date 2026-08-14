@@ -196,13 +196,14 @@ export function tennisReducer(state, action) {
         if (c.status !== 'playing') return c;
         const cur = currentSetOf(c);
         const next = incrementGame(cur, action.side, state.scoringRules);
-        if (next === cur) return c;   // 타이브레이크 중이거나 이미 끝난 세트
+        if (next === cur) return c;   // 이미 끝난 세트(또는 상한 도달)
         return pushUndo(withCurrentSet(c, next), { kind: 'game', side: action.side, setIdx: c.currentSet });
       });
 
-    case 'INCREMENT_TIEBREAK_POINT':
+    case 'INCREMENT_TIEBREAK_POINT':   // 레거시(타이브레이크 폐지) — UI 미사용. 노에드7에선 무효.
       return mapCourt(state, action.roundIdx, action.courtId, (c) => {
         if (c.status !== 'playing') return c;
+        if (state.scoringRules?.tiebreakMode === '7point') return c;   // 노에드7=게임 기반, 타이브레이크 없음
         const cur = currentSetOf(c);
         if (!isTiebreakActive(cur)) return c;
         const next = incrementTiebreakPoint(cur, action.side, state.scoringRules);
@@ -218,7 +219,7 @@ export function tennisReducer(state, action) {
         let scoredSide = null;
         if (state.scoringRules?.acesDfAffectScore) {
           const cur = currentSetOf(c);
-          if (cur && !isTiebreakActive(cur)) {   // TB 중엔 stats만
+          if (cur) {   // 타이브레이크 폐지 — 5:5에서도 에이스/DF가 게임에 반영(incrementGame이 완료 세트는 무시)
             const playerSide = c.sideA.includes(action.player) ? 'A' : 'B';
             const targetSide = action.stat === 'aces' ? playerSide : (playerSide === 'A' ? 'B' : 'A');
             const incd = incrementGame(cur, targetSide, state.scoringRules);

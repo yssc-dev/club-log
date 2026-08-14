@@ -127,6 +127,19 @@ describe('summarizeCourt', () => {
   it('sets가 undefined여도 터지지 않는다', () => {
     expect(summarizeCourt({ bestOf: 1 })).toMatchObject({ setsA: 0, setsB: 0, winner: null });
   });
+
+  it('진행중(done:false) 세트는 승자로 세지 않는다 — 노에드7 라이브 6:5·6:6(결과 오완료 방지)', () => {
+    const live65 = { sets: [{ a: 6, b: 5, tbA: 0, tbB: 0, done: false }], bestOf: 1 };
+    expect(summarizeCourt(live65)).toMatchObject({ setsA: 0, setsB: 0, winner: null });
+    const live66 = { sets: [{ a: 6, b: 6, tbA: 0, tbB: 0, done: false }], bestOf: 1 };
+    expect(summarizeCourt(live66)).toMatchObject({ setsA: 0, setsB: 0, winner: null });
+    // 완료(done:true) 7:5는 승
+    expect(summarizeCourt({ sets: [{ a: 7, b: 5, done: true }], bestOf: 1 }))
+      .toMatchObject({ setsA: 1, setsB: 0, winner: 'A' });
+    // 레거시(done 필드 없음) 6:5·6:0은 그대로 승(과거/임포트 데이터)
+    expect(summarizeCourt({ sets: [{ a: 6, b: 5, tbA: 1, tbB: 0 }], bestOf: 1 }))
+      .toMatchObject({ setsA: 1, tbPlayed: 1, winner: 'A' });
+  });
 });
 
 describe('incrementTiebreakPoint — 모드별', () => {

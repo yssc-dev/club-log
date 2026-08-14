@@ -44,6 +44,7 @@ export function setWinner(set) {
   if (!set) return null;
   const a = set.a || 0, b = set.b || 0;
   if (Math.max(a, b) < GAMES_TO_WIN_SET) return null;
+  if (a === b) return null;   // 6:6 등 동점(진행중)은 승자 없음 — 노에드7에서 발생
   return a > b ? 'A' : 'B';
 }
 
@@ -89,7 +90,7 @@ export function matchWinner(sets, bestOf) {
   const need = setsNeeded(bestOf);
   let a = 0, b = 0;
   for (const s of (sets || [])) {
-    const w = setWinner(s);
+    const w = s && s.done === false ? null : setWinner(s);   // 진행중(라이브) 세트는 승자로 세지 않음
     if (w === 'A') a++;
     else if (w === 'B') b++;
   }
@@ -107,11 +108,12 @@ export function summarizeCourt(court) {
   for (const s of sets) {
     gamesA += s.a || 0;
     gamesB += s.b || 0;
-    const w = setWinner(s);
+    const w = s.done === false ? null : setWinner(s);   // 진행중(라이브) 세트는 세트 승으로 세지 않음
     if (w === 'A') setsA++;
     else if (w === 'B') setsB++;
 
-    // 타이브레이크는 5:5를 거쳐야만 발생하므로 tb 포인트 존재로 판정한다.
+    // 타이브레이크는 폐지 — 신규 경기엔 tbPlayed=0. 과거 데이터의 tbA/tbB(6:5 등)만 집계.
+    // (5:5를 거쳐야만 발생하므로 tb 포인트 존재로 판정)
     if ((s.tbA || 0) > 0 || (s.tbB || 0) > 0) {
       tbPlayed++;
       if (w === 'A') tbWonA++;
