@@ -8,7 +8,7 @@ import PersonalAnalysisTab from '../PersonalAnalysisTab';
 import AwardsTab from '../AwardsTab';
 import GoldenTrioView from '../GoldenTrioView';
 import RivalryView from '../RivalryView';
-import SynergyMatrixTab from '../SynergyMatrixTab';
+import PersonalSynergyChart from '../PersonalSynergyChart';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -193,8 +193,13 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
-  it('SynergyMatrixTab: 매트릭스 렌더', () => {
-    const html = wrap(SynergyMatrixTab, { matchLogs, C });
+  it('PersonalSynergyChart: 풋살 모드 렌더 — 축구·풋살 공용 경로', () => {
+    const html = wrap(PersonalSynergyChart, { matchLogs, C, authUserName: 'A' });
+    expect(html).not.toContain('NaN');
+  });
+
+  it('PersonalSynergyChart: 축구 모드 렌더', () => {
+    const html = wrap(PersonalSynergyChart, { matchLogs, C, authUserName: 'A', isSoccer: true });
     expect(html).not.toContain('NaN');
   });
 });

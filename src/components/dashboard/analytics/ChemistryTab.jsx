@@ -15,7 +15,7 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
   // 종목 전환 시 종목 전용 서브탭(defense/rival)에 좌초 방지 — TeamDashboard activeTab 'records' 리셋과 동일 규약
   useEffect(() => { setSub('trio'); }, [isSoccer]);
 
-  // 어시페어 노출 보정 분모(함께 뛴 라운드 수)용 — SynergyMatrixTab과 동일 계산을 탭 자체적으로 수행
+  // 어시페어 노출 보정 분모(함께 뛴 라운드 수)용 — calcSynergyMatrix를 탭 자체적으로 수행
   const synergyMatrix = useMemo(
     () => calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: 5 }),
     [matchLogs]
