@@ -955,7 +955,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
           <TennisTabs activeTab={activeTab} pendingGames={pendingGames}
             onStartGame={onStartGame} onContinueGame={onContinueGame}
             onViewHistory={onViewHistory}
-            authUserName={authUser?.name} C={C} />
+            authUserName={authUser?.name} role={activeEntry?.role} C={C} />
         ) : (
           <>
             {activeTab === "records" && renderRecords()}

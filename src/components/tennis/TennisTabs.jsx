@@ -6,8 +6,9 @@ import { makeStyles } from '../../styles/theme';
 import TennisAnalyticsTab from './TennisAnalyticsTab';
 import TennisDashboard from './TennisDashboard';
 import TennisLeague from './TennisLeague';
+import TennisMembers from './TennisMembers';
 
-export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, onViewHistory, authUserName, C }) {
+export default function TennisTabs({ activeTab, pendingGames, onStartGame, onContinueGame, onViewHistory, authUserName, role, C }) {
   const ds = makeStyles(C);
 
   if (activeTab === 'tdash') {
@@ -19,7 +20,10 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
   }
 
   if (activeTab === 'members') {
-    return <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>회원관리 · beta</div>;
+    // 서버 ADMIN_ACTIONS 게이트가 1차 방어, 이 가드는 2차(탭이 다른 경로로 활성화돼도 비관리자엔 미노출).
+    return role === '관리자'
+      ? <TennisMembers C={C} />
+      : <div style={{ padding: 20, textAlign: 'center', color: C.gray, fontSize: 13 }}>관리자 전용</div>;
   }
 
   if (activeTab === 'games') {

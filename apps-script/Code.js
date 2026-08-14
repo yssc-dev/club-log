@@ -2,6 +2,10 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-14: 테니스 회원관리 — 회원명부 "구분"(정회원/게스트) 10번째 열 추가, getTennisRoster가
+//             탈퇴+게스트 제외(분석 무변경). 액션 2종 신설: getTennisRosterAdmin(관리자 전용, 전체+행번호),
+//             writeTennisRosterMember(관리자 전용 upsert+소프트삭제). 둘 다 ADMIN_ACTIONS 게이트+
+//             행 팀소유 검증+수식 인젝션 이스케이프. _ensureTennisRosterColumns(10열만·가드·쓰기경로만).
 // 2026-08-12: 로그_테니스매치/선수경기에 input_by(전송자) 컬럼 추가
 // 2026-08-10: 테니스_레거시전적 시트+액션 2종(getTennisLegacyRecords, writeTennisLegacyRecords) 추가
 // 2026-08-06: 테니스 종목 추가 — 시트 3종(테니스_회원명부/로그_테니스매치/로그_테니스선수경기)과
@@ -94,7 +98,7 @@ var TENNIS_MATCHES_SHEET = "로그_테니스매치";
 var TENNIS_PLAYER_GAMES_SHEET = "로그_테니스선수경기";
 
 var TENNIS_ROSTER_HEADERS = [
-  "팀이름", "이름", "닉네임", "생년월일", "등급", "상태", "시즌시작순위", "가입일", "비고"
+  "팀이름", "이름", "닉네임", "생년월일", "등급", "상태", "시즌시작순위", "가입일", "비고", "구분"
 ];
 
 var TENNIS_MATCH_HEADERS = [
@@ -338,6 +342,7 @@ function doPost(e) {
       deleteTournament: 1, reimportPointLog: 1,
       migrateEventTypes: 1, migrateMatchIds: 1, backfillFutsalGk: 1,
       backupSheet: 1, ensureEventLogHasGameId: 1,
+      getTennisRosterAdmin: 1, writeTennisRosterMember: 1,
     };
     if (ADMIN_ACTIONS[action] && authInfo.role !== "관리자") {
       return _errorResponse("관리자 권한이 필요합니다");
@@ -399,6 +404,10 @@ function doPost(e) {
       return _jsonResponse(_getRawEvents(body.team, body.sport, body.dateFrom, body.dateTo));
     } else if (action === "getTennisRoster") {
       return _jsonResponse(_getTennisRoster(requestTeam));
+    } else if (action === "getTennisRosterAdmin") {
+      return _jsonResponse(_getTennisRosterAdmin(requestTeam));
+    } else if (action === "writeTennisRosterMember") {
+      return _jsonResponse(_writeTennisRosterMember(requestTeam, body));
     } else if (action === "getTennisMatches") {
       return _jsonResponse(_readTennisRows(TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS, requestTeam, body.dateFrom, body.dateTo));
     } else if (action === "getTennisPlayerGames") {
@@ -3030,12 +3039,15 @@ function _readTennisRows(sheetName, headers, team, dateFrom, dateTo) {
 }
 
 // 생년월일은 클라이언트로 내리지 않는다. 2차 연령대 분석 때 별도 경로를 만든다.
+// 앱 전역 로스터 조회 — 정회원 활동만(탈퇴+게스트 제외). 반환 shape 불변(분석/순위 무변경).
+// 읽기 hot-path라 _ensureTennisRosterColumns를 호출하지 않는다(구분은 v[9] 인덱스로 읽음, 헤더 불필요).
 function _getTennisRoster(team) {
   _ensureTennisSheets();
   var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: true, players: [] };
-  var values = sheet.getRange(2, 1, lastRow - 1, TENNIS_ROSTER_HEADERS.length).getValues();
+  var ncol = Math.min(TENNIS_ROSTER_HEADERS.length, sheet.getMaxColumns()); // 좁은 시트 방어
+  var values = sheet.getRange(2, 1, lastRow - 1, ncol).getValues();
   var players = [];
   for (var i = 0; i < values.length; i++) {
     var v = values[i];
@@ -3044,6 +3056,8 @@ function _getTennisRoster(team) {
     if (!name) continue;
     var status = String(v[5] || "활동").trim();
     if (status === "탈퇴") continue;
+    var memberType = String(v[9] || "정회원").trim(); // v[9] 없으면(구분열 미존재) 정회원
+    if (memberType === "게스트") continue;   // 게스트는 정회원 지표에서 제외
     players.push({
       name: name,
       nickname: String(v[2] || "").trim(),
@@ -3053,4 +3067,94 @@ function _getTennisRoster(team) {
     });
   }
   return { success: true, players: players };
+}
+
+// 회원명부 "구분"(10열) 헤더 보정 — 10열만, 이미 있으면 무동작. 쓰기/관리 경로에서만 호출.
+function _ensureTennisRosterColumns() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  if (!sheet) return;
+  var col = TENNIS_ROSTER_HEADERS.length; // 10
+  if (sheet.getMaxColumns() < col) sheet.insertColumnsAfter(sheet.getMaxColumns(), col - sheet.getMaxColumns());
+  if (String(sheet.getRange(1, col, 1, 1).getValue()).trim() === "구분") return;
+  sheet.getRange(1, col, 1, 1).setValue("구분"); // 1~9열 헤더는 건드리지 않는다
+}
+
+// Sheets 수식 인젝션 차단 — =,+,-,@ 로 시작하면 앞에 ' 프리픽스.
+function _sanitizeCell(s) {
+  var str = (s === undefined || s === null) ? "" : String(s);
+  if (str.length && "=+-@".indexOf(str.charAt(0)) !== -1) return "'" + str;
+  return str;
+}
+
+// 관리자 전용 — 전체 회원(정회원+게스트, 활동+탈퇴)+시트 행번호. 생년월일 제외. team 필수.
+function _getTennisRosterAdmin(team) {
+  if (!team || !String(team).trim()) return { success: false, error: "team 필수" };
+  _ensureTennisSheets();
+  _ensureTennisRosterColumns();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, members: [] };
+  var values = sheet.getRange(2, 1, lastRow - 1, TENNIS_ROSTER_HEADERS.length).getValues();
+  var members = [];
+  for (var i = 0; i < values.length; i++) {
+    var v = values[i];
+    if (String(v[0]).trim() !== String(team).trim()) continue;
+    var name = String(v[1] || "").trim();
+    if (!name) continue;
+    members.push({
+      row: i + 2,                              // 실제 시트 행번호(2-base)
+      name: name,
+      nickname: String(v[2] || "").trim(),
+      grade: String(v[4] || "").trim(),
+      memberType: String(v[9] || "정회원").trim() || "정회원",
+      status: String(v[5] || "활동").trim() || "활동",
+      seasonStartRank: v[6] === "" || v[6] === null ? null : Number(v[6]),
+      joinDate: v[7] === "" || v[7] === null ? "" : String(v[7]),
+      note: String(v[8] || "").trim()
+      // 생년월일(v[3])은 반환하지 않는다(클라 미전송 원칙)
+    });
+  }
+  return { success: true, members: members };
+}
+
+// 관리자 전용 upsert(+소프트삭제). row 있으면 수정(팀 소유 검증·생년월일 보존), 없으면 append.
+function _writeTennisRosterMember(team, body) {
+  if (!team || !String(team).trim()) return { success: false, error: "team 필수" };
+  var name = _sanitizeCell(body && body.name).trim();
+  if (!name) return { success: false, error: "이름은 필수입니다" };
+
+  _ensureTennisSheets();
+  _ensureTennisRosterColumns();
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  var ncol = TENNIS_ROSTER_HEADERS.length;
+
+  var nickname = _sanitizeCell(body.nickname);
+  var grade = String(body.grade || "").trim();
+  var memberType = String(body.memberType || "정회원").trim() || "정회원";
+  var status = String(body.status || "활동").trim() || "활동";
+  var rank = (body.seasonStartRank === "" || body.seasonStartRank === null || body.seasonStartRank === undefined)
+    ? "" : Number(body.seasonStartRank);
+  var joinDate = String(body.joinDate || "").trim();
+  var note = _sanitizeCell(body.note);
+
+  if (body.row !== undefined && body.row !== null && body.row !== "") {
+    var row = Number(body.row);
+    var lastRow = sheet.getLastRow();
+    if (!Number.isFinite(row) || row < 2 || row > lastRow) return { success: false, error: "행 범위 초과" };
+    var existing = sheet.getRange(row, 1, 1, ncol).getValues()[0];
+    if (String(existing[0]).trim() !== String(team).trim()) return { success: false, error: "행 팀 불일치" };
+    var birth = existing[3]; // 생년월일 보존
+    sheet.getRange(row, 1, 1, ncol).setValues([[
+      String(team).trim(), name, nickname, birth, grade, status, rank, (joinDate || existing[7] || ""), note, memberType
+    ]]);
+    return { success: true, row: row };
+  }
+
+  // append
+  var newRow = sheet.getLastRow() + 1;
+  var today = Utilities.formatDate(new Date(), Session.getScriptTimeZone(), "yyyy-MM-dd");
+  sheet.getRange(newRow, 1, 1, ncol).setValues([[
+    String(team).trim(), name, nickname, "", grade, status, rank, (joinDate || today), note, memberType
+  ]]);
+  return { success: true, row: newRow };
 }
