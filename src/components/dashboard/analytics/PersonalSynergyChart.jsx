@@ -8,7 +8,7 @@
 // 개인분석 탭의 '나의 짝꿍' 표에 그대로 남아 있다.
 // 표본 부족(minRounds 미만) 동료는 양쪽에서 제외한다 — 1~2경기짜리가 상하위를 차지하면
 // 순위가 무작위가 된다.
-import { useMemo, useState } from 'react';
+import { useMemo } from 'react';
 import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
 
@@ -55,7 +55,7 @@ function Column({ label, rows, color, C }) {
   );
 }
 
-export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer = false, authUserName }) {
+export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer = false, player }) {
   const { calcSynergyMatrix, calcPersonalSynergy, calcAssistLinkMatrix, personalLink } = isSoccer ? soccerCalc : futsalCalc;
   const matrix = useMemo(
     () => calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: MIN_ROUNDS }),
@@ -67,11 +67,6 @@ export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer
     () => calcAssistLinkMatrix({ eventLogs: eventLogs || [] }),
     [eventLogs, calcAssistLinkMatrix],
   );
-  const players = matrix.players || [];
-  const [picked, setPicked] = useState(null);
-  const player = (picked && players.includes(picked)) ? picked
-    : (players.includes(authUserName) ? authUserName : players[0] ?? null);
-
   const personal = useMemo(() => {
     if (!player) return { partners: [] };
     const base = calcPersonalSynergy({ matrix, player });
@@ -105,20 +100,9 @@ export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer
 
   return (
     <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
-        <select
-          value={player}
-          onChange={(e) => setPicked(e.target.value)}
-          style={{
-            padding: '5px 8px', fontSize: 12, borderRadius: 6, cursor: 'pointer',
-            background: C.cardLight, color: C.white, border: `1px solid ${C.grayDarker}`, fontFamily: 'inherit',
-          }}
-        >
-          {players.map(n => <option key={n} value={n}>{n}</option>)}
-        </select>
-        <span style={{ fontSize: 10, color: C.gray }}>
-          함께 뛴 동료 {personal.partners.length}명 · 표본 {MIN_ROUNDS}경기 이상 {eligible}명
-        </span>
+      <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 2 }}>🤝 시너지</div>
+      <div style={{ fontSize: 10, color: C.gray, marginBottom: 8 }}>
+        함께 뛴 동료 {personal.partners.length}명 · 표본 {MIN_ROUNDS}경기 이상 {eligible}명
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>

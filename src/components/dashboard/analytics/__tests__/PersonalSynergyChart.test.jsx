@@ -16,7 +16,7 @@ const matchLogs = [
 ];
 
 const render = (props) => renderToStaticMarkup(
-  createElement(PersonalSynergyChart, { matchLogs, C, authUserName: 'A', ...props }),
+  createElement(PersonalSynergyChart, { matchLogs, C, player: 'A', ...props }),
 );
 
 describe('splitSynergy', () => {
@@ -83,10 +83,23 @@ describe('PersonalSynergyChart', () => {
     expect(html).toContain('0골/6경기');
   });
 
-  it('선수 선택 드롭다운을 제공하고 기본값은 로그인 사용자', () => {
+  // 개인분석 탭 하단에 붙으면서 선수 선택은 그 탭의 드롭다운이 맡는다.
+  // 드롭다운이 둘이면 서로 다른 선수를 가리킬 수 있어 여기선 없앴다.
+  it('자체 드롭다운 없이 player prop을 따른다', () => {
     const html = render({});
-    expect(html).toContain('<select');
-    expect(html).toContain('value="A"');
+    expect(html).not.toContain('<select');
+  });
+
+  it('player를 바꾸면 그 선수의 동료로 다시 그린다', () => {
+    // A의 동료는 B·C, C의 동료는 A·D — D는 C 화면에만 나온다
+    const asA = render({ player: 'A' });
+    const asC = render({ player: 'C' });
+    expect(asA).not.toContain('D');
+    expect(asC).toContain('D');
+  });
+
+  it('player가 없으면 안내문', () => {
+    expect(render({ player: null })).toContain('함께 뛴 기록이 없습니다');
   });
 
   it('기준선으로 본인 전체 승률을 밝힌다', () => {
