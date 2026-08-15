@@ -39,11 +39,13 @@ export function legacySinglesForYear(legacyRows, year) {
     .map(r => ({ player: r.player, wins: Number(r.wins) || 0, losses: Number(r.losses) || 0 }));
 }
 
-// 전 시즌 단식 집계 합산 (대시보드 전체기간 순위용) — 연도 필터 없이 선수별 W/L 합.
-export function aggregateLegacySingles(legacyRows) {
+// 단식 집계 합산 — 선수별 W/L 합. years(문자열 연도 Set)를 주면 그 연도만,
+// 없으면 전 시즌. season은 시트에서 숫자로 올 수 있어 String()으로 강제 비교(대시보드 스코프 버그 방지).
+export function aggregateLegacySingles(legacyRows, years) {
   const acc = new Map();
   for (const r of legacyRows || []) {
     if (!r || r.format !== '단식') continue;
+    if (years && !years.has(String(r.season))) continue;
     const cur = acc.get(r.player) || { player: r.player, wins: 0, losses: 0 };
     cur.wins += Number(r.wins) || 0;
     cur.losses += Number(r.losses) || 0;

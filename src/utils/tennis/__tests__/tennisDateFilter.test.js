@@ -84,4 +84,16 @@ describe('aggregateLegacySingles', () => {
     expect(aggregateLegacySingles([])).toEqual([]);
     expect(aggregateLegacySingles(undefined)).toEqual([]);
   });
+  it('years 필터(문자열 Set)는 숫자 season도 String 강제로 매칭 — 상세연도만 집계', () => {
+    const legacyRows = [
+      { season: 2024, format: '단식', player: '박성언', wins: 63, losses: 0 },  // 숫자 season, 필터로 제외
+      { season: 2025, format: '단식', player: '박성언', wins: 101, losses: 3 }, // 제외
+      { season: 2026, format: '단식', player: '박성언', wins: 66, losses: 4 },  // 숫자 2026, 포함
+    ];
+    // years는 date.slice(0,4)에서 온 문자열 Set
+    expect(aggregateLegacySingles(legacyRows, new Set(['2026'])))
+      .toEqual([{ player: '박성언', wins: 66, losses: 4 }]);
+    // years 미지정이면 전 시즌 합산(하위호환)
+    expect(aggregateLegacySingles(legacyRows)).toEqual([{ player: '박성언', wins: 230, losses: 7 }]);
+  });
 });

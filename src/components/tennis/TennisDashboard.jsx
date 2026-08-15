@@ -85,7 +85,7 @@ export default function TennisDashboard({ C: propC }) {
   // (전 시즌 합산이면 2024/2025 통산까지 섞여 '2026년' 라벨과 어긋난다.)
   const singlesAgg = useMemo(() => {
     const years = new Set((rows || []).map(r => (r.date || '').slice(0, 4)).filter(Boolean));
-    return aggregateLegacySingles((legacyRows || []).filter(r => years.has(String(r.season))));
+    return aggregateLegacySingles(legacyRows, years);
   }, [rows, legacyRows]);
   const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'rate', legacySingles: singlesAgg }).slice(0, 5), [rows, roster, today, singlesAgg]);
   // 페어 케미는 다승 기준으로 상위 노출(승률은 소표본이 상단을 차지하기 쉬움).
