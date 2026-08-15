@@ -4,6 +4,7 @@ import TennisSync from '../../services/tennisSync';
 import { buildMonthSummary } from '../../utils/tennis/tennisDashboard';
 import { buildDoublesStandings, buildPairChemistry, buildTbRanking, buildBagelRanking, buildAceDfRanking } from '../../utils/tennis/tennisAnalytics';
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
+import { aggregateLegacySingles } from '../../utils/tennis/tennisDateFilter';
 import { useTheme } from '../../hooks/useTheme';
 import { makeStyles } from '../../styles/theme';
 import { pct } from '../../utils/tennis/tennisFormat';
@@ -80,17 +81,7 @@ export default function TennisDashboard({ C: propC }) {
   const summary = useMemo(() => buildMonthSummary({ rows, month: targetMonth }), [rows, targetMonth]);
   const doubles = useMemo(() => buildDoublesStandings({ rows, roster }).slice(0, 5), [rows, roster]);
   // 단식 상세 로우는 희소(대부분 집계 전적)라 승률 순위는 레거시(전 시즌 합산)를 함께 반영해야 의미가 있다.
-  const singlesAgg = useMemo(() => {
-    const acc = new Map();
-    for (const r of legacyRows || []) {
-      if (r.format !== '단식') continue;
-      const cur = acc.get(r.player) || { player: r.player, wins: 0, losses: 0 };
-      cur.wins += Number(r.wins) || 0;
-      cur.losses += Number(r.losses) || 0;
-      acc.set(r.player, cur);
-    }
-    return [...acc.values()];
-  }, [legacyRows]);
+  const singlesAgg = useMemo(() => aggregateLegacySingles(legacyRows), [legacyRows]);
   const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'rate', legacySingles: singlesAgg }).slice(0, 5), [rows, roster, today, singlesAgg]);
   // 페어 케미는 다승 기준으로 상위 노출(승률은 소표본이 상단을 차지하기 쉬움).
   const chem = useMemo(() => buildPairChemistry({ rows }).sort((a, b) => b.wins - a.wins || b.rate - a.rate).slice(0, 5), [rows]);

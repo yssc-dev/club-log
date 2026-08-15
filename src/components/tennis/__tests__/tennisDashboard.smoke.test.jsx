@@ -6,7 +6,11 @@ import TennisDashboard from '../TennisDashboard';
 import { buildDoublesStandings, buildPairChemistry } from '../../../utils/tennis/tennisAnalytics';
 
 vi.mock('../../../services/tennisSync', () => ({
-  default: { getPlayerGames: () => Promise.resolve([]), getRoster: () => Promise.resolve([]) },
+  default: {
+    getPlayerGames: () => Promise.resolve([]),
+    getRoster: () => Promise.resolve([]),
+    getLegacyRecords: () => Promise.resolve([]),
+  },
 }));
 Object.defineProperty(window, 'matchMedia', {
   writable: true, value: (q) => ({ matches: false, media: q, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){} }),

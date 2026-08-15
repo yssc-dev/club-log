@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings, legacySinglesForYear } from '../tennisDateFilter';
+import { availableYears, availableMonths, isRowYear, filterRowsByPeriod, buildLegacyStandings, legacySinglesForYear, aggregateLegacySingles } from '../tennisDateFilter';
 
 const rows = [
   { date: '2026-01-05', player: 'A', format: '복식', result: '승' },
@@ -64,5 +64,24 @@ describe('legacySinglesForYear', () => {
     expect(legacySinglesForYear(legacyRows, 2026)).toHaveLength(1);
     expect(legacySinglesForYear([], '2026')).toEqual([]);
     expect(legacySinglesForYear(undefined, '2026')).toEqual([]);
+  });
+});
+
+describe('aggregateLegacySingles', () => {
+  it('연도 무관 전 시즌 단식 W/L을 선수별 합산 (복식 제외)', () => {
+    const legacyRows = [
+      { season: '2024', format: '단식', player: '박성언', wins: 63, losses: 0 },
+      { season: '2025', format: '단식', player: '박성언', wins: 101, losses: 3 },
+      { season: '2026', format: '단식', player: '박성언', wins: 66, losses: 4 },
+      { season: '2025', format: '복식', player: '박성언', wins: 9, losses: 9 }, // 복식 제외
+      { season: '2026', format: '단식', player: '문형민', wins: 5, losses: 2 },
+    ];
+    const out = aggregateLegacySingles(legacyRows);
+    expect(out).toContainEqual({ player: '박성언', wins: 230, losses: 7 });
+    expect(out).toContainEqual({ player: '문형민', wins: 5, losses: 2 });
+  });
+  it('빈 입력 안전', () => {
+    expect(aggregateLegacySingles([])).toEqual([]);
+    expect(aggregateLegacySingles(undefined)).toEqual([]);
   });
 });

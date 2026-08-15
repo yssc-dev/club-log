@@ -39,6 +39,19 @@ export function legacySinglesForYear(legacyRows, year) {
     .map(r => ({ player: r.player, wins: Number(r.wins) || 0, losses: Number(r.losses) || 0 }));
 }
 
+// 전 시즌 단식 집계 합산 (대시보드 전체기간 순위용) — 연도 필터 없이 선수별 W/L 합.
+export function aggregateLegacySingles(legacyRows) {
+  const acc = new Map();
+  for (const r of legacyRows || []) {
+    if (!r || r.format !== '단식') continue;
+    const cur = acc.get(r.player) || { player: r.player, wins: 0, losses: 0 };
+    cur.wins += Number(r.wins) || 0;
+    cur.losses += Number(r.losses) || 0;
+    acc.set(r.player, cur);
+  }
+  return [...acc.values()];
+}
+
 // 레거시 연도 클럽 순위(집계). legacy 필드: player·season·format·wins·losses(확인됨).
 export function buildLegacyStandings({ legacyRows, year, format }) {
   const acc = new Map();

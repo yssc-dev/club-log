@@ -26,7 +26,7 @@ export function percentileRank(v, population) {
  * @param {{ rows: object[], roster: object[], player: string, asOfDate: string, seedOrder?: string[] }} param0
  * @returns {{ axes: Array<{key:string,label:string,value:number,raw:string}>, player: string }}
  */
-export function buildPlayerRadar({ rows, roster, player, asOfDate, seedOrder = [] }) {
+export function buildPlayerRadar({ rows, roster, player, asOfDate, seedOrder = [], legacySingles = [] }) {
   const safeRows = rows || [];
   const safeRoster = roster || [];
   const rosterNames = safeRoster.map(m => m?.name).filter(Boolean);
@@ -38,13 +38,14 @@ export function buildPlayerRadar({ rows, roster, player, asOfDate, seedOrder = [
   });
   const pointsByName = new Map(standings.map(s => [s.name, s.points ?? 0]));
 
-  // 로스터 전원 요약 (모집단 계산용)
-  const summaries = new Map(rosterNames.map(n => [n, buildPlayerSummary({ rows: safeRows, player: n })]));
+  // 로스터 전원 요약 (모집단 계산용) — 단식 리그 전적/모집단이 상세 로우만으론 희소하므로
+  // legacySingles(집계 전적)를 함께 반영해야 단식승률 축과 백분위가 의미를 가진다.
+  const summaries = new Map(rosterNames.map(n => [n, buildPlayerSummary({ rows: safeRows, player: n, legacySingles })]));
   const summaryList = [...summaries.values()];
   const tbRateOf = (s) => (s.tbPlayed > 0 ? s.tbWon / s.tbPlayed : 0);
 
   // 선수 본인 (로스터 밖이면 별도 계산)
-  const me = summaries.get(player) || buildPlayerSummary({ rows: safeRows, player });
+  const me = summaries.get(player) || buildPlayerSummary({ rows: safeRows, player, legacySingles });
   const myPoints = pointsByName.get(player) ?? 0;
   const myTbRate = tbRateOf(me);
 

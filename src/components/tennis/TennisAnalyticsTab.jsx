@@ -23,7 +23,9 @@ const WIN_RATE_OPTIONS = [['wins', '다승'], ['rate', '승률']];
 const winRateSorter = (mode) => (mode === 'wins'
   ? (a, b) => b.wins - a.wins || b.rate - a.rate
   : (a, b) => b.rate - a.rate || b.wins - a.wins);
-const barNote = (o) => `${o.wins}-${o.losses} (${Math.round(o.rate * 100)}%)`;
+// 전적 표기 SSOT: "W-L (승률%)". 판이 없으면 승률 생략(바 문맥은 games≥1이라 동일).
+const barNote = (o) => `${o.wins}-${o.losses}${o.games > 0 ? ` (${Math.round(o.rate * 100)}%)` : ''}`;
+const recOrNone = (o) => (o.games > 0 ? barNote(o) : '없음');
 const partnerLabel = (b) => b.partner + (b.isGuestPartner ? ' *' : '');
 
 // ─── 전체지표 공용 헬퍼 ─────────────────────────────────
@@ -120,7 +122,7 @@ function SplitStatTable({ singles, doubles, ds, C }) {
 
 // ─── 요약 탭: 전적 리그/번외 분리표 ──────────────────────
 function RecordSplitTable({ summary, ds, C }) {
-  const rec = (b) => `${b.wins}-${b.losses}${b.games > 0 ? ` (${Math.round(b.rate * 100)}%)` : ''}`;
+  const extraOf = (b) => ({ wins: b.extraWins, losses: b.extraLosses, games: b.extraGames, rate: b.extraRate });
   const rows = [['단식', summary.singles], ['복식', summary.doubles]];
   return (
     <div style={ds.card}>
@@ -136,8 +138,8 @@ function RecordSplitTable({ summary, ds, C }) {
           {rows.map(([label, b]) => (
             <tr key={label}>
               <td style={{ ...ds.td(true), textAlign: 'left' }}>{label}</td>
-              <td style={ds.td()}>{rec(b)}</td>
-              <td style={{ ...ds.td(), color: C.gray }}>{b.extraWins}-{b.extraLosses}</td>
+              <td style={ds.td()}>{recOrNone(b)}</td>
+              <td style={{ ...ds.td(), color: C.gray }}>{recOrNone(extraOf(b))}</td>
             </tr>
           ))}
         </tbody>
@@ -178,7 +180,7 @@ function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
           <StatCell C={C} label="출석" value={`${summary.attendanceDates}일`} />
         </div>
         <div style={{ fontSize: 11, color: C.gray, marginBottom: 12 }}>
-          번외 전적 {b.extraWins}-{b.extraLosses}{b.extraGames > 0 ? ` (${Math.round(b.extraRate * 100)}%)` : ''}
+          번외 전적 {recOrNone({ wins: b.extraWins, losses: b.extraLosses, games: b.extraGames, rate: b.extraRate })}
         </div>
         <div style={{ display: 'flex' }}>
           <StatCell C={C} label="에이스" value={b.aces} />
@@ -649,8 +651,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
 
   // 레이더: 선수 선택 시에만 계산 — 로스터 전체 요약을 순회하므로 useMemo 격리
   const radar = useMemo(
-    () => player ? buildPlayerRadar({ rows: fRows, roster, player, asOfDate: today, seedOrder }) : null,
-    [fRows, roster, player, today, seedOrder]);
+    () => player ? buildPlayerRadar({ rows: fRows, roster, player, asOfDate: today, seedOrder, legacySingles: singlesAgg }) : null,
+    [fRows, roster, player, today, seedOrder, singlesAgg]);
 
   const sectionKeys = useMemo(
     () => analyticsSectionKeys({ view, indivTab, player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),
