@@ -111,6 +111,9 @@ function SplitStatTable({ singles, doubles, ds, C }) {
           ))}
         </tbody>
       </table>
+      <div style={{ fontSize: 10, color: C.gray, marginTop: 8, lineHeight: 1.5 }}>
+        상세 기록이 있는 경기만 집계됩니다.
+      </div>
     </div>
   );
 }
@@ -145,6 +148,9 @@ function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
           <StatCell C={C} label="더블폴트" value={b.doubleFaults} />
           <StatCell C={C} label="타이브레이크" value={b.tbPlayed > 0 ? `${b.tbWon}/${b.tbPlayed}` : '0/0'} />
           <StatCell C={C} label="베이글" value={`${b.bagelsGiven}/${b.bagelsTaken}`} />
+        </div>
+        <div style={{ fontSize: 10, color: C.gray, marginTop: 8, lineHeight: 1.5 }}>
+          에이스·타이브레이크·베이글은 상세 기록이 있는 경기만 집계됩니다.
         </div>
       </div>
     </>
