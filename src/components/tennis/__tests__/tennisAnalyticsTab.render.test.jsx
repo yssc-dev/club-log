@@ -91,12 +91,15 @@ describe('TennisAnalyticsTab 실렌더(로딩 이후)', () => {
       playerSelect.value = '박준태';
       playerSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
     });
-    // 요약 탭(기본): 페어 케미 TOP3 + 단/복식 분리 스탯표(SummaryDash/PairKemiTop3/SplitStatTable)
+    // 요약 탭(기본): 전적 리그/번외 분리표 + 페어 케미 TOP3 + 단/복식 분리 스탯표
+    expect(container.textContent).toContain('전적 (리그 · 번외)');
     expect(container.textContent).toContain('페어 케미 TOP3');
     expect(container.textContent).toContain('타이브레이크 · 베이글 · 에이스');
-    // 단식 탭 → 종목요약 카드(PerFormatSummary)
+    // 단식 탭 → 종목요약 카드(PerFormatSummary): 리그/번외 전적 표기
     await clickButtonByText('단식');
     expect(container.textContent).toContain('박준태 · 단식');
+    expect(container.textContent).toContain('리그 전적');
+    expect(container.textContent).toContain('번외 전적');
     // 복식 탭 → 종목요약 + 파트너 섹션
     await clickButtonByText('복식');
     expect(container.textContent).toContain('박준태 · 복식');

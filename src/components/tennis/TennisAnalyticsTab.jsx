@@ -118,10 +118,43 @@ function SplitStatTable({ singles, doubles, ds, C }) {
   );
 }
 
-// ─── 요약 대시보드 (페어케미 TOP3 + 단/복식 스탯) ─────────
+// ─── 요약 탭: 전적 리그/번외 분리표 ──────────────────────
+function RecordSplitTable({ summary, ds, C }) {
+  const rec = (b) => `${b.wins}-${b.losses}${b.games > 0 ? ` (${Math.round(b.rate * 100)}%)` : ''}`;
+  const rows = [['단식', summary.singles], ['복식', summary.doubles]];
+  return (
+    <div style={ds.card}>
+      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ ...ds.th, textAlign: 'left' }} />
+            <th style={ds.th}>리그 전적</th>
+            <th style={ds.th}>번외 전적</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, b]) => (
+            <tr key={label}>
+              <td style={{ ...ds.td(true), textAlign: 'left' }}>{label}</td>
+              <td style={ds.td()}>{rec(b)}</td>
+              <td style={{ ...ds.td(), color: C.gray }}>{b.extraWins}-{b.extraLosses}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      <div style={{ fontSize: 10, color: C.gray, marginTop: 8, lineHeight: 1.5 }}>
+        리그 = 길로틴(단식)·투몽(복식) / 번외 = 게스트 낀 판 등 리그 외 경기.
+      </div>
+    </div>
+  );
+}
+
+// ─── 요약 대시보드 (전적 + 페어케미 TOP3 + 단/복식 스탯) ──
 function SummaryDash({ summary, breakdown, ds, C }) {
   return (
     <>
+      <div style={ds.sectionTitle}>전적 (리그 · 번외)</div>
+      <RecordSplitTable summary={summary} ds={ds} C={C} />
       <div style={ds.sectionTitle}>페어 케미 TOP3</div>
       <PairKemiTop3 breakdown={breakdown} ds={ds} C={C} />
       <div style={ds.sectionTitle}>타이브레이크 · 베이글 · 에이스 (단/복식)</div>
@@ -130,18 +163,22 @@ function SummaryDash({ summary, breakdown, ds, C }) {
   );
 }
 
-// ─── 단식/복식 탭: 종목 요약 카드 ────────────────────────
+// ─── 단식/복식 탭: 종목 요약 카드 (리그 주 + 번외 별도) ───
 function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
   const b = format === '단식' ? summary.singles : summary.doubles;
+  const leagueName = format === '단식' ? '길로틴' : '투몽';
   return (
     <>
       <div style={ds.sectionTitle}>{player} · {format}</div>
       <div style={ds.card}>
-        <div style={{ display: 'flex', marginBottom: 12 }}>
-          <StatCell C={C} label="전적" value={`${b.wins}-${b.losses}`} />
-          <StatCell C={C} label="승률" value={`${Math.round(b.rate * 100)}%`} />
+        <div style={{ display: 'flex', marginBottom: 8 }}>
+          <StatCell C={C} label="리그 전적" value={`${b.wins}-${b.losses}`} />
+          <StatCell C={C} label="리그 승률" value={`${Math.round(b.rate * 100)}%`} />
           {format === '단식' && <StatCell C={C} label="포인트" value={points} />}
           <StatCell C={C} label="출석" value={`${summary.attendanceDates}일`} />
+        </div>
+        <div style={{ fontSize: 11, color: C.gray, marginBottom: 12 }}>
+          번외 전적 {b.extraWins}-{b.extraLosses}{b.extraGames > 0 ? ` (${Math.round(b.extraRate * 100)}%)` : ''}
         </div>
         <div style={{ display: 'flex' }}>
           <StatCell C={C} label="에이스" value={b.aces} />
@@ -150,6 +187,7 @@ function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
           <StatCell C={C} label="베이글" value={`${b.bagelsGiven}/${b.bagelsTaken}`} />
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginTop: 8, lineHeight: 1.5 }}>
+          리그 = {leagueName}({format}) · 번외 = 게스트 낀 판 등 리그 외 경기.<br />
           에이스·타이브레이크·베이글은 상세 기록이 있는 경기만 집계됩니다.
         </div>
       </div>

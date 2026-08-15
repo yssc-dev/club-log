@@ -177,6 +177,37 @@ describe('buildPlayerSummary', () => {
     expect(s.attendanceDates).toBe(0);
   });
 
+  it('리그(길로틴/투몽)와 번외(미반영·게스트 낀 판)를 나눠 집계한다', () => {
+    const rows2 = [
+      // 단식 길로틴 승 (리그)
+      pg({ player: 'a', result: '승', league: '길로틴', match_id: 'R1_C1', game_id: 'g1' }),
+      // 단식 미반영 승 (번외)
+      pg({ player: 'a', result: '승', league: '미반영', match_id: 'R2_C1', game_id: 'g2' }),
+      // 복식 투몽, 게스트 없음 (리그)
+      pg({ player: 'a', format: '복식', league: '투몽', result: '승', partner: 'b', match_id: 'R3_C1', game_id: 'g3' }),
+      // 복식 투몽 라벨이지만 같은 매치에 게스트(z)가 낀 판 → 번외로 빠져야
+      pg({ player: 'a', format: '복식', league: '투몽', result: '승', partner: 'b', match_id: 'R4_C1', game_id: 'g4' }),
+      pg({ player: 'z', format: '복식', league: '투몽', result: '패', is_guest: true, match_id: 'R4_C1', game_id: 'g4' }),
+    ];
+    const s = buildPlayerSummary({ rows: rows2, player: 'a' });
+    // 단식: 리그 1-0, 번외 1-0
+    expect(s.singles).toMatchObject({ wins: 1, losses: 0, extraWins: 1, extraLosses: 0 });
+    // 복식: 리그 1-0(g3), 번외 1-0(g4=게스트 오염)
+    expect(s.doubles).toMatchObject({ wins: 1, losses: 0, extraWins: 1, extraLosses: 0 });
+    expect(s.singles.rate).toBe(1);        // 리그 1/1
+    expect(s.singles.extraRate).toBe(1);   // 번외 1/1
+  });
+
+  it('legacySingles는 리그(단식) 전적에만 가산 — 번외는 불변', () => {
+    const rows2 = [
+      pg({ player: 'a', result: '승', league: '길로틴', match_id: 'R1_C1', game_id: 'g1' }),
+      pg({ player: 'a', result: '패', league: '미반영', match_id: 'R2_C1', game_id: 'g2' }), // 번외 0-1
+    ];
+    const s = buildPlayerSummary({ rows: rows2, player: 'a', legacySingles: [{ player: 'a', wins: 10, losses: 2 }] });
+    expect(s.singles).toMatchObject({ wins: 11, losses: 2, games: 13 });      // 리그 1-0 + legacy 10-2
+    expect(s.singles).toMatchObject({ extraWins: 0, extraLosses: 1 });        // 번외 불변
+  });
+
   it('legacySingles는 단식 전적에만 가산 — 다른 지표(에이스·출석 등)는 로우만', () => {
     // 로우: a 단식 1승1패(games 2) + 복식 1패. legacy로 단식 5승3패 가산 → 6승4패(games 10).
     const s = buildPlayerSummary({ rows, player: 'a', legacySingles: [{ player: 'a', wins: 5, losses: 3 }] });

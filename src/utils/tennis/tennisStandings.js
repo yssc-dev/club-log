@@ -1,10 +1,10 @@
 // 로그_테니스선수경기 행 → 단식 순위표 / 개인 전적 요약.
 // 순위는 승률로 매기고 포인트는 별도 컬럼으로 적립한다(스펙 4.5).
 
-import { COMPETITION_SINGLES } from './tennisSchema';
+import { COMPETITION_SINGLES, COMPETITION_DOUBLES } from './tennisSchema';
 import { deriveLeagueForDate, singlesWinRatesBefore } from './leagueDerivation';
 import { calcMatchPoints, DEFAULT_POINT_RULES } from './rankPoints';
-import { matchKey } from './tennisAnalytics';
+import { matchKey, guestMatchKeys } from './tennisAnalytics';
 
 const isSingles = (r) => r.format === '단식' && r.league === COMPETITION_SINGLES;
 
@@ -95,18 +95,36 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     .sort(cmp);
 }
 
-// legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — 단식 전적/승률에만 가산.
-// (에이스/DF/타이브레이크/베이글/출석 등 경기별 지표는 로우만.)
+// 종목 전적을 리그(길로틴 단식/투몽 복식) vs 번외(그 외+게스트 낀 판)로 분리 집계.
+//  - 리그 판정은 리그탭(buildSinglesStandings/buildDoublesStandings)과 동일 기준:
+//    매치 단위로 게스트가 낀 판은 통째 번외, 그 위에서 format+league로 리그 성립.
+//  - wins/losses/rate/games = 리그, extra* = 번외. 레이더는 singles.rate(=리그)를 그대로 소비.
+//  - legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — 단식 '리그' 전적에만 가산.
+//  - 에이스/DF/타이브레이크/베이글은 종목 상세 총계(리그+번외 로우, 레거시엔 경기별 값 없음).
 export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
-  const mine = (rows || []).filter(r => r.player === player);
-  // 종목 버킷에도 에이스/DF/TB/베이글을 담아 요약 탭에서 단/복식 분리 표시가 가능하게 한다.
-  const blank = () => ({ games: 0, wins: 0, losses: 0, rate: 0, aces: 0, doubleFaults: 0, tbPlayed: 0, tbWon: 0, bagelsGiven: 0, bagelsTaken: 0 });
+  const all = rows || [];
+  const guests = guestMatchKeys(all);            // 게스트가 한 명이라도 낀 매치(game_id|match_id) 집합
+  const mine = all.filter(r => r.player === player);
+
+  const blank = () => ({
+    games: 0, wins: 0, losses: 0, rate: 0,                       // 리그
+    extraGames: 0, extraWins: 0, extraLosses: 0, extraRate: 0,   // 번외
+    aces: 0, doubleFaults: 0, tbPlayed: 0, tbWon: 0, bagelsGiven: 0, bagelsTaken: 0,
+  });
   const out = {
     singles: blank(), doubles: blank(),
     attendanceDates: 0,
     aces: 0, doubleFaults: 0, tbPlayed: 0, tbWon: 0, bagelsTaken: 0, bagelsGiven: 0, // 합산 총계(하위호환)
   };
   const dates = new Set();
+
+  // 리그 성립: 본인 게스트 아님 + 매치에 게스트 없음 + format별 리그 라벨
+  const isLeagueRow = (r) => {
+    if (r.is_guest === true || guests.has(matchKey(r))) return false;
+    if (r.format === '단식') return r.league === COMPETITION_SINGLES;
+    if (r.format === '복식') return r.league === COMPETITION_DOUBLES;
+    return false;
+  };
 
   for (const r of mine) {
     dates.add(r.date);
@@ -117,14 +135,22 @@ export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
     out.bagelsGiven += bg; out.bagelsTaken += bt;
 
     const bucket = r.format === '복식' ? out.doubles : out.singles;
-    bucket.games++;
-    if (r.result === '승') bucket.wins++;
-    else if (r.result === '패') bucket.losses++;
     bucket.aces += a; bucket.doubleFaults += df; bucket.tbPlayed += tp; bucket.tbWon += tw;
     bucket.bagelsGiven += bg; bucket.bagelsTaken += bt;
+
+    const league = isLeagueRow(r);
+    if (league) {
+      bucket.games++;
+      if (r.result === '승') bucket.wins++;
+      else if (r.result === '패') bucket.losses++;
+    } else {
+      bucket.extraGames++;
+      if (r.result === '승') bucket.extraWins++;
+      else if (r.result === '패') bucket.extraLosses++;
+    }
   }
 
-  // 집계 단식 전적 가산(예: 2026 1~7월) — 단식 버킷의 W/L·게임수에만.
+  // 집계 단식 전적 가산(예: 2026 1~7월) — 단식 '리그' W/L·게임수에만.
   for (const L of legacySingles || []) {
     if (String(L?.player) !== String(player)) continue;
     out.singles.wins += Number(L.wins) || 0;
@@ -132,7 +158,10 @@ export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
     out.singles.games += (Number(L.wins) || 0) + (Number(L.losses) || 0);
   }
 
-  for (const b of [out.singles, out.doubles]) b.rate = b.games > 0 ? b.wins / b.games : 0;
+  for (const b of [out.singles, out.doubles]) {
+    b.rate = b.games > 0 ? b.wins / b.games : 0;
+    b.extraRate = b.extraGames > 0 ? b.extraWins / b.extraGames : 0;
+  }
   out.attendanceDates = dates.size;
   return out;
 }
