@@ -6,7 +6,7 @@ import { getEffectiveSettings } from './config/settings';
 import FirebaseSync from './services/firebaseSync';
 import TennisSync from './services/tennisSync';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
-import { buildTennisMatchRows, buildTennisPlayerGameRows } from './utils/tennis/tennisRowBuilders';
+import { buildTennisMatchRows, buildTennisPlayerGameRows, membersFromState } from './utils/tennis/tennisRowBuilders';
 import { nowKST } from './utils/tennis/tennisTime';
 import { allRoundsConfirmed, isLastRoundConfirmed } from './utils/tennis/roundConfirm';
 import TennisAttendeeSelector from './components/tennis/TennisAttendeeSelector';
@@ -87,9 +87,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const handleSubmitRecords = async () => {
     setBusy(true);
     try {
-      // 회원/용병 구분은 참석자 선택 시점에 이미 확정된 state.attendees를 진실 소스로 삼는다.
+      // 회원/용병 구분은 참석자 선택 시점에 확정된 state(attendees\guests)를 진실 소스로 삼는다.
       // (명부 재조회 roster는 로딩 실패·지연 시 비어 전원 게스트로 오기록되는 사고의 원인이었음.)
-      const memberSet = new Set(state.attendees || []);
+      const memberSet = membersFromState(state);
       const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
       // 등급 스냅샷(grade_at_date)만 명부에 의존 — 명부가 비면 등급이 빠져 포인트가 어긋날 수 있으니 경고.
       // (회원 구분은 attendees라 명부 없이도 정확. 포인트 자체는 저장 아닌 파생이라 나중 재계산됨.)

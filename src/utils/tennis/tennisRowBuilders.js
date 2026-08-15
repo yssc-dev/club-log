@@ -6,6 +6,14 @@
 import { TENNIS_SPORT, COMPETITION_SINGLES, COMPETITION_DOUBLES, COMPETITION_NONE } from './tennisSchema';
 import { summarizeCourt } from './tennisScoring';
 
+// 참석자 중 '회원'만 추린 Set. 리듀서가 용병(ADD_ATTENDEE isGuest)을 attendees·guests
+// 양쪽에 넣으므로(state.attendees ⊇ guests) 회원 = attendees 중 guests에 없는 이름.
+// 명부(roster) 재조회에 의존하지 않아 명부 로딩 실패/지연에도 회원 구분이 정확하다.
+export function membersFromState(state) {
+  const guests = new Set((state && state.guests) || []);
+  return new Set(((state && state.attendees) || []).filter(n => !guests.has(n)));
+}
+
 // 리그 성립 = 참가자 전원이 회원일 때만. 게스트가 1명이라도 끼면 번외(미반영).
 // 그래야 전체경기 = 투몽 + 길로틴 + 번외 로 합계가 맞아떨어진다.
 export function determineCompetition(format, sideA, sideB, memberSet) {

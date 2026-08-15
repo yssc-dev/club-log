@@ -26,6 +26,8 @@ const winRateSorter = (mode) => (mode === 'wins'
 // 전적 표기 SSOT: "W-L (승률%)". 판이 없으면 승률 생략(바 문맥은 games≥1이라 동일).
 const barNote = (o) => `${o.wins}-${o.losses}${o.games > 0 ? ` (${Math.round(o.rate * 100)}%)` : ''}`;
 const recOrNone = (o) => (o.games > 0 ? barNote(o) : '없음');
+// 종목 버킷의 번외 필드를 barNote/recOrNone가 먹는 {wins,losses,games,rate} 모양으로.
+const extraOf = (b) => ({ wins: b.extraWins, losses: b.extraLosses, games: b.extraGames, rate: b.extraRate });
 const partnerLabel = (b) => b.partner + (b.isGuestPartner ? ' *' : '');
 
 // ─── 전체지표 공용 헬퍼 ─────────────────────────────────
@@ -122,7 +124,6 @@ function SplitStatTable({ singles, doubles, ds, C }) {
 
 // ─── 요약 탭: 전적 리그/번외 분리표 ──────────────────────
 function RecordSplitTable({ summary, ds, C }) {
-  const extraOf = (b) => ({ wins: b.extraWins, losses: b.extraLosses, games: b.extraGames, rate: b.extraRate });
   const rows = [['단식', summary.singles], ['복식', summary.doubles]];
   return (
     <div style={ds.card}>
@@ -180,7 +181,7 @@ function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
           <StatCell C={C} label="출석" value={`${summary.attendanceDates}일`} />
         </div>
         <div style={{ fontSize: 11, color: C.gray, marginBottom: 12 }}>
-          번외 전적 {recOrNone({ wins: b.extraWins, losses: b.extraLosses, games: b.extraGames, rate: b.extraRate })}
+          번외 전적 {recOrNone(extraOf(b))}
         </div>
         <div style={{ display: 'flex' }}>
           <StatCell C={C} label="에이스" value={b.aces} />

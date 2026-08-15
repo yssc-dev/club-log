@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  determineCompetition, buildTennisMatchRows, buildTennisPlayerGameRows,
+  determineCompetition, buildTennisMatchRows, buildTennisPlayerGameRows, membersFromState,
 } from '../tennisRowBuilders';
 import { TENNIS_MATCH_COLUMNS, TENNIS_PLAYER_GAME_COLUMNS } from '../tennisSchema';
 
@@ -34,6 +34,41 @@ describe('determineCompetition', () => {
     expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '철우'], members)).toBe('투몽');
     expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '민환'], members)).toBe('미반영'); // 게스트 1명
     expect(determineCompetition('복식', ['성언', '다빈'], ['용병1', '용병2'], members)).toBe('미반영');
+  });
+});
+
+describe('membersFromState', () => {
+  it('용병(리듀서가 attendees·guests 양쪽에 넣음)을 회원에서 제외', () => {
+    // ADD_ATTENDEE(isGuest)는 이름을 attendees와 guests 모두에 넣는다 → attendees ⊇ guests.
+    const s = { attendees: ['성언', '다빈', '민환'], guests: ['민환'] };
+    const m = membersFromState(s);
+    expect(m.has('성언')).toBe(true);
+    expect(m.has('다빈')).toBe(true);
+    expect(m.has('민환')).toBe(false);   // 용병은 회원 아님
+  });
+  it('빈/누락 상태 안전', () => {
+    expect([...membersFromState({})]).toEqual([]);
+    expect([...membersFromState({ attendees: ['성언'] })]).toEqual(['성언']); // guests 없으면 전원 회원
+    expect([...membersFromState(undefined)]).toEqual([]);
+  });
+
+  it('통합: 용병이 attendees에 있어도 is_guest=TRUE·매치는 번외로 기록된다', () => {
+    const st = {
+      gameId: 'g_x', gameDate: '2026-08-15', season: 2026,
+      attendees: ['성언', '다빈', '원희', '민환'], guests: ['민환'], // 민환=용병
+      rounds: [{ roundIdx: 1, courts: [
+        { courtId: 1, format: '복식', bestOf: 1, status: 'done',
+          sideA: ['성언', '다빈'], sideB: ['원희', '민환'],
+          sets: [doneSet(6, 1)], stats: {} },
+      ] }],
+    };
+    const memberSet = membersFromState(st);
+    const rows = buildTennisPlayerGameRows({ team: 'T', state: st, inputTime: '', memberSet, gradeByPlayer: {} });
+    const 민환 = rows.find(r => r.player === '민환');
+    const 성언 = rows.find(r => r.player === '성언');
+    expect(민환.is_guest).toBe(true);      // 용병은 게스트
+    expect(성언.is_guest).toBe(false);     // 회원은 회원
+    expect(rows.every(r => r.league === '미반영')).toBe(true); // 용병 낀 판 → 번외
   });
 });
 
