@@ -87,7 +87,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const handleSubmitRecords = async () => {
     setBusy(true);
     try {
-      const memberSet = new Set(roster.map(m => m.name));
+      // 회원/용병 구분은 참석자 선택 시점에 이미 확정된 state.attendees를 진실 소스로 삼는다.
+      // (명부 재조회 roster는 로딩 실패·지연 시 비어 전원 게스트로 오기록되는 사고의 원인이었음.)
+      const memberSet = new Set(state.attendees || []);
       const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
       const inputTime = nowKST();
       const inputBy = authUser?.name || '';
