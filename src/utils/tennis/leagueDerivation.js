@@ -4,7 +4,9 @@
 
 import { LEAGUE_BK, LEAGUE_BR, COMPETITION_SINGLES } from './tennisSchema';
 
-export function singlesWinRatesBefore(playerGameRows, dateISO) {
+// seasonAggregate: 그 해 상세 로우 없는 단식 집계 [{player, wins, losses}](예: 2026 1~7월).
+// 상세 이전의 시즌 기록이라 배치 판정 승률에 함께 가산 — 표시 승률(집계+상세)과 티어 기준을 일치시킨다.
+export function singlesWinRatesBefore(playerGameRows, dateISO, seasonAggregate = []) {
   const acc = new Map();
   for (const r of (playerGameRows || [])) {
     if (!r || r.format !== '단식') continue;
@@ -14,9 +16,18 @@ export function singlesWinRatesBefore(playerGameRows, dateISO) {
     if (r.result === '승') cur.wins++;
     else if (r.result === '패') cur.losses++;
     else continue;
-    const total = cur.wins + cur.losses;
-    cur.rate = total > 0 ? cur.wins / total : 0;
     acc.set(r.player, cur);
+  }
+  for (const L of (seasonAggregate || [])) {
+    if (!L || !L.player) continue;
+    const cur = acc.get(L.player) || { wins: 0, losses: 0, rate: 0 };
+    cur.wins += Number(L.wins) || 0;
+    cur.losses += Number(L.losses) || 0;
+    acc.set(L.player, cur);
+  }
+  for (const v of acc.values()) {
+    const total = v.wins + v.losses;
+    v.rate = total > 0 ? v.wins / total : 0;
   }
   return acc;
 }
@@ -77,11 +88,11 @@ export function priorYearSinglesOrder({ rows, legacyRows, roster, year }) {
     .map(s => s.name);
 }
 
-export function deriveLeagueForDate({ rows, dateISO, roster, seedOrder }) {
+export function deriveLeagueForDate({ rows, dateISO, roster, seedOrder, seasonAggregate = [] }) {
   const list = (roster || []).filter(m => m && m.name);
   if (list.length === 0) return {};
 
-  const rates = singlesWinRatesBefore(rows, dateISO);
+  const rates = singlesWinRatesBefore(rows, dateISO, seasonAggregate);
   const seedSet = new Set(seedOrder || []);
   const hasAnySignal = list.some(m => rates.has(m.name) || seedSet.has(m.name));
 

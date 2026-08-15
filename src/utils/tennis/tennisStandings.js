@@ -49,7 +49,7 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
   }
 
   for (const [date, dayRows] of [...byDate.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
-    const leagueMap = deriveLeagueForDate({ rows: singles, dateISO: date, roster: list, seedOrder });
+    const leagueMap = deriveLeagueForDate({ rows: singles, dateISO: date, roster: list, seedOrder, seasonAggregate: legacySingles });
     const rates = singlesWinRatesBefore(singles, date);
     const rateOf = (n) => rates.get(n)?.rate ?? 0;
 
@@ -84,7 +84,7 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     }
   }
 
-  const finalLeague = deriveLeagueForDate({ rows: singles, dateISO: asOfDate, roster: list, seedOrder });
+  const finalLeague = deriveLeagueForDate({ rows: singles, dateISO: asOfDate, roster: list, seedOrder, seasonAggregate: legacySingles });
   const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'ko');
   const cmp = sortBy === 'points'
     ? (a, b) => b.points - a.points || b.rate - a.rate || b.wins - a.wins || byName(a, b)

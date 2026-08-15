@@ -31,6 +31,16 @@ describe('singlesWinRatesBefore', () => {
     const m = singlesWinRatesBefore(rows, '2026-08-06');
     expect(m.get('김성환')).toEqual({ wins: 1, losses: 1, rate: 0.5 });
   });
+
+  it('그 해 집계(seasonAggregate)를 상세에 가산해 승률을 낸다', () => {
+    // 박성언 상세 2승0패 + 집계 2승2패 → 4승2패 = 0.667
+    const m = singlesWinRatesBefore(rows, '2026-08-06', [
+      { player: '박성언', wins: 2, losses: 2 },
+      { player: '신규자', wins: 3, losses: 1 }, // 상세 없어도 집계만으로 등장
+    ]);
+    expect(m.get('박성언')).toEqual({ wins: 4, losses: 2, rate: 4 / 6 });
+    expect(m.get('신규자')).toEqual({ wins: 3, losses: 1, rate: 0.75 });
+  });
 });
 
 describe('deriveLeagueForDate', () => {
@@ -93,6 +103,24 @@ describe('deriveLeagueForDate', () => {
       rows, dateISO: '2026-08-06', roster: roster(['무기록아님', '무기록1', '무기록2', '무기록3']),
     });
     expect(out['무기록아님']).toBe(LEAGUE_BK);
+  });
+
+  it('seasonAggregate(그 해 집계)만 있어도 recorded로 배치(시드 아님)', () => {
+    // 상세 rows 없음, 2026 집계 승률만 → 집계 승률로 흑기사/흑장미 가름
+    const out = deriveLeagueForDate({
+      rows: [], dateISO: '2026-08-01', roster: roster(['a', 'b', 'c', 'd']),
+      seasonAggregate: [
+        { player: 'a', wins: 9, losses: 1 }, // 0.9
+        { player: 'b', wins: 6, losses: 4 }, // 0.6
+        { player: 'c', wins: 4, losses: 6 }, // 0.4
+        { player: 'd', wins: 1, losses: 9 }, // 0.1
+      ],
+      seedOrder: ['d', 'c', 'b', 'a'], // 시드는 반대로 줘도 집계(recorded)가 우선
+    });
+    expect(out.a).toBe(LEAGUE_BK);
+    expect(out.b).toBe(LEAGUE_BK);
+    expect(out.c).toBe(LEAGUE_BR);
+    expect(out.d).toBe(LEAGUE_BR);
   });
 
   it('로스터가 비면 빈 객체', () => {
