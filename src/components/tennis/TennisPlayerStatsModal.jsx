@@ -39,7 +39,7 @@ function buildPairs(rows) {
 // 필터로 가르는 대신 `단·복` 칸으로 판 수 구성을 함께 보여 그 착시를 막는다.
 export default function TennisPlayerStatsModal({ team, state, roster, C, styles: s }) {
   const [view, setView] = useState('개인');
-  const memberSet = membersFromState(state);   // 전송 경로와 동일 기준(참석자\용병=회원)
+  const memberSet = membersFromState(state, roster);   // 전송 경로와 동일 기준(참석자\용병, 명부로 교정)
   const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
 
   const allRows = buildTennisPlayerGameRows({ team, state, inputTime: '', memberSet, gradeByPlayer });

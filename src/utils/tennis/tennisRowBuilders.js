@@ -7,11 +7,14 @@ import { TENNIS_SPORT, COMPETITION_SINGLES, COMPETITION_DOUBLES, COMPETITION_NON
 import { summarizeCourt } from './tennisScoring';
 
 // 참석자 중 '회원'만 추린 Set. 리듀서가 용병(ADD_ATTENDEE isGuest)을 attendees·guests
-// 양쪽에 넣으므로(state.attendees ⊇ guests) 회원 = attendees 중 guests에 없는 이름.
-// 명부(roster) 재조회에 의존하지 않아 명부 로딩 실패/지연에도 회원 구분이 정확하다.
-export function membersFromState(state) {
+// 양쪽에 넣으므로(state.attendees ⊇ guests) 기본 회원 = attendees 중 guests에 없는 이름.
+// roster는 '교정용'(가산 전용): 용병칸에 회원 이름을 잘못 넣어 guests에 낀 경우
+// (guests는 세션 중 제거 불가) 명부에 있으면 회원으로 되살린다.
+// 명부가 비어도 guests에 없는 참석자는 그대로 회원이므로 명부 로딩 실패엔 여전히 안전.
+export function membersFromState(state, roster) {
+  const rosterNames = new Set((roster || []).map(m => m && m.name).filter(Boolean));
   const guests = new Set((state && state.guests) || []);
-  return new Set(((state && state.attendees) || []).filter(n => !guests.has(n)));
+  return new Set(((state && state.attendees) || []).filter(n => !guests.has(n) || rosterNames.has(n)));
 }
 
 // 리그 성립 = 참가자 전원이 회원일 때만. 게스트가 1명이라도 끼면 번외(미반영).

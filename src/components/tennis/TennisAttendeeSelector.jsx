@@ -72,8 +72,14 @@ export default function TennisAttendeeSelector({ roster, attendees, guests, game
         <input value={guestName} onChange={e => setGuestName(e.target.value)} placeholder="용병 이름"
           style={{ ...s.input, flex: 1, border: `1px solid ${C.grayDarker}` }} />
         <button onClick={() => {
-          if (!guestName.trim()) return;
-          dispatch({ type: 'ADD_ATTENDEE', name: guestName.trim(), isGuest: true });
+          const name = guestName.trim();
+          if (!name) return;
+          // 회원 이름을 용병칸에 넣는 오입력 방지 — 용병은 세션 중 제거가 안 돼 회원이 갇힌다.
+          if ((roster || []).some(m => m.name === name)) {
+            alert(`${name}님은 회원입니다 — 위 명단에서 선택하세요.`);
+            return;
+          }
+          dispatch({ type: 'ADD_ATTENDEE', name, isGuest: true });
           setGuestName('');
         }} style={s.btnSm()}>+ 용병</button>
       </div>

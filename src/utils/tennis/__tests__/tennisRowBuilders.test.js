@@ -51,6 +51,13 @@ describe('membersFromState', () => {
     expect([...membersFromState({ attendees: ['성언'] })]).toEqual(['성언']); // guests 없으면 전원 회원
     expect([...membersFromState(undefined)]).toEqual([]);
   });
+  it('용병칸에 잘못 들어간 회원은 명부로 교정(가산) — 명부 없으면 종전대로 제외', () => {
+    // 성언이 guests에 갇힘(용병칸 오입력+제거 불가). 명부에 있으면 회원으로 되살린다.
+    const st = { attendees: ['성언', '민환'], guests: ['성언', '민환'] };
+    expect(membersFromState(st, [{ name: '성언' }]).has('성언')).toBe(true);  // 명부로 교정
+    expect(membersFromState(st, [{ name: '성언' }]).has('민환')).toBe(false); // 진짜 용병은 여전히 제외
+    expect(membersFromState(st, []).has('성언')).toBe(false);                 // 명부 비면 종전(attendees\guests)대로
+  });
 
   it('통합: 용병이 attendees에 있어도 is_guest=TRUE·매치는 번외로 기록된다', () => {
     const st = {
