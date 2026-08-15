@@ -80,8 +80,13 @@ export default function TennisDashboard({ C: propC }) {
 
   const summary = useMemo(() => buildMonthSummary({ rows, month: targetMonth }), [rows, targetMonth]);
   const doubles = useMemo(() => buildDoublesStandings({ rows, roster }).slice(0, 5), [rows, roster]);
-  // 단식 상세 로우는 희소(대부분 집계 전적)라 승률 순위는 레거시(전 시즌 합산)를 함께 반영해야 의미가 있다.
-  const singlesAgg = useMemo(() => aggregateLegacySingles(legacyRows), [legacyRows]);
+  // 단식 상세 로우는 희소(대부분 집계 전적)라 승률 순위에 레거시를 함께 반영한다.
+  // 단, 상세 데이터가 있는 연도(현재 2026)의 레거시만 — 복식 순위·연도 라벨과 스코프를 맞춘다.
+  // (전 시즌 합산이면 2024/2025 통산까지 섞여 '2026년' 라벨과 어긋난다.)
+  const singlesAgg = useMemo(() => {
+    const years = new Set((rows || []).map(r => (r.date || '').slice(0, 4)).filter(Boolean));
+    return aggregateLegacySingles((legacyRows || []).filter(r => years.has(String(r.season))));
+  }, [rows, legacyRows]);
   const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'rate', legacySingles: singlesAgg }).slice(0, 5), [rows, roster, today, singlesAgg]);
   // 페어 케미는 다승 기준으로 상위 노출(승률은 소표본이 상단을 차지하기 쉬움).
   const chem = useMemo(() => buildPairChemistry({ rows }).sort((a, b) => b.wins - a.wins || b.rate - a.rate).slice(0, 5), [rows]);
