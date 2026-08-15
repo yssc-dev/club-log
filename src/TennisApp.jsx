@@ -91,6 +91,12 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
       // (명부 재조회 roster는 로딩 실패·지연 시 비어 전원 게스트로 오기록되는 사고의 원인이었음.)
       const memberSet = new Set(state.attendees || []);
       const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
+      // 등급 스냅샷(grade_at_date)만 명부에 의존 — 명부가 비면 등급이 빠져 포인트가 어긋날 수 있으니 경고.
+      // (회원 구분은 attendees라 명부 없이도 정확. 포인트 자체는 저장 아닌 파생이라 나중 재계산됨.)
+      if (roster.length === 0 &&
+          !confirm('회원 명부를 불러오지 못했습니다. 등급 정보가 비어 포인트가 어긋날 수 있어요. 그래도 전송할까요?')) {
+        return;
+      }
       const inputTime = nowKST();
       const inputBy = authUser?.name || '';
       const matchRows = buildTennisMatchRows({ team, state, inputTime, inputBy, memberSet });
