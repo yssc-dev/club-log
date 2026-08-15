@@ -54,22 +54,91 @@ function StatCell({ label, value, C }) {
   );
 }
 
-function SummaryCard({ summary, player, points = 0, ds, C }) {
+// ─── 요약 탭: 페어 케미 TOP3 (다승/승률 토글) ─────────────
+function PairKemiTop3({ breakdown, ds, C }) {
+  const [sort, setSort] = useState('wins');
+  if (!breakdown || breakdown.length === 0) {
+    return <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>복식 파트너 기록 없음</div>;
+  }
+  const maxWins = Math.max(1, ...breakdown.map(b => b.wins));
+  const sorter = sort === 'wins'
+    ? (a, b) => b.wins - a.wins || b.rate - a.rate
+    : (a, b) => b.rate - a.rate || b.wins - a.wins;
+  const rows = [...breakdown].sort(sorter).slice(0, 3).map(b => ({
+    label: b.partner + (b.isGuestPartner ? ' *' : ''),
+    value: sort === 'wins' ? b.wins / maxWins : b.rate,
+    note: `${b.wins}-${b.losses} (${Math.round(b.rate * 100)}%)`,
+  }));
   return (
     <>
-      <div style={ds.sectionTitle}>{player} 요약</div>
+      <SortToggle value={sort} onChange={setSort} options={[['wins', '다승'], ['rate', '승률']]} ds={ds} />
+      <HBarChart rows={rows} ds={ds} C={C} />
+    </>
+  );
+}
+
+// ─── 요약 탭: 단/복식 TB·베이글·에이스·DF 분리 표 ─────────
+function SplitStatTable({ singles, doubles, ds, C }) {
+  const tbCell = (b) => (b.tbPlayed > 0 ? `${b.tbWon}/${b.tbPlayed} (${Math.round((b.tbWon / b.tbPlayed) * 100)}%)` : '0/0');
+  const rows = [['단식', singles], ['복식', doubles]];
+  return (
+    <div style={ds.card}>
+      <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+        <thead>
+          <tr>
+            <th style={{ ...ds.th, textAlign: 'left' }} />
+            <th style={ds.th}>타이브레이크</th>
+            <th style={ds.th}>베이글(준/먹)</th>
+            <th style={ds.th}>에이스</th>
+            <th style={ds.th}>DF</th>
+          </tr>
+        </thead>
+        <tbody>
+          {rows.map(([label, b]) => (
+            <tr key={label}>
+              <td style={{ ...ds.td(true), textAlign: 'left' }}>{label}</td>
+              <td style={ds.td()}>{tbCell(b)}</td>
+              <td style={ds.td()}>{b.bagelsGiven}/{b.bagelsTaken}</td>
+              <td style={ds.td()}>{b.aces}</td>
+              <td style={{ ...ds.td(), fontSize: 11, color: C.gray }}>{b.doubleFaults}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
+// ─── 요약 대시보드 (페어케미 TOP3 + 단/복식 스탯) ─────────
+function SummaryDash({ summary, breakdown, ds, C }) {
+  return (
+    <>
+      <div style={ds.sectionTitle}>페어 케미 TOP3</div>
+      <PairKemiTop3 breakdown={breakdown} ds={ds} C={C} />
+      <div style={ds.sectionTitle}>타이브레이크 · 베이글 · 에이스 (단/복식)</div>
+      <SplitStatTable singles={summary.singles} doubles={summary.doubles} ds={ds} C={C} />
+    </>
+  );
+}
+
+// ─── 단식/복식 탭: 종목 요약 카드 ────────────────────────
+function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
+  const b = format === '단식' ? summary.singles : summary.doubles;
+  return (
+    <>
+      <div style={ds.sectionTitle}>{player} · {format}</div>
       <div style={ds.card}>
         <div style={{ display: 'flex', marginBottom: 12 }}>
-          <StatCell C={C} label="단식" value={`${summary.singles.wins}-${summary.singles.losses}`} />
-          <StatCell C={C} label="복식" value={`${summary.doubles.wins}-${summary.doubles.losses}`} />
-          <StatCell C={C} label="포인트" value={points} />
+          <StatCell C={C} label="전적" value={`${b.wins}-${b.losses}`} />
+          <StatCell C={C} label="승률" value={`${Math.round(b.rate * 100)}%`} />
+          {format === '단식' && <StatCell C={C} label="포인트" value={points} />}
           <StatCell C={C} label="출석" value={`${summary.attendanceDates}일`} />
         </div>
         <div style={{ display: 'flex' }}>
-          <StatCell C={C} label="에이스" value={summary.aces} />
-          <StatCell C={C} label="더블폴트" value={summary.doubleFaults} />
-          <StatCell C={C} label="타이브레이크" value={`${summary.tbWon}/${summary.tbPlayed}`} />
-          <StatCell C={C} label="베이글" value={`${summary.bagelsGiven}/${summary.bagelsTaken}`} />
+          <StatCell C={C} label="에이스" value={b.aces} />
+          <StatCell C={C} label="더블폴트" value={b.doubleFaults} />
+          <StatCell C={C} label="타이브레이크" value={b.tbPlayed > 0 ? `${b.tbWon}/${b.tbPlayed}` : '0/0'} />
+          <StatCell C={C} label="베이글" value={`${b.bagelsGiven}/${b.bagelsTaken}`} />
         </div>
       </div>
     </>
@@ -467,7 +536,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const [roster, setRoster] = useState([]);
   const [loading, setLoading] = useState(true);
   const [view, setView] = useState('individual');         // 서브탭: 개인지표(기본) / 전체지표
-  const [format, setFormat] = useState('복식');           // 복식 기본 (스펙 §5)
+  const [format, setFormat] = useState('복식');           // 전체지표 복식/단식 토글
+  const [indivTab, setIndivTab] = useState('summary');    // 개인지표 서브탭: 요약/단식/복식
   const [player, setPlayer] = useState('');
 
   useEffect(() => {
@@ -495,6 +565,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const effYear = year || (years.includes(curYear) ? curYear : (years[0] || curYear));
   const monthOpts = useMemo(() => availableMonths({ rows, year: effYear }), [rows, effYear]);
   const fRows = useMemo(() => filterRowsByPeriod(rows, { year: effYear, month }), [rows, effYear, month]);
+  const indivFmt = indivTab === 'summary' ? '복식' : indivTab; // 개인 단/복식 탭이 다루는 종목
 
   const seedOrder = useMemo(() => priorYearSinglesOrder({ rows, legacyRows, roster, year: effYear }), [rows, legacyRows, roster, effYear]);
   const singlesStandings = useMemo(
@@ -506,10 +577,10 @@ export default function TennisAnalyticsTab({ C: propC }) {
     () => player ? buildPartnerBreakdown({ rows: fRows, player }) : [], [fRows, player]);
 
   const h2h = useMemo(
-    () => player ? buildHeadToHead({ rows: fRows, player, format }) : [], [fRows, player, format]);
+    () => player ? buildHeadToHead({ rows: fRows, player, format: indivFmt }) : [], [fRows, player, indivFmt]);
 
   const monthly = useMemo(
-    () => player ? buildMonthlyForm({ rows: fRows, player, format }) : [], [fRows, player, format]);
+    () => player ? buildMonthlyForm({ rows: fRows, player, format: indivFmt }) : [], [fRows, player, indivFmt]);
 
   const tbRanking = useMemo(() => buildTbRanking({ rows: fRows, roster, format }), [fRows, roster, format]);
   const bagelRanking = useMemo(() => buildBagelRanking({ rows: fRows, roster, format }), [fRows, roster, format]);
@@ -517,8 +588,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
 
   // 연도별(기간별) 전적 카드는 필터와 무관하게 전체 커리어(전연도 2024~+통산) 비교를 보여준다 — 필터는 나머지 섹션만 스코핑.
   const yearlyRecords = useMemo(
-    () => player ? buildYearlyRecords({ legacyRows, rows, player, format }) : [],
-    [legacyRows, rows, player, format]);
+    () => player ? buildYearlyRecords({ legacyRows, rows, player, format: indivFmt }) : [],
+    [legacyRows, rows, player, indivFmt]);
 
   // 상세 로우 없는 단식 집계(예: 2026 1~7월)를 전적에 가산 — 특정 월 선택 시엔 월 귀속 불가라 제외.
   const singlesAgg = useMemo(
@@ -535,8 +606,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
     [fRows, roster, player, today, seedOrder]);
 
   const sectionKeys = useMemo(
-    () => analyticsSectionKeys({ view, player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),
-    [view, player, format, yearlyRecords, month]);
+    () => analyticsSectionKeys({ view, indivTab, player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),
+    [view, indivTab, player, format, yearlyRecords, month]);
 
   const selectStyle = {
     background: C.cardLight,
@@ -564,11 +635,15 @@ export default function TennisAnalyticsTab({ C: propC }) {
         ))}
       </div>
 
-      {/* 포맷 토글 + 연/월 필터 + (개인지표) 선수 선택 */}
+      {/* 개인지표: 요약/단식/복식 서브탭 · 전체지표: 복식/단식 토글 + 연/월 필터 + 선수 선택 */}
       <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
-        {['복식', '단식'].map(f => (
-          <button key={f} onClick={() => setFormat(f)} style={ds.chip(format === f)}>{f}</button>
-        ))}
+        {view === 'individual'
+          ? [['summary', '요약'], ['단식', '단식'], ['복식', '복식']].map(([v, label]) => (
+            <button key={v} onClick={() => setIndivTab(v)} style={ds.chip(indivTab === v)}>{label}</button>
+          ))
+          : ['복식', '단식'].map(f => (
+            <button key={f} onClick={() => setFormat(f)} style={ds.chip(format === f)}>{f}</button>
+          ))}
         <select value={effYear} onChange={e => { setYear(e.target.value); setMonth(''); }} style={{ ...selectStyle }}>
           {years.map(y => <option key={y} value={y}>{y}</option>)}
         </select>
@@ -590,7 +665,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
 
       {view === 'individual' && !player && (
         <div style={{ ...ds.card, color: C.gray, fontSize: 13, textAlign: 'center', padding: 20 }}>
-          선수를 선택하면 개인 지표(레이더·전적·상대·파트너·월별)가 표시됩니다.
+          선수를 선택하면 개인 지표(요약·단식·복식)가 표시됩니다.
         </div>
       )}
 
@@ -598,10 +673,11 @@ export default function TennisAnalyticsTab({ C: propC }) {
         switch (key) {
           case 'radar':            return radar ? <RadarSection key={key} radar={radar} ds={ds} C={C} /> : null;
           case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
-          case 'summary':          return summary ? <SummaryCard key={key} summary={summary} player={player} points={singlesStandings.find(s => s.name === player)?.points ?? 0} ds={ds} C={C} /> : null;
+          case 'summaryDash':      return summary ? <SummaryDash key={key} summary={summary} breakdown={partnerBreakdown} ds={ds} C={C} /> : null;
+          case 'formatSummary':    return summary ? <PerFormatSummary key={key} summary={summary} format={indivFmt} player={player} points={singlesStandings.find(s => s.name === player)?.points ?? 0} ds={ds} C={C} /> : null;
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
           case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;
-          case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={format} ds={ds} C={C} />;
+          case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={indivFmt} ds={ds} C={C} />;
           case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} C={C} />;
           case 'tb':               return <TbBagelSection key={key} tb={tbRanking} bagel={bagelRanking} ds={ds} C={C} />;
           case 'acedf':            return <AceDfSection key={key} acedf={aceDfRanking} ds={ds} C={C} />;

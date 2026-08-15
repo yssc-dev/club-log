@@ -83,4 +83,22 @@ describe('TennisAnalyticsTab 실렌더(로딩 이후)', () => {
     expect(container.textContent).not.toContain('선수를 선택');
     expect(container.textContent).toContain('개인 프로필');
   });
+
+  it('개인 요약/단식/복식 서브탭 전환 렌더(신규 컴포넌트 크래시 없음)', async () => {
+    await mount();
+    const playerSelect = [...container.querySelectorAll('select')].find(s => s.textContent.includes('박준태'));
+    await act(() => {
+      playerSelect.value = '박준태';
+      playerSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
+    });
+    // 요약 탭(기본): 페어 케미 TOP3 + 단/복식 분리 스탯표(SummaryDash/PairKemiTop3/SplitStatTable)
+    expect(container.textContent).toContain('페어 케미 TOP3');
+    expect(container.textContent).toContain('타이브레이크 · 베이글 · 에이스');
+    // 단식 탭 → 종목요약 카드(PerFormatSummary)
+    await clickButtonByText('단식');
+    expect(container.textContent).toContain('박준태 · 단식');
+    // 복식 탭 → 종목요약 + 파트너 섹션
+    await clickButtonByText('복식');
+    expect(container.textContent).toContain('박준태 · 복식');
+  });
 });

@@ -99,27 +99,29 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
 // (에이스/DF/타이브레이크/베이글/출석 등 경기별 지표는 로우만.)
 export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
   const mine = (rows || []).filter(r => r.player === player);
-  const blank = () => ({ games: 0, wins: 0, losses: 0, rate: 0 });
+  // 종목 버킷에도 에이스/DF/TB/베이글을 담아 요약 탭에서 단/복식 분리 표시가 가능하게 한다.
+  const blank = () => ({ games: 0, wins: 0, losses: 0, rate: 0, aces: 0, doubleFaults: 0, tbPlayed: 0, tbWon: 0, bagelsGiven: 0, bagelsTaken: 0 });
   const out = {
     singles: blank(), doubles: blank(),
     attendanceDates: 0,
-    aces: 0, doubleFaults: 0, tbPlayed: 0, tbWon: 0, bagelsTaken: 0, bagelsGiven: 0,
+    aces: 0, doubleFaults: 0, tbPlayed: 0, tbWon: 0, bagelsTaken: 0, bagelsGiven: 0, // 합산 총계(하위호환)
   };
   const dates = new Set();
 
   for (const r of mine) {
     dates.add(r.date);
-    out.aces += Number(r.aces) || 0;
-    out.doubleFaults += Number(r.double_faults) || 0;
-    out.tbPlayed += Number(r.tb_played) || 0;
-    out.tbWon += Number(r.tb_won) || 0;
-    out.bagelsTaken += Number(r.bagels_taken) || 0;
-    out.bagelsGiven += Number(r.bagels_given) || 0;
+    const a = Number(r.aces) || 0, df = Number(r.double_faults) || 0;
+    const tp = Number(r.tb_played) || 0, tw = Number(r.tb_won) || 0;
+    const bg = Number(r.bagels_given) || 0, bt = Number(r.bagels_taken) || 0;
+    out.aces += a; out.doubleFaults += df; out.tbPlayed += tp; out.tbWon += tw;
+    out.bagelsGiven += bg; out.bagelsTaken += bt;
 
     const bucket = r.format === '복식' ? out.doubles : out.singles;
     bucket.games++;
     if (r.result === '승') bucket.wins++;
     else if (r.result === '패') bucket.losses++;
+    bucket.aces += a; bucket.doubleFaults += df; bucket.tbPlayed += tp; bucket.tbWon += tw;
+    bucket.bagelsGiven += bg; bucket.bagelsTaken += bt;
   }
 
   // 집계 단식 전적 가산(예: 2026 1~7월) — 단식 버킷의 W/L·게임수에만.

@@ -159,9 +159,16 @@ describe('buildPlayerSummary', () => {
     expect(buildPlayerSummary({ rows, player: 'a' }).attendanceDates).toBe(2);
   });
 
-  it('에이스/DF/타이브레이크/베이글이 누적된다', () => {
+  it('에이스/DF/타이브레이크/베이글이 누적된다(합산 총계)', () => {
     const s = buildPlayerSummary({ rows, player: 'a' });
     expect(s).toMatchObject({ aces: 3, doubleFaults: 1, tbPlayed: 1, tbWon: 1, bagelsGiven: 1, bagelsTaken: 1 });
+  });
+
+  it('에이스/DF/TB/베이글을 종목별로도 분리 집계한다', () => {
+    const s = buildPlayerSummary({ rows, player: 'a' });
+    // 단식(row1 에이스2·DF1·TB1/1·준1, row3 없음), 복식(row2 에이스1·먹음1)
+    expect(s.singles).toMatchObject({ aces: 2, doubleFaults: 1, tbPlayed: 1, tbWon: 1, bagelsGiven: 1, bagelsTaken: 0 });
+    expect(s.doubles).toMatchObject({ aces: 1, doubleFaults: 0, tbPlayed: 0, tbWon: 0, bagelsGiven: 0, bagelsTaken: 1 });
   });
 
   it('기록 없는 선수는 0으로 채워진다', () => {
