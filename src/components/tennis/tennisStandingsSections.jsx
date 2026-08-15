@@ -58,7 +58,7 @@ export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
     rate:       { accessor: s => s.rate, type: 'num' },
     points:     { accessor: s => s.points, type: 'num' },
   }), []);
-  // #는 포인트 순위(등수) — 리그 탭에서 포인트순 입력. 정렬로 행이 섞여도 각 선수의 포인트 등수는 유지된다.
+  // #는 입력 순서 등수(리그 탭=승률순 → 상위 8=흑기사). 컬럼 정렬로 행이 섞여도 각 선수 등수는 유지.
   const ranked = useMemo(() => standings.map((s, i) => ({ ...s, _rank: i + 1 })), [standings]);
   const { sorted, sort, onSort } = useSortableRows(ranked, cols);
   if (!standings.length) return null;
