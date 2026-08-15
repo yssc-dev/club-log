@@ -17,6 +17,15 @@ import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from './Sortable';
 import { pct } from '../../utils/tennis/tennisFormat';
 
+// ─── 파트너/페어 바 공용(SSOT) ──────────────────────────
+// 다승/승률 토글·정렬·바 노트·라벨을 한 곳에서 — PairKemiTop3와 ChemistrySection이 공유.
+const WIN_RATE_OPTIONS = [['wins', '다승'], ['rate', '승률']];
+const winRateSorter = (mode) => (mode === 'wins'
+  ? (a, b) => b.wins - a.wins || b.rate - a.rate
+  : (a, b) => b.rate - a.rate || b.wins - a.wins);
+const barNote = (o) => `${o.wins}-${o.losses} (${Math.round(o.rate * 100)}%)`;
+const partnerLabel = (b) => b.partner + (b.isGuestPartner ? ' *' : '');
+
 // ─── 전체지표 공용 헬퍼 ─────────────────────────────────
 // 랭킹바 정렬 토글 (다승/승률·준/먹음 등). options: [[value, label], ...]
 function SortToggle({ value, onChange, options, ds }) {
@@ -61,17 +70,14 @@ function PairKemiTop3({ breakdown, ds, C }) {
     return <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>복식 파트너 기록 없음</div>;
   }
   const maxWins = Math.max(1, ...breakdown.map(b => b.wins));
-  const sorter = sort === 'wins'
-    ? (a, b) => b.wins - a.wins || b.rate - a.rate
-    : (a, b) => b.rate - a.rate || b.wins - a.wins;
-  const rows = [...breakdown].sort(sorter).slice(0, 3).map(b => ({
-    label: b.partner + (b.isGuestPartner ? ' *' : ''),
+  const rows = [...breakdown].sort(winRateSorter(sort)).slice(0, 3).map(b => ({
+    label: partnerLabel(b),
     value: sort === 'wins' ? b.wins / maxWins : b.rate,
-    note: `${b.wins}-${b.losses} (${Math.round(b.rate * 100)}%)`,
+    note: barNote(b),
   }));
   return (
     <>
-      <SortToggle value={sort} onChange={setSort} options={[['wins', '다승'], ['rate', '승률']]} ds={ds} />
+      <SortToggle value={sort} onChange={setSort} options={WIN_RATE_OPTIONS} ds={ds} />
       <HBarChart rows={rows} ds={ds} C={C} />
     </>
   );
@@ -197,13 +203,10 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
   const chemBarRows = useMemo(() => {
     if (!chemistry.length) return [];
     const maxWins = Math.max(1, ...chemistry.map(p => p.wins));
-    const sorter = chemSort === 'wins'
-      ? (a, b) => b.wins - a.wins || b.rate - a.rate
-      : (a, b) => b.rate - a.rate || b.wins - a.wins;
-    return [...chemistry].sort(sorter).slice(0, 8).map(p => ({
-      label: p.players.join('·') + (p.hasGuest ? ' *' : ''),
+    return [...chemistry].sort(winRateSorter(chemSort)).slice(0, 8).map(p => ({
+      label: p.players.join('·') + (p.hasGuest ? ' *' : ''),   // 페어(2인)라 라벨은 고유 — partnerLabel 미적용
       value: chemSort === 'wins' ? p.wins / maxWins : p.rate,
-      note: `${p.wins}-${p.losses} (${Math.round(p.rate * 100)}%)`,
+      note: barNote(p),
     }));
   }, [chemistry, chemSort]);
 
@@ -216,7 +219,7 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
             <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
           ) : (
             <>
-              <SortToggle value={chemSort} onChange={setChemSort} options={[['wins', '다승'], ['rate', '승률']]} ds={ds} />
+              <SortToggle value={chemSort} onChange={setChemSort} options={WIN_RATE_OPTIONS} ds={ds} />
               <HBarChart rows={chemBarRows} ds={ds} C={C} />
               <CollapsibleTable label={`전체 ${chemistry.length}쌍 보기`} C={C}>
                 <div style={ds.card}>
@@ -251,9 +254,9 @@ function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemis
           <div style={ds.sectionTitle}>{player} 파트너별</div>
           <HBarChart
             rows={(breakdown || []).map(b => ({
-              label: b.partner + (b.isGuestPartner ? ' *' : ''),
+              label: partnerLabel(b),
               value: b.rate,
-              note: `${b.wins}-${b.losses} (${Math.round(b.rate * 100)}%)`,
+              note: barNote(b),
             }))}
             ds={ds}
             C={C}
