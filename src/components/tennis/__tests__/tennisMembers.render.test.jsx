@@ -9,6 +9,7 @@ import TennisMembers from '../TennisMembers';
 const { writeMock, getAdminMock, MEMBERS } = vi.hoisted(() => ({
   writeMock: vi.fn(() => Promise.resolve({ success: true })),
   getAdminMock: vi.fn(),
+  // seasonStartRank는 서버가 여전히 내려줄 수 있으나 프론트는 무시(폐기 필드) — 픽스처에만 남김.
   MEMBERS: [
     // 박성언에 birthDate 주입 — 서버가 실수로 내려도 UI가 노출 안 하는지 방어 검증
     { row: 2, name: '박성언', nickname: '성언', grade: '금배', memberType: '정회원', status: '활동', seasonStartRank: 1, joinDate: '2024-01-01', note: '', birthDate: '1990-05-05' },

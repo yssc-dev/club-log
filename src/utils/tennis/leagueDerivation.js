@@ -59,7 +59,7 @@ export function priorYearSinglesOrder({ rows, legacyRows, roster, year }) {
   };
   for (const r of (rows || [])) {
     if (!r || r.format !== '단식' || r.is_guest === true) continue;
-    if (r.league && r.league !== '길로틴') continue; // 리그 미성립(용병전 등) 제외
+    if (r.league !== COMPETITION_SINGLES) continue; // 인시즌(singlesWinRatesBefore)과 동일 조건
     const rSeason = String(r.season || String(r.date || '').slice(0, 4));
     if (rSeason !== py) continue;
     if (r.result === '승') bump(r.player, 1, 0);

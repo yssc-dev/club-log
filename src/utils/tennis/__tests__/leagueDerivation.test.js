@@ -125,11 +125,12 @@ describe('priorYearSinglesOrder', () => {
       .toEqual(['문형민', '김성환']);
   });
 
-  it('복식/게스트/미성립은 제외', () => {
+  it('복식/게스트/미성립/league빈값은 제외 (인시즌과 동일 조건)', () => {
     const rows = [
       row('박성언', '2025-03-01', '승', '복식', '투몽'),      // 복식 제외
       { ...row('김성환', '2025-03-01', '승'), is_guest: true }, // 게스트 제외
       row('문형민', '2025-03-01', '승', '단식', '미반영'),      // 미성립 제외
+      { player: '박성언', date: '2025-04-01', result: '승', format: '단식', league: undefined }, // league 빈값 제외
     ];
     expect(priorYearSinglesOrder({ rows, legacyRows: [], roster: rosterList, year: '2026' })).toEqual([]);
   });

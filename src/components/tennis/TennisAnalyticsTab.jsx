@@ -530,8 +530,8 @@ export default function TennisAnalyticsTab({ C: propC }) {
 
   // 레이더: 선수 선택 시에만 계산 — 로스터 전체 요약을 순회하므로 useMemo 격리
   const radar = useMemo(
-    () => player ? buildPlayerRadar({ rows: fRows, roster, player, asOfDate: today }) : null,
-    [fRows, roster, player, today]);
+    () => player ? buildPlayerRadar({ rows: fRows, roster, player, asOfDate: today, seedOrder }) : null,
+    [fRows, roster, player, today, seedOrder]);
 
   const sectionKeys = useMemo(
     () => analyticsSectionKeys({ view, player, format, hasLegacy: yearlyRecords.length > 0, hasMonth: !!month }),

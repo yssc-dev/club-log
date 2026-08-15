@@ -23,18 +23,18 @@ export function percentileRank(v, population) {
 }
 
 /**
- * @param {{ rows: object[], roster: object[], player: string, asOfDate: string }} param0
+ * @param {{ rows: object[], roster: object[], player: string, asOfDate: string, seedOrder?: string[] }} param0
  * @returns {{ axes: Array<{key:string,label:string,value:number,raw:string}>, player: string }}
  */
-export function buildPlayerRadar({ rows, roster, player, asOfDate }) {
+export function buildPlayerRadar({ rows, roster, player, asOfDate, seedOrder = [] }) {
   const safeRows = rows || [];
   const safeRoster = roster || [];
   const rosterNames = safeRoster.map(m => m?.name).filter(Boolean);
   const dateStr = asOfDate || new Date().toISOString().slice(0, 10);
 
-  // 포인트: 단식 순위표(길로틴 리그 포인트)
+  // 포인트: 단식 순위표(길로틴 리그 포인트). seedOrder로 시즌초 시드 일관 유지.
   const standings = buildSinglesStandings({
-    rows: safeRows, roster: safeRoster, asOfDate: dateStr, sortBy: 'points',
+    rows: safeRows, roster: safeRoster, asOfDate: dateStr, sortBy: 'points', seedOrder,
   });
   const pointsByName = new Map(standings.map(s => [s.name, s.points ?? 0]));
 

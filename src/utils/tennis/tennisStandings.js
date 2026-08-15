@@ -84,7 +84,7 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     }
   }
 
-  const finalLeague = deriveLeagueForDate({ rows: singles, dateISO: asOfDate, roster: list });
+  const finalLeague = deriveLeagueForDate({ rows: singles, dateISO: asOfDate, roster: list, seedOrder });
   const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'ko');
   const cmp = sortBy === 'points'
     ? (a, b) => b.points - a.points || b.rate - a.rate || b.wins - a.wins || byName(a, b)
