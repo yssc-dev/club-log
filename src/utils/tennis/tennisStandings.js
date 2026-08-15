@@ -50,7 +50,8 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
 
   for (const [date, dayRows] of [...byDate.entries()].sort((a, b) => String(a[0]).localeCompare(String(b[0])))) {
     const leagueMap = deriveLeagueForDate({ rows: singles, dateISO: date, roster: list, seedOrder, seasonAggregate: legacySingles });
-    const rates = singlesWinRatesBefore(singles, date);
+    // upset 판정 승률도 티어와 동일 기준(상세+그 해 집계)으로 — 일관성.
+    const rates = singlesWinRatesBefore(singles, date, legacySingles);
     const rateOf = (n) => rates.get(n)?.rate ?? 0;
 
     const pairs = new Map();
