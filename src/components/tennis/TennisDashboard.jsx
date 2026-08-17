@@ -23,17 +23,19 @@ const DOW = ['일', '월', '화', '수', '목', '금', '토'];
 // 마지막 경기일 카드 — 요일·경과일('오늘'/'어제'/'N일 전')은 렌더 시 오늘 기준 계산.
 function LastMatchCard({ lastDay, ds, C }) {
   const dt = new Date(`${lastDay.date}T00:00:00`);
+  const valid = !Number.isNaN(dt.getTime());
   const today = new Date(); today.setHours(0, 0, 0, 0);
   const diff = Math.round((today.getTime() - dt.getTime()) / 86400000);
-  const ago = diff <= 0 ? '오늘' : diff === 1 ? '어제' : `${diff}일 전`;
-  const md = Number.isNaN(dt.getTime()) ? lastDay.date : `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${DOW[dt.getDay()]})`;
+  // 유효한 날짜 + 과거/오늘만 경과일 표기. 무효/미래는 배지 생략(md만 표시).
+  const ago = !valid || diff < 0 ? '' : diff === 0 ? '오늘' : diff === 1 ? '어제' : `${diff}일 전`;
+  const md = valid ? `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${DOW[dt.getDay()]})` : lastDay.date;
   return (
     <>
       <div style={ds.sectionTitle}>마지막 경기</div>
       <div style={ds.card}>
         <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
           <span style={{ fontSize: 18, fontWeight: 700, color: C.white }}>{md}</span>
-          <span style={{ fontSize: 12, color: C.accent }}>{ago}</span>
+          {ago && <span style={{ fontSize: 12, color: C.accent }}>{ago}</span>}
         </div>
         <div style={{ display: 'flex' }}>
           <StatCell C={C} label="경기수" value={lastDay.matches} />

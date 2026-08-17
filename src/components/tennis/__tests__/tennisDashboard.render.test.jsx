@@ -51,7 +51,7 @@ describe('TennisDashboard 실렌더(로딩 이후)', () => {
     expect(container.textContent).toContain('8월 17일');
     // 그 날 회원 2명(박성언·기다빈), 용병 1(두리)
     expect(container.textContent).toContain('+용병');
-    // 다승 1위 박성언(2승)
-    expect(container.textContent).toContain('박성언');
+    // 다승 1위 = 박성언 2승 (8/17 R1·R2 모두 승). '2승'은 마지막경기 카드 고유(이달=3승)
+    expect(container.textContent).toContain('박성언 2승');
   });
 });
