@@ -1,7 +1,7 @@
 // 테니스 클럽 개요 대시보드(2단계). 정적·비인터랙티브. 분석 계산기 재사용.
 import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
-import { buildMonthSummary } from '../../utils/tennis/tennisDashboard';
+import { buildMonthSummary, buildLastMatchDay } from '../../utils/tennis/tennisDashboard';
 import { buildDoublesStandings, buildPairChemistry, buildTbRanking, buildBagelRanking, buildAceDfRanking } from '../../utils/tennis/tennisAnalytics';
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
 import { aggregateLegacySingles } from '../../utils/tennis/tennisDateFilter';
@@ -16,6 +16,32 @@ function StatCell({ label, value, C }) {
       <div style={{ fontSize: 10, color: C.gray }}>{label}</div>
       <div style={{ fontSize: 18, fontVariantNumeric: 'tabular-nums', color: C.white }}>{value}</div>
     </div>
+  );
+}
+
+const DOW = ['일', '월', '화', '수', '목', '금', '토'];
+// 마지막 경기일 카드 — 요일·경과일('오늘'/'어제'/'N일 전')은 렌더 시 오늘 기준 계산.
+function LastMatchCard({ lastDay, ds, C }) {
+  const dt = new Date(`${lastDay.date}T00:00:00`);
+  const today = new Date(); today.setHours(0, 0, 0, 0);
+  const diff = Math.round((today.getTime() - dt.getTime()) / 86400000);
+  const ago = diff <= 0 ? '오늘' : diff === 1 ? '어제' : `${diff}일 전`;
+  const md = Number.isNaN(dt.getTime()) ? lastDay.date : `${dt.getMonth() + 1}월 ${dt.getDate()}일 (${DOW[dt.getDay()]})`;
+  return (
+    <>
+      <div style={ds.sectionTitle}>마지막 경기</div>
+      <div style={ds.card}>
+        <div style={{ display: 'flex', alignItems: 'baseline', gap: 8, marginBottom: 12 }}>
+          <span style={{ fontSize: 18, fontWeight: 700, color: C.white }}>{md}</span>
+          <span style={{ fontSize: 12, color: C.accent }}>{ago}</span>
+        </div>
+        <div style={{ display: 'flex' }}>
+          <StatCell C={C} label="경기수" value={lastDay.matches} />
+          <StatCell C={C} label="참석" value={`${lastDay.memberCount}명${lastDay.guestCount ? ` +용병${lastDay.guestCount}` : ''}`} />
+          <StatCell C={C} label="다승" value={lastDay.topWinner ? `${lastDay.topWinner.name} ${lastDay.topWinner.wins}승` : '-'} />
+        </div>
+      </div>
+    </>
   );
 }
 
@@ -79,6 +105,7 @@ export default function TennisDashboard({ C: propC }) {
   const targetMonth = months.includes(curMonth) ? curMonth : (months[months.length - 1] || curMonth);
 
   const summary = useMemo(() => buildMonthSummary({ rows, month: targetMonth }), [rows, targetMonth]);
+  const lastDay = useMemo(() => buildLastMatchDay({ rows }), [rows]);
   const doubles = useMemo(() => buildDoublesStandings({ rows, roster }).slice(0, 5), [rows, roster]);
   // 단식 상세 로우는 희소(대부분 집계 전적)라 승률 순위에 레거시를 함께 반영한다.
   // 단, 상세 데이터가 있는 연도(현재 2026)의 레거시만 — 복식 순위·연도 라벨과 스코프를 맞춘다.
@@ -116,6 +143,9 @@ export default function TennisDashboard({ C: propC }) {
 
   return (
     <div style={ds.section}>
+      {/* 0. 마지막 경기 */}
+      {lastDay && <LastMatchCard lastDay={lastDay} ds={ds} C={C} />}
+
       {/* 1. 이번달 요약 */}
       <div style={ds.sectionTitle}>{`${targetMonth.slice(0, 4)}년 ${Number(targetMonth.slice(5, 7))}월`} 요약</div>
       <div style={ds.card}>

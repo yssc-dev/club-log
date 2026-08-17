@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildMonthSummary } from '../tennisDashboard';
+import { buildMonthSummary, buildLastMatchDay } from '../tennisDashboard';
 
 const rows = [
   // 2026-08: match m1 (박·김 복식), m2 (박·이 복식)
@@ -57,5 +57,34 @@ describe('buildMonthSummary', () => {
       { date: '2026-08-01', match_id: 'x1', player: '가나다', result: '패' },
     ];
     expect(buildMonthSummary({ rows: tied, month: '2026-08' }).topAttender.name).toBe('가나다');
+  });
+});
+
+describe('buildLastMatchDay', () => {
+  it('가장 최근 경기일 + 그날 경기수·회원/용병·다승1위', () => {
+    const rows = [
+      { date: '2026-08-01', match_id: 'm0', game_id: 'g0', player: '박성언', result: '승' }, // 과거
+      { date: '2026-08-17', match_id: 'R1_C1', game_id: 'g1', player: '박성언', result: '승' },
+      { date: '2026-08-17', match_id: 'R1_C1', game_id: 'g1', player: '기다빈', result: '패' },
+      { date: '2026-08-17', match_id: 'R2_C1', game_id: 'g1', player: '박성언', result: '승' },
+      { date: '2026-08-17', match_id: 'R2_C1', game_id: 'g1', player: '두리', result: '패', is_guest: true },
+    ];
+    const s = buildLastMatchDay({ rows });
+    expect(s.date).toBe('2026-08-17');            // 최신 날짜
+    expect(s.matches).toBe(2);                    // R1_C1, R2_C1 (과거 m0 제외)
+    expect(s.memberCount).toBe(2);                // 박성언, 기다빈 (두리=용병 제외)
+    expect(s.guestCount).toBe(1);                 // 두리
+    expect(s.topWinner).toMatchObject({ name: '박성언', wins: 2 });
+  });
+  it('다승 동수 — 이름 오름차순', () => {
+    const rows = [
+      { date: '2026-08-17', match_id: 'R1_C1', game_id: 'g1', player: '홍길동', result: '승' },
+      { date: '2026-08-17', match_id: 'R2_C1', game_id: 'g1', player: '가나다', result: '승' },
+    ];
+    expect(buildLastMatchDay({ rows }).topWinner.name).toBe('가나다');
+  });
+  it('기록 없으면 null', () => {
+    expect(buildLastMatchDay({ rows: [] })).toBeNull();
+    expect(buildLastMatchDay({ rows: [{ player: '갑', result: '승' }] })).toBeNull(); // date 없음
   });
 });

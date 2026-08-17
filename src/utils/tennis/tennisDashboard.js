@@ -24,3 +24,28 @@ export function buildMonthSummary({ rows, month }) {
 
   return { month, matches, days, topAttender, hotPlayer, playerCount: players.length };
 }
+
+// 마지막(가장 최근) 경기일 요약: 그 날의 경기수·참석(회원/용병)·다승 1위.
+// 요일/경과일은 '오늘' 의존이라 표시단에서 계산(순수 유지). 기록 없으면 null.
+export function buildLastMatchDay({ rows }) {
+  const dated = (rows || []).filter(r => r.date);
+  if (!dated.length) return null;
+  const date = dated.map(r => r.date).sort((a, b) => String(a).localeCompare(String(b))).at(-1);
+  const onDay = dated.filter(r => r.date === date);
+  const matches = new Set(onDay.filter(r => r.match_id).map(r => `${r.game_id || ''}|${r.match_id}`)).size;
+  const members = new Set();
+  const guests = new Set();
+  const perPlayer = new Map();
+  for (const r of onDay) {
+    if (!r.player) continue;
+    if (r.is_guest === true) { guests.add(r.player); continue; }
+    members.add(r.player);
+    const c = perPlayer.get(r.player) || { name: r.player, games: 0, wins: 0 };
+    c.games++;
+    if (r.result === '승') c.wins++;
+    perPlayer.set(r.player, c);
+  }
+  const topWinner = [...perPlayer.values()]
+    .sort((a, b) => b.wins - a.wins || b.games - a.games || a.name.localeCompare(b.name, 'ko'))[0] || null;
+  return { date, matches, memberCount: members.size, guestCount: guests.size, topWinner };
+}
