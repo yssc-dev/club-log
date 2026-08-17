@@ -142,6 +142,31 @@ export function buildHeadToHead({ rows, player, format }) {
   return [...acc.values()].sort((a, b) => b.games - a.games || b.rate - a.rate);
 }
 
+// 최근 N경기: player의 행을 최신순(날짜↓ → 세션 input_time↓ → 라운드↓ → 코트↓)으로 정렬해 상위 N개.
+// 세션은 한 번에 확정돼 같은 input_time을 공유하므로 라운드/코트로 세션 내 순서를 가른다.
+export function buildRecentMatches({ rows, player, limit = 5 }) {
+  const mine = (rows || []).filter(r => r.player === player);
+  mine.sort((a, b) =>
+    String(b.date).localeCompare(String(a.date)) ||
+    String(b.input_time || '').localeCompare(String(a.input_time || '')) ||
+    (Number(b.round_idx) || 0) - (Number(a.round_idx) || 0) ||
+    (Number(b.court_id) || 0) - (Number(a.court_id) || 0));
+  return mine.slice(0, limit).map(r => {
+    let opponents = [];
+    try { const o = JSON.parse(r.opponents_json); if (Array.isArray(o)) opponents = o; } catch { /* 손상 행: 상대 미표시 */ }
+    return {
+      date: r.date,
+      format: r.format,
+      partner: r.partner || '',
+      opponents,
+      result: r.result,
+      gamesWon: Number(r.games_won) || 0,
+      gamesLost: Number(r.games_lost) || 0,
+      league: r.league,
+    };
+  });
+}
+
 // 월별 폼: month = date 앞 7자리('YYYY-MM'), 월 오름차순
 // format 미지정 시 단·복식 전체
 export function buildMonthlyForm({ rows, player, format }) {

@@ -15,9 +15,9 @@ describe('analyticsSectionKeys', () => {
     expect(analyticsSectionKeys({ view: 'individual', player: '', indivTab: 'summary', hasLegacy: true })).toEqual([]);
   });
 
-  it('개인 요약 탭 = 레이더 + 요약 대시보드', () => {
+  it('개인 요약 탭 = 레이더 + 최근경기 + 요약 대시보드', () => {
     expect(analyticsSectionKeys({ view: 'individual', indivTab: 'summary', player: '박성언', hasLegacy: true }))
-      .toEqual(['radar', 'summaryDash']);
+      .toEqual(['radar', 'recent', 'summaryDash']);
   });
 
   it('개인 복식 탭 = 종목요약·파트너·상대·월별·연도별', () => {

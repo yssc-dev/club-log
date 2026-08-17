@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   buildDoublesStandings, buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
-  buildLeagueCounts,
+  buildLeagueCounts, buildRecentMatches,
 } from '../tennisAnalytics';
 
 const roster = [{ name: '갑', grade: '금배' }, { name: '을', grade: '은배' }, { name: '병', grade: '동배' }];
@@ -161,5 +161,46 @@ describe('buildYearlyRecords', () => {
   });
   it('기록 없는 선수는 빈 배열 반환(통산 0-0 행 없음)', () => {
     expect(buildYearlyRecords({ legacyRows: [], rows: [], player: '갑', format: '복식' })).toEqual([]);
+  });
+});
+
+describe('buildRecentMatches', () => {
+  const mk = (o) => ({
+    player: '갑', date: '2026-08-10', input_time: '2026-08-10 20:00:00', round_idx: 1, court_id: 1,
+    format: '복식', partner: '을', opponents_json: '["병","정"]', result: '승',
+    games_won: 6, games_lost: 3, league: '투몽', ...o,
+  });
+
+  it('최신순 정렬(날짜↓→input_time↓→라운드↓) 상위 N개', () => {
+    const rows = [
+      mk({ date: '2026-08-01', round_idx: 1 }),
+      mk({ date: '2026-08-17', input_time: '2026-08-17 20:00:00', round_idx: 1 }),
+      mk({ date: '2026-08-17', input_time: '2026-08-17 20:00:00', round_idx: 3 }), // 같은 세션, 나중 라운드
+      mk({ date: '2026-08-10', round_idx: 1 }),
+    ];
+    const out = buildRecentMatches({ rows, player: '갑', limit: 3 });
+    expect(out).toHaveLength(3);
+    expect(out[0].date).toBe('2026-08-17');            // 최신 날짜
+    expect(out[1].date).toBe('2026-08-17');            // 같은 날 라운드3이 먼저
+    expect(out[2].date).toBe('2026-08-10');            // 그 다음
+  });
+
+  it('행 필드: 종목·파트너·상대(파싱)·점수·승패', () => {
+    const rows = [mk({ format: '복식', partner: '을', opponents_json: '["병","정"]', result: '패', games_won: 4, games_lost: 6 })];
+    expect(buildRecentMatches({ rows, player: '갑', limit: 5 })[0]).toMatchObject({
+      format: '복식', partner: '을', opponents: ['병', '정'], result: '패', gamesWon: 4, gamesLost: 6,
+    });
+  });
+
+  it('손상된 opponents_json은 빈 배열로(행은 유지)', () => {
+    const rows = [mk({ opponents_json: '{bad' })];
+    const out = buildRecentMatches({ rows, player: '갑', limit: 5 });
+    expect(out).toHaveLength(1);
+    expect(out[0].opponents).toEqual([]);
+  });
+
+  it('본인 행만·기록 없으면 빈 배열', () => {
+    const rows = [mk({ player: '을' })];
+    expect(buildRecentMatches({ rows, player: '갑', limit: 5 })).toEqual([]);
   });
 });

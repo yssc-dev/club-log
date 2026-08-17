@@ -91,7 +91,8 @@ describe('TennisAnalyticsTab 실렌더(로딩 이후)', () => {
       playerSelect.value = '박준태';
       playerSelect.dispatchEvent(new window.Event('change', { bubbles: true }));
     });
-    // 요약 탭(기본): 전적 리그/번외 분리표 + 페어 케미 TOP3 + 단/복식 분리 스탯표
+    // 요약 탭(기본): 최근경기 + 전적 리그/번외 분리표 + 페어 케미 TOP3 + 단/복식 분리 스탯표
+    expect(container.textContent).toContain('최근');
     expect(container.textContent).toContain('전적 (리그 · 번외)');
     expect(container.textContent).toContain('페어 케미 TOP3');
     expect(container.textContent).toContain('타이브레이크 · 베이글 · 에이스');

@@ -11,7 +11,7 @@ export function analyticsSectionKeys({ view = 'individual', indivTab = 'summary'
   }
   // 개인지표: 선수 미선택이면 빈 목록(호출부가 '선수를 선택하세요' 힌트 표시)
   if (!player) return [];
-  if (indivTab === 'summary') return ['radar', 'summaryDash'];
+  if (indivTab === 'summary') return ['radar', 'recent', 'summaryDash'];
 
   // 단식 / 복식 탭 — 그 종목 상세
   const keys = ['formatSummary'];

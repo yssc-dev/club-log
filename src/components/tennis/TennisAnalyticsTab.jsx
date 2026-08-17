@@ -7,6 +7,7 @@ import { priorYearSinglesOrder } from '../../utils/tennis/leagueDerivation';
 import {
   buildPairChemistry, buildPartnerBreakdown, buildHeadToHead,
   buildMonthlyForm, buildTbRanking, buildBagelRanking, buildAceDfRanking, buildYearlyRecords,
+  buildRecentMatches,
 } from '../../utils/tennis/tennisAnalytics';
 import { analyticsSectionKeys } from '../../utils/tennis/analyticsSections';
 import { availableYears, availableMonths, filterRowsByPeriod, legacySinglesForYear } from '../../utils/tennis/tennisDateFilter';
@@ -149,6 +150,41 @@ function RecordSplitTable({ summary, ds, C }) {
         리그 = 길로틴(단식)·투몽(복식) / 번외 = 게스트 낀 판 등 리그 외 경기.
       </div>
     </div>
+  );
+}
+
+// ─── 요약 탭: 최근 N경기 (종목무관, 일자·상대·점수·승패) ──
+function RecentMatchesSection({ matches, ds, C }) {
+  const md = (d) => { const s = String(d).split('-'); return s.length === 3 ? `${Number(s[1])}/${Number(s[2])}` : d; };
+  const badgeStyle = {
+    fontSize: 10, padding: '1px 5px', borderRadius: 4, flexShrink: 0,
+    background: C.cardLight, color: C.gray, border: `1px solid ${C.borderColor}`,
+  };
+  return (
+    <>
+      <div style={ds.sectionTitle}>최근 {matches.length}경기</div>
+      {matches.length === 0 ? (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>경기 없음</div>
+      ) : (
+        <div style={ds.card}>
+          {matches.map((m, i) => (
+            <div key={i} style={{
+              display: 'flex', alignItems: 'center', gap: 8, fontSize: 12, padding: '6px 0',
+              borderTop: i ? `1px solid ${C.borderColor}` : 'none',
+            }}>
+              <span style={{ color: C.gray, width: 34, flexShrink: 0 }}>{md(m.date)}</span>
+              <span style={badgeStyle}>{m.format === '복식' ? '복' : '단'}</span>
+              <span style={{ flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
+                {m.format === '복식' && m.partner ? <span style={{ color: C.gray }}>({m.partner}) </span> : null}
+                vs {m.opponents.join('·') || '-'}
+              </span>
+              <span style={{ fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{m.gamesWon}-{m.gamesLost}</span>
+              <span style={{ color: m.result === '승' ? C.accent : C.gray, fontWeight: 700, width: 16, textAlign: 'center', flexShrink: 0 }}>{m.result}</span>
+            </div>
+          ))}
+        </div>
+      )}
+    </>
   );
 }
 
@@ -626,6 +662,9 @@ export default function TennisAnalyticsTab({ C: propC }) {
   const partnerBreakdown = useMemo(
     () => player ? buildPartnerBreakdown({ rows: fRows, player }) : [], [fRows, player]);
 
+  const recentMatches = useMemo(
+    () => player ? buildRecentMatches({ rows: fRows, player, limit: 5 }) : [], [fRows, player]);
+
   const h2h = useMemo(
     () => player ? buildHeadToHead({ rows: fRows, player, format: indivFmt }) : [], [fRows, player, indivFmt]);
 
@@ -723,6 +762,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
         switch (key) {
           case 'radar':            return radar ? <RadarSection key={key} radar={radar} ds={ds} C={C} /> : null;
           case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
+          case 'recent':           return <RecentMatchesSection key={key} matches={recentMatches} ds={ds} C={C} />;
           case 'summaryDash':      return summary ? <SummaryDash key={key} summary={summary} breakdown={partnerBreakdown} ds={ds} C={C} /> : null;
           case 'formatSummary':    return summary ? <PerFormatSummary key={key} summary={summary} format={indivFmt} player={player} points={singlesStandings.find(s => s.name === player)?.points ?? 0} ds={ds} C={C} /> : null;
           case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
