@@ -162,7 +162,7 @@ function RecentMatchesSection({ matches, ds, C }) {
   };
   return (
     <>
-      <div style={ds.sectionTitle}>최근 {matches.length}경기</div>
+      <div style={ds.sectionTitle}>{matches.length > 0 ? `최근 ${matches.length}경기` : '최근 경기'}</div>
       {matches.length === 0 ? (
         <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>경기 없음</div>
       ) : (

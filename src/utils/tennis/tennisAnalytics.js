@@ -162,7 +162,6 @@ export function buildRecentMatches({ rows, player, limit = 5 }) {
       result: r.result,
       gamesWon: Number(r.games_won) || 0,
       gamesLost: Number(r.games_lost) || 0,
-      league: r.league,
     };
   });
 }
