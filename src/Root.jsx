@@ -10,6 +10,7 @@ import SettingsScreen from './components/common/SettingsScreen';
 import { loadSettingsFromFirebase } from './config/settings';
 import App from './App';
 import SoccerApp from './SoccerApp';
+import { appTitle } from './utils/appTitle';
 import TennisApp from './TennisApp';
 
 // 팀 배열 → { teamName: [{mode, role}, ...] } 그룹. 순수 함수라 모듈 스코프(초기 state에서도 사용).
@@ -62,6 +63,13 @@ export default function Root() {
       checkPendingGames(selectedTeamName, teamContext?.mode);
     }
     prevScreenRef.current = screen;
+  }, [screen, selectedTeamName]);
+
+  // 탭 제목 동기화 — 팀에 들어가면 "팀이름 - 클럽 기록", 로그인/팀선택에선 기본 제목.
+  // 게임·히스토리·설정 화면도 screen 값만 다를 뿐 이 한 지점으로 따라온다.
+  useEffect(() => {
+    const inTeam = screen !== "login" && screen !== "home";
+    document.title = appTitle(inTeam ? selectedTeamName : null);
   }, [screen, selectedTeamName]);
 
   const checkPendingGames = (teamName, mode) => {
