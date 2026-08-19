@@ -4,6 +4,7 @@ import AppSync from '../../services/appSync';
 import AuthUtil from '../../services/authUtil';
 import { getSettings, getEffectiveSettings, loadSettingsFromFirebase } from '../../config/settings';
 import { buildAttendanceData, buildAttendanceView } from '../../utils/dashboardAttendance';
+import { buildPrevRankMap, dashboardRankComparator } from '../../utils/prevRanking';
 import { pendingGameProgressLabel } from '../../utils/pendingGameLabel';
 import { useTheme } from '../../hooks/useTheme';
 import Modal from '../common/Modal';
@@ -511,38 +512,12 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
     </>
   );
 
-  // prevRanks에 저장된 deltas를 사용해 이전 랭킹 계산
-  const prevRankMap = useMemo(() => {
-    if (!prevRanks || Object.keys(prevRanks).length === 0 || members.length === 0) return {};
-    // 현재 대시보드 데이터에서 마지막 경기 증분을 빼서 이전 데이터 생성
-    const prevMembers = members.map(p => {
-      const d = prevRanks[p.name]; // delta from latest game
-      if (!d) return { ...p }; // no delta = no change in stats
-      return {
-        ...p,
-        goals: (p.goals || 0) - (d.goals || 0),
-        assists: (p.assists || 0) - (d.assists || 0),
-        ownGoals: (p.ownGoals || 0) - (d.ownGoals || 0),
-        cleanSheets: (p.cleanSheets || 0) - (d.cleanSheets || 0),
-        crova: (p.crova || 0) - (d.crova || 0),
-        goguma: (p.goguma || 0) - (d.goguma || 0),
-        point: (p.point || 0) - ((d.goals || 0) + (d.assists || 0) + (d.ownGoals || 0) + (d.cleanSheets || 0) + (d.crova || 0) + (d.goguma || 0)),
-      };
-    });
-    // 대시보드와 동일한 정렬: 포인트desc, 역주행asc, 고구마asc, 골desc, 어시desc, 클린시트desc
-    prevMembers.sort((a, b) => {
-      if (b.point !== a.point) return b.point - a.point;
-      if (a.ownGoals !== b.ownGoals) return a.ownGoals - b.ownGoals;
-      if (a.goguma !== b.goguma) return a.goguma - b.goguma;
-      if (b.goals !== a.goals) return b.goals - a.goals;
-      if (b.assists !== a.assists) return b.assists - a.assists;
-      return b.cleanSheets - a.cleanSheets;
-    });
-    const map = {};
-    prevMembers.forEach((p, i) => { map[p.name] = i + 1; });
-    console.log("이전 랭킹:", Object.entries(map).sort((a, b) => a[1] - b[1]).map(([n, r]) => `${r}. ${n}`).join(", "));
-    return map;
-  }, [members, prevRanks]);
+  // prevRanks(직전 경기 증분)로 이전 랭킹 재구성 — 로직은 utils/prevRanking 단일 소스.
+  // 축구는 크로바/고구마 증분을 무시한다(서버 열매핑 오독 방어 — prevRanking.js 주석 참고).
+  const prevRankMap = useMemo(
+    () => buildPrevRankMap(members, prevRanks, { isSoccer: activeSport === "축구" }),
+    [members, prevRanks, activeSport]
+  );
 
   const loadRankingHistory = async () => {
     if (rankingHistory) return rankingHistory;
@@ -583,14 +558,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
 
   // 포인트 기준 고정 랭킹 (대시보드 정렬과 동일)
   const pointRankMap = useMemo(() => {
-    const sorted = [...members].sort((a, b) => {
-      if (b.point !== a.point) return b.point - a.point;
-      if (a.ownGoals !== b.ownGoals) return a.ownGoals - b.ownGoals;
-      if (a.goguma !== b.goguma) return a.goguma - b.goguma;
-      if (b.goals !== a.goals) return b.goals - a.goals;
-      if (b.assists !== a.assists) return b.assists - a.assists;
-      return b.cleanSheets - a.cleanSheets;
-    });
+    const sorted = [...members].sort(dashboardRankComparator);
     const map = {};
     sorted.forEach((p, i) => { map[p.name] = i + 1; });
     return map;

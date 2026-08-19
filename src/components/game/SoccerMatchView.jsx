@@ -160,8 +160,11 @@ export default function SoccerMatchView({
 
   // ── 서브플로우(전체화면, RoundNav 없음) ──
   if (viewState === "formation" && selectedOpponent) {
+    // 풀은 상대 선택 시점 스냅샷(selectedPlayers)이 아니라 실시간 참석자.
+    // 스냅샷을 쓰면 상대 선택 후 참석명단에 추가된 선수가 배치 화면에 안 보인다
+    // (8/18 김래상 사고). 경기 중 교체 후보가 참석자 실시간 파생인 것과 대칭을 맞춘다.
     return (
-      <FormationSetup selectedPlayers={selectedPlayers} onConfirm={handleFormationConfirm}
+      <FormationSetup selectedPlayers={attendees} onConfirm={handleFormationConfirm}
         onBack={() => setViewState("selectOpponent")} title={`vs ${selectedOpponent}`} />
     );
   }
