@@ -52,7 +52,7 @@ footsal_webapp/
 ### GitHub Pages
 1. 이 레포를 Public으로 설정
 2. Settings → Pages → Branch: main → Save
-3. `https://yssc-dev.github.io/master-fc/` 로 접속
+3. `https://yssc-dev.github.io/club-log/` 로 접속
 
 ### Google Apps Script
 1. Google Sheets → 확장 프로그램 → Apps Script

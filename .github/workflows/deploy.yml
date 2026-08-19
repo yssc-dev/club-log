@@ -47,7 +47,7 @@ jobs:
           VITE_SHEET_ID: ${{ secrets.VITE_SHEET_ID }}
           VITE_DASHBOARD_GID: ${{ secrets.VITE_DASHBOARD_GID }}
           VITE_ATTENDANCE_GID: ${{ secrets.VITE_ATTENDANCE_GID }}
-        run: npx vite build --base=/master-fc/
+        run: npx vite build --base=/club-log/
 
       - uses: actions/configure-pages@v4
       - uses: actions/upload-pages-artifact@v3
