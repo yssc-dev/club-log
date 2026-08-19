@@ -60,15 +60,16 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
     });
   }
   const totalMatches = scope.length;
-  const totalConceded = scope.reduce((s, x) => s + x.conceded, 0);
-  const totalCleanSheets = scope.reduce((s, x) => s + (x.conceded === 0 ? 1 : 0), 0);
 
-  // 상대별 팀 스탯 — 보정 기준선의 재료이자 캡션의 '상대별 팀 실점' 표기용
+  // 상대별 팀 스탯 — 보정 기준선의 재료이자 캡션의 '상대별 팀 실점' 표기용.
+  // 팀 합계(totalConceded 등)도 여기서 파생해 scope를 한 번만 돈다.
   const oppStats = {};
   for (const { opponent, conceded } of scope) {
     const o = (oppStats[opponent] ??= { g: 0, c: 0, cs: 0 });
     o.g++; o.c += conceded; if (conceded === 0) o.cs++;
   }
+  const totalConceded = Object.values(oppStats).reduce((s, o) => s + o.c, 0);
+  const totalCleanSheets = Object.values(oppStats).reduce((s, o) => s + o.cs, 0);
 
   const indiv = {};
   const pair = {};

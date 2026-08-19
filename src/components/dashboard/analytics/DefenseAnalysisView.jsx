@@ -104,6 +104,15 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
     [d, metric],
   );
 
+  // 상대별 팀 기준선 캡션 — 개인 Δ가 이 기준으로 보정된다는 걸 화면에서 보이게 한다.
+  // 5경기 미만 상대는 기준선 자체가 소음이라 표기에서 뺀다(보정 계산에는 들어감).
+  const majors = (d.opponents || []).filter(o => o.opponent && o.games >= 5);
+  const baselineVal = (o) => metric === 'clean'
+    ? `${Math.round(o.cleanRate * 100)}%` : o.concededPerGame.toFixed(2);
+  const oppBaselineNode = majors.length === 0 ? null : (
+    <><br />상대별 팀 {metric === 'clean' ? '무실점률' : '실점'}: {majors.map(o => `${o.opponent} ${baselineVal(o)}`).join(' · ')}</>
+  );
+
   if (d.scopeMatches === 0) {
     return (
       <div style={{ textAlign: 'center', padding: 30, color: C.gray, fontSize: 12 }}>
@@ -120,18 +129,8 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
 
       <div style={{ fontSize: 11, color: C.gray, margin: '4px 0 10px', lineHeight: 1.5 }}>
         수비수 기록 {d.scopeMatches}경기 · 팀 평균 {fmt(d.teamConcededPerGame)}실점 · 클린시트 {Math.round(d.teamCleanRate * 100)}%
-        {(() => {
-          // 상대별 팀 기준선 — 개인 Δ가 이 기준으로 보정된다는 걸 화면에서 보이게 한다.
-          // 5경기 미만 상대는 기준선 자체가 소음이라 표기에서 뺀다(보정 계산에는 들어감).
-          const majors = (d.opponents || []).filter(o => o.opponent && o.games >= 5);
-          if (majors.length === 0) return null;
-          const val = (o) => metric === 'clean'
-            ? `${Math.round(o.cleanRate * 100)}%` : o.concededPerGame.toFixed(2);
-          return (
-            <><br />상대별 팀 {metric === 'clean' ? '무실점률' : '실점'}: {majors.map(o => `${o.opponent} ${val(o)}`).join(' · ')}</>
-          );
-        })()}
-        <br />⚠️ 조합은 상대팀·GK 영향 미보정 · 개인 Δ는 같은 상대 기준 보정(GK는 미보정)
+        {oppBaselineNode}
+        <br />⚠️ 조합 목록은 생값(상대·GK 미보정) · 개인 Δ는 같은 상대 기준 보정(GK는 미보정)
       </div>
 
       <DefenseComboSection d={d} metric={metric} size={size} C={C} />
