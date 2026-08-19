@@ -2,6 +2,10 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-19: _playerLogColMap 크로바/고구마 폴백 7/8 → -1(헤더 없으면 0). 하버FC
+//             선수기록보관소엔 두 헤더가 없어 클린시트/실점 열을 오독 — getPrevRankings의
+//             증분에 실점이 고구마로 실려 개인 누적 기록 ▲/▼ 배지가 유령 순위변동 표시
+//             (_getCumulativeBonus/_getRankingHistory도 동일 경로라 함께 해소).
 // 2026-08-14: 테니스 회원관리 — 회원명부 "구분"(정회원/게스트) 10번째 열 추가, getTennisRoster가
 //             탈퇴+게스트 제외(분석 무변경). 액션 2종 신설: getTennisRosterAdmin(관리자 전용, 전체+행번호),
 //             writeTennisRosterMember(관리자 전용 upsert+소프트삭제). 둘 다 ADMIN_ACTIONS 게이트+
@@ -2362,7 +2366,11 @@ function _playerLogColMap(sheet) {
     headerRow: headerRow, colCount: colCount, cm: cm,
     iDate: idx('date', 0), iName: idx('name', 1), iGoals: idx('goals', 2),
     iAssists: idx('assists', 3), iOwn: idx('ownGoals', 4), iClean: idx('cleanSheets', 6),
-    iCrova: idx('crova', 7), iGoguma: idx('goguma', 8), iTeam: idx('teamName', 12),
+    // 크로바/고구마는 헤더가 있을 때만 읽는다. 이전 폴백 7/8은 마스터FC 로그 레이아웃 전제라
+    // 하버FC 선수기록보관소(두 헤더 없음)에서 7=클린시트/8=실점을 오독했다 — GK 실점이
+    // 고구마 증분으로 새어 대시보드 ▲/▼ 배지가 유령 상승을 표시(8/18 선효림 ▲5).
+    // -1이면 data[i][-1]=undefined → Number()||0 → 0 (소비자 3곳 모두 이 패턴).
+    iCrova: idx('crova', -1), iGoguma: idx('goguma', -1), iTeam: idx('teamName', 12),
   };
 }
 
