@@ -241,3 +241,87 @@ describe('sortDefenseRows', () => {
     expect(input.map(x => x.name)).toEqual(['A', 'B']);
   });
 });
+
+// ─── 상대 보정: Δ = '같은 상대에서의' 부재 대비 ─────────────────────────────
+// 상대팀명이 없는 위 픽스처들은 단일 버킷으로 떨어져 옛 수식과 동일해야 하고(하위호환),
+// 상대가 갈리면 상대별 부재 기준선으로 기대 실점을 낸다.
+describe('calcDefenseAnalysis 상대 보정 Δ', () => {
+  const mo = (dfs, conceded, opponent) => ({
+    our_defenders_json: JSON.stringify(dfs), opponent_score: conceded,
+    opponent_team_name: opponent,
+  });
+
+  it('어려운 상대만 맡은 수비수가 과소평가되지 않는다', () => {
+    const logs = [
+      mo(['A', 'B'], 0, '쉬움'),
+      mo(['B'], 0, '쉬움'),
+      mo(['B'], 2, '쉬움'),
+      mo(['A'], 2, '어려움'),
+      mo(['C'], 3, '어려움'),
+      mo(['C'], 3, '어려움'),
+    ];
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 1, pairThreshold: 99, trioThreshold: 99 });
+    const c = r.individuals.find(x => x.name === 'C');
+    // C 부재 시 '어려움' 실점 = A의 경기 2 → 기대 2.00, 실제 3.00 → Δ = -1.00.
+    // 상대를 무시하면 부재 4경기 (0,0,2,2)/4 = 1.00 → Δ = -2.00으로 두 배 과대 처벌된다.
+    expect(c.delta).toBeCloseTo(-1.0);
+
+    const a = r.individuals.find(x => x.name === 'A');
+    // A: 쉬움 부재기준 (0+2)/2=1.0 ×1경기 + 어려움 부재기준 (3+3)/2=3.0 ×1경기 = 기대 4.0/2 → 2.0
+    //    실제 (0+2)/2 = 1.0 → Δ = +1.0
+    expect(a.delta).toBeCloseTo(1.0);
+    expect(a.baselineConcededPerGame).toBeCloseTo(2.0);
+  });
+
+  it('그 상대 경기를 전부 뛴 구간은 매칭에서 빠진다 — 부재 표본이 없다', () => {
+    const logs = [
+      mo(['A'], 5, '독점'), // 이 상대 경기는 A가 전부 뛰어 부재 기준선이 없다
+      mo(['A'], 0, '공유'),
+      mo(['B'], 2, '공유'),
+    ];
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 1, pairThreshold: 99, trioThreshold: 99 });
+    const a = r.individuals.find(x => x.name === 'A');
+    expect(a.delta).toBeCloseTo(2.0);            // 공유만 비교: 기대 2.0 vs 실제 0
+    expect(a.concededPerGame).toBeCloseTo(2.5);  // 표시용 생값은 전 경기 기준 유지
+    expect(a.cleanDelta).toBeCloseTo(1.0);       // 공유 부재 클린 0/1 → 기대 0, 실제 1/1
+  });
+
+  it('클린시트 Δ도 같은 상대 기준으로 매칭된다', () => {
+    const logs = [
+      mo(['A'], 0, '쉬움'), mo(['B'], 0, '쉬움'), mo(['B'], 0, '쉬움'),
+      mo(['A'], 1, '어려움'), mo(['B'], 2, '어려움'),
+    ];
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 1, pairThreshold: 99, trioThreshold: 99 });
+    const a = r.individuals.find(x => x.name === 'A');
+    // 쉬움: 부재 클린 2/2=1.0 ×1 + 어려움: 부재 클린 0/1=0 ×1 → 기대 클린율 0.5
+    // 실제 클린 1/2 = 0.5 → cleanDelta = 0
+    expect(a.cleanDelta).toBeCloseTo(0);
+  });
+
+  it('상대별 팀 기준선을 opponents로 노출한다 — 캡션의 상대별 실점 표기용', () => {
+    const logs = [
+      mo(['A'], 0, '쉬움'), mo(['B'], 2, '쉬움'), mo(['B'], 4, '어려움'),
+    ];
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 99, pairThreshold: 99, trioThreshold: 99 });
+    const easy = r.opponents.find(o => o.opponent === '쉬움');
+    expect(easy).toMatchObject({ games: 2 });
+    expect(easy.concededPerGame).toBeCloseTo(1.0);
+    expect(easy.cleanRate).toBeCloseTo(0.5);
+    expect(r.opponents.find(o => o.opponent === '어려움').concededPerGame).toBeCloseTo(4.0);
+    // 경기수 많은 순 정렬
+    expect(r.opponents[0].opponent).toBe('쉬움');
+  });
+
+  it('조합(페어) Δ도 같은 상대 기준을 쓴다', () => {
+    const logs = [
+      mo(['A', 'B'], 0, '어려움'),
+      mo(['C', 'D'], 4, '어려움'),
+      mo(['C', 'D'], 0, '쉬움'),
+      mo(['A', 'B'], 0, '쉬움'),
+    ];
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 99, pairThreshold: 1, trioThreshold: 99 });
+    const ab = r.pairs.find(x => x.members.join('') === 'AB');
+    // 어려움 부재기준 4.0 ×1 + 쉬움 부재기준 0.0 ×1 = 기대 2.0, 실제 0 → +2.0
+    expect(ab.delta).toBeCloseTo(2.0);
+  });
+});
