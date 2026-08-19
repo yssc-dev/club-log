@@ -453,7 +453,7 @@ export default function PersonalAnalysisTab({
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 0", fontSize: 10 }}>
-                <span style={{ color: C.gray }}>본인 부재 경기 대비</span>
+                <span style={{ color: C.gray }}>본인 부재 대비 · 같은 상대 기준</span>
                 <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", color: myDefense.me.delta == null ? C.gray : (myDefense.me.delta >= 0 ? C.green : C.red) }}>
                   {myDefense.me.delta == null
                     ? "– (비교할 부재 경기 없음)"

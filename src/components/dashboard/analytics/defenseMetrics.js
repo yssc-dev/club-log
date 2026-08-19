@@ -21,7 +21,7 @@ export const DEFENSE_METRICS = {
     bestLabel: '실점 적은순',
     deltaOf: (r) => r.delta,
     formatDelta: (d) => (d == null ? '–' : signed(d.toFixed(2), d)),
-    caption: 'Δ = 부재 − 출전 실점차 · +면 억제',
+    caption: 'Δ = 같은 상대에서의 부재 − 출전 실점차 · +면 억제',
   },
   clean: {
     key: 'clean',
@@ -31,7 +31,7 @@ export const DEFENSE_METRICS = {
     bestLabel: '무실점률 높은순',
     deltaOf: (r) => r.cleanDelta,
     formatDelta: (d) => (d == null ? '–' : signed(`${Math.round(d * 100)}%p`, d)),
-    caption: 'Δ = 출전 − 부재 클린시트율차 · +면 억제',
+    caption: 'Δ = 같은 상대에서의 출전 − 부재 클린시트율차 · +면 억제',
   },
 };
 
