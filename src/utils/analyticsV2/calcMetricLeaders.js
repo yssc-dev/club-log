@@ -14,6 +14,8 @@
 //   defense/keeping은 낮을수록 좋음(오름차순), 나머지는 내림차순.
 //   thresholds: 계산된 진입선/최대치 — AwardsTab 캡션이 실제 경기수를 표기하는 데 쓴다.
 
+import { dynamicMin } from './dynamicMin';
+
 // minTeamGoals: 관여율 분모(출전 매치 팀득점) 최소치 — 팀 4골 중 3회=75% 같은 소분모 왜곡 방지.
 export function calcMetricLeaders({ perPlayer, totalSessions, topN = 5, ratio = 0.3, minTeamGoals = 10 }) {
   const entries = Object.entries(perPlayer || {});
@@ -21,9 +23,9 @@ export function calcMetricLeaders({ perPlayer, totalSessions, topN = 5, ratio = 
   const maxRounds = maxOf('rounds');
   const maxKeeperRounds = maxOf('keeperRounds');
   const maxFieldRounds = maxOf('fieldRounds');
-  const minRounds = Math.ceil(maxRounds * ratio);
-  const minKeeperRounds = Math.ceil(maxKeeperRounds * ratio);
-  const minFieldRounds = Math.ceil(maxFieldRounds * ratio);
+  const minRounds = dynamicMin(maxRounds, ratio);
+  const minKeeperRounds = dynamicMin(maxKeeperRounds, ratio);
+  const minFieldRounds = dynamicMin(maxFieldRounds, ratio);
   const rated = entries.filter(([, s]) => s.rounds >= minRounds);
 
   // asc=false: value 내림차순 / asc=true: 오름차순. 동률은 표본(sample) 큰 쪽, 그다음 이름순.

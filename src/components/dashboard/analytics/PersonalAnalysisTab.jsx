@@ -236,6 +236,9 @@ export default function PersonalAnalysisTab({
   }, [selected, playerGameLogs, summaryV2]);
 
   // ── P3/P4/C5 calculations ─────────────────────────────────────────────────
+  // 여기의 threshold/minSessions는 ranking 게이트인데 이 탭은 perPlayer(선택 선수의
+  // 분포/도넛)만 소비하고 ranking은 안 씀 → 어워드 탭의 동적 30% 진입선과 달라도 무영향.
+  // 값을 지우면 종목별 기본값이 갈라지므로 명시 유지 (2026-08-21 적대적 리뷰 A·E 렌즈 판정).
   const roundSlope = useMemo(() => calcRoundSlope({ eventLogs: eventLogs || [], matchLogs: matchLogs || [], threshold: 10, minSessions: 3 }), [eventLogs, matchLogs]);
   const soloRatio = useMemo(() => calcSoloGoalRatio({ eventLogs: eventLogs || [], threshold: 10 }), [eventLogs]);
   const synergyMatrix = useMemo(() => calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: 5 }), [matchLogs]);
