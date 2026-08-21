@@ -209,10 +209,13 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).toContain('종합포인트 (골+어시+클린+크로바+고구마+역주행)');
   });
 
-  // 지표 Top5 진입 기준 — 풋살 30경기(2026-08-21 상향), 축구 10경기 유지
-  it('AwardsTab: 풋살 — 지표 Top5 진입 기준 30경기 표기', () => {
+  // 지표 Top5 진입 기준 — 풋살은 각 축 최대치의 30% 동적(2026-08-21), 축구 10경기 유지
+  it('AwardsTab: 풋살 — 지표 Top5 진입 기준은 최대치의 30% 동적 표기', () => {
+    // 픽스처: 전원 5경기 → 출전 ceil(5×0.3)=2 · 최대 필드 4 → 2 · 최대 키퍼 3 → 1
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
-    expect(html).toContain('30경기 이상');
+    expect(html).toContain('최다 경기수의 30% 이상');
+    expect(html).toContain('현재 출전 2·수비 2·키퍼 1경기');
+    expect(html).not.toContain('30경기 이상');
   });
 
   it('AwardsTab: 축구 — 지표 Top5 진입 기준 10경기 유지', () => {

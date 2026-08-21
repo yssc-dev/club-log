@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest';
 import { calcMetricLeaders } from '../calcMetricLeaders';
 
 // 어워드 "지표 Top5" — 레이더 6축 raw값 + 팀득점관여율 랭킹.
-// 진입 기준 rounds>=30(소표본 왜곡 방지, 2026-08-21 10→30 상향), 키퍼는 수문장 카드와 동일(keeperRounds>=4).
+// 진입 기준은 동적(2026-08-21): 각 지표를 자기 표본 축 최대치의 30%(올림)로 게이트.
+// 출전 기반 지표=max(rounds)×30%, 수비력=max(fieldRounds)×30%, 키퍼=max(keeperRounds)×30%.
 const P = (over = {}) => ({
   rounds: 30, keeperRounds: 0, fieldRounds: 30, games: 5,
   goals: 0, assists: 0, ownGoals: 0, fouls: 0,
@@ -28,10 +29,10 @@ describe('calcMetricLeaders', () => {
     expect(r.scoring).toHaveLength(5);
   });
 
-  it('rounds<30 선수는 전 지표에서 제외 (소표본 왜곡 방지)', () => {
+  it('진입선(최대 출전 30%) 미만 선수는 출전 기반 지표에서 제외 (소표본 왜곡 방지)', () => {
     const perPlayer = {
-      A: P({ goals: 30 }),
-      Rookie: P({ rounds: 10, fieldRounds: 10, goals: 20 }), // 옛 기준(10경기) 통과·2골/경기지만 제외
+      A: P({ goals: 30 }), // rounds 30 → 진입선 ceil(30×0.3)=9
+      Rookie: P({ rounds: 8, fieldRounds: 8, goals: 16 }), // 2골/경기지만 8 < 9 → 제외
     };
     const r = calcMetricLeaders({ perPlayer, totalSessions: 10 });
     expect(r.scoring.map(x => x.player)).toEqual(['A']);
@@ -47,11 +48,11 @@ describe('calcMetricLeaders', () => {
     expect(r.defense.map(x => x.player)).toEqual(['A', 'B']);
   });
 
-  it('키퍼는 경기당 실점 오름차순, 4경기 미만 제외', () => {
+  it('키퍼는 경기당 실점 오름차순, 최대 키퍼경기 30% 미만 제외', () => {
     const perPlayer = {
-      A: P({ keeperRounds: 10, conceded: 5 }),  // 0.5
+      A: P({ keeperRounds: 10, conceded: 5 }),  // 0.5 — maxKeeper 10 → 진입선 3
       B: P({ keeperRounds: 4, conceded: 8 }),   // 2.0
-      C: P({ keeperRounds: 3, conceded: 0 }),   // 표본 미달
+      C: P({ keeperRounds: 2, conceded: 0 }),   // 2 < 3 → 표본 미달
     };
     const r = calcMetricLeaders({ perPlayer, totalSessions: 10 });
     expect(r.keeping.map(x => x.player)).toEqual(['A', 'B']);
@@ -79,13 +80,40 @@ describe('calcMetricLeaders', () => {
     expect(r.involvement.map(x => x.player)).toEqual(['B']);
   });
 
-  it('기본 진입 기준은 30경기 — 29경기는 제외', () => {
+  it('진입 기준은 최다 출전의 30%(올림) — 동적', () => {
     const perPlayer = {
-      Veteran: P({ rounds: 30, fieldRounds: 30, goals: 30 }),
-      Almost: P({ rounds: 29, fieldRounds: 29, goals: 58 }), // 2골/경기지만 표본 미달
+      Max: P({ rounds: 73, fieldRounds: 73, goals: 73 }),  // maxRounds 73 → cutoff ceil(21.9)=22
+      In: P({ rounds: 22, fieldRounds: 22, goals: 44 }),   // 22 ≥ 22 → 포함
+      Out: P({ rounds: 21, fieldRounds: 21, goals: 63 }),  // 3골/경기지만 21 < 22 → 제외
     };
     const r = calcMetricLeaders({ perPlayer, totalSessions: 10 });
-    expect(r.scoring.map(x => x.player)).toEqual(['Veteran']);
+    expect(r.scoring.map(x => x.player)).toContain('In');
+    expect(r.scoring.map(x => x.player)).not.toContain('Out');
+    expect(r.thresholds.minRounds).toBe(22);
+  });
+
+  it('키퍼는 최다 키퍼경기의 30%로만 게이트 — 총 출전 기준과 무관', () => {
+    const perPlayer = {
+      MainGk: P({ rounds: 73, keeperRounds: 65, conceded: 65 }), // maxKeeper 65 → cutoff 20
+      SubGk: P({ rounds: 21, keeperRounds: 20, conceded: 10 }),  // 출전 21 < minRounds(22)이지만 키퍼 축은 통과
+      Rare: P({ rounds: 73, keeperRounds: 19, conceded: 0 }),    // 19 < 20 → 제외
+    };
+    const r = calcMetricLeaders({ perPlayer, totalSessions: 10 });
+    expect(r.keeping.map(x => x.player)).toContain('SubGk');
+    expect(r.keeping.map(x => x.player)).not.toContain('Rare');
+    expect(r.thresholds.minKeeperRounds).toBe(20);
+  });
+
+  it('수비력은 최다 필드경기의 30%로만 게이트', () => {
+    const perPlayer = {
+      MaxField: P({ rounds: 73, fieldRounds: 65, avgConceded: 1.0 }), // maxField 65 → cutoff 20
+      InField: P({ rounds: 21, fieldRounds: 20, avgConceded: 0.5 }),  // 출전 미달이어도 필드 축 통과
+      OutField: P({ rounds: 73, fieldRounds: 19, avgConceded: 0.1 }),
+    };
+    const r = calcMetricLeaders({ perPlayer, totalSessions: 10 });
+    expect(r.defense.map(x => x.player)).toContain('InField');
+    expect(r.defense.map(x => x.player)).not.toContain('OutField');
+    expect(r.thresholds.minFieldRounds).toBe(20);
   });
 
   it('동률이면 표본 큰 쪽 우선', () => {
