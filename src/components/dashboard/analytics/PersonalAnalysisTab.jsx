@@ -8,6 +8,7 @@ import PersonalSynergyCard from './PersonalSynergyCard';
 import PersonalSynergyChart from './PersonalSynergyChart';
 import RivalryView from './RivalryView';
 import OpponentBreakdownList from './OpponentBreakdownList';
+import GkFieldSplitCard from './GkFieldSplitCard';
 
 // ─── Radar Chart ────────────────────────────────────────────────────────────
 
@@ -292,6 +293,14 @@ export default function PersonalAnalysisTab({
     return { me, pairs: mine(defenseAll.pairs), trios: mine(defenseAll.trios) };
   }, [defenseAll, selected]);
 
+  // ── 키퍼 vs 필드 팀 득실 비교 (풋살 전용) ──
+  // 축구는 한 매치에 GK가 여러 명(gkChange)이라 매치 단위 GK/필드 분리가 성립하지 않는다.
+  const gkFieldSplit = useMemo(
+    () => (isSoccer ? null : futsalCalc.calcGkFieldSplit({ matchLogs: matchLogs || [] })),
+    [isSoccer, matchLogs]
+  );
+  const myGkField = gkFieldSplit && selected ? gkFieldSplit.perPlayer[selected] : null;
+
   // ── Derived display values ────────────────────────────────────────────────
   // 출전 라운드가 없으면(0경기 로스터 멤버 또는 골만 있는 이벤트only 선수) 분석 대신 '기록 없음' 표시.
   // rounds===0이면 경기당 지표가 모두 0/모순("N골 / 0경기")이 되므로 풀 분석을 막는다.
@@ -408,6 +417,7 @@ export default function PersonalAnalysisTab({
               </div>
             );
           })()}
+          {!isSoccer && <GkFieldSplitCard data={myGkField} C={C} />}
           {streakData && (streakData.scoringStreak.best > 0 || streakData.cleanSheetStreak.best > 0) && (
             <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, lineHeight: 1.9, textAlign: "left" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 4 }}>연속 기록</div>

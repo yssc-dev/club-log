@@ -1,14 +1,15 @@
 // 어워드 탭 "지표 Top5" — 개인분석 레이더 6축과 동일한 raw 지표 + 팀득점관여율.
 // 소스는 calcPlayerSummary.perPlayer 단일소스.
-// 진입 기준 minRounds=10: 레이더 모집단(>=3)보다 높음 — 랭킹 카드는 3경기 2골(0.67골/경기)
-// 같은 소표본이 1위를 차지하는 왜곡이 커서 상향. 키퍼는 수문장 카드와 동일(keeperRounds>=4).
+// 진입 기준 minRounds=30: 레이더 모집단(>=3)보다 높음 — 랭킹 카드는 소표본이 1위를
+// 차지하는 왜곡이 커서 상향(2026-08-21 유저 요청으로 10→30, 풋살만·축구는 10 유지).
+// 키퍼는 수문장 카드와 동일(keeperRounds>=4).
 //
 // 반환: { scoring, creativity, defense, keeping, attendance, winRate, involvement }
 //   각 항목 [{ player, value, ...표본 필드 }] (최대 topN)
 //   defense/keeping은 낮을수록 좋음(오름차순), 나머지는 내림차순.
 
 // minTeamGoals: 관여율 분모(출전 매치 팀득점) 최소치 — 팀 4골 중 3회=75% 같은 소분모 왜곡 방지.
-export function calcMetricLeaders({ perPlayer, totalSessions, topN = 5, minRounds = 10, minKeeperRounds = 4, minTeamGoals = 10 }) {
+export function calcMetricLeaders({ perPlayer, totalSessions, topN = 5, minRounds = 30, minKeeperRounds = 4, minTeamGoals = 10 }) {
   const entries = Object.entries(perPlayer || {});
   const rated = entries.filter(([, s]) => s.rounds >= minRounds);
 

@@ -69,6 +69,20 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
+  // 키퍼 vs 필드 카드 — GK/필드 양쪽 표본이 있는 선수(A: GK 1경기·필드 다수)에게만, 풋살 전용
+  it('PersonalAnalysisTab: 풋살 — 키퍼 vs 필드 팀 득실 비교 카드 렌더', () => {
+    const html = wrap(PersonalAnalysisTab, { playerGameLogs, matchLogs, eventLogs, members, C, authUserName: 'A' });
+    expect(html).toContain('키퍼 vs 필드');
+    expect(html).toContain('경기당 팀득점');
+    expect(html).toContain('경기당 팀실점');
+    expect(html).not.toContain('NaN');
+  });
+
+  it('PersonalAnalysisTab: 축구 모드 — 키퍼 vs 필드 카드 숨김 (매치 단위 GK 모델이 다름)', () => {
+    const html = wrap(PersonalAnalysisTab, { playerGameLogs, matchLogs, eventLogs, members, C, authUserName: 'A', isSoccer: true });
+    expect(html).not.toContain('키퍼 vs 필드');
+  });
+
   it('PersonalAnalysisTab: 상대팀별 성적 — 앱 이전 경기도 골·어시와 경기수에 함께 들어간다', () => {
     // 앱 이전 1경기(1골1어시) + 현행 2경기(1골1어시) → 3경기 2골2어시
     const matchLogsMixed = [
@@ -175,6 +189,17 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
   it('AwardsTab: 풋살 모드 — 크로바/고구마/역주행 라벨 유지', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
     expect(html).toContain('종합포인트 (골+어시+클린+크로바+고구마+역주행)');
+  });
+
+  // 지표 Top5 진입 기준 — 풋살 30경기(2026-08-21 상향), 축구 10경기 유지
+  it('AwardsTab: 풋살 — 지표 Top5 진입 기준 30경기 표기', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
+    expect(html).toContain('30경기 이상');
+  });
+
+  it('AwardsTab: 축구 — 지표 Top5 진입 기준 10경기 유지', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
+    expect(html).toContain('10경기 이상');
   });
 
   it('AwardsTab: 축구 모드 — 라운드 흐름 숨김', () => {

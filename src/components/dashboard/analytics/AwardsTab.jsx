@@ -182,7 +182,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
       <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>📊 지표 Top5</div>
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          개인분석 레이더와 동일 지표 · 10경기 이상 (키퍼는 4경기 이상) · ↓는 낮을수록 상위
+          개인분석 레이더와 동일 지표 · {isSoccer ? 10 : 30}경기 이상 (키퍼는 4경기 이상) · ↓는 낮을수록 상위
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <MetricBarCol title="⚽ 득점력 (경기당 골)" rows={metricLeaders.scoring} fmt={v => v.toFixed(2)} />
