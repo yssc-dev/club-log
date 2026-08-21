@@ -61,9 +61,10 @@ function Column({ label, rows, color, C }) {
 
 export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer = false, player }) {
   const { calcSynergyMatrix, calcPersonalSynergy, calcAssistLinkMatrix, personalLink } = isSoccer ? soccerCalc : futsalCalc;
+  // 축구는 고정 5경기, 풋살은 생략 → 동반 최다 라운드의 30% 동적 (matrix.minRounds로 해소값 반환)
   const matrix = useMemo(
-    () => calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: MIN_ROUNDS }),
-    [matchLogs, calcSynergyMatrix],
+    () => calcSynergyMatrix({ matchLogs: matchLogs || [], ...(isSoccer ? { minRounds: MIN_ROUNDS } : {}) }),
+    [matchLogs, calcSynergyMatrix, isSoccer],
   );
   // 합작 골 = 내 어시로 그가 넣은 골 + 내 골에 그가 어시한 골 (골-어시로 연결된 횟수).
   // 골 하나당 두 사람이 1P씩 가져가므로 '공격포인트'가 아니라 '합작 N골'로 부른다.
@@ -106,7 +107,7 @@ export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer
     <div>
       <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 2 }}>🤝 시너지</div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 8 }}>
-        함께 뛴 동료 {personal.partners.length}명 · 표본 {MIN_ROUNDS}경기 이상 {eligible}명
+        함께 뛴 동료 {personal.partners.length}명 · 표본 {matrix.minRounds}경기 이상{!isSoccer && '(동반 최다의 30%)'} {eligible}명
       </div>
 
       <div style={{ display: 'flex', gap: 10 }}>
@@ -116,7 +117,7 @@ export default function PersonalSynergyChart({ matchLogs, eventLogs, C, isSoccer
 
       <div style={{ marginTop: 8, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
         {myWinRate != null && <>내 전체 승률 <b style={{ color: C.white }}>{Math.round(myWinRate * 100)}%</b> · </>}
-        같은 팀으로 뛴 매치의 승률 기준 · 합작 = 서로 골–어시로 연결된 골 수. {MIN_ROUNDS}경기 미만 동료는 제외.
+        같은 팀으로 뛴 매치의 승률 기준 · 합작 = 서로 골–어시로 연결된 골 수. {matrix.minRounds}경기 미만 동료는 제외.
       </div>
     </div>
   );

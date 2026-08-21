@@ -4,6 +4,7 @@
 //   "이 사람과 같은 팀이면 잘 이긴다" vs "이 사람을 상대하면 잘 못 이긴다(천적)".
 // (date, match_id) 단위 dedupe — calcSynergyMatrix와 동일 규약.
 import { parseActualPlayers } from './parseMembers';
+import { dynamicMin } from './dynamicMin';
 
 // cells['A|B'] (가나다 정렬 키) = { games, aWins, bWins, draws }
 export function calcRivalry({ matchLogs }) {
@@ -51,8 +52,11 @@ export function calcRivalry({ matchLogs }) {
 }
 
 // 선택 선수 기준 상대별 전적 추출. winRate = (승 + 0.5×무) / 경기.
-export function calcPersonalRivalry({ rivalry, player, minRounds = 5 }) {
-  if (!rivalry || !rivalry.cells || !player) return { opponents: [] };
+// minRounds 생략(null) 시 동적: 대결 최다 라운드의 30%(올림) — dynamicMin 참조. 풋살 전용 지표.
+export function calcPersonalRivalry({ rivalry, player, minRounds = null }) {
+  if (!rivalry || !rivalry.cells || !player) return { opponents: [], minRounds: minRounds ?? 0 };
+  const maxGames = Object.values(rivalry.cells).reduce((m, c) => Math.max(m, c.games), 0);
+  const resolvedMinRounds = minRounds ?? dynamicMin(maxGames);
   const opponents = [];
   for (const key of Object.keys(rivalry.cells)) {
     const [a, b] = key.split('|');
@@ -68,9 +72,9 @@ export function calcPersonalRivalry({ rivalry, player, minRounds = 5 }) {
       losses,
       draws: c.draws,
       winRate: c.games > 0 ? (wins + 0.5 * c.draws) / c.games : 0,
-      isLowSample: c.games < minRounds,
+      isLowSample: c.games < resolvedMinRounds,
     });
   }
   opponents.sort((x, y) => y.games - x.games || x.opponent.localeCompare(y.opponent, 'ko'));
-  return { opponents };
+  return { opponents, minRounds: resolvedMinRounds };
 }

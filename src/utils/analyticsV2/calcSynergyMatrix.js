@@ -3,8 +3,12 @@
 // ★ 휴식 선수는 멤버 명단에서 제외 (actualPlayers 사용)
 import { parseActualPlayers } from './parseMembers';
 import { winRateExcluding, recordRoundOutcome } from './pairBaseline';
+import { dynamicMin } from './dynamicMin';
 
-export function calcSynergyMatrix({ matchLogs, minRounds = 5 }) {
+// minRounds 생략(null) 시 동적: 동반 최다 라운드(자기 셀 제외)의 30%(올림) — dynamicMin 참조.
+// 자기 셀(name|name)은 개인 출전수라 페어 최대치 계산에서 반드시 제외.
+// 축구는 호출부에서 고정 5를 명시.
+export function calcSynergyMatrix({ matchLogs, minRounds = null }) {
   const playerSet = new Set();
   const cells = {};
   const seenByKey = {}; // key -> Set<roundKey>
@@ -73,9 +77,14 @@ export function calcSynergyMatrix({ matchLogs, minRounds = 5 }) {
     cells[k].baselineUnavailable = !aBase.hasBaseline || !bBase.hasBaseline;
   }
 
+  const maxPairGames = Object.entries(cells).reduce((m, [k, c]) => {
+    const [a, b] = k.split('|');
+    return a === b ? m : Math.max(m, c.games);
+  }, 0);
   return {
     players: [...playerSet].sort((a, b) => a.localeCompare(b, 'ko')),
     cells,
-    minRounds,
+    minRounds: minRounds ?? dynamicMin(maxPairGames),
+    maxPairGames,
   };
 }

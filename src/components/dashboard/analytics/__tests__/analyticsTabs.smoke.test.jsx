@@ -271,6 +271,42 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
+  // 2026-08-21 확장: 시너지·대결케미·폼비교 — 30% 동적/신규 카드 (풋살만)
+  it('PersonalSynergyChart: 풋살 — 표본 기준 동반 최다의 30% 동적 표기', () => {
+    const html = wrap(PersonalSynergyChart, { matchLogs, eventLogs, C, player: 'A' });
+    expect(html).toContain('동반 최다의 30%');
+    expect(html).not.toContain('표본 5경기 이상');
+  });
+
+  it('PersonalSynergyChart: 축구 — 표본 5경기 고정 유지', () => {
+    const html = wrap(PersonalSynergyChart, { matchLogs, eventLogs, C, player: 'A', isSoccer: true });
+    expect(html).toContain('표본 5경기 이상');
+  });
+
+  it('RivalryView: 대결 최다치의 30% 동적 표기', () => {
+    const html = wrap(RivalryView, { matchLogs, player: 'A', C });
+    expect(html).toContain('대결 최다치의 30%');
+    expect(html).not.toContain('최소 5라운드');
+  });
+
+  // 폼 비교 카드 — 마지막 세션 기준 30일보다 오래된 과거 기록이 있어야 비교가 성립
+  const formMatchLogs = [
+    { date: '2026-04-01', match_id: 'R1_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 2, opponent_score: 0, our_gk: 'B', opponent_gk: 'D', round_idx: 1 },
+    ...matchLogs,
+  ];
+  const formPgl = [{ player: 'A', date: '2026-04-01', goals: 1, assists: 0, keeper_games: 0, conceded: 0, cleansheets: 0, owngoals: 0, rank_score: 1 }, ...playerGameLogs];
+
+  it('PersonalAnalysisTab: 풋살 — 폼 비교(평소 vs 최근 1달) 카드 렌더', () => {
+    const html = wrap(PersonalAnalysisTab, { playerGameLogs: formPgl, matchLogs: formMatchLogs, eventLogs, members, C, authUserName: 'A' });
+    expect(html).toContain('폼 비교');
+    expect(html).not.toContain('NaN');
+  });
+
+  it('PersonalAnalysisTab: 축구 모드 — 폼 비교 카드 숨김', () => {
+    const html = wrap(PersonalAnalysisTab, { playerGameLogs: formPgl, matchLogs: formMatchLogs, eventLogs, members, C, authUserName: 'A', isSoccer: true });
+    expect(html).not.toContain('폼 비교');
+  });
+
   it('PersonalSynergyChart: 풋살 모드 렌더 — 축구·풋살 공용 경로', () => {
     const html = wrap(PersonalSynergyChart, { matchLogs, C, authUserName: 'A' });
     expect(html).not.toContain('NaN');

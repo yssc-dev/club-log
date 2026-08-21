@@ -53,3 +53,26 @@ describe('calcRivalry', () => {
     expect(p.opponents.find(x => x.opponent === 'B').games).toBe(1);
   });
 });
+
+// 2026-08-21 동적 진입선: calcPersonalRivalry minRounds 생략 시 대결 최다의 30%(올림)
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcPersonalRivalry 동적 진입선', () => {
+  it2('대결 최다의 30%로 isLowSample 판정 + minRounds 반환', () => {
+    const mk = (i, home, away) => ({
+      date: `2026-01-${String(i + 1).padStart(2, '0')}`, match_id: 'R1_C1',
+      our_members_json: JSON.stringify(home), opponent_members_json: JSON.stringify(away),
+      our_score: 1, opponent_score: 0,
+    });
+    const matchLogs = [
+      ...Array.from({ length: 10 }, (_, i) => mk(i, ['A'], ['B'])),      // A-B 대결 10 (최다) → ceil(3)=3
+      ...Array.from({ length: 3 }, (_, i) => mk(i + 10, ['A'], ['C'])),  // A-C 3 → 통과
+      ...Array.from({ length: 2 }, (_, i) => mk(i + 13, ['A'], ['D'])),  // A-D 2 → 표본부족
+    ];
+    const rivalry = calcRivalry({ matchLogs });
+    const r = calcPersonalRivalry({ rivalry, player: 'A' });
+    ex2(r.minRounds).toBe(3);
+    const byOpp = Object.fromEntries(r.opponents.map(o => [o.opponent, o]));
+    ex2(byOpp.C.isLowSample).toBe(false);
+    ex2(byOpp.D.isLowSample).toBe(true);
+  });
+});

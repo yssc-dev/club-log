@@ -9,7 +9,8 @@ const FIELD_COLOR = '#3b82f6'; // 파랑 — 필드 시리즈 (CVD ΔE 30+ 검�
 const per = (n, games) => (games > 0 ? n / games : 0);
 const signed = (v) => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`;
 
-function BarRow({ label, games, value, max, color, C }) {
+// 조건 비교형 막대 행 — FormCompareCard(평소 vs 최근 1달)도 재사용한다.
+export function BarRow({ label, games, value, max, color, C, fmt = (v) => v.toFixed(2) }) {
   return (
     <div style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '2px 0', fontSize: 10 }}>
       <span style={{ width: 92, flexShrink: 0, color: C.gray }}>
@@ -19,7 +20,7 @@ function BarRow({ label, games, value, max, color, C }) {
         <div style={{ width: `${Math.min(100, (value / max) * 100)}%`, height: '100%', borderRadius: 4, background: color, opacity: 0.85 }} />
       </div>
       <span style={{ width: 34, flexShrink: 0, textAlign: 'right', color: C.white, fontWeight: 700, fontVariantNumeric: 'tabular-nums', fontSize: 11 }}>
-        {value.toFixed(2)}
+        {fmt(value)}
       </span>
     </div>
   );

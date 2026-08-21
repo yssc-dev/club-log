@@ -9,6 +9,7 @@ import PersonalSynergyChart from './PersonalSynergyChart';
 import RivalryView from './RivalryView';
 import OpponentBreakdownList from './OpponentBreakdownList';
 import GkFieldSplitCard from './GkFieldSplitCard';
+import FormCompareCard from './FormCompareCard';
 
 // ─── Radar Chart ────────────────────────────────────────────────────────────
 
@@ -304,6 +305,12 @@ export default function PersonalAnalysisTab({
   );
   const myGkField = gkFieldSplit && selected ? gkFieldSplit.perPlayer[selected] : null;
 
+  // ── 폼 비교: 평소 vs 최근 1달 (풋살 전용) — 마지막 세션 날짜 기준 30일 창 ──
+  const recentForm = useMemo(
+    () => (isSoccer || !selected ? null : futsalCalc.calcRecentForm({ playerName: selected, playerLogs: playerGameLogs || [], matchLogs: matchLogs || [] })),
+    [isSoccer, selected, playerGameLogs, matchLogs]
+  );
+
   // ── Derived display values ────────────────────────────────────────────────
   // 출전 라운드가 없으면(0경기 로스터 멤버 또는 골만 있는 이벤트only 선수) 분석 대신 '기록 없음' 표시.
   // rounds===0이면 경기당 지표가 모두 0/모순("N골 / 0경기")이 되므로 풀 분석을 막는다.
@@ -511,6 +518,7 @@ export default function PersonalAnalysisTab({
               </div>
             </div>
           )}
+          {!isSoccer && <FormCompareCard form={recentForm} C={C} />}
         </div>
       )}
 

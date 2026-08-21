@@ -14,6 +14,7 @@ export * from './calcPersonalRecords';
 export * from './calcPersonalSynergy';
 export * from './calcPlayerSummary';
 export * from './calcRadarData';
+export * from './calcRecentForm'; // 풋살 전용 — 셰도잉 목록 밖(futsalCalc.calcRecentForm로 직접 호출)
 export * from './calcRivalry';
 export * from './calcRoundSlope';
 export * from './calcSoloGoalRatio';

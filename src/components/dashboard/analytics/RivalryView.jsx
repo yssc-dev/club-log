@@ -7,8 +7,9 @@ import RankBarList from './RankBarList';
 export default function RivalryView({ matchLogs, player, C }) {
   const rivalry = useMemo(() => calcRivalry({ matchLogs: matchLogs || [] }), [matchLogs]);
 
+  // minRounds 생략 → 대결 최다 라운드의 30% 동적 (풋살 전용 뷰라 종목 분기 불필요)
   const personal = useMemo(
-    () => calcPersonalRivalry({ rivalry, player, minRounds: 5 }),
+    () => calcPersonalRivalry({ rivalry, player }),
     [rivalry, player]
   );
 
@@ -45,7 +46,7 @@ export default function RivalryView({ matchLogs, player, C }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: C.gray, marginBottom: 10, lineHeight: 1.5 }}>
-        <b>대결 케미</b> — 반대팀으로 만난 라운드의 상대전적. 천적(잘 못 이기는 상대)과 맛집(잘 이기는 상대). 최소 5라운드 대결부터 랭킹.
+        <b>대결 케미</b> — 반대팀으로 만난 라운드의 상대전적. 천적(잘 못 이기는 상대)과 맛집(잘 이기는 상대). 대결 최다치의 30%(현재 {personal.minRounds}라운드) 이상부터 랭킹.
       </div>
       {eligible.length > 0 && (
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10, marginBottom: 12 }}>

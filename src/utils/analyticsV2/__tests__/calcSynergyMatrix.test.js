@@ -86,3 +86,26 @@ describe('calcSynergyMatrix', () => {
     expect(r.players).toEqual(['A']);
   });
 });
+
+// 2026-08-21 동적 진입선: minRounds 생략 시 동반 최다 라운드(자기 셀 제외)의 30%(올림)
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcSynergyMatrix 동적 진입선', () => {
+  const mk = (i, home, away) => ({
+    date: `2026-01-${String(i + 1).padStart(2, '0')}`, match_id: 'R1_C1',
+    our_members_json: JSON.stringify(home), opponent_members_json: JSON.stringify(away),
+    our_score: 1, opponent_score: 0,
+  });
+  it2('자기 셀(개인 출전수)은 최대치에서 제외하고 페어 최다의 30%만 쓴다', () => {
+    // A 솔로 10경기(자기 셀 A|A=10, 페어 없음) + C|D 3경기 → 페어 최다 3 → ceil(0.9)=1
+    const matchLogs = [
+      ...Array.from({ length: 10 }, (_, i) => mk(i, ['A'], ['Z'])),
+      ...Array.from({ length: 3 }, (_, i) => mk(i + 10, ['C', 'D'], ['E', 'F'])),
+    ];
+    const m = calcSynergyMatrix({ matchLogs });
+    ex2(m.minRounds).toBe(1); // 자기 셀(10) 포함이면 3이 됨
+  });
+  it2('minRounds 명시 시 그 값 유지 (축구 경로)', () => {
+    const matchLogs = [mk(0, ['C', 'D'], ['E', 'F'])];
+    ex2(calcSynergyMatrix({ matchLogs, minRounds: 5 }).minRounds).toBe(5);
+  });
+});
