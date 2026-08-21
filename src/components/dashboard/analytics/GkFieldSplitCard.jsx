@@ -25,7 +25,9 @@ function BarRow({ label, games, value, max, color, C }) {
   );
 }
 
-export default function GkFieldSplitCard({ data, C }) {
+// keeperRounds: PG 권위 키퍼 경기수(레이더·요약 라인에 표시되는 수). 레거시 GK 미기록
+// 매치 탓에 카드 집계(gk.games)가 이보다 적을 수 있어(실측 76명 중 45명), 주석으로 잇는다.
+export default function GkFieldSplitCard({ data, keeperRounds = 0, C }) {
   // 비교 카드라 한쪽 표본이 0이면 의미가 없다 → 카드 자체를 숨김
   if (!data || data.gk.games === 0 || data.field.games === 0) return null;
   const { gk, field } = data;
@@ -71,7 +73,10 @@ export default function GkFieldSplitCard({ data, C }) {
         </div>
       </div>
       <div style={{ marginTop: 6, fontSize: 9, color: C.gray, lineHeight: 1.5 }}>
-        GK가 기록된 매치만 집계 · 매주 팀이 섞여 팀 전력 차이가 섞인 참고용 지표
+        {keeperRounds > gk.games
+          ? `키퍼 ${keeperRounds}경기 중 GK가 매치에 기록된 ${gk.games}경기만 집계`
+          : 'GK가 기록된 매치만 집계'}
+        {' · 매주 팀이 섞여 팀 전력 차이가 섞인 참고용 지표'}
         {smallSample && ' · 표본이 적어 우연 편차가 클 수 있음'}
       </div>
     </div>

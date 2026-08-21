@@ -83,6 +83,24 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('키퍼 vs 필드');
   });
 
+  // PG(권위) 키퍼 경기수 > 카드 집계(GK 기록 매치만)일 때 — 같은 화면의 두 숫자를 잇는 커버리지 주석.
+  // 실데이터: 레거시(1월) GK 미기록 매치 탓에 76명 중 45명이 불일치 (예: PG 36 vs 카드 28)
+  it('PersonalAnalysisTab: 풋살 — 카드 GK 경기수가 PG 키퍼 경기수보다 적으면 커버리지 주석 표기', () => {
+    const ml = [
+      { date: '2026-06-04', match_id: 'R1_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 2, opponent_score: 1, our_gk: 'A', opponent_gk: 'C', round_idx: 1 },
+      { date: '2026-06-04', match_id: 'R2_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 1, opponent_score: 0, our_gk: '', opponent_gk: '', round_idx: 2 }, // GK 미기록 — 카드 집계 제외
+      { date: '2026-06-04', match_id: 'R3_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 0, opponent_score: 2, our_gk: 'B', opponent_gk: 'D', round_idx: 3 },
+    ];
+    const pgl = [
+      { player: 'A', date: '2026-06-04', goals: 0, assists: 0, keeper_games: 2, conceded: 1, cleansheets: 0, owngoals: 0, rank_score: 1 },
+    ];
+    const html = wrap(PersonalAnalysisTab, {
+      playerGameLogs: pgl, matchLogs: ml, eventLogs: [],
+      members: [{ name: 'A' }, { name: 'B' }, { name: 'C' }, { name: 'D' }], C, authUserName: 'A',
+    });
+    expect(html).toContain('키퍼 2경기 중 GK가 매치에 기록된 1경기만 집계');
+  });
+
   it('PersonalAnalysisTab: 상대팀별 성적 — 앱 이전 경기도 골·어시와 경기수에 함께 들어간다', () => {
     // 앱 이전 1경기(1골1어시) + 현행 2경기(1골1어시) → 3경기 2골2어시
     const matchLogsMixed = [

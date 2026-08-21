@@ -417,7 +417,7 @@ export default function PersonalAnalysisTab({
               </div>
             );
           })()}
-          {!isSoccer && <GkFieldSplitCard data={myGkField} C={C} />}
+          {!isSoccer && <GkFieldSplitCard data={myGkField} keeperRounds={playerSummary[selected]?.keeperRounds || 0} C={C} />}
           {streakData && (streakData.scoringStreak.best > 0 || streakData.cleanSheetStreak.best > 0) && (
             <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, lineHeight: 1.9, textAlign: "left" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 4 }}>연속 기록</div>
