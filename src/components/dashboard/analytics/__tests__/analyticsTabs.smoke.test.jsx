@@ -245,6 +245,25 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('최소 5경기');
   });
 
+  // 2026-08-21: 개인 축 필드 수비 카드 (무실점률·실점 억제) — 풋살 전용
+  it('AwardsTab: 풋살 — 수비(필드) 카드 렌더', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
+    expect(html).toContain('수비 (필드)');
+    expect(html).toContain('무실점률');
+    expect(html).toContain('실점 억제');
+    expect(html).not.toContain('NaN');
+  });
+
+  it('AwardsTab: 축구 모드 — 수비(필드) 카드 숨김 (축구는 수비수 명단 기반 지표가 별도)', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
+    expect(html).not.toContain('수비 (필드)');
+  });
+
+  it('PersonalAnalysisTab: 풋살 — 필드 수비 요약 라인 렌더', () => {
+    const html = wrap(PersonalAnalysisTab, { playerGameLogs, matchLogs, eventLogs, members, C, authUserName: 'A' });
+    expect(html).toContain('필드 수비:');
+  });
+
   it('AwardsTab: 축구 모드 — 라운드 흐름 숨김', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
     expect(html).not.toContain('라운드 흐름');

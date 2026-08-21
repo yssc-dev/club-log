@@ -305,6 +305,13 @@ export default function PersonalAnalysisTab({
   );
   const myGkField = gkFieldSplit && selected ? gkFieldSplit.perPlayer[selected] : null;
 
+  // ── 필드 수비 요약 (풋살 전용) — 무실점률·세션평균 대비 억제, 어워드 수비 카드와 동일 계산 ──
+  const fieldDefenseAll = useMemo(
+    () => (isSoccer ? null : futsalCalc.calcFieldDefense({ matchLogs: matchLogs || [] })),
+    [isSoccer, matchLogs]
+  );
+  const myFieldDefense = fieldDefenseAll && selected ? fieldDefenseAll.perPlayer[selected] : null;
+
   // ── 폼 비교: 평소 vs 최근 1달 (풋살 전용) — 마지막 세션 날짜 기준 30일 창 ──
   const recentForm = useMemo(
     () => (isSoccer || !selected ? null : futsalCalc.calcRecentForm({ playerName: selected, playerLogs: playerGameLogs || [], matchLogs: matchLogs || [] })),
@@ -411,6 +418,19 @@ export default function PersonalAnalysisTab({
                     <span style={{ color: C.white }}>
                       GK {split.keeper.rounds}경기 {split.keeper.conceded}실 · 필드 {split.field.rounds}경기 {split.field.goals}골 {split.field.assists}어시
                     </span>
+                  </div>
+                )}
+                {!isSoccer && myFieldDefense && myFieldDefense.fieldRounds > 0 && (
+                  <div>
+                    <span style={{ color: C.gray }} title="필드로 뛴 매치 기준(GK 제외). 억제 = 그날 세션 평균 실점 − 본인 사이드 평균(양수 = 평균보다 덜 먹힘)">필드 수비: </span>
+                    <span style={{ color: C.white }}>
+                      무실점률 {Math.round(myFieldDefense.cleanRate * 100)}%
+                    </span>
+                    <span style={{ color: C.gray }}> · </span>
+                    <span style={{ color: myFieldDefense.suppression >= 0 ? C.accent : "#ef4444", fontWeight: 700 }}>
+                      {myFieldDefense.suppression >= 0 ? '+' : ''}{myFieldDefense.suppression.toFixed(2)} {myFieldDefense.suppression >= 0 ? '억제' : '허용'}
+                    </span>
+                    <span style={{ color: C.gray }}> ({myFieldDefense.fieldRounds}경기)</span>
                   </div>
                 )}
                 {playerSummary[selected]?.teamGoals > 0 && (
