@@ -13,9 +13,10 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
   const bonusTerms = isSoccer ? "자책" : "크로바+고구마+역주행";
   const awards = useMemo(() => calcAwards({ playerLogs: playerGameLogs || [], eventLogs: eventLogs || [] }), [playerGameLogs, eventLogs]);
   const dailyMvp = useMemo(() => calcDailyMvp({ playerGameLogs: playerGameLogs || [] }), [playerGameLogs]);
-  const slope = useMemo(() => calcRoundSlope({ eventLogs: eventLogs || [], matchLogs: matchLogs || [], threshold: 10, minSessions: 3 }), [eventLogs, matchLogs]);
-  const solo = useMemo(() => calcSoloGoalRatio({ eventLogs: eventLogs || [], threshold: 10 }), [eventLogs]);
-  const volatility = useMemo(() => calcVolatility({ playerLogs: playerGameLogs || [], minGames: 5, topN: 3 }), [playerGameLogs]);
+  // 임계값: 축구는 고정(threshold 10/minGames 5 등), 풋살은 생략 → 계산층이 축별 최대치의 30% 동적 적용
+  const slope = useMemo(() => calcRoundSlope({ eventLogs: eventLogs || [], matchLogs: matchLogs || [], ...(isSoccer ? { threshold: 10, minSessions: 3 } : {}) }), [eventLogs, matchLogs, isSoccer]);
+  const solo = useMemo(() => calcSoloGoalRatio({ eventLogs: eventLogs || [], ...(isSoccer ? { threshold: 10 } : {}) }), [eventLogs, isSoccer]);
+  const volatility = useMemo(() => calcVolatility({ playerLogs: playerGameLogs || [], ...(isSoccer ? { minGames: 5 } : {}), topN: 3 }), [playerGameLogs, isSoccer]);
   // 지표 Top5 — 개인분석 레이더와 동일 단일소스(calcPlayerSummary)
   const metricLeaders = useMemo(() => {
     const { perPlayer, totalSessions } = calcPlayerSummary({
@@ -206,7 +207,9 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           🧤 키퍼 (수문장)
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          PG 누적 · 실점률 = 경기당 실점(낮을수록 ↑) · 키퍼 4경기 이상
+          PG 누적 · 실점률 = 경기당 실점(낮을수록 ↑) · {isSoccer
+            ? '키퍼 4경기 이상'
+            : `실점률은 최다 키퍼경기의 30%(현재 ${awards.thresholds?.minKeeperGames ?? 0}경기) 이상`}
         </div>
         {(awards.keepers.cleanSheetKings.length === 0 && awards.keepers.stingiest.length === 0) ? (
           <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
@@ -241,6 +244,9 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 6 }}>
               🏁 라운드 흐름 (G+A/라운드 변화)
             </div>
+            <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
+              G+A 표본 최다치의 30%(현재 {slope.thresholds?.threshold ?? 0}개)·세션 최다치의 30%(현재 {slope.thresholds?.minSessions ?? 0}회) 이상
+            </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.gray, marginBottom: 10 }}>
               <span>← 초반 강자</span>
               <span>후반 폭격기 →</span>
@@ -259,9 +265,14 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
 
       {/* 단독골 도넛 */}
       <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: isSoccer ? 12 : 4 }}>
           🎯 단독드리블골 (어시 없는 골 비율)
         </div>
+        {!isSoccer && (
+          <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
+            골 최다치의 30%(현재 {solo.thresholds?.threshold ?? 0}골) 이상
+          </div>
+        )}
         {solo.ranking.soloHeroes.length === 0 ? (
           <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
         ) : (
@@ -279,7 +290,9 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           🎢 컨디션 편차 (경기당 G+A 표준편차)
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          5경기 이상 · 꾸준형은 평균 G+A 중앙값 이상에서만 선정
+          {isSoccer
+            ? '5경기 이상'
+            : `경기수 최다치의 30%(현재 ${volatility.thresholds?.minGames ?? 0}경기) 이상`} · 꾸준형은 평균 G+A 중앙값 이상에서만 선정
         </div>
         {volatility.streaky.length === 0 && volatility.consistent.length === 0 ? (
           <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>

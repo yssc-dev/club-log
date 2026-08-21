@@ -4,14 +4,15 @@ import * as soccerCalc from '../../../utils/soccerAnalytics';
 
 export default function GoldenTrioView({ matchLogs, C, isSoccer = false }) {
   const { calcGoldenTrio } = isSoccer ? soccerCalc : futsalCalc;
-  const trios = useMemo(() => calcGoldenTrio({ matchLogs: matchLogs || [], minRounds: 5, topN: 5 }), [matchLogs]);
+  // 축구는 고정 5경기, 풋살은 생략 → 동행 최다 라운드의 30% 동적 (배열에 minRounds 메타 부착)
+  const trios = useMemo(() => calcGoldenTrio({ matchLogs: matchLogs || [], ...(isSoccer ? { minRounds: 5 } : {}), topN: 5 }), [matchLogs, isSoccer]);
   const [expanded, setExpanded] = useState(null);
 
   if (!matchLogs || matchLogs.length === 0) {
     return <div style={{ textAlign: "center", padding: 30, color: C.gray }}>로그_매치 데이터가 없습니다.</div>;
   }
   if (trios.length === 0) {
-    return <div style={{ textAlign: "center", padding: 30, color: C.gray }}>조건을 만족하는 2인 조합이 없습니다. (최소 5경기 동행)</div>;
+    return <div style={{ textAlign: "center", padding: 30, color: C.gray }}>조건을 만족하는 2인 조합이 없습니다. ({isSoccer ? '최소 5경기' : `최소 ${trios.minRounds ?? 0}경기`} 동행)</div>;
   }
 
   const outcomeColor = (o) => o === 'W' ? '#22c55e' : o === 'D' ? C.gray : '#ef4444';
@@ -26,7 +27,7 @@ export default function GoldenTrioView({ matchLogs, C, isSoccer = false }) {
   return (
     <div>
       <div style={{ fontSize: 11, color: C.gray, marginBottom: 10, lineHeight: 1.5 }}>
-        케미 = 듀오 승률 − 둘의 개인 평균 승률(duo 라운드 제외). 양수일수록 "같이 뛰면 평소보다 잘함" (최소 5경기, TOP 5)
+        케미 = 듀오 승률 − 둘의 개인 평균 승률(duo 라운드 제외). 양수일수록 "같이 뛰면 평소보다 잘함" ({isSoccer ? '최소 5경기' : `동행 최다치의 30% = ${trios.minRounds ?? 0}경기 이상`}, TOP 5)
         <br />
         ⚠️ 라운드별 5인 출전이 미입력이라 "같은 팀 로스터" 기준 근사 — 동일 세션 내 실제 함께 뛴 매치 수는 다를 수 있음
       </div>

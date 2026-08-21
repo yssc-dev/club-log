@@ -65,3 +65,16 @@ describe('calcVolatility', () => {
     expect(r.consistent.map(x => x.player).sort()).toEqual(['상', '중상']);
   });
 });
+
+// 2026-08-21 동적 진입선: minGames 생략 시 최다 경기수의 30%(올림)
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcVolatility 동적 진입선', () => {
+  it2('진입선 = 최다 경기수의 30%(올림), thresholds 반환', () => {
+    const L = (player, n) => Array.from({ length: n }, (_, i) => ({ player, date: `d${i}`, goals: i % 2, assists: 0 }));
+    const r = calcVolatility({ playerLogs: [...L('Max', 10), ...L('In', 3), ...L('Out', 2)] });
+    const all = [...r.streaky, ...r.consistent].map(x => x.player);
+    ex2(all).toContain('In');
+    ex2(all).not.toContain('Out');
+    ex2(r.thresholds.minGames).toBe(3);
+  });
+});

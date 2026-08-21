@@ -9,8 +9,12 @@
 //   → 정렬 시 측정 가능한 페어 뒤로, UI는 '측정 불가(항상 동행)' 표시
 import { parseActualPlayers } from './parseMembers';
 import { winRateExcluding, recordRoundOutcome, meanExcluding } from './pairBaseline';
+import { dynamicMin } from './dynamicMin';
 
-export function calcGoldenTrio({ matchLogs, minRounds = 5, topN = 5 }) {
+// minRounds 생략(null) 시 동적: 동행 최다 라운드의 30%(올림) — dynamicMin 참조.
+// 축구는 호출부에서 고정 5를 명시. 반환은 배열 유지(축구 모듈과 형태 통일),
+// 캡션용 메타(minRounds/maxPairGames)는 배열 속성으로 부착 — slice가 속성을 버리므로 마지막에.
+export function calcGoldenTrio({ matchLogs, minRounds = null, topN = 5 }) {
   const pairs = {};
   const players = {};
 
@@ -82,8 +86,10 @@ export function calcGoldenTrio({ matchLogs, minRounds = 5, topN = 5 }) {
     tally(away, awayOutcome, awayRef);
   }
 
-  return Object.entries(pairs)
-    .filter(([, v]) => v.games >= minRounds)
+  const maxPairGames = Object.values(pairs).reduce((m, v) => Math.max(m, v.games), 0);
+  const resolvedMinRounds = minRounds ?? dynamicMin(maxPairGames);
+  const list = Object.entries(pairs)
+    .filter(([, v]) => v.games >= resolvedMinRounds)
     .map(([key, v]) => {
       const [a, b] = key.split('|');
       const pairWR = (v.wins + 0.5 * v.draws) / v.games;
@@ -114,4 +120,8 @@ export function calcGoldenTrio({ matchLogs, minRounds = 5, topN = 5 }) {
       (a.baselineUnavailable === b.baselineUnavailable ? 0 : a.baselineUnavailable ? 1 : -1) ||
       b.chemistry - a.chemistry || b.games - a.games)
     .slice(0, topN);
+  // 비열거형: toEqual([]) 같은 깊은 비교/직렬화에 안 잡히고 접근만 가능
+  Object.defineProperty(list, 'minRounds', { value: resolvedMinRounds, enumerable: false });
+  Object.defineProperty(list, 'maxPairGames', { value: maxPairGames, enumerable: false });
+  return list;
 }

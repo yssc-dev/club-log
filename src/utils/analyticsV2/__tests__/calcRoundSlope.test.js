@@ -239,3 +239,25 @@ describe('calcRoundSlope', () => {
     expect(r.ranking.lateBloomers.find(x => x.player === 'A')).toBeUndefined();
   });
 });
+
+// 2026-08-21 동적 진입선: threshold/minSessions 생략 시 각각
+// 최다 유효표본의 30%(올림) / 최다 세션수의 30%(올림)
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcRoundSlope 동적 진입선', () => {
+  it2('threshold=최다 유효표본 30%, minSessions=최다 세션 30%, thresholds 반환', () => {
+    const g = (player, date, matchId) => ({ event_type: 'goal', player, related_player: '', date, match_id: matchId });
+    // Max: 5세션 × (R1+R2) = 10 유효표본 → threshold ceil(3)=3, minSessions ceil(1.5)=2
+    const eventLogs = [
+      ...['d1', 'd2', 'd3', 'd4', 'd5'].flatMap(d => [g('Max', d, 'R1_C1'), g('Max', d, 'R2_C1')]),
+      g('In', 'd1', 'R1_C1'), g('In', 'd2', 'R1_C1'), g('In', 'd3', 'R1_C1'),   // 3표본·3세션 → 통과, tendency 0
+      g('OneSession', 'd1', 'R1_C1'), g('OneSession', 'd1', 'R1_C1'), g('OneSession', 'd1', 'R1_C1'), // 3표본·1세션 → 제외
+      g('FewEvents', 'd1', 'R1_C1'), g('FewEvents', 'd2', 'R1_C1'),             // 2표본 → 제외
+    ];
+    const r = calcRoundSlope({ eventLogs });
+    const early = r.ranking.earlyBirds.map(x => x.player);
+    ex2(early).toContain('In');
+    ex2(early).not.toContain('OneSession');
+    ex2(early).not.toContain('FewEvents');
+    ex2(r.thresholds).toEqual({ threshold: 3, minSessions: 2 });
+  });
+});

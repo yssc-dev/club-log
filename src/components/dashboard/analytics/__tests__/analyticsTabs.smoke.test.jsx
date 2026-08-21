@@ -9,6 +9,7 @@ import AwardsTab from '../AwardsTab';
 import GoldenTrioView from '../GoldenTrioView';
 import RivalryView from '../RivalryView';
 import PersonalSynergyChart from '../PersonalSynergyChart';
+import AssistPairList from '../AssistPairList';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -223,9 +224,40 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).toContain('10경기 이상');
   });
 
+  // 2026-08-21 확장: 수문장·컨디션 편차·베스트 듀오도 30% 동적 진입선 (풋살만)
+  it('AwardsTab: 풋살 — 수문장·컨디션 편차 진입선 30% 동적 표기', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
+    expect(html).toContain('실점률은 최다 키퍼경기의 30%');
+    expect(html).toContain('경기수 최다치의 30%');
+    expect(html).not.toContain('키퍼 4경기 이상');
+    expect(html).not.toContain('5경기 이상');
+  });
+
+  it('AwardsTab: 축구 — 수문장 4경기·컨디션 5경기 고정 유지', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
+    expect(html).toContain('키퍼 4경기 이상');
+    expect(html).toContain('5경기 이상');
+  });
+
+  it('GoldenTrioView: 풋살 — 베스트 듀오 진입선 30% 동적 표기', () => {
+    const html = wrap(GoldenTrioView, { matchLogs: [...matchLogs, ...matchLogs.map(m => ({ ...m, date: m.date.replace('2026-06', '2026-07') }))], C });
+    expect(html).toContain('동행 최다치의 30%');
+    expect(html).not.toContain('최소 5경기');
+  });
+
   it('AwardsTab: 축구 모드 — 라운드 흐름 숨김', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
     expect(html).not.toContain('라운드 흐름');
+  });
+
+  it('AssistPairList: 풋살(threshold 메타 있음) — 동적 진입선 라벨, 축구(없음) — 고정 3회', () => {
+    const mkPairs = (withMeta) => {
+      const pairs = [{ assister: 'A', scorer: 'B', count: 3, sharedGames: 5, perSharedGame: 0.6 }];
+      if (withMeta) Object.defineProperty(pairs, 'threshold', { value: 4, enumerable: false });
+      return pairs;
+    };
+    expect(wrap(AssistPairList, { pairs: mkPairs(true), C })).toContain('4회(최다 연결의 30%)');
+    expect(wrap(AssistPairList, { pairs: mkPairs(false), C })).toContain('≥ 3회');
   });
 
   it('GoldenTrioView: 공격 케미 병기 렌더', () => {

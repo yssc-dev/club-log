@@ -6,7 +6,11 @@
 // 분산은 표본 공식(÷(n-1)) — 선수마다 세션 수가 달라 모집단 공식은 소표본 std를 과소추정.
 // 꾸준형은 평균 G+A가 전체 중앙값 이상인 선수 중에서만 (0골 0어시인 사람이 1위 되는 거 방지).
 // 중앙값은 짝수 n에서 두 중간값 평균 (경계 판정엔 영향 없음 — 후보가 항상 모집단 구성원이므로).
-export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
+// minGames 생략(null) 시 동적: 최다 경기수(PG 세션)의 30%(올림) — dynamicMin 참조.
+// 축구는 호출부에서 고정 5를 명시.
+import { dynamicMin } from './dynamicMin';
+
+export function calcVolatility({ playerLogs, minGames = null, topN = 3 }) {
   const perPlayer = {};
   for (const p of playerLogs || []) {
     const name = p.player;
@@ -16,8 +20,10 @@ export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
     perPlayer[name].push(ga);
   }
 
+  const maxGames = Object.values(perPlayer).reduce((m, arr) => Math.max(m, arr.length), 0);
+  const resolvedMinGames = minGames ?? dynamicMin(maxGames);
   const stats = Object.entries(perPlayer)
-    .filter(([, arr]) => arr.length >= minGames)
+    .filter(([, arr]) => arr.length >= resolvedMinGames)
     .map(([player, arr]) => {
       const n = arr.length;
       const mean = arr.reduce((s, v) => s + v, 0) / n;
@@ -26,7 +32,8 @@ export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
       return { player, games: n, mean, std };
     });
 
-  if (stats.length === 0) return { streaky: [], consistent: [] };
+  const thresholds = { minGames: resolvedMinGames, maxGames };
+  if (stats.length === 0) return { streaky: [], consistent: [], thresholds };
 
   // 꾸준형 후보 = 평균 G+A가 전체 중앙값 이상 (영양가 있는 꾸준함)
   const sortedMeans = [...stats].map(s => s.mean).sort((a, b) => a - b);
@@ -44,5 +51,5 @@ export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
     .sort((a, b) => a.std - b.std || a.player.localeCompare(b.player, 'ko'))
     .slice(0, topN);
 
-  return { streaky, consistent };
+  return { streaky, consistent, thresholds };
 }

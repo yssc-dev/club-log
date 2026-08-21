@@ -82,3 +82,21 @@ describe('calcAssistPairs', () => {
     expect(r).toHaveLength(5);
   });
 });
+
+// 2026-08-21 동적 진입선: threshold 생략 시 페어 최다 연결의 30%(올림), 반환 배열에 threshold 부착
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcAssistPairs 동적 진입선', () => {
+  it2('진입선 = 페어 최다 연결의 30%(올림), threshold 부착', () => {
+    const g = (assister, scorer) => ({ event_type: 'goal', player: scorer, related_player: assister });
+    const eventLogs = [
+      ...Array.from({ length: 10 }, () => g('A', 'B')),
+      ...Array.from({ length: 3 }, () => g('C', 'D')),
+      ...Array.from({ length: 2 }, () => g('E', 'F')),
+    ];
+    const r = calcAssistPairs({ eventLogs, topN: 20 });
+    const keys = r.map(p => `${p.assister}→${p.scorer}`);
+    ex2(keys).toContain('C→D');
+    ex2(keys).not.toContain('E→F');
+    ex2(r.threshold).toBe(3);
+  });
+});

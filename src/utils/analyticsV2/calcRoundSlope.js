@@ -49,8 +49,11 @@ function resolveRoundIdx(lookup, date, matchId) {
 
 // threshold: 랭킹 진입 최소 '유효 percentile 표본' 수 (단일 라운드 세션 이벤트는 표본 불가라 제외)
 // minSessions: 랭킹 진입 최소 세션 수 — 단일 세션 폭발이 다세션 성향과 동급 노출되는 것 방지
-//   (기본 1 = 기존 동작. 분석탭 호출부는 3을 명시)
-export function calcRoundSlope({ eventLogs, matchLogs, threshold = 10, minSessions = 1 }) {
+// 둘 다 생략(null) 시 동적: 각각 최다 유효표본/최다 세션수의 30%(올림) — dynamicMin 참조.
+// 축구는 호출부에서 고정 threshold:10, minSessions를 명시.
+import { dynamicMin } from './dynamicMin';
+
+export function calcRoundSlope({ eventLogs, matchLogs, threshold = null, minSessions = null }) {
   const lookup = buildRoundIdxLookup(matchLogs);
 
   // 세션(date)별 최대 round_idx — percentile 계산용. matchLogs + eventLogs 둘 다 스캔.
@@ -122,16 +125,25 @@ export function calcRoundSlope({ eventLogs, matchLogs, threshold = 10, minSessio
     };
   }
 
+  const maxValidSample = Object.values(perPlayer).reduce((m, p) => Math.max(m, p.validSampleCount), 0);
+  const maxSessionCount = Object.values(perPlayer).reduce((m, p) => Math.max(m, p.sessionCount), 0);
+  const resolvedThreshold = threshold ?? dynamicMin(maxValidSample);
+  const resolvedMinSessions = minSessions ?? dynamicMin(maxSessionCount);
+
   const lateBloomers = [];
   const earlyBirds = [];
   for (const player of Object.keys(perPlayer)) {
     const { tendency, eventCount, validSampleCount, sessionCount } = perPlayer[player];
-    if (tendency == null || validSampleCount < threshold || sessionCount < minSessions) continue;
+    if (tendency == null || validSampleCount < resolvedThreshold || sessionCount < resolvedMinSessions) continue;
     if (tendency > 0.5) lateBloomers.push({ player, tendency, eventCount, slope: tendency - 0.5 });
     else if (tendency < 0.5) earlyBirds.push({ player, tendency, eventCount, slope: tendency - 0.5 });
   }
   lateBloomers.sort((a, b) => b.tendency - a.tendency || a.player.localeCompare(b.player, 'ko'));
   earlyBirds.sort((a, b) => a.tendency - b.tendency || a.player.localeCompare(b.player, 'ko'));
 
-  return { perPlayer, ranking: { lateBloomers, earlyBirds } };
+  return {
+    perPlayer,
+    ranking: { lateBloomers, earlyBirds },
+    thresholds: { threshold: resolvedThreshold, minSessions: resolvedMinSessions },
+  };
 }

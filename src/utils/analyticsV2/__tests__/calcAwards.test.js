@@ -111,3 +111,29 @@ describe('calcAwards', () => {
     expect(r.owngoalKings).toHaveLength(1);
   });
 });
+
+// 2026-08-21 동적 진입선: minKeeperGames 생략 시 최다 키퍼경기의 30%(올림)
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcAwards 동적 진입선', () => {
+  it2('실점률 진입선 = 최다 키퍼경기의 30%(올림), thresholds 반환', () => {
+    const logs = [
+      { player: 'Max', date: '2026-01-01', keeper_games: 65, conceded: 65, cleansheets: 0 },
+      { player: 'In', date: '2026-01-01', keeper_games: 20, conceded: 0, cleansheets: 0 },
+      { player: 'Out', date: '2026-01-01', keeper_games: 19, conceded: 0, cleansheets: 0 },
+    ];
+    const r = calcAwards({ playerLogs: logs });
+    const names = r.keepers.stingiest.map(k => k.player);
+    ex2(names).toContain('In');
+    ex2(names).not.toContain('Out');
+    ex2(r.thresholds.minKeeperGames).toBe(20);
+  });
+
+  it2('minKeeperGames 명시 시 그 값 사용 (축구 경로 보존)', () => {
+    const logs = [
+      { player: 'Max', date: '2026-01-01', keeper_games: 65, conceded: 65, cleansheets: 0 },
+      { player: 'Small', date: '2026-01-01', keeper_games: 4, conceded: 0, cleansheets: 0 },
+    ];
+    const r = calcAwards({ playerLogs: logs, minKeeperGames: 4 });
+    ex2(r.keepers.stingiest.map(k => k.player)).toContain('Small');
+  });
+});

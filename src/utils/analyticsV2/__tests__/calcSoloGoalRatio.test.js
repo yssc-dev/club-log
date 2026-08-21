@@ -50,3 +50,22 @@ describe('calcSoloGoalRatio', () => {
     expect(r.ranking.soloHeroes[1].player).toBe('B');  // 0.5
   });
 });
+
+// 2026-08-21 동적 진입선: threshold 생략 시 최다 골의 30%(올림)
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcSoloGoalRatio 동적 진입선', () => {
+  it2('진입선 = 최다 골의 30%(올림), thresholds 반환', () => {
+    const g = (player) => ({ event_type: 'goal', player, related_player: '' });
+    const eventLogs = [
+      ...Array.from({ length: 10 }, () => g('Max')),
+      ...Array.from({ length: 3 }, () => g('In')),
+      ...Array.from({ length: 2 }, () => g('Out')),
+    ];
+    const r = calcSoloGoalRatio({ eventLogs });
+    const names = r.ranking.soloHeroes.map(x => x.player);
+    ex2(names).toContain('Max');
+    ex2(names).toContain('In');
+    ex2(names).not.toContain('Out');
+    ex2(r.thresholds.threshold).toBe(3);
+  });
+});

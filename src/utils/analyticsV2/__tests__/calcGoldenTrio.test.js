@@ -128,3 +128,27 @@ describe('calcGoldenTrio', () => {
     expect(r).toHaveLength(2);
   });
 });
+
+// 2026-08-21 동적 진입선: minRounds 생략 시 동행 최다 라운드의 30%(올림)
+// 반환 배열에 minRounds/maxPairGames 메타 부착 (축구 모듈과 배열 형태 유지 위해 속성 방식)
+import { describe as d2, it as it2, expect as ex2 } from 'vitest';
+d2('calcGoldenTrio 동적 진입선', () => {
+  it2('진입선 = 동행 최다의 30%(올림), 결과에 minRounds 부착', () => {
+    const mk = (i, home, away) => ({
+      date: `2026-01-${String(i + 1).padStart(2, '0')}`, match_id: 'R1_C1',
+      our_members_json: JSON.stringify(home), opponent_members_json: JSON.stringify(away),
+      our_score: 1, opponent_score: 0,
+    });
+    const matchLogs = [
+      ...Array.from({ length: 10 }, (_, i) => mk(i, ['A', 'B'], ['X', 'Y'])),      // A|B 10경기 (X|Y도 10)
+      ...Array.from({ length: 3 }, (_, i) => mk(i + 10, ['C', 'D'], ['P', 'Q'])),  // C|D 3경기
+      ...Array.from({ length: 2 }, (_, i) => mk(i + 13, ['E', 'F'], ['R', 'S'])),  // E|F 2경기
+    ];
+    const trios = calcGoldenTrio({ matchLogs, topN: 20 });
+    const keys = trios.map(t => t.members.join('|'));
+    ex2(keys).toContain('C|D');
+    ex2(keys).not.toContain('E|F');
+    ex2(trios.minRounds).toBe(3);
+    ex2(trios.maxPairGames).toBe(10);
+  });
+});

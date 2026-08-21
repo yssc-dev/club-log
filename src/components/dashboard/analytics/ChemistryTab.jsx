@@ -18,9 +18,10 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
     () => calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: 5 }),
     [matchLogs]
   );
+  // 축구는 고정 3회, 풋살은 생략 → 페어 최다 연결의 30% 동적 (배열에 threshold 메타 부착)
   const assistPairs = useMemo(
-    () => calcAssistPairs({ eventLogs: eventLogs || [], threshold: 3, topN: 10, synergyCells: synergyMatrix.cells }),
-    [eventLogs, synergyMatrix]
+    () => calcAssistPairs({ eventLogs: eventLogs || [], ...(isSoccer ? { threshold: 3 } : {}), topN: 10, synergyCells: synergyMatrix.cells }),
+    [eventLogs, synergyMatrix, isSoccer]
   );
 
   const subs = [
