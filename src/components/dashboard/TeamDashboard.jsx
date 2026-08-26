@@ -13,6 +13,7 @@ import RankingCandlestickChart from './RankingCandlestickChart';
 import PlayerAnalytics from './PlayerAnalytics';
 import DualTeamTab from './analytics/DualTeamTab';
 import DefenseTopCards from './analytics/DefenseTopCards';
+import RecentFormTop3 from './analytics/RecentFormTop3';
 import TournamentListTab from '../tournament/TournamentListTab';
 import TennisTabs from '../tennis/TennisTabs';
 import { buildMainTabs } from './mainTabs';
@@ -205,6 +206,10 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
         <div style={{ ...ds.section, textAlign: "center", color: C.gray, fontSize: 13, padding: 20 }}>불러오는 중...</div>
       ) : (
         <>
+          {/* 최근 한 달 기세 TOP3 — 누적 랭킹만으론 얼굴이 안 바뀌어서 최상단에 둔다.
+              로그_선수경기를 자체 지연 로드한다(대시보드는 이 시트를 안 읽음). */}
+          <RecentFormTop3 activeSport={activeSport} members={members} C={C} ds={ds} />
+
           {/* 팀 전적 (축구) */}
           {activeSport === "축구" && teamRecord && (
             <div style={ds.section}>
