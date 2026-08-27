@@ -2,6 +2,7 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-27: 테니스 시트 쓰기에 _sanitizeCell 적용 — 수식 주입 차단(_tennisRowToArray)
 // 2026-08-19: _playerLogColMap 크로바/고구마 폴백 7/8 → -1(헤더 없으면 0). 하버FC
 //             선수기록보관소엔 두 헤더가 없어 클린시트/실점 열을 오독 — getPrevRankings의
 //             증분에 실점이 고구마로 실려 개인 누적 기록 ▲/▼ 배지가 유령 순위변동 표시
@@ -2973,7 +2974,12 @@ function _tennisRowToArray(r, headers) {
   var out = [];
   for (var i = 0; i < headers.length; i++) {
     var v = r[headers[i]];
-    out.push(v === undefined || v === null ? "" : v);
+    // 시트 수식 주입 차단 — setValues()는 '='로 시작하는 문자열을 수식으로 해석한다.
+    // RTDB는 공개 쓰기가 가능해 선수 이름 등에 payload가 심길 수 있고, 자동 업로드는
+    // 사람이 보지 않고 그대로 시트에 넣는다. 숫자·불리언은 그대로 두고 문자열만 정화한다.
+    if (v === undefined || v === null) out.push("");
+    else if (typeof v === "string") out.push(_sanitizeCell(v));
+    else out.push(v);
   }
   return out;
 }
