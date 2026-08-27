@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   SPORT_DEFAULTS, PRESETS, resolvePreset,
   isLegacyFormat, migrateToNested,
+  getEffectiveSettings, _setCacheForTest,
 } from '../settings';
 
 describe('테니스 기본값', () => {
@@ -16,6 +17,10 @@ describe('테니스 기본값', () => {
 
   it('resolvePreset이 undefined를 반환하지 않는다 (Firebase set()이 undefined를 거부)', () => {
     expect(resolvePreset('아무팀', '테니스')).toBe('표준테니스');
+  });
+
+  it('autoUpload 기본값은 꺼짐 (켠 팀만 자동 처리 대상)', () => {
+    expect(SPORT_DEFAULTS['테니스'].autoUpload).toBe(false);
   });
 });
 
@@ -51,5 +56,22 @@ describe('migrateToNested', () => {
     const out = migrateToNested('겸직팀', {}, [{ mode: '풋살' }, { mode: '테니스' }]);
     expect(out['풋살']).toBeDefined();
     expect(out['테니스']).toBeDefined();
+  });
+});
+
+describe('autoUpload 팀 스코프', () => {
+  it('팀 override로 켜면 getEffectiveSettings가 true를 준다', () => {
+    _setCacheForTest({ 몽피스: { '테니스': { preset: '표준테니스', overrides: { autoUpload: true } } } });
+    expect(getEffectiveSettings('몽피스', '테니스').autoUpload).toBe(true);
+    _setCacheForTest({});
+  });
+
+  it('켜지 않은 팀은 false로 남는다 (다른 팀에 새지 않는다)', () => {
+    _setCacheForTest({
+      몽피스: { '테니스': { preset: '표준테니스', overrides: { autoUpload: true } } },
+      마스터FC: { '풋살': { preset: '마스터FC풋살', overrides: {} } },
+    });
+    expect(getEffectiveSettings('마스터FC', '테니스').autoUpload).toBe(false);
+    _setCacheForTest({});
   });
 });
