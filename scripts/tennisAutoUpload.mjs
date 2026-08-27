@@ -17,7 +17,7 @@ import {
 import { nowKST } from '../src/utils/tennis/tennisTime.js';
 import { stripNameDecorations } from '../src/services/tennisSync.js';
 import {
-  selectAutoTargets, ACTION_UPLOAD_ARCHIVE, isSettled,
+  selectAutoTargets, ACTION_UPLOAD_ARCHIVE, ACTION_ARCHIVE_ONLY, isSettled, resolveWithArchiveState,
 } from '../src/utils/tennis/autoUploadTargets.js';
 
 const DB = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
@@ -112,7 +112,7 @@ async function uploadRows(teamKey, teamName, gameId, state) {
 
   // 시트에 들어간 뒤 meta를 못 찍으면 다음 실행에서 중복 업로드가 된다. 유일한 중복 위험 지점.
   try {
-    await rtdb('PATCH', `games/${encodeURIComponent(teamKey)}/active/${gameId}/meta`, {
+    await rtdb('PATCH', `games/${encodeURIComponent(teamKey)}/active/${encodeURIComponent(gameId)}/meta`, {
       gameFinalized: true, phase: 'done', autoUploadedAt: { '.sv': 'timestamp' },
     });
   } catch (e) {
@@ -133,7 +133,7 @@ async function archiveGame(teamKey, gameId, state) {
     [`_states/${gameId}`]: { state: JSON.stringify(finalState) },
   });
   // finalized 쓰기가 성공한 뒤에만 지운다.
-  await rtdb('DELETE', `games/${encodeURIComponent(teamKey)}/active/${gameId}`);
+  await rtdb('DELETE', `games/${encodeURIComponent(teamKey)}/active/${encodeURIComponent(gameId)}`);
   console.log('  아카이브 완료');
 }
 
@@ -153,7 +153,7 @@ async function processTeam(teamKey, teamName) {
     if (!isSettled(t.updatedAt, nowMs)) {
       const age = typeof t.updatedAt === 'number'
         ? `${Math.round((nowMs - t.updatedAt) / 60000)}분 전 수정`
-        : 'updatedAt 없음';
+        : 'updatedAt 없음 — 앱에서 한 번 열어 저장하면 해소된다';
       console.log(`  [skip] ${t.gameId} — ${age}. 편집 중일 수 있어 건드리지 않는다(다음 실행에서 재시도)`);
       continue;
     }
@@ -169,7 +169,14 @@ async function processTeam(teamKey, teamName) {
     }
     try {
       console.log(`  처리 시작: ${label}`);
-      if (t.action === ACTION_UPLOAD_ARCHIVE) {
+      // 이미 아카이브된 경기가 active에 다시 있다면 클라이언트가 되살린 것이다.
+      // 시트에는 이미 들어갔으므로 재전송하지 않는다(중복 행 방지).
+      const archived = await rtdb('GET', `games/${encodeURIComponent(teamKey)}/finalized/_meta/${encodeURIComponent(t.gameId)}`);
+      const action = resolveWithArchiveState(t.action, archived !== null && archived !== undefined);
+      if (action !== t.action) {
+        console.log(`  [부활 감지] ${t.gameId} — 이미 아카이브된 경기다. 시트 재전송 없이 정리만 한다`);
+      }
+      if (action === ACTION_UPLOAD_ARCHIVE) {
         const ok = await uploadRows(teamKey, teamName, t.gameId, t.state);
         if (!ok) continue;   // 등급 출처 없음 — 아카이브도 하지 않는다
       }

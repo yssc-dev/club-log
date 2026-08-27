@@ -36,3 +36,12 @@ export function isSettled(updatedAt, nowMs, minIdleMs = MIN_IDLE_MS) {
   const age = nowMs - updatedAt;
   return age >= minIdleMs;
 }
+
+// 이미 아카이브된 gameId가 active에 다시 나타나면, 삭제를 모르는 클라이언트가
+// 되살린 것이다(앱은 RTDB를 구독하지 않는다). 그 상태는 gameFinalized:false라
+// upload_archive로 분류되지만 시트에는 이미 들어가 있다 — 다시 올리면 중복 행이 된다.
+// 신선도 가드(isSettled)는 확률만 줄일 뿐 이 경로를 닫지 못하므로, 여기서 닫는다.
+export function resolveWithArchiveState(action, alreadyArchived) {
+  if (alreadyArchived && action === ACTION_UPLOAD_ARCHIVE) return ACTION_ARCHIVE_ONLY;
+  return action;
+}
