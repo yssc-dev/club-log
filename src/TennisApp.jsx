@@ -6,7 +6,7 @@ import { getEffectiveSettings } from './config/settings';
 import FirebaseSync from './services/firebaseSync';
 import TennisSync from './services/tennisSync';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
-import { buildTennisMatchRows, buildTennisPlayerGameRows, membersFromState } from './utils/tennis/tennisRowBuilders';
+import { buildTennisMatchRows, buildTennisPlayerGameRows, resolveGradeSource } from './utils/tennis/tennisRowBuilders';
 import { nowKST } from './utils/tennis/tennisTime';
 import { allRoundsConfirmed, isLastRoundConfirmed } from './utils/tennis/roundConfirm';
 import TennisAttendeeSelector from './components/tennis/TennisAttendeeSelector';
@@ -36,6 +36,16 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const team = teamContext?.team || '';
 
   useEffect(() => { TennisSync.getRoster().then(setRoster); }, []);
+
+  // 등급 스냅샷 — 명부가 손에 들어오면 그 즉시 state에 고정한다.
+  // "빈 맵 무시 / 최초 1회만 / phase==='done' 제외" 판단은 전부 리듀서가 하므로 여기선 조건 없이 던진다.
+  useEffect(() => {
+    if (!state.gameId || roster.length === 0) return;
+    dispatch({
+      type: 'SET_GRADE_SNAPSHOT',
+      grades: Object.fromEntries(roster.filter(m => m && m.name).map(m => [m.name, m.grade || ''])),
+    });
+  }, [roster, state.gameId, dispatch]);
 
   // 신규 경기면 메타를 세팅하고, 아니면 RTDB에서 복원한다.
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -89,11 +99,10 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     try {
       // 회원/용병 구분은 참석자 선택 시점에 확정된 state(attendees\guests)를 진실 소스로 삼는다.
       // (명부 재조회 roster는 로딩 실패·지연 시 비어 전원 게스트로 오기록되는 사고의 원인이었음.)
-      const memberSet = membersFromState(state, roster);
-      const gradeByPlayer = Object.fromEntries(roster.map(m => [m.name, m.grade]));
-      // 등급 스냅샷(grade_at_date)만 명부에 의존 — 명부가 비면 등급이 빠져 포인트가 어긋날 수 있으니 경고.
-      // (회원 구분은 attendees라 명부 없이도 정확. 포인트 자체는 저장 아닌 파생이라 나중 재계산됨.)
-      if (roster.length === 0 &&
+      // 등급은 경기 시작 때 박아둔 state.gradeSnapshot이 1순위 — 명부 로딩 실패와 무관해진다.
+      const { memberSet, gradeByPlayer, fromSnapshot } = resolveGradeSource(state, roster);
+      // 스냅샷도 명부도 없을 때만 경고 — 이때만 grade_at_date가 비어 포인트가 어긋날 수 있다.
+      if (!fromSnapshot && roster.length === 0 &&
           !confirm('회원 명부를 불러오지 못했습니다. 등급 정보가 비어 포인트가 어긋날 수 있어요. 그래도 전송할까요?')) {
         return;
       }
