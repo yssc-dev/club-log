@@ -2,6 +2,7 @@ import { describe, it, expect } from 'vitest';
 import {
   classifyAutoTarget, selectAutoTargets,
   ACTION_UPLOAD_ARCHIVE, ACTION_ARCHIVE_ONLY, ACTION_SKIP,
+  isSettled, MIN_IDLE_MS,
 } from '../autoUploadTargets';
 
 const st = (over) => ({ sport: '테니스', phase: 'summary', gameFinalized: false, ...over });
@@ -51,5 +52,33 @@ describe('selectAutoTargets', () => {
 
   it('빈 입력에도 안전하다', () => {
     expect(selectAutoTargets(undefined)).toEqual([]);
+  });
+});
+
+describe('isSettled — 편집 중인 경기 보호', () => {
+  const NOW = 1_800_000_000_000;
+
+  it('3시간이 지난 경기는 처리 대상이다', () => {
+    expect(isSettled(NOW - MIN_IDLE_MS - 1, NOW)).toBe(true);
+  });
+
+  it('정확히 3시간이면 처리 대상이다', () => {
+    expect(isSettled(NOW - MIN_IDLE_MS, NOW)).toBe(true);
+  });
+
+  it('방금 수정된 경기는 건드리지 않는다 (부활 레이스 차단)', () => {
+    expect(isSettled(NOW - 60_000, NOW)).toBe(false);
+  });
+
+  it('updatedAt이 없으면 건드리지 않는다', () => {
+    expect(isSettled(undefined, NOW)).toBe(false);
+  });
+
+  it('updatedAt이 숫자가 아니면 건드리지 않는다', () => {
+    expect(isSettled('1800000000000', NOW)).toBe(false);
+  });
+
+  it('미래 타임스탬프(클럭 스큐)면 건드리지 않는다', () => {
+    expect(isSettled(NOW + 60_000, NOW)).toBe(false);
   });
 });

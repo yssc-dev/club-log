@@ -17,7 +17,7 @@ import {
 import { nowKST } from '../src/utils/tennis/tennisTime.js';
 import { stripNameDecorations } from '../src/services/tennisSync.js';
 import {
-  selectAutoTargets, ACTION_UPLOAD_ARCHIVE,
+  selectAutoTargets, ACTION_UPLOAD_ARCHIVE, isSettled,
 } from '../src/utils/tennis/autoUploadTargets.js';
 
 const DB = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
@@ -141,9 +141,24 @@ async function processTeam(teamKey, teamName) {
   const raw = (await rtdb('GET', `games/${encodeURIComponent(teamKey)}/active`)) || {};
   const games = Object.keys(raw).map(gameId => ({
     gameId,
+    // meta.updatedAt은 reconstructState가 돌려주지 않으므로 raw에서 직접 꺼낸다(신선도 가드용).
+    updatedAt: raw[gameId] && raw[gameId].meta ? raw[gameId].meta.updatedAt : undefined,
     state: normalizeTennisMatch(reconstructState(gameId, raw[gameId])),
   }));
-  const targets = selectAutoTargets(games);
+  const nowMs = Date.now();
+  const targets = [];
+  for (const t of selectAutoTargets(games)) {
+    // 최근에 수정된 경기는 누군가 열어두고 편집 중일 수 있다. 지금 아카이브하면
+    // 그 클라이언트가 삭제를 모른 채 노드를 되살려 다음 실행에서 중복 업로드가 된다.
+    if (!isSettled(t.updatedAt, nowMs)) {
+      const age = typeof t.updatedAt === 'number'
+        ? `${Math.round((nowMs - t.updatedAt) / 60000)}분 전 수정`
+        : 'updatedAt 없음';
+      console.log(`  [skip] ${t.gameId} — ${age}. 편집 중일 수 있어 건드리지 않는다(다음 실행에서 재시도)`);
+      continue;
+    }
+    targets.push(t);
+  }
   console.log(`[${teamName}] 활성 ${games.length}건 · 처리 대상 ${targets.length}건`);
 
   for (const t of targets) {
