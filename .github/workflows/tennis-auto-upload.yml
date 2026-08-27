@@ -1,0 +1,43 @@
+name: Tennis Auto Upload
+
+# 마감된 테니스 경기를 시트 업로드 + 아카이브한다.
+# cron은 UTC 기준 — 01:00 UTC = 10:00 KST. GitHub Actions cron은 정시를 보장하지 않아
+# 실제로는 10:00~10:40 사이에 실행될 수 있다(설계 문서에서 허용된 오차).
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true면 아무것도 쓰지 않고 처리 대상만 출력한다"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tennis-auto-upload
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: 자동 업로드·아카이브 실행
+        env:
+          FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+          APPS_SCRIPT_URL: ${{ secrets.VITE_APPS_SCRIPT_URL }}
+          TENNIS_BOT_TOKEN: ${{ secrets.TENNIS_BOT_TOKEN }}
+          # 정기 실행은 실제 처리, 수동 실행은 입력값(기본 true=미리보기)을 따른다.
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.dry_run }}
+        run: npx vite-node scripts/tennisAutoUpload.mjs

@@ -33,6 +33,7 @@ const SAMPLE_TENNIS_STATE = {
   gameFinalized: false,
   viewingRoundIdx: 1,
   scoringRules: { tiebreakMode: '1point', acesDfAffectScore: true },
+  gradeSnapshot: { 선수A: '은배', 선수B: '동배' },
   rounds: [
     {
       roundIdx: 1,
@@ -103,6 +104,21 @@ describe('테니스 RTDB 동기화 — 왕복 테스트', () => {
     // normalize 체인 — reconstructState가 기본값을 땜질하지 않고 normalizeTennisMatch가 담당함을 검증
     const normalized = normalizeTennisMatch(result);
     expect(normalized.scoringRules).toEqual({ tiebreakMode: '1point', acesDfAffectScore: true });
+  });
+
+  it('gradeSnapshot이 왕복 후 보존돼야 한다 (사라지면 grade_at_date가 빈 채로 시트에 박힌다)', () => {
+    const expanded = expandStateForRtdb(SAMPLE_TENNIS_STATE);
+    // TENNIS_WHOLE_REPLACE_FIELDS에 등록되지 않으면 여기서 undefined가 된다
+    expect(expanded.gradeSnapshot).toEqual({ 선수A: '은배', 선수B: '동배' });
+    const result = reconstructState('game-test-1', expanded);
+    expect(result.gradeSnapshot).toEqual({ 선수A: '은배', 선수B: '동배' });
+    const normalized = normalizeTennisMatch(result);
+    expect(normalized.gradeSnapshot).toEqual({ 선수A: '은배', 선수B: '동배' });
+  });
+
+  it('gradeSnapshot이 없던 레거시 경기는 normalize 후 빈 객체가 된다', () => {
+    const result = reconstructState('game-test-1', expandStateForRtdb({ ...SAMPLE_TENNIS_STATE, gradeSnapshot: undefined }));
+    expect(normalizeTennisMatch(result).gradeSnapshot).toEqual({});
   });
 });
 

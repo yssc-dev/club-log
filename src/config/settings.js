@@ -30,6 +30,9 @@ export const SPORT_DEFAULTS = {
       gradeUpsetPerStep: false,
     },
     rosterSheet: '테니스_회원명부',
+    // 마감된 경기를 매일 오전 10시(KST) 자동으로 시트 업로드 + 아카이브할지.
+    // 팀 override로만 켠다 — SHARED_KEYS/TENNIS_KEYS에는 넣지 않는다(종목·팀 스코프 유지).
+    autoUpload: false,
     // 경기 스코어링 규칙. 경기 생성 시 이 값을 state.scoringRules로 스냅샷한다.
     scoringRules: {
       tiebreakMode: '7point',     // '7point'(5:5 노애드 7점) | '1point'(5:5 단판 데스)

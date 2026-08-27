@@ -297,3 +297,28 @@ describe('INIT_STATE', () => {
     expect(s.attendees).toEqual([]);
   });
 });
+
+describe('등급 스냅샷', () => {
+  it('SET_GRADE_SNAPSHOT이 명부 등급 맵을 저장한다', () => {
+    const s = tennisReducer(tennisInitialState, A('SET_GRADE_SNAPSHOT', { grades: { 성언: '은배', 다빈: '동배' } }));
+    expect(s.gradeSnapshot).toEqual({ 성언: '은배', 다빈: '동배' });
+  });
+
+  it('이미 스냅샷이 있으면 덮어쓰지 않는다 (경기 당일 등급 고정)', () => {
+    const s1 = tennisReducer(tennisInitialState, A('SET_GRADE_SNAPSHOT', { grades: { 성언: '은배' } }));
+    const s2 = tennisReducer(s1, A('SET_GRADE_SNAPSHOT', { grades: { 성언: '금배' } }));
+    expect(s2.gradeSnapshot).toEqual({ 성언: '은배' });
+    expect(s2).toBe(s1);
+  });
+
+  it('빈 맵은 무시한다 (명부 로딩 실패를 스냅샷으로 굳히지 않는다)', () => {
+    const s = tennisReducer(tennisInitialState, A('SET_GRADE_SNAPSHOT', { grades: {} }));
+    expect(s).toBe(tennisInitialState);
+  });
+
+  it('마감된 경기(phase done)에는 쓰지 않는다 (지나간 기록을 오늘 등급으로 덮지 않는다)', () => {
+    const done = { ...tennisInitialState, phase: 'done' };
+    const s = tennisReducer(done, A('SET_GRADE_SNAPSHOT', { grades: { 성언: '은배' } }));
+    expect(s).toBe(done);
+  });
+});

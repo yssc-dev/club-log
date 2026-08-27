@@ -23,7 +23,7 @@ export const WHOLE_REPLACE_FIELDS = [
 // confirmedRounds는 풋살/축구도 쓰는 공유 필드지만, 풋살 CHILD_NODE 경로와 별개로
 // 테니스 통짜 저장(saveState)에도 포함돼야 해 여기 둔다(풋살 동기화엔 무영향).
 export const TENNIS_WHOLE_REPLACE_FIELDS = [
-  'rounds', 'guests', 'confirmedRounds', 'scoringRules',
+  'rounds', 'guests', 'confirmedRounds', 'scoringRules', 'gradeSnapshot',
 ];
 
 // 자식 노드 단위로 diff/동기화되는 필드 (META/WHOLE_REPLACE 외). diffStateToWrites 의 개별 분기와 1:1.
@@ -375,6 +375,8 @@ export function reconstructState(gameId, raw) {
     rounds: raw.rounds,
     guests: raw.guests,
     scoringRules: raw.scoringRules,
+    // 등급 스냅샷 — 테니스 전용. 풋살/축구 state에는 undefined로 남아 무영향(rounds/guests와 같은 패턴).
+    gradeSnapshot: raw.gradeSnapshot,
     // ★ confirmedRounds는 풋살/축구/테니스 공유 필드다. 풋살은 normalizeTennisMatch를
     //   거치지 않으므로 여기서 기본값을 보장해야 한다. 라운드 확정을 전부 취소하면
     //   Firebase가 노드를 삭제해 raw.confirmedRounds === undefined가 되는데, 그대로 두면

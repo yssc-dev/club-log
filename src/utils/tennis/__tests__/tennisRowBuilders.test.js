@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import {
-  determineCompetition, buildTennisMatchRows, buildTennisPlayerGameRows, membersFromState,
+  determineCompetition, buildTennisMatchRows, buildTennisPlayerGameRows, membersFromState, resolveGradeSource,
 } from '../tennisRowBuilders';
 import { TENNIS_MATCH_COLUMNS, TENNIS_PLAYER_GAME_COLUMNS } from '../tennisSchema';
 
@@ -209,5 +209,33 @@ describe('input_by', () => {
 
   it('inputBy 미전달 시 빈 문자열', () => {
     expect(buildTennisMatchRows({ team: 'T', state, inputTime: '', memberSet: new Set() })[0].input_by).toBe('');
+  });
+});
+
+describe('resolveGradeSource', () => {
+  const base = { attendees: ['성언', '다빈', '민환'], guests: ['민환'] };
+
+  it('스냅샷이 있으면 명부를 보지 않는다', () => {
+    const st = { ...base, gradeSnapshot: { 성언: '은배', 다빈: '동배' } };
+    const r = resolveGradeSource(st, [{ name: '성언', grade: '금배' }]);   // 명부는 다른 등급
+    expect(r.fromSnapshot).toBe(true);
+    expect(r.gradeByPlayer).toEqual({ 성언: '은배', 다빈: '동배' });
+  });
+
+  it('스냅샷이 없으면 명부에서 등급 맵을 만든다', () => {
+    const r = resolveGradeSource(base, [{ name: '성언', grade: '은배' }, { name: '다빈', grade: '동배' }]);
+    expect(r.fromSnapshot).toBe(false);
+    expect(r.gradeByPlayer).toEqual({ 성언: '은배', 다빈: '동배' });
+  });
+
+  it('스냅샷 이름이 membersFromState 교정에 쓰인다 — 용병칸에 잘못 넣은 회원을 되살린다', () => {
+    const st = { attendees: ['성언', '민환'], guests: ['민환'], gradeSnapshot: { 성언: '은배', 민환: '동배' } };
+    expect(resolveGradeSource(st, []).memberSet.has('민환')).toBe(true);
+  });
+
+  it('스냅샷도 명부도 없으면 등급은 비고 회원은 attendees\\guests 그대로다', () => {
+    const r = resolveGradeSource(base, []);
+    expect(r.gradeByPlayer).toEqual({});
+    expect([...r.memberSet].sort()).toEqual(['다빈', '성언']);
   });
 });

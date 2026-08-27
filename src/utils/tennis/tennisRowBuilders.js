@@ -17,6 +17,27 @@ export function membersFromState(state, roster) {
   return new Set(((state && state.attendees) || []).filter(n => !guests.has(n) || rosterNames.has(n)));
 }
 
+// 등급·회원 판정의 단일 출처. 앱(handleSubmitRecords)과 자동 러너가 같은 규칙을 쓰게 한다.
+// 스냅샷(state.gradeSnapshot)이 있으면 명부를 보지 않는다 — 업로드 시점의 명부 조회 의존 제거.
+// 스냅샷은 참석자가 아니라 '명부 전체'를 담으므로 membersFromState의 교정 인자로도 그대로 쓸 수 있다.
+export function resolveGradeSource(state, roster) {
+  const snap = (state && state.gradeSnapshot) || {};
+  const fromSnapshot = Object.keys(snap).length > 0;
+  if (fromSnapshot) {
+    return {
+      fromSnapshot: true,
+      gradeByPlayer: snap,
+      memberSet: membersFromState(state, Object.keys(snap).map(name => ({ name }))),
+    };
+  }
+  const list = (roster || []).filter(m => m && m.name);
+  return {
+    fromSnapshot: false,
+    gradeByPlayer: Object.fromEntries(list.map(m => [m.name, m.grade || ''])),
+    memberSet: membersFromState(state, list),
+  };
+}
+
 // 리그 성립 = 참가자 전원이 회원일 때만. 게스트가 1명이라도 끼면 번외(미반영).
 // 그래야 전체경기 = 투몽 + 길로틴 + 번외 로 합계가 맞아떨어진다.
 export function determineCompetition(format, sideA, sideB, memberSet) {

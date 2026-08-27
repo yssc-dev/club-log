@@ -355,6 +355,23 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
                 options={[[false, '분석 전용'], [true, '점수 반영']]}
                 value={settings.scoringRules?.acesDfAffectScore ?? false}
                 onPick={(v) => update('scoringRules', { ...(settings.scoringRules || {}), acesDfAffectScore: v })} />
+              <div className="app-row">
+                <div style={ss.row}>
+                  <label style={ss.label}>
+                    <input type="checkbox"
+                      checked={!!settings.autoUpload}
+                      onChange={e => update('autoUpload', e.target.checked)}
+                      style={{ marginRight: 8, accentColor: "var(--app-blue)" }} />
+                    마감 경기 자동 업로드·아카이브<SourceBadge k="autoUpload" />
+                  </label>
+                </div>
+              </div>
+              <div className="app-row" style={{ padding: "0 16px 8px" }}>
+                <span style={ss.hint}>
+                  매일 오전 10시경, "경기 마감"까지 누른 경기만 시트 전송 후 아카이브합니다.
+                  진행 중·미마감 경기는 건드리지 않습니다.
+                </span>
+              </div>
             </>
           ) : (
             <>
