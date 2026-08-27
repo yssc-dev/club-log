@@ -74,5 +74,6 @@ export function normalizeTennisMatch(state) {
     rounds,
     confirmedRounds: normalizeConfirmedRounds(state.confirmedRounds),
     scoringRules: normalizeScoringRules(state.scoringRules),
+    gradeSnapshot: (state.gradeSnapshot && typeof state.gradeSnapshot === 'object') ? state.gradeSnapshot : {},
   };
 }

@@ -21,6 +21,7 @@ export const tennisInitialState = {
   gameCreator: '',
   confirmedRounds: {},
   scoringRules: normalizeScoringRules({}),
+  gradeSnapshot: {},
   gameFinalized: false,
 };
 
@@ -103,6 +104,16 @@ export function tennisReducer(state, action) {
     case 'SET_SCORING_RULES':
       if (state.phase !== 'setup') return state;   // 경기 시작 후 고정
       return { ...state, scoringRules: normalizeScoringRules(action.rules) };
+
+    // 명부 등급 스냅샷 — 참석자 선택 시점에 손에 있는 등급을 state에 고정한다.
+    // 시트의 grade_at_date가 나중의 명부 재조회에 의존하지 않게 하는 단일 지점.
+    case 'SET_GRADE_SNAPSHOT': {
+      const grades = action.grades || {};
+      if (Object.keys(grades).length === 0) return state;                    // 명부 로딩 실패를 굳히지 않는다
+      if (Object.keys(state.gradeSnapshot || {}).length > 0) return state;   // 최초 1회만 — 당일 등급 고정
+      if (state.phase === 'done') return state;                              // 마감된 기록은 손대지 않는다
+      return { ...state, gradeSnapshot: grades };
+    }
 
     case 'ADD_ATTENDEE': {
       if (!action.name || state.attendees.includes(action.name)) return state;
