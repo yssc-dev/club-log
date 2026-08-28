@@ -34,15 +34,27 @@ export default function TennisTabs({ activeTab, pendingGames, onStartGame, onCon
         <div style={{ marginTop: 14 }}>
           {pendingGames.length === 0
             ? <div style={{ color: C.gray, fontSize: 13, textAlign: 'center', padding: 20 }}>진행중인 경기가 없습니다</div>
-            : pendingGames.map(g => (
-              <button key={g.gameId} onClick={() => onContinueGame(g.gameId)}
-                style={{ ...ds.card, display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.borderColor}` }}>
-                <div style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{g.state?.gameDate || '-'}</div>
-                <div style={{ fontSize: 12, color: C.gray, marginTop: 3 }}>
-                  {g.state?.gameCreator || g.state?.lastEditor || '알 수 없음'} · {(g.state?.rounds || []).length}라운드 · 참석 {(g.state?.attendees || []).length}명
-                </div>
-              </button>
-            ))}
+            : pendingGames.map(g => {
+              const isFinalized = g.state?.gameFinalized === true;
+              const isSummary = g.state?.phase === 'summary';
+              return (
+                <button key={g.gameId} onClick={() => onContinueGame(g.gameId)}
+                  style={{ ...ds.card, display: 'block', width: '100%', textAlign: 'left', cursor: 'pointer', border: `1px solid ${C.borderColor}` }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 4, flexWrap: 'wrap' }}>
+                    <span style={{ fontSize: 14, color: C.white, fontWeight: 600 }}>{g.state?.gameDate || '-'}</span>
+                    {isFinalized
+                      ? <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'rgba(52,199,89,0.15)', color: 'var(--app-green)', fontWeight: 500 }}>전송완료</span>
+                      : isSummary
+                        ? <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'rgba(255,149,0,0.15)', color: 'var(--app-orange)', fontWeight: 500 }}>마감됨</span>
+                        : <span style={{ fontSize: 11, padding: '1px 6px', borderRadius: 4, background: 'rgba(52,199,89,0.15)', color: 'var(--app-green)', fontWeight: 500 }}>진행중</span>
+                    }
+                  </div>
+                  <div style={{ fontSize: 12, color: C.gray }}>
+                    {g.state?.gameCreator || g.state?.lastEditor || '알 수 없음'} · {(g.state?.rounds || []).length}라운드 · 참석 {(g.state?.attendees || []).length}명
+                  </div>
+                </button>
+              );
+            })}
         </div>
         {onViewHistory && (
           <button onClick={onViewHistory}
