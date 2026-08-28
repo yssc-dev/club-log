@@ -15,7 +15,7 @@ export const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 export function guestCountByMatch(rows) {
   const counts = new Map();
   for (const r of rows || []) {
-    if (r && r.is_guest === true) {
+    if (r && r.match_id && r.is_guest === true) {   // match_id 없는 행은 키 충돌 방지를 위해 무시(buildLeagueCounts와 동일)
       const k = matchKey(r);
       counts.set(k, (counts.get(k) || 0) + 1);
     }

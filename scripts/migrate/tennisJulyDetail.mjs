@@ -17,7 +17,7 @@ import { TENNIS_SPORT } from '../../src/utils/tennis/tennisSchema.js';
 const DOUBLES = [ // {date,a1,a2,b1,b2,scoreA,scoreB}
   { date: '2026-07-24', a1: '성언', a2: '현철', b1: '상국', b2: '재민', scoreA: 6, scoreB: 4 },
   { date: '2026-07-24', a1: '성언', a2: '상국', b1: '재민', b2: '현철', scoreA: 6, scoreB: 5 },
-  { date: '2026-07-27', a1: '성언', a2: '두리', b1: '승환', b2: '상국', scoreA: 5, scoreB: 6 }, // 두리=게스트→번외
+  { date: '2026-07-27', a1: '성언', a2: '두리', b1: '승환', b2: '상국', scoreA: 5, scoreB: 6 }, // 두리=게스트 1명·회원 3명 → 투몽(규정, 2026-08-28 복원)
   { date: '2026-07-27', a1: '승환', a2: '성환', b1: '다빈', b2: '두리', scoreA: 6, scoreB: 2 },
   { date: '2026-07-27', a1: '성환', a2: '다빈', b1: '상국', b2: '두리', scoreA: 6, scoreB: 2 },
   { date: '2026-07-29', a1: '성언', a2: '상국', b1: '철우', b2: '재민', scoreA: 6, scoreB: 4 },

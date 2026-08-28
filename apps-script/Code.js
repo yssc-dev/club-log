@@ -3148,9 +3148,12 @@ function _relabelTennisLeague(team, data) {
   if (!team || !String(team).trim()) return { success: false, error: "team 필수" };
   var items = (data && data.items) || [];
   if (!items.length) return { success: false, error: "items 누락" };
+  if (items.length > 500) return { success: false, error: "items 최대 500건" };   // 6분 타임아웃·잠금 점유 방지
   var ALLOWED = { "투몽": 1, "길로틴": 1, "미반영": 1 };
   for (var k = 0; k < items.length; k++) {
-    if (!ALLOWED[items[k].league]) return { success: false, error: "허용되지 않는 league 값: " + items[k].league };
+    var item = items[k];
+    if (!item || typeof item !== "object") return { success: false, error: "items[" + k + "] 형식 오류" };
+    if (!ALLOWED[item.league]) return { success: false, error: "허용되지 않는 league 값: " + item.league };
   }
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(15000)) return { success: false, error: "잠금 획득 실패" };
@@ -3176,6 +3179,7 @@ function _relabelTennisLeague(team, data) {
           if (String(row[iGame]) !== String(it.game_id) || String(row[iMatch]) !== String(it.match_id)) continue;
           if (String(row[iLeague]) === String(it.league)) continue;
           sheet.getRange(i + 2, iLeague + 1).setValue(it.league);
+          row[iLeague] = it.league;   // 인메모리 값 동기화 — 같은 판이 items에 중복돼도 카운트가 정확
           updated[sheetName]++;
         }
       }

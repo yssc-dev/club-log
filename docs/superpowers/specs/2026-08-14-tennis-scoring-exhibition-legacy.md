@@ -16,6 +16,7 @@
 ## B. 번외경기 (게스트 분리)
 
 > **⚠️ 정정 (2026-08-28):** 이 절의 "게스트 1명이라도 끼면 번외" 규칙은 몽피스 회원 규정 및 원 스펙(2026-08-06 §4.4)과 어긋난 것으로 확인돼 되돌렸다. 규정: **단식리그(길로틴) = 회원끼리만 / 복식리그(투몽) = 회원 3명 이상 참여 시 성립**. 규칙은 `src/utils/tennis/leagueRule.js` 한 곳(`leagueForComposition`·`isLeagueByGuests`)에 두고, 기록 시점(`determineCompetition`)과 분석 시점(`isLeagueRow`·`buildLeagueCounts`·순위표·개인 전적·선수 성적표)이 공유한다. 분석은 시트 `league` 라벨이 아니라 **참가자 구성(게스트 수)** 으로 판정한다 — 8-14~28 사이 앱이 '미반영'으로 저장한 복식 10판(회원 3+게스트 1)은 Apps Script `relabelTennisLeague`로 라벨을 투몽으로 정정. 실측(2026-08-28): 회원 3+게스트 1 복식 129판이 잘못 번외 처리되고 있었음(전체 복식의 25%).
+> 복원 커밋 리뷰(3렌즈 적대적, Critical/Important 0): 반영 — Apps Script 인메모리 동기화·items 요소 검증·배치 상한 500, `guestCountByMatch` match_id 가드, 마이그레이션 주석. 기록만 — `leagueDerivation.singlesWinRatesBefore`는 여전히 라벨(길로틴) 필터(실데이터 단식은 라벨·구성 일치라 무영향, 추후 SSOT 통일 후보), `_checkTeamAccess`의 빈 team 통과는 기존 패턴(액션 내부 가드로 방어), stale worktree `tennis-league`에 옛 `guestMatchKeys` 잔존(main 무관).
 
 
 **규칙:** 참가자 **전원 회원**이면 리그(투몽/길로틴), **게스트 1명이라도** 끼면 **번외**. 전체 = 투몽 + 길로틴 + 번외.
