@@ -118,3 +118,11 @@ RTDB 스키마, 자동 업로드 판정, 목록 배지, 풋살·축구는 **무�
 - **D 보안/권한**: D1 `done→playing` 리듀서 구멍(Important) → 가드 추가. D2 비관리자 마감 취소 + 탭바 노출(Important) → 확인창 추가(권한은 기존과 동일하게 회원 전체 — 유저 확인 항목). D3 RTDB rules 저장소 부재(Minor) → 범위 밖, 기록만.
 - **E 회귀**: E1 기존 SET_PHASE 테스트 파손(Important) → 테스트 갱신 명시. E2 = A1.
 - 반박/기각: 없음(모든 지적이 코드 인용과 일치). 중복: A1=B3=C4=E2, B1≈C1.
+
+## 코드 적대적 리뷰 로그 (2026-08-28, diff 1cb9de7..a5f7182, 5렌즈 병렬, 조작 근거 0건) — 판정 PASS
+
+- **A 정합성**: Minor 1 — `phase==='done'`인데 `gameFinalized`가 false인 손상 데이터에서만 "← 경기로 돌아가기"가 보이되 무동작. 정상 흐름(FINALIZE가 두 필드를 원자적으로 설정)에선 도달 불가 → 기록만.
+- **B 요구사항/범위**: 공격 지점 없음(파일 범위·요구사항 1~7 전부 대조).
+- **C 단순화**: Minor 1 — `canFinish`가 closed에서도 평가됨(미사용, 비용 무시 수준) → 기록만. `SET_PHASE playing` 리듀서 분기는 구버전 탭 호환·테스트용으로 유지(죽은 코드 아님) 확인.
+- **D 보안/권한**: Minor 1 — 봇이 아카이브(active DELETE)한 직후 열려 있던 탭이 확정취소를 누르면 `saveState`가 active 노드를 playing으로 되살림. **반박(기존 경로)**: 구버전(1cb9de7) 마감 화면의 "마감 해제"도 `SET_PHASE playing` → `saveState`로 동일하게 되살렸고, 열린 탭의 어떤 dispatch든 같은 결과(TennisApp이 RTDB를 구독하지 않는 기존 한계, 메모리에 기록됨). 이 diff가 새로 만든 위험 아님. 근본 해결(로드 시 `finalized/_meta` 존재 확인 → 아카이브된 경기 편집 차단)은 별도 백로그.
+- **E 회귀**: 공격 지점 없음. 멀티기기 overwrite·구/신버전 혼재·리로드 복원·skipFirst 쓰기·done 경로 전부 추적, 1497/1497 통과 재확인.
