@@ -61,6 +61,19 @@ describe('정렬 원칙: 승수↓→승률↓ (의뢰인 요구)', () => {
   });
 });
 
+describe('buildDoublesStandings 순위 기준', () => {
+  it('승률↓→승수↓ (이름 제외): 1승 100%가 3승 60%보다 앞, 동률은 명부 순서 유지', () => {
+    const roster5 = [{ name: '정' }, { name: '병' }, { name: '을' }, { name: '갑' }, { name: '무' }];
+    const rows = [
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),
+      ...[1, 1, 0, 0].flatMap(w => doublesMatch({ a: ['을', '무'], b: ['병', '정'], guests: [], winner: w ? 'A' : 'B' })),
+    ];
+    // 갑 1-0(100%), 을 3-2(60%), 무 2-2(50%), 병·정 2-3(40%)
+    const out = buildDoublesStandings({ rows, roster: roster5 });
+    expect(out.map(x => x.name)).toEqual(['갑', '을', '무', '정', '병']);   // 병·정 동률 → 명부 순서(정, 병)
+  });
+});
+
 describe('buildLeagueCounts', () => {
   it('판 분류 수 — 전체 = 투몽 + 길로틴 + 번외', () => {
     const rows = [

@@ -5,10 +5,12 @@ import { isLeagueByGuests } from './leagueRule';
 const isDoubles = (r) => r.format === '복식';
 const memberNames = (roster) => new Set((roster || []).map(m => m.name));
 const rate = (w, g) => (g > 0 ? w / g : 0);
-// 순위 정렬 공통: 승수↓ → 승률↓ → 이름(ko). 복식 순위표·선수 성적표가 공유.
-// (의뢰인 요구 2026-08-28: 모든 순위 지표는 승률보다 승수 우선)
+// 선수 성적표·페어 표 정렬: 승수↓ → 승률↓ → 이름(ko) (의뢰인 요구: 지표 표는 다승 우선).
 const byWinsRateName = (a, b) =>
   b.wins - a.wins || b.rate - a.rate || String(a.name).localeCompare(String(b.name), 'ko');
+// 리그 순위표(투몽·길로틴) 정렬: 승률↓ → 승수↓, 이름은 기준에서 제외(동률은 명부 순서 유지 — 안정 정렬).
+// (유저 확정 2026-08-28: "단식·복식 순위 기준 = 승률, 승수 (이름 제외)")
+export const byRateWins = (a, b) => b.rate - a.rate || b.wins - a.wins;
 // 판 식별 키 — game_id + match_id (match_id는 R{round}_C{court}라 날짜 넘어 재사용됨).
 export const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 
@@ -63,7 +65,7 @@ export function buildPlayerReportCard({ rows, leagueOnly = false, format } = {})
   return [...acc.values()].sort(byWinsRateName);
 }
 
-// 복식 순위표: 투몽 성립 판(회원 3명 이상)의 회원 행만, 명부 전원 포함(0판도 표시)
+// 복식 순위표: 투몽 성립 판(회원 3명 이상)의 회원 행만, 명부 전원 포함(0판도 표시). 순위 = 승률↓→승수↓.
 export function buildDoublesStandings({ rows, roster }) {
   const acc = new Map((roster || []).filter(m => m?.name).map(m =>
     [m.name, { name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0 }]));
@@ -76,7 +78,7 @@ export function buildDoublesStandings({ rows, roster }) {
     if (r.result === '승') cur.wins++; else if (r.result === '패') cur.losses++;
     cur.rate = rate(cur.wins, cur.games);
   }
-  return [...acc.values()].sort(byWinsRateName);
+  return [...acc.values()].sort(byRateWins);
 }
 
 // 판(game_id|match_id) 단위 분류 수. 전체 = 투몽 + 길로틴 + 번외.

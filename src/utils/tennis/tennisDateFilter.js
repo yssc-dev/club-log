@@ -55,7 +55,7 @@ export function aggregateLegacySingles(legacyRows, years) {
 }
 
 // 레거시 연도 클럽 순위(집계). legacy 필드: player·season·format·wins·losses(확인됨).
-// 정렬: 단식(길로틴)은 승률↓→승수↓→이름(리그 탭과 동일), 복식은 승수↓→승률↓→이름(의뢰인 요구).
+// 정렬: 승률↓→승수↓(단식·복식 공통, 리그 탭과 동일). 이름은 기준 제외.
 export function buildLegacyStandings({ legacyRows, year, format }) {
   const acc = new Map();
   for (const r of legacyRows || []) {
@@ -69,7 +69,5 @@ export function buildLegacyStandings({ legacyRows, year, format }) {
   return [...acc.values()]
     .map(p => ({ ...p, games: p.wins + p.losses, rate: (p.wins + p.losses) ? p.wins / (p.wins + p.losses) : 0 }))
     .filter(p => p.games > 0)
-    .sort(format === '단식'
-      ? (a, b) => b.rate - a.rate || b.wins - a.wins || a.name.localeCompare(b.name, 'ko')
-      : (a, b) => b.wins - a.wins || b.rate - a.rate || a.name.localeCompare(b.name, 'ko'));
+    .sort((a, b) => b.rate - a.rate || b.wins - a.wins);
 }

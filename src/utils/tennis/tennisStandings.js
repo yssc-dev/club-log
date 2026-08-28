@@ -1,6 +1,6 @@
 // 로그_테니스선수경기 행 → 단식 순위표 / 개인 전적 요약.
-// 길로틴(단식) 순위는 승률↓→승수↓→이름으로 매기고(스펙 4.5, 순위 연동 포인트·티어 제도 때문에 유지 — 유저 결정 2026-08-28)
-// 포인트는 별도 컬럼으로 적립한다. ※ 복식·페어 등 다른 순위는 승수 우선(의뢰인 요구)이나 길로틴은 예외.
+// 길로틴(단식) 순위는 승률↓→승수↓로 매기고(이름은 기준 제외, 동률은 명부 순서 — 유저 확정 2026-08-28) 포인트는 별도 컬럼으로 적립한다.
+// 복식 순위표도 같은 기준(tennisAnalytics.byRateWins). 페어·파트너·성적표 등 지표 표는 다승 우선.
 
 import { COMPETITION_SINGLES } from './tennisSchema';
 import { deriveLeagueForDate, singlesWinRatesBefore } from './leagueDerivation';
@@ -9,7 +9,7 @@ import { matchKey, guestCountByMatch, isLeagueRow } from './tennisAnalytics';
 
 
 // legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — W/L(승률)에만 가산, 포인트 불가.
-// sortBy: 'rate'(기본, 승률↓→승수↓→이름 = 길로틴 순위) | 'points'(포인트↓→승률↓→승수↓→이름, 개인지표 포인트 조회용)
+// sortBy: 'rate'(기본, 승률↓→승수↓ = 길로틴 순위) | 'points'(포인트↓→승률↓→승수↓, 개인지표 포인트 조회용). 이름은 기준 제외.
 export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate', legacySingles = [], seedOrder = [] }) {
   const list = (roster || []).filter(m => m && m.name);
   const acc = new Map(list.map(m => [m.name, {
@@ -87,10 +87,9 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
   }
 
   const finalLeague = deriveLeagueForDate({ rows: singles, dateISO: asOfDate, roster: list, seedOrder, seasonAggregate: legacySingles });
-  const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'ko');
   const cmp = sortBy === 'points'
-    ? (a, b) => b.points - a.points || b.rate - a.rate || b.wins - a.wins || byName(a, b)
-    : (a, b) => b.rate - a.rate || b.wins - a.wins || byName(a, b);
+    ? (a, b) => b.points - a.points || b.rate - a.rate || b.wins - a.wins
+    : (a, b) => b.rate - a.rate || b.wins - a.wins;
   return [...acc.values()]
     .map(x => ({ ...x, leagueTier: finalLeague[x.name] }))
     .sort(cmp);

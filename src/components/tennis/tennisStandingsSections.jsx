@@ -13,14 +13,14 @@ export function DoublesStandingsSection({ standings, periodLabel, ds, C }) {
     record: { accessor: s => s.wins, type: 'num' },
     rate:   { accessor: s => s.rate, type: 'num' },
   }), []);
-  // #는 입력 순서 등수(승수순) — 정렬로 행이 섞여도 각 선수의 등수는 유지된다.
+  // #는 입력 순서 등수(승률↓→승수↓) — 정렬로 행이 섞여도 각 선수의 등수는 유지된다.
   const ranked = useMemo(() => standings.map((s, i) => ({ ...s, _rank: i + 1 })), [standings]);
   const { sorted, sort, onSort } = useSortableRows(ranked, cols);
   if (!standings.length) return null;
   return (
     <>
       <div style={ds.sectionTitle}>복식 순위 (투몽){periodLabel ? ` · ${periodLabel}` : ''}</div>
-      <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 8px' }}>순위 기준: 승수 ↓ → 승률 ↓ → 이름 · 회원 3명 이상 참여한 판만 집계</div>
+      <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 8px' }}>순위 기준: 승률 ↓ → 승수 ↓ · 회원 3명 이상 참여한 판만 집계</div>
       <div style={ds.card}>
         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
           <thead>
@@ -66,7 +66,7 @@ export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
   return (
     <>
       <div style={ds.sectionTitle}>길로틴리그 (단식){periodLabel ? ` · ${periodLabel}` : ''}</div>
-      <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 8px' }}>순위 기준: 승률 ↓ → 승수 ↓ → 이름 · 회원끼리 붙은 판만 집계 · P = 포인트(순위와 별개 누적)</div>
+      <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 8px' }}>순위 기준: 승률 ↓ → 승수 ↓ · 회원끼리 붙은 판만 집계 · P = 포인트(순위와 별개 누적)</div>
       <div style={ds.card}>
         <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
           <thead>
@@ -107,7 +107,7 @@ export function LegacyStandingsSection({ standings, year, format, ds, C }) {
   return (
     <>
       <div style={ds.sectionTitle}>{year}년 {format} 순위 (집계)</div>
-      <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 8px' }}>순위 기준: {format === '단식' ? '승률 ↓ → 승수 ↓ → 이름' : '승수 ↓ → 승률 ↓ → 이름'}</div>
+      <div style={{ fontSize: 11, color: C.gray, margin: '-4px 0 8px' }}>순위 기준: 승률 ↓ → 승수 ↓</div>
       {standings.length === 0 ? (
         <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
       ) : (
