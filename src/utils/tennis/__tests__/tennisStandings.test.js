@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { buildSinglesStandings, buildPlayerSummary } from '../tennisStandings';
-import { LEAGUE_BK } from '../tennisSchema';
+import { LEAGUE_TOUR } from '../tennisSchema';
 
 const pg = (o) => ({
   player: 'x', date: '2026-03-01', format: '단식', league: '길로틴', result: '승',
@@ -51,7 +51,7 @@ describe('buildSinglesStandings', () => {
 
   it('리그 배치가 붙는다', () => {
     const s = buildSinglesStandings({ rows: [], roster, asOfDate: '2026-12-31' });
-    expect(s[0].leagueTier).toBe(LEAGUE_BK);
+    expect(s[0].leagueTier).toBe(LEAGUE_TOUR);
   });
 
   it('포인트가 누적된다 — 같은 판의 양쪽 행을 짝지어 계산', () => {
@@ -65,8 +65,8 @@ describe('buildSinglesStandings', () => {
     expect(s.find(x => x.name === 'b').points).toBe(0);
   });
 
-  it("sortBy로 rate/points 정렬이 갈린다 — 다른 순서를 만든다", () => {
-    // 모두 같은 날(2026-03-01, pg 기본) → 사전승률 없음 → 전원 흑기사, 리그/승률 업셋 미발동.
+  it("sortBy로 wins/points 정렬이 갈린다 — 다른 순서를 만든다", () => {
+    // 모두 같은 날(2026-03-01, pg 기본) → 사전승률 없음 → 전원 투어리그, 리그/승률 업셋 미발동.
     // 그래서 포인트는 기본승 + 등급업셋만.
     // a(은배)가 b(동배)를 2번 이김: 등급업셋 없음(2<1 거짓) → a 2점, 승률 2/3.
     // b(동배)가 a(은배)를 1번 이김: 하위등급이 상위 이김(1<2 참) → b 1+5=6점, 승률 1/3.
@@ -79,7 +79,7 @@ describe('buildSinglesStandings', () => {
       pg({ player: 'b', result: '승', grade_at_date: '동배', match_id: 'R1_C3', side: 'A' }),
       pg({ player: 'a', result: '패', grade_at_date: '은배', match_id: 'R1_C3', side: 'B' }),
     ];
-    // 기본(rate): a(0.667) > b(0.333)
+    // 기본(wins): a 2승 > b 1승
     const byRate = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31' });
     expect(byRate.map(x => x.name)).toEqual(['a', 'b']);
     // points: b(6) > a(2) — rate와 반대 순서

@@ -6,7 +6,7 @@ function countMatches(rows) {
   return new Set((rows || []).filter(r => r.match_id).map(r => `${r.game_id || ''}|${r.match_id}`)).size;
 }
 
-// 클럽 이번달 요약: 경기수·경기일·최다출전·핫플레이어(회원=비게스트).
+// 클럽 이번달 요약: 경기수·경기일·최다출전·핫플레이어(이달 다승 1위, 3경기↑ 회원=비게스트; 승수↓→승률↓→판수↓).
 export function buildMonthSummary({ rows, month }) {
   const inMonth = (rows || []).filter(r => (r.date || '').slice(0, 7) === month);
   const matches = countMatches(inMonth);
@@ -26,7 +26,7 @@ export function buildMonthSummary({ rows, month }) {
   const hotPlayer = players
     .filter(p => p.games >= 3)
     .map(p => ({ ...p, rate: p.games ? p.wins / p.games : 0 }))
-    .sort((a, b) => b.rate - a.rate || b.games - a.games)[0] || null;
+    .sort((a, b) => b.wins - a.wins || b.rate - a.rate || b.games - a.games)[0] || null;
 
   return { month, matches, days, topAttender, hotPlayer, playerCount: players.length };
 }

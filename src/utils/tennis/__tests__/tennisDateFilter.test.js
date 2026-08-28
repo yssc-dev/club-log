@@ -38,7 +38,7 @@ describe('filterRowsByPeriod', () => {
   it('다른 연도 제외', () => { expect(filterRowsByPeriod(rows, { year: '2025', month: '' })).toHaveLength(0); });
 });
 describe('buildLegacyStandings', () => {
-  it('연도+format 집계·정렬(승률↓)', () => {
+  it('연도+format 집계·정렬(승수↓→승률↓)', () => {
     const s = buildLegacyStandings({ legacyRows: legacy, year: '2025', format: '복식' });
     expect(s.map(x => x.name)).toEqual(['A', 'B']);   // A 10/15=0.67 > B 3/10=0.3
     expect(s[0]).toMatchObject({ name: 'A', wins: 10, losses: 5, games: 15 });

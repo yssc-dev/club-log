@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { calcMatchPoints, DEFAULT_POINT_RULES } from '../rankPoints';
-import { LEAGUE_BK, LEAGUE_BR } from '../tennisSchema';
+import { LEAGUE_TOUR, LEAGUE_CHALLENGER } from '../tennisSchema';
 
 const p = (over = {}) => ({
-  name: 'x', grade: '동배', leagueTier: LEAGUE_BK, winRate: 0.5, isGuest: false, ...over,
+  name: 'x', grade: '동배', leagueTier: LEAGUE_TOUR, winRate: 0.5, isGuest: false, ...over,
 });
 const ctx = (over = {}) => ({
   format: '단식', league: '길로틴', winner: p(), loser: p({ name: 'y' }), ...over,
@@ -28,8 +28,8 @@ describe('기본', () => {
 describe('승률 역전 (+2)', () => {
   it('같은 리그에서 승률 낮은 쪽이 이기면 1+2', () => {
     expect(calcMatchPoints(ctx({
-      winner: p({ winRate: 0.2, leagueTier: LEAGUE_BK }),
-      loser: p({ name: 'y', winRate: 0.9, leagueTier: LEAGUE_BK }),
+      winner: p({ winRate: 0.2, leagueTier: LEAGUE_TOUR }),
+      loser: p({ name: 'y', winRate: 0.9, leagueTier: LEAGUE_TOUR }),
     }))).toBe(3);
   });
 
@@ -41,8 +41,8 @@ describe('승률 역전 (+2)', () => {
 
   it('리그가 다르면 +2는 걸리지 않는다 (상호 배타)', () => {
     const got = calcMatchPoints(ctx({
-      winner: p({ winRate: 0.2, leagueTier: LEAGUE_BK }),
-      loser: p({ name: 'y', winRate: 0.9, leagueTier: LEAGUE_BR }),
+      winner: p({ winRate: 0.2, leagueTier: LEAGUE_TOUR }),
+      loser: p({ name: 'y', winRate: 0.9, leagueTier: LEAGUE_CHALLENGER }),
     }));
     expect(got).toBe(1); // 기사가 장미를 이긴 것 — 역전 아님
   });
@@ -51,15 +51,15 @@ describe('승률 역전 (+2)', () => {
 describe('리그 역전 (+3)', () => {
   it('장미가 기사를 이기면 1+3', () => {
     expect(calcMatchPoints(ctx({
-      winner: p({ leagueTier: LEAGUE_BR, winRate: 0.9 }),
-      loser: p({ name: 'y', leagueTier: LEAGUE_BK, winRate: 0.9 }),
+      winner: p({ leagueTier: LEAGUE_CHALLENGER, winRate: 0.9 }),
+      loser: p({ name: 'y', leagueTier: LEAGUE_TOUR, winRate: 0.9 }),
     }))).toBe(4);
   });
 
   it('기사가 장미를 이기면 보너스 없음', () => {
     expect(calcMatchPoints(ctx({
-      winner: p({ leagueTier: LEAGUE_BK }),
-      loser: p({ name: 'y', leagueTier: LEAGUE_BR }),
+      winner: p({ leagueTier: LEAGUE_TOUR }),
+      loser: p({ name: 'y', leagueTier: LEAGUE_CHALLENGER }),
     }))).toBe(1);
   });
 });
@@ -98,15 +98,15 @@ describe('등급 역전 (+5)', () => {
 describe('누적 최대', () => {
   it('장미+동배가 기사+은배를 이기면 1+3+5 = 9점', () => {
     expect(calcMatchPoints(ctx({
-      winner: p({ leagueTier: LEAGUE_BR, grade: '동배', winRate: 0.9 }),
-      loser: p({ name: 'y', leagueTier: LEAGUE_BK, grade: '은배', winRate: 0.9 }),
+      winner: p({ leagueTier: LEAGUE_CHALLENGER, grade: '동배', winRate: 0.9 }),
+      loser: p({ name: 'y', leagueTier: LEAGUE_TOUR, grade: '은배', winRate: 0.9 }),
     }))).toBe(9);
   });
 
   it('동일리그 승률역전 + 등급역전은 1+2+5 = 8점', () => {
     expect(calcMatchPoints(ctx({
-      winner: p({ leagueTier: LEAGUE_BK, grade: '동배', winRate: 0.1 }),
-      loser: p({ name: 'y', leagueTier: LEAGUE_BK, grade: '은배', winRate: 0.9 }),
+      winner: p({ leagueTier: LEAGUE_TOUR, grade: '동배', winRate: 0.1 }),
+      loser: p({ name: 'y', leagueTier: LEAGUE_TOUR, grade: '은배', winRate: 0.9 }),
     }))).toBe(8);
   });
 });

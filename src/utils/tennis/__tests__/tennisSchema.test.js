@@ -1,7 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   TENNIS_SPORT, GRADES, GRADE_RANK,
-  LEAGUE_BK, LEAGUE_BR,
+  LEAGUE_TOUR, LEAGUE_CHALLENGER,
   COMPETITION_SINGLES, COMPETITION_DOUBLES, COMPETITION_NONE,
   TENNIS_MATCH_COLUMNS, TENNIS_PLAYER_GAME_COLUMNS,
   TENNIS_LEGACY_COLUMNS,
@@ -10,8 +10,8 @@ import {
 describe('상수', () => {
   it('종목/리그/대회 문자열', () => {
     expect(TENNIS_SPORT).toBe('테니스');
-    expect(LEAGUE_BK).toBe('흑기사');
-    expect(LEAGUE_BR).toBe('흑장미');
+    expect(LEAGUE_TOUR).toBe('투어리그');
+    expect(LEAGUE_CHALLENGER).toBe('챌린저리그');
     expect(COMPETITION_SINGLES).toBe('길로틴');
     expect(COMPETITION_DOUBLES).toBe('투몽');
     expect(COMPETITION_NONE).toBe('미반영');

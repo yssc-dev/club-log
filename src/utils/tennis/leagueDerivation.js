@@ -1,8 +1,8 @@
-// 흑기사(BK)/흑장미(BR)는 명부에 저장하지 않고 단식 로그에서 파생한다.
+// 투어리그(1~8위)/챌린저리그(9위~)는 명부에 저장하지 않고 단식 로그에서 파생한다.
 // 기준은 "경기일 직전까지의 시즌 누적 단식 승률" — 당일 결과는 그날 판정에 넣지 않는다.
 // 덕분에 하루 안에서는 배치가 고정되고, 마감 순서가 꼬여도 포인트가 흔들리지 않는다.
 
-import { LEAGUE_BK, LEAGUE_BR, COMPETITION_SINGLES } from './tennisSchema';
+import { LEAGUE_TOUR, LEAGUE_CHALLENGER, COMPETITION_SINGLES, TOUR_SLOTS } from './tennisSchema';
 
 // seasonAggregate: 그 해 상세 로우 없는 단식 집계 [{player, wins, losses}](예: 2026 1~7월).
 // 상세 이전의 시즌 기록이라 배치 판정 승률에 함께 가산 — 표시 승률(집계+상세)과 티어 기준을 일치시킨다.
@@ -88,7 +88,8 @@ export function priorYearSinglesOrder({ rows, legacyRows, roster, year }) {
     .map(s => s.name);
 }
 
-export function deriveLeagueForDate({ rows, dateISO, roster, seedOrder, seasonAggregate = [] }) {
+// tourSlots: 투어리그 정원(기본 8 — 규정 '1~8 투어리그 / 9~16 챌린저리그'). 정원 이하 인원이면 전원 투어.
+export function deriveLeagueForDate({ rows, dateISO, roster, seedOrder, seasonAggregate = [], tourSlots = TOUR_SLOTS }) {
   const list = (roster || []).filter(m => m && m.name);
   if (list.length === 0) return {};
 
@@ -98,15 +99,15 @@ export function deriveLeagueForDate({ rows, dateISO, roster, seedOrder, seasonAg
 
   const out = {};
   // 시즌 초 — 순위를 가를 근거가 전혀 없으면 전원 같은 리그로 둔다.
-  // (전원 흑기사로 두면 "장미가 기사를 이김" 보너스가 발생하지 않아 중립이다.)
+  // (전원 투어리그로 두면 "챌린저가 투어를 이김" 보너스가 발생하지 않아 중립이다.)
   if (!hasAnySignal) {
-    for (const m of list) out[m.name] = LEAGUE_BK;
+    for (const m of list) out[m.name] = LEAGUE_TOUR;
     return out;
   }
 
   const ordered = orderPlayers(list, rates, seedOrder);
-  // 홀수면 흑기사를 더 적게 — 하위 리그가 커야 "버스 탄다"가 성립한다.
-  const bkCount = Math.floor(ordered.length / 2) || ordered.length;
-  ordered.forEach((m, i) => { out[m.name] = i < bkCount ? LEAGUE_BK : LEAGUE_BR; });
+  // 상위 tourSlots명 = 투어리그(고정 정원), 나머지 = 챌린저리그. 순서는 경기 전 승률(티어 기준은 승률 유지 — 유저 결정 2026-08-28).
+  const tourCount = Math.min(Math.max(1, Number(tourSlots) || TOUR_SLOTS), ordered.length);
+  ordered.forEach((m, i) => { out[m.name] = i < tourCount ? LEAGUE_TOUR : LEAGUE_CHALLENGER; });
   return out;
 }

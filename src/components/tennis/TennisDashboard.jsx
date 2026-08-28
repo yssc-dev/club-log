@@ -116,9 +116,9 @@ export default function TennisDashboard({ C: propC }) {
     const years = new Set((rows || []).map(r => (r.date || '').slice(0, 4)).filter(Boolean));
     return aggregateLegacySingles(legacyRows, years);
   }, [rows, legacyRows]);
-  const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'rate', legacySingles: singlesAgg }).slice(0, 5), [rows, roster, today, singlesAgg]);
+  const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'wins', legacySingles: singlesAgg }).slice(0, 5), [rows, roster, today, singlesAgg]);
   // 페어 케미는 다승 기준으로 상위 노출(승률은 소표본이 상단을 차지하기 쉬움).
-  const chem = useMemo(() => buildPairChemistry({ rows }).sort((a, b) => b.wins - a.wins || b.rate - a.rate).slice(0, 5), [rows]);
+  const chem = useMemo(() => buildPairChemistry({ rows, minGames: 3 }).slice(0, 5), [rows]);   // 계산기가 승수↓→승률↓ 정렬, TOP5는 3판↑만
   const tb = useMemo(() => buildTbRanking({ rows, roster }), [rows, roster]);
   const bagel = useMemo(() => buildBagelRanking({ rows, roster }), [rows, roster]);
   const acedf = useMemo(() => buildAceDfRanking({ rows, roster }), [rows, roster]);
@@ -157,7 +157,7 @@ export default function TennisDashboard({ C: propC }) {
         </div>
         <div style={{ display: 'flex' }}>
           <StatCell C={C} label="최다 출전" value={summary.topAttender ? `${summary.topAttender.name} (${summary.topAttender.games}경기)` : '-'} />
-          <StatCell C={C} label="이달 승률 1위" value={summary.hotPlayer ? `${summary.hotPlayer.name} ${pct(summary.hotPlayer.rate)} (${summary.hotPlayer.wins}승)` : '-'} />
+          <StatCell C={C} label="이달 다승 1위" value={summary.hotPlayer ? `${summary.hotPlayer.name} ${summary.hotPlayer.wins}승 (${pct(summary.hotPlayer.rate)})` : '-'} />
         </div>
       </div>
 

@@ -2,7 +2,7 @@
 import { useMemo } from 'react';
 import { useSortableRows, SortHeader } from './Sortable';
 import { pct } from '../../utils/tennis/tennisFormat';
-import { LEAGUE_BK, LEAGUE_BR } from '../../utils/tennis/tennisSchema';
+import { LEAGUE_TOUR, LEAGUE_CHALLENGER } from '../../utils/tennis/tennisSchema';
 import { RateBar } from './tennisCharts';
 
 // ─── 복식 순위표 ────────────────────────────────────────
@@ -58,7 +58,7 @@ export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
     rate:       { accessor: s => s.rate, type: 'num' },
     points:     { accessor: s => s.points, type: 'num' },
   }), []);
-  // #는 입력 순서 등수(리그 탭=승률순 → 상위 8=흑기사). 컬럼 정렬로 행이 섞여도 각 선수 등수는 유지.
+  // #는 입력 순서 등수(리그 탭=승수순). 티어(투어/챌린저)는 경기 전 승률로 파생되므로 표 등수와 다를 수 있다 — 리그 열로 확인.
   const ranked = useMemo(() => standings.map((s, i) => ({ ...s, _rank: i + 1 })), [standings]);
   const { sorted, sort, onSort } = useSortableRows(ranked, cols);
   if (!standings.length) return null;
@@ -83,7 +83,7 @@ export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
               <tr key={s.name}>
                 <td style={{ ...ds.td(), textAlign: 'left' }}>{s._rank}</td>
                 <td style={{ ...ds.td(true), textAlign: 'left' }}>{s.name}</td>
-                <td style={{ ...ds.td(), fontSize: 10 }}>{s.leagueTier === LEAGUE_BR ? 'BR' : s.leagueTier === LEAGUE_BK ? 'BK' : '-'}</td>
+                <td style={{ ...ds.td(), fontSize: 10 }}>{s.leagueTier === LEAGUE_CHALLENGER ? '챌린저' : s.leagueTier === LEAGUE_TOUR ? '투어' : '-'}</td>
                 <td style={{ ...ds.td(), fontSize: 10 }}>{s.grade}</td>
                 <td style={ds.td()}>{s.wins}-{s.losses}</td>
                 <td style={ds.td()}><RateBar rate={s.rate} pctText={pct(s.rate)} C={C} /></td>

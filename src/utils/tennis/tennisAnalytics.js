@@ -5,9 +5,10 @@ import { isLeagueByGuests } from './leagueRule';
 const isDoubles = (r) => r.format === '복식';
 const memberNames = (roster) => new Set((roster || []).map(m => m.name));
 const rate = (w, g) => (g > 0 ? w / g : 0);
-// 순위 정렬 공통: 승률↓ → 승↓ → 이름(ko). 복식 순위표·선수 성적표가 공유.
-const byRateWinsName = (a, b) =>
-  b.rate - a.rate || b.wins - a.wins || String(a.name).localeCompare(String(b.name), 'ko');
+// 순위 정렬 공통: 승수↓ → 승률↓ → 이름(ko). 복식 순위표·선수 성적표가 공유.
+// (의뢰인 요구 2026-08-28: 모든 순위 지표는 승률보다 승수 우선)
+const byWinsRateName = (a, b) =>
+  b.wins - a.wins || b.rate - a.rate || String(a.name).localeCompare(String(b.name), 'ko');
 // 판 식별 키 — game_id + match_id (match_id는 R{round}_C{court}라 날짜 넘어 재사용됨).
 export const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 
@@ -35,7 +36,7 @@ export function isLeagueRow(r, guestCounts) {
 // 선수 성적표(전체지표): 기간 내 한 판이라도 뛴 모든 선수(게스트 포함, isGuest 표시).
 // format('단식'|'복식') 지정 시 그 종목 판만(전체지표의 단/복식 토글과 연동). 미지정이면 두 종목 합산.
 // leagueOnly면 리그 판만(게스트는 자연히 빠짐). 득실 = games_won − games_lost(빈 셀은 0).
-// 정렬: 승률↓ → 승↓ → 이름.
+// 정렬: 승수↓ → 승률↓ → 이름.
 export function buildPlayerReportCard({ rows, leagueOnly = false, format } = {}) {
   const all = rows || [];
   const guests = leagueOnly ? guestCountByMatch(all) : null;
@@ -59,7 +60,7 @@ export function buildPlayerReportCard({ rows, leagueOnly = false, format } = {})
     bucket.rate = rate(bucket.wins, bucket.games);
     acc.set(r.player, cur);
   }
-  return [...acc.values()].sort(byRateWinsName);
+  return [...acc.values()].sort(byWinsRateName);
 }
 
 // 복식 순위표: 투몽 성립 판(회원 3명 이상)의 회원 행만, 명부 전원 포함(0판도 표시)
@@ -75,7 +76,7 @@ export function buildDoublesStandings({ rows, roster }) {
     if (r.result === '승') cur.wins++; else if (r.result === '패') cur.losses++;
     cur.rate = rate(cur.wins, cur.games);
   }
-  return [...acc.values()].sort(byRateWinsName);
+  return [...acc.values()].sort(byWinsRateName);
 }
 
 // 판(game_id|match_id) 단위 분류 수. 전체 = 투몽 + 길로틴 + 번외.
@@ -99,9 +100,10 @@ export function buildLeagueCounts({ rows }) {
   return { tumong, guillotine, exhibition, total: byMatch.size };
 }
 
-// 페어 케미: 복식 전 행(미반영 포함), game_id|match_id|side 그룹핑으로 판 중복 제거
-// hasGuest는 side의 두 행 모두 확인해야 파트너가 게스트인 경우를 잡는다
-export function buildPairChemistry({ rows, minGames = 3 }) {
+// 복식 페어 전적: 복식 전 행(번외 포함), game_id|match_id|side 그룹핑으로 판 중복 제거.
+// 기본은 기간 내 모든 페어(minGames=1) — 전체지표 "페어 전적" 표. 대시보드 TOP5는 minGames 3을 넘긴다.
+// hasGuest는 side의 두 행 모두 확인해야 파트너가 게스트인 경우를 잡는다. 정렬: 승수↓ → 승률↓ → 판수↓.
+export function buildPairChemistry({ rows, minGames = 1 }) {
   // 같은 판·같은 side의 행들을 묶는다
   const groups = new Map();
   for (const r of rows || []) {
@@ -129,10 +131,10 @@ export function buildPairChemistry({ rows, minGames = 3 }) {
 
   return [...acc.values()]
     .filter(p => p.games >= minGames)
-    .sort((a, b) => b.rate - a.rate || b.games - a.games);
+    .sort((a, b) => b.wins - a.wins || b.rate - a.rate || b.games - a.games);
 }
 
-// 파트너별 성적: player의 복식 행에서 partner별 집계, 판수↓
+// 파트너별 성적: player의 복식 행에서 partner별 집계. 정렬: 승수↓ → 승률↓ → 판수↓
 export function buildPartnerBreakdown({ rows, player }) {
   // 파트너의 게스트 여부를 같은 경기의 파트너 행에서 확인
   const guestMap = new Map();
@@ -155,7 +157,7 @@ export function buildPartnerBreakdown({ rows, player }) {
     cur.isGuestPartner = cur.isGuestPartner || partnerIsGuest;
     acc.set(r.partner, cur);
   }
-  return [...acc.values()].sort((a, b) => b.games - a.games || b.rate - a.rate);
+  return [...acc.values()].sort((a, b) => b.wins - a.wins || b.rate - a.rate || b.games - a.games);
 }
 
 // 상대 전적: player 행의 opponents_json(JSON 문자열) 파싱, 상대 개인별 집계, 판수↓

@@ -1,7 +1,7 @@
 // 랭킹 포인트는 단식(길로틴리그) 전용이며 조건별로 누적된다.
 //   기본승 1
 //   + 동일 리그에서 승률 낮은 쪽이 이김  2   ┐ 같은 리그 / 다른 리그라
-//   + 장미가 기사를 이김                 3   ┘ 둘은 상호 배타적이다
+//   + 챌린저리그가 투어리그를 이김        3   ┘ 둘은 상호 배타적이다
 //   + 하위 등급이 상위 등급을 이김       5
 // 최대 1+3+5 = 9점.
 //
@@ -9,7 +9,7 @@
 //   기본값은 "차이 무관 고정 5점"이고, gradeUpsetPerStep을 켜면 단계당 가산으로 바뀐다.
 //   확정되면 이 파일이 아니라 호출부의 rules 객체만 바꾸면 된다.
 
-import { GRADE_RANK, LEAGUE_BR, COMPETITION_SINGLES } from './tennisSchema';
+import { GRADE_RANK, LEAGUE_CHALLENGER, COMPETITION_SINGLES } from './tennisSchema';
 
 export const DEFAULT_POINT_RULES = {
   baseWin: 1,
@@ -30,7 +30,7 @@ export function calcMatchPoints(ctx, rules = DEFAULT_POINT_RULES) {
   const sameLeague = w.leagueTier === l.leagueTier;
   if (sameLeague) {
     if ((w.winRate || 0) < (l.winRate || 0)) points += rules.sameLeagueUpset;
-  } else if (w.leagueTier === LEAGUE_BR) {
+  } else if (w.leagueTier === LEAGUE_CHALLENGER) {
     points += rules.leagueUpset;
   }
 

@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest';
 import { singlesWinRatesBefore, deriveLeagueForDate, priorYearSinglesOrder } from '../leagueDerivation';
-import { LEAGUE_BK, LEAGUE_BR } from '../tennisSchema';
+import { LEAGUE_TOUR, LEAGUE_CHALLENGER } from '../tennisSchema';
 
 const row = (player, date, result, format = '단식', league = '길로틴') =>
   ({ player, date, result, format, league });
@@ -46,31 +46,31 @@ describe('singlesWinRatesBefore', () => {
 describe('deriveLeagueForDate', () => {
   const roster = (names) => names.map(n => ({ name: n }));
 
-  it('승률 순으로 상위 절반이 흑기사', () => {
+  it('승률 순으로 상위 tourSlots명이 투어리그 (4명, 정원 2)', () => {
     const rows = [
       row('a', '2026-03-01', '승'), row('a', '2026-03-02', '승'),
       row('b', '2026-03-01', '승'), row('b', '2026-03-02', '패'),
       row('c', '2026-03-01', '패'), row('c', '2026-03-02', '패'),
       row('d', '2026-03-01', '패'), row('d', '2026-03-02', '패'),
     ];
-    const out = deriveLeagueForDate({ rows, dateISO: '2026-08-06', roster: roster(['a', 'b', 'c', 'd']) });
-    expect(out.a).toBe(LEAGUE_BK);
-    expect(out.b).toBe(LEAGUE_BK);
-    expect(out.c).toBe(LEAGUE_BR);
-    expect(out.d).toBe(LEAGUE_BR);
+    const out = deriveLeagueForDate({ rows, dateISO: '2026-08-06', roster: roster(['a', 'b', 'c', 'd']), tourSlots: 2 });
+    expect(out.a).toBe(LEAGUE_TOUR);
+    expect(out.b).toBe(LEAGUE_TOUR);
+    expect(out.c).toBe(LEAGUE_CHALLENGER);
+    expect(out.d).toBe(LEAGUE_CHALLENGER);
   });
 
-  it('홀수 인원이면 흑기사가 더 적다 (5명 → 2:3)', () => {
+  it('정원이 2면 5명 → 투어 2 : 챌린저 3', () => {
     const rows = ['a', 'b', 'c', 'd', 'e'].flatMap((n, i) =>
       Array.from({ length: 5 - i }, () => row(n, '2026-03-01', '승')));
-    const out = deriveLeagueForDate({ rows, dateISO: '2026-08-06', roster: roster(['a', 'b', 'c', 'd', 'e']) });
-    const bk = Object.values(out).filter(v => v === LEAGUE_BK);
+    const out = deriveLeagueForDate({ rows, dateISO: '2026-08-06', roster: roster(['a', 'b', 'c', 'd', 'e']), tourSlots: 2 });
+    const bk = Object.values(out).filter(v => v === LEAGUE_TOUR);
     expect(bk).toHaveLength(2);
   });
 
-  it('기록도 시드도 없으면 전원 흑기사 (리그 역전 보너스 미발생)', () => {
+  it('기록도 시드도 없으면 전원 투어리그 (리그 역전 보너스 미발생)', () => {
     const out = deriveLeagueForDate({ rows: [], dateISO: '2026-01-10', roster: roster(['a', 'b', 'c', 'd']) });
-    expect(Object.values(out).every(v => v === LEAGUE_BK)).toBe(true);
+    expect(Object.values(out).every(v => v === LEAGUE_TOUR)).toBe(true);
   });
 
   it('시즌초 seedOrder(전년도 순위)로 가른다', () => {
@@ -78,11 +78,12 @@ describe('deriveLeagueForDate', () => {
       rows: [], dateISO: '2026-01-10',
       roster: roster(['a', 'b', 'c', 'd']),
       seedOrder: ['b', 'd', 'a', 'c'], // best→worst
+      tourSlots: 2,
     });
-    expect(out.b).toBe(LEAGUE_BK);
-    expect(out.d).toBe(LEAGUE_BK);
-    expect(out.a).toBe(LEAGUE_BR);
-    expect(out.c).toBe(LEAGUE_BR);
+    expect(out.b).toBe(LEAGUE_TOUR);
+    expect(out.d).toBe(LEAGUE_TOUR);
+    expect(out.a).toBe(LEAGUE_CHALLENGER);
+    expect(out.c).toBe(LEAGUE_CHALLENGER);
   });
 
   it('seedOrder에 일부만 있으면 미시드는 뒤로 붙고 가나다순', () => {
@@ -90,23 +91,34 @@ describe('deriveLeagueForDate', () => {
       rows: [], dateISO: '2026-01-10',
       roster: roster(['하늘', '가람', '나무', '다솜']),
       seedOrder: ['나무', '다솜'],
+      tourSlots: 2,
     });
-    expect(out['나무']).toBe(LEAGUE_BK);
-    expect(out['다솜']).toBe(LEAGUE_BK);
-    expect(out['가람']).toBe(LEAGUE_BR);
-    expect(out['하늘']).toBe(LEAGUE_BR);
+    expect(out['나무']).toBe(LEAGUE_TOUR);
+    expect(out['다솜']).toBe(LEAGUE_TOUR);
+    expect(out['가람']).toBe(LEAGUE_CHALLENGER);
+    expect(out['하늘']).toBe(LEAGUE_CHALLENGER);
   });
 
   it('기록 있는 사람이 기록 없는 사람보다 앞선다', () => {
     const rows = [row('무기록아님', '2026-03-01', '패')];
     const out = deriveLeagueForDate({
-      rows, dateISO: '2026-08-06', roster: roster(['무기록아님', '무기록1', '무기록2', '무기록3']),
+      rows, dateISO: '2026-08-06', roster: roster(['무기록아님', '무기록1', '무기록2', '무기록3']), tourSlots: 2,
     });
-    expect(out['무기록아님']).toBe(LEAGUE_BK);
+    expect(out['무기록아님']).toBe(LEAGUE_TOUR);
+  });
+
+  it('기본 정원은 8 — 10명이면 상위 8 투어·2 챌린저, 6명이면 전원 투어 (규정 1~8/9~16)', () => {
+    const names = ['p1', 'p2', 'p3', 'p4', 'p5', 'p6', 'p7', 'p8', 'p9', 'p10'];
+    const rows = names.flatMap((n, i) => Array.from({ length: 10 - i }, (_, k) => row(n, `2026-03-0${(k % 9) + 1}`, '승')));
+    const out = deriveLeagueForDate({ rows, dateISO: '2026-08-06', roster: roster(names) });
+    expect(names.slice(0, 8).map(n => out[n])).toEqual(Array(8).fill(LEAGUE_TOUR));
+    expect(names.slice(8).map(n => out[n])).toEqual(Array(2).fill(LEAGUE_CHALLENGER));
+    const six = deriveLeagueForDate({ rows, dateISO: '2026-08-06', roster: roster(names.slice(0, 6)) });
+    expect(Object.values(six).every(v => v === LEAGUE_TOUR)).toBe(true);
   });
 
   it('seasonAggregate(그 해 집계)만 있어도 recorded로 배치(시드 아님)', () => {
-    // 상세 rows 없음, 2026 집계 승률만 → 집계 승률로 흑기사/흑장미 가름
+    // 상세 rows 없음, 2026 집계 승률만 → 집계 승률로 투어/챌린저 가름
     const out = deriveLeagueForDate({
       rows: [], dateISO: '2026-08-01', roster: roster(['a', 'b', 'c', 'd']),
       seasonAggregate: [
@@ -116,11 +128,12 @@ describe('deriveLeagueForDate', () => {
         { player: 'd', wins: 1, losses: 9 }, // 0.1
       ],
       seedOrder: ['d', 'c', 'b', 'a'], // 시드는 반대로 줘도 집계(recorded)가 우선
+      tourSlots: 2,
     });
-    expect(out.a).toBe(LEAGUE_BK);
-    expect(out.b).toBe(LEAGUE_BK);
-    expect(out.c).toBe(LEAGUE_BR);
-    expect(out.d).toBe(LEAGUE_BR);
+    expect(out.a).toBe(LEAGUE_TOUR);
+    expect(out.b).toBe(LEAGUE_TOUR);
+    expect(out.c).toBe(LEAGUE_CHALLENGER);
+    expect(out.d).toBe(LEAGUE_CHALLENGER);
   });
 
   it('로스터가 비면 빈 객체', () => {

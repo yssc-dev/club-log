@@ -23,8 +23,8 @@ const render = (Comp, props) =>
   renderToStaticMarkup(createElement(ThemeProvider, null, createElement(Harness, { Comp, props })));
 
 const SINGLES = [
-  { name: '박준태', grade: '금배', leagueTier: '흑장미', wins: 5, losses: 1, rate: 5 / 6, points: 12 },
-  { name: '문형민', grade: '은배', leagueTier: '흑기사', wins: 2, losses: 4, rate: 1 / 3, points: 3 },
+  { name: '박준태', grade: '금배', leagueTier: '챌린저리그', wins: 5, losses: 1, rate: 5 / 6, points: 12 },
+  { name: '문형민', grade: '은배', leagueTier: '투어리그', wins: 2, losses: 4, rate: 1 / 3, points: 3 },
 ];
 const DOUBLES = [
   { name: '박준태', grade: '금배', wins: 8, losses: 2, rate: 0.8 },
@@ -32,14 +32,14 @@ const DOUBLES = [
 ];
 
 describe('tennisStandingsSections 스모크', () => {
-  it('SinglesStandingsSection — 포인트 픽스처 렌더(길로틴·BK/BR·P·크래시 없음)', () => {
+  it('SinglesStandingsSection — 포인트 픽스처 렌더(길로틴·투어/챌린저·P·크래시 없음)', () => {
     const html = render(SinglesStandingsSection, { standings: SINGLES, periodLabel: '2026년' });
     expect(html).toContain('길로틴리그');
     expect(html).toContain('2026년');
     expect(html).toContain('박준태');
     expect(html).toContain('문형민');
-    expect(html).toContain('BR');   // 흑장미 방어 렌더
-    expect(html).toContain('BK');   // 흑기사
+    expect(html).toContain('챌린저');   // 챌린저리그 약칭
+    expect(html).toContain('투어');     // 투어리그 약칭
     expect(html).toContain('12');   // points
   });
 

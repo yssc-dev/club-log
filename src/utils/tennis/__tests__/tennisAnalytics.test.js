@@ -283,11 +283,11 @@ describe('buildPlayerReportCard', () => {
     expect(doubles.map(x => x.name).sort()).toEqual(['갑', '을', '병', '정'].sort());
   });
 
-  it('기본 정렬: 승률↓ → 승↓ → 이름', () => {
+  it('기본 정렬: 승수↓ → 승률↓ → 이름', () => {
     const out = buildPlayerReportCard({ rows });
     for (let i = 1; i < out.length; i++) {
       const a = out[i - 1], b = out[i];
-      const ok = a.rate > b.rate || (a.rate === b.rate && (a.wins > b.wins || (a.wins === b.wins && a.name.localeCompare(b.name, 'ko') <= 0)));
+      const ok = a.wins > b.wins || (a.wins === b.wins && (a.rate > b.rate || (a.rate === b.rate && a.name.localeCompare(b.name, 'ko') <= 0)));
       expect(ok).toBe(true);
     }
   });

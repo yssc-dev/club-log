@@ -45,8 +45,8 @@ export default function TennisLeague({ C: propC }) {
   const doubles = useMemo(() => buildDoublesStandings({ rows: yearRows, roster }), [yearRows, roster]);
   // 시즌 초(그 해 단식 기록 0) 자동 시드 — 전년도 단식 순위. 기록 쌓이면 승률이 대체.
   const seedOrder = useMemo(() => priorYearSinglesOrder({ rows, legacyRows, roster, year: effYear }), [rows, legacyRows, roster, effYear]);
-  // 승률순 정렬 — 상위 8=흑기사, 9~16=흑장미가 표에서 시각적으로 일치(P는 컬럼으로 유지).
-  const singles = useMemo(() => buildSinglesStandings({ rows: yearRows, roster, asOfDate: today, sortBy: 'rate', legacySingles: singlesAgg, seedOrder }), [yearRows, roster, today, singlesAgg, seedOrder]);
+  // 승수순 정렬(의뢰인 요구: 승률보다 승수 우선). 티어(투어/챌린저)는 경기 전 승률로 파생 — 표의 리그 열로 확인(P는 컬럼으로 유지).
+  const singles = useMemo(() => buildSinglesStandings({ rows: yearRows, roster, asOfDate: today, sortBy: 'wins', legacySingles: singlesAgg, seedOrder }), [yearRows, roster, today, singlesAgg, seedOrder]);
   const legacyDoubles = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format: '복식' }), [legacyRows, effYear]);
   const legacySingles = useMemo(() => buildLegacyStandings({ legacyRows, year: effYear, format: '단식' }), [legacyRows, effYear]);
 

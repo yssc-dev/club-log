@@ -8,8 +8,10 @@ export const TENNIS_SPORT = '테니스';
 export const GRADES = ['초보자', '동배', '은배', '금배'];
 export const GRADE_RANK = GRADES.reduce((acc, g, i) => { acc[g] = i; return acc; }, {});
 
-export const LEAGUE_BK = '흑기사';
-export const LEAGUE_BR = '흑장미';
+// 단식 리그 티어(명부에 저장하지 않고 단식 기록에서 파생). 2026-08-28 이름 교체: 흑기사→투어리그, 흑장미→챌린저리그.
+export const LEAGUE_TOUR = '투어리그';         // 순위 1~8
+export const LEAGUE_CHALLENGER = '챌린저리그';  // 순위 9~
+export const TOUR_SLOTS = 8;                    // 투어리그 정원(상위 N명 고정, 8명 이하면 전원 투어)
 
 export const COMPETITION_SINGLES = '길로틴';
 export const COMPETITION_DOUBLES = '투몽';

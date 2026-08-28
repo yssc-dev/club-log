@@ -1,5 +1,5 @@
 // 로그_테니스선수경기 행 → 단식 순위표 / 개인 전적 요약.
-// 순위는 승률로 매기고 포인트는 별도 컬럼으로 적립한다(스펙 4.5).
+// 순위는 승수↓→승률↓로 매기고(의뢰인 요구 2026-08-28: 승률보다 승수 우선) 포인트는 별도 컬럼으로 적립한다.
 
 import { COMPETITION_SINGLES } from './tennisSchema';
 import { deriveLeagueForDate, singlesWinRatesBefore } from './leagueDerivation';
@@ -8,7 +8,8 @@ import { matchKey, guestCountByMatch, isLeagueRow } from './tennisAnalytics';
 
 
 // legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — W/L(승률)에만 가산, 포인트 불가.
-export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate', legacySingles = [], seedOrder = [] }) {
+// sortBy: 'wins'(기본, 승수↓→승률↓→이름) | 'points'(포인트↓→승수↓→승률↓→이름)
+export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'wins', legacySingles = [], seedOrder = [] }) {
   const list = (roster || []).filter(m => m && m.name);
   const acc = new Map(list.map(m => [m.name, {
     name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0, points: 0,
@@ -87,8 +88,8 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
   const finalLeague = deriveLeagueForDate({ rows: singles, dateISO: asOfDate, roster: list, seedOrder, seasonAggregate: legacySingles });
   const byName = (a, b) => String(a.name).localeCompare(String(b.name), 'ko');
   const cmp = sortBy === 'points'
-    ? (a, b) => b.points - a.points || b.rate - a.rate || b.wins - a.wins || byName(a, b)
-    : (a, b) => b.rate - a.rate || b.wins - a.wins || byName(a, b);
+    ? (a, b) => b.points - a.points || b.wins - a.wins || b.rate - a.rate || byName(a, b)
+    : (a, b) => b.wins - a.wins || b.rate - a.rate || byName(a, b);
   return [...acc.values()]
     .map(x => ({ ...x, leagueTier: finalLeague[x.name] }))
     .sort(cmp);

@@ -68,5 +68,5 @@ export function buildLegacyStandings({ legacyRows, year, format }) {
   return [...acc.values()]
     .map(p => ({ ...p, games: p.wins + p.losses, rate: (p.wins + p.losses) ? p.wins / (p.wins + p.losses) : 0 }))
     .filter(p => p.games > 0)
-    .sort((a, b) => b.rate - a.rate || b.games - a.games || a.name.localeCompare(b.name, 'ko'));
+    .sort((a, b) => b.wins - a.wins || b.rate - a.rate || a.name.localeCompare(b.name, 'ko'));   // 승수 우선(의뢰인 요구)
 }

@@ -63,8 +63,9 @@ describe('TennisAnalyticsTab 실렌더(로딩 이후)', () => {
   it('전체지표 전환 시 랭킹/케미 섹션 렌더(크래시 없음)', async () => {
     await mount();
     await clickButtonByText('전체지표');
-    // 페어 케미(복식 전체지표) 섹션 제목
-    expect(container.textContent).toContain('페어 케미');
+    // 복식 페어 전적 표(복식 전체지표) + 선수 성적표 제목
+    expect(container.textContent).toContain('복식 페어 전적');
+    expect(container.textContent).toContain('선수 성적표');
     expect(container.textContent).toContain('타이브레이크');
     // 선수 select는 전체지표에서 숨김 → 힌트 미표시
     expect(container.textContent).not.toContain('선수를 선택');
@@ -104,5 +105,6 @@ describe('TennisAnalyticsTab 실렌더(로딩 이후)', () => {
     // 복식 탭 → 종목요약 + 파트너 섹션
     await clickButtonByText('복식');
     expect(container.textContent).toContain('박준태 · 복식');
+    expect(container.textContent).toContain('파트너별 전적');   // 개인지표-복식: 내가 포함된 페어 표
   });
 });

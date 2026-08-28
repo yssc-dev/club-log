@@ -20,7 +20,7 @@ import { useSortableRows, SortHeader } from './Sortable';
 import { pct } from '../../utils/tennis/tennisFormat';
 
 // ─── 파트너/페어 바 공용(SSOT) ──────────────────────────
-// 다승/승률 토글·정렬·바 노트·라벨을 한 곳에서 — PairKemiTop3와 ChemistrySection이 공유.
+// 다승/승률 토글·정렬·바 노트·라벨을 한 곳에서 — 요약 탭 PairKemiTop3(바)와 개인 카드가 공유. 전체/개인 페어 표는 PairRecordsSection/PartnerRecordsSection.
 const WIN_RATE_OPTIONS = [['wins', '다승'], ['rate', '승률']];
 const winRateSorter = (mode) => (mode === 'wins'
   ? (a, b) => b.wins - a.wins || b.rate - a.rate
@@ -269,84 +269,103 @@ function YearlyRecordsSection({ entries, ds, C }) {
   );
 }
 
-// ─── 페어 케미 + 파트너 분석 ─────────────────────────────
-// showChemistry: 전체 케미 표 표시 여부 (기본 true, 전체 뷰에서만 사용)
-// showBreakdown: 파트너별 분석 표시 여부 (기본 true, 개인 뷰에서만 사용)
-function ChemistrySection({ chemistry, breakdown = [], player, ds, C, showChemistry = true, showBreakdown = true }) {
-  const chemCols = useMemo(() => ({
+// ─── 복식 페어 전적 표 (전체지표-복식) ────────────────────
+// 기간(연/월) 내 모든 페어의 경기/승/패/승률. 모든 열 정렬, 기본은 계산기 순서(승수↓→승률↓→판수↓).
+// (의뢰인 요구 2026-08-28: 페어 케미 바 대신 전체 페어 표, 정렬은 승수 우선)
+function PairRecordsSection({ chemistry, periodLabel, ds, C }) {
+  const cols = useMemo(() => ({
     pair:   { accessor: p => p.players.join('·'), type: 'text' },
-    record: { accessor: p => p.wins, type: 'num' },
+    games:  { accessor: p => p.games, type: 'num' },
+    wins:   { accessor: p => p.wins, type: 'num' },
+    losses: { accessor: p => p.losses, type: 'num' },
     rate:   { accessor: p => p.rate, type: 'num' },
   }), []);
-  const { sorted: sortedChem, sort: sortChem, onSort: onSortChem } = useSortableRows(chemistry, chemCols);
-
-  // 파트너별은 HBarChart로 대체 — useSortableRows 불필요
-
-  // 랭킹바 정렬: 다승(기본) / 승률. 바 길이도 정렬 기준을 따른다.
-  const [chemSort, setChemSort] = useState('wins');
-  const chemBarRows = useMemo(() => {
-    if (!chemistry.length) return [];
-    const maxWins = Math.max(1, ...chemistry.map(p => p.wins));
-    return [...chemistry].sort(winRateSorter(chemSort)).slice(0, 8).map(p => ({
-      label: p.players.join('·') + (p.hasGuest ? ' *' : ''),   // 페어(2인)라 라벨은 고유 — partnerLabel 미적용
-      value: chemSort === 'wins' ? p.wins / maxWins : p.rate,
-      note: barNote(p),
-    }));
-  }, [chemistry, chemSort]);
-
+  const { sorted, sort, onSort } = useSortableRows(chemistry, cols);
+  const hasGuest = chemistry.some(p => p.hasGuest);
   return (
     <>
-      {showChemistry && (
-        <>
-          <div style={ds.sectionTitle}>페어 케미 (3경기↑)</div>
-          {chemistry.length === 0 ? (
-            <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
-          ) : (
-            <>
-              <SortToggle value={chemSort} onChange={setChemSort} options={WIN_RATE_OPTIONS} ds={ds} />
-              <HBarChart rows={chemBarRows} ds={ds} C={C} />
-              <CollapsibleTable label={`전체 ${chemistry.length}쌍 보기`} C={C}>
-                <div style={ds.card}>
-                  <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
-                    <thead>
-                      <tr>
-                        <SortHeader label="페어" sortKey="pair" sort={sortChem} onSort={onSortChem} align="left" ds={ds} />
-                        <SortHeader label="전적" sortKey="record" sort={sortChem} onSort={onSortChem} ds={ds} />
-                        <SortHeader label="승률" sortKey="rate" sort={sortChem} onSort={onSortChem} ds={ds} />
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {sortedChem.map((p) => (
-                        <tr key={p.players.join('|')}>
-                          <td style={{ ...ds.td(), textAlign: 'left', fontSize: 11 }}>
-                            {p.players.join(' · ')}{p.hasGuest ? ' *' : ''}
-                          </td>
-                          <td style={ds.td()}>{p.wins}-{p.losses}</td>
-                          <td style={ds.td()}>{pct(p.rate)}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              </CollapsibleTable>
-            </>
-          )}
-        </>
+      <div style={ds.sectionTitle}>복식 페어 전적{periodLabel ? ` (${periodLabel} · ${chemistry.length}쌍)` : ` (${chemistry.length}쌍)`}</div>
+      {chemistry.length === 0 ? (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
+      ) : (
+        <div style={{ ...ds.card, overflowX: 'auto' }}>
+          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <SortHeader label="페어" sortKey="pair" sort={sort} onSort={onSort} align="left" ds={ds} />
+                <SortHeader label="경기" sortKey="games" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="승" sortKey="wins" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="패" sortKey="losses" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="승률" sortKey="rate" sort={sort} onSort={onSort} ds={ds} />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((p) => (
+                <tr key={p.players.join('|')}>
+                  <td style={{ ...ds.td(), textAlign: 'left', fontSize: 11, whiteSpace: 'nowrap' }}>
+                    {p.players.join(' · ')}{p.hasGuest ? ' *' : ''}
+                  </td>
+                  <td style={ds.td()}>{p.games}</td>
+                  <td style={ds.td()}>{p.wins}</td>
+                  <td style={ds.td()}>{p.losses}</td>
+                  <td style={ds.td()}>{pct(p.rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          <div style={{ fontSize: 11, color: C.gray, marginTop: 6 }}>
+            {hasGuest ? '* 게스트 포함 페어 · ' : ''}번외 판 포함(페어 조합 자체의 전적). 기본 정렬은 다승순.
+          </div>
+        </div>
       )}
-      {showBreakdown && player && (
-        <>
-          <div style={ds.sectionTitle}>{player} 파트너별</div>
-          <HBarChart
-            rows={(breakdown || []).map(b => ({
-              label: partnerLabel(b),
-              value: b.rate,
-              note: barNote(b),
-            }))}
-            ds={ds}
-            C={C}
-            colorFor={(row) => row.value >= 0.5 ? C.accent : C.grayDarker}
-          />
-        </>
+    </>
+  );
+}
+
+// ─── 파트너별 전적 표 (개인지표-복식) ──────────────────────
+// 선택 선수가 포함된 기간 내 모든 페어(=파트너별) 경기/승/패/승률. 정렬 가능, 기본 승수↓→승률↓→판수↓.
+function PartnerRecordsSection({ breakdown, player, ds, C }) {
+  const cols = useMemo(() => ({
+    partner: { accessor: b => b.partner, type: 'text' },
+    games:   { accessor: b => b.games, type: 'num' },
+    wins:    { accessor: b => b.wins, type: 'num' },
+    losses:  { accessor: b => b.losses, type: 'num' },
+    rate:    { accessor: b => b.rate, type: 'num' },
+  }), []);
+  const rows = breakdown || [];
+  const { sorted, sort, onSort } = useSortableRows(rows, cols);
+  const hasGuest = rows.some(b => b.isGuestPartner);
+  return (
+    <>
+      <div style={ds.sectionTitle}>{player} 파트너별 전적 ({rows.length}명)</div>
+      {rows.length === 0 ? (
+        <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>복식 파트너 기록 없음</div>
+      ) : (
+        <div style={{ ...ds.card, overflowX: 'auto' }}>
+          <table style={{ width: '100%', fontSize: 12, borderCollapse: 'collapse' }}>
+            <thead>
+              <tr>
+                <SortHeader label="파트너" sortKey="partner" sort={sort} onSort={onSort} align="left" ds={ds} />
+                <SortHeader label="경기" sortKey="games" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="승" sortKey="wins" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="패" sortKey="losses" sort={sort} onSort={onSort} ds={ds} />
+                <SortHeader label="승률" sortKey="rate" sort={sort} onSort={onSort} ds={ds} />
+              </tr>
+            </thead>
+            <tbody>
+              {sorted.map((b) => (
+                <tr key={b.partner}>
+                  <td style={{ ...ds.td(), textAlign: 'left', whiteSpace: 'nowrap' }}>{partnerLabel(b)}</td>
+                  <td style={ds.td()}>{b.games}</td>
+                  <td style={ds.td()}>{b.wins}</td>
+                  <td style={ds.td()}>{b.losses}</td>
+                  <td style={ds.td()}>{pct(b.rate)}</td>
+                </tr>
+              ))}
+            </tbody>
+          </table>
+          {hasGuest && <div style={{ fontSize: 11, color: C.gray, marginTop: 6 }}>* 게스트 파트너</div>}
+        </div>
       )}
     </>
   );
@@ -826,11 +845,11 @@ export default function TennisAnalyticsTab({ C: propC }) {
         switch (key) {
           case 'radar':            return radar ? <RadarSection key={key} radar={radar} ds={ds} C={C} /> : null;
           case 'report':           return <PlayerReportSection key={key} rows={fRows} format={format} periodLabel={`${effYear}${month ? ` · ${Number(month)}월` : ''}`} ds={ds} C={C} />;
-          case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
+          case 'chemistry':        return <PairRecordsSection key={key} chemistry={chemistry} periodLabel={`${effYear}${month ? ` · ${Number(month)}월` : ''}`} ds={ds} C={C} />;
           case 'recent':           return <RecentMatchesSection key={key} matches={recentMatches} ds={ds} C={C} />;
           case 'summaryDash':      return summary ? <SummaryDash key={key} summary={summary} breakdown={partnerBreakdown} ds={ds} C={C} /> : null;
           case 'formatSummary':    return summary ? <PerFormatSummary key={key} summary={summary} format={indivFmt} player={player} points={singlesStandings.find(s => s.name === player)?.points ?? 0} ds={ds} C={C} /> : null;
-          case 'partner':          return <ChemistrySection key={key} chemistry={[]} breakdown={partnerBreakdown} player={player} showChemistry={false} ds={ds} C={C} />;
+          case 'partner':          return <PartnerRecordsSection key={key} breakdown={partnerBreakdown} player={player} ds={ds} C={C} />;
           case 'h2h':              return <HeadToHeadSection key={key} h2h={h2h} player={player} ds={ds} C={C} />;
           case 'monthly':          return <MonthlyFormSection key={key} monthly={monthly} player={player} format={indivFmt} ds={ds} C={C} />;
           case 'yearly':           return <YearlyRecordsSection key={key} entries={yearlyRecords} ds={ds} C={C} />;
