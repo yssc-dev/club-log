@@ -24,7 +24,7 @@ export default function TennisSummaryView({ state, isAdmin, busy, onBack, onSubm
   return (
     <div style={{ paddingBottom: 120 }}>
       {!finalized && (
-        <button onClick={onBack} style={{ ...s.btnSm(), margin: '0 16px 10px' }}>← 경기로 돌아가기</button>
+        <button onClick={onBack} style={{ ...s.btnSm(), margin: '0 16px 10px' }}>마감 해제</button>
       )}
 
       <div style={s.section}>
