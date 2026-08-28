@@ -5,7 +5,7 @@ import {
   TIEBREAK_POINTS_TO_WIN,
 } from '../utils/tennis/tennisScoring';
 import { normalizeTennisMatch, normalizeTennisCourt, normalizeScoringRules } from '../utils/tennis/normalizeTennisMatch';
-import { isRoundComplete } from '../utils/tennis/roundConfirm';
+import { isRoundComplete, allRoundsConfirmed } from '../utils/tennis/roundConfirm';
 
 export const tennisInitialState = {
   gameId: '',
@@ -329,12 +329,18 @@ export function tennisReducer(state, action) {
     case 'UNCONFIRM_ROUND': {
       const next = { ...(state.confirmedRounds || {}) };
       delete next[action.roundIdx];
-      return { ...state, confirmedRounds: next };
+      // 마감(summary)은 "전 라운드 확정"이 전제 — 확정을 풀면 마감도 자동 해제한다.
+      // (ADD_ROUND가 phase를 playing으로 강제하는 것과 같은 원칙. 별도 "마감 취소" 버튼 없음.)
+      const phase = state.phase === 'summary' ? 'playing' : state.phase;
+      return { ...state, confirmedRounds: next, phase };
     }
 
     case 'SET_PHASE':
-      // 마감 확인 화면 왕복 전용. done 전이는 FINALIZE가 담당한다.
+      // 마감(summary) ↔ 진행(playing) 전용. done 전이는 FINALIZE가 담당하고, done에서는 되돌리지 않는다.
+      if (state.phase === 'done') return state;
       if (action.phase !== 'playing' && action.phase !== 'summary') return state;
+      // 마감은 전 라운드 확정이 필수 — UI(canFinish) 외에 리듀서에서도 보장(멀티탭·stale 상태 방어).
+      if (action.phase === 'summary' && !allRoundsConfirmed(state.rounds, state.confirmedRounds)) return state;
       return { ...state, phase: action.phase };
 
     case 'FINALIZE':

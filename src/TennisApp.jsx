@@ -33,6 +33,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const [roster, setRoster] = useState([]);
   const [busy, setBusy] = useState(false);
   const [matchModal, setMatchModal] = useState(null);
+  // 마감 화면을 보는 중인지 — 마감 상태(phase 'summary')와는 별개의 순수 화면 상태.
+  // 마감 상태는 RTDB(phase)에, 화면은 이 탭에만 있다. "← 경기로 돌아가기"는 이 값만 내린다.
+  const [showSummary, setShowSummary] = useState(false);
   const team = teamContext?.team || '';
 
   useEffect(() => { TennisSync.getRoster().then(setRoster); }, []);
@@ -58,7 +61,12 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
       return;
     }
     FirebaseSync.loadStateReconstructed(team, gameId).then(raw => {
-      if (raw) dispatch({ type: 'INIT_STATE', state: normalizeTennisMatch(raw) });
+      if (!raw) return;
+      const normalized = normalizeTennisMatch(raw);
+      dispatch({ type: 'INIT_STATE', state: normalized });
+      // 마감된 경기는 기존처럼 마감 화면부터 연다. 로드 시점 1회만 — phase를 useEffect로 감시하면
+      // 다른 기기가 재마감할 때 보고 있던 화면이 강제 전환된다(useState(prop) 안티패턴).
+      if (normalized.phase === 'summary') setShowSummary(true);
     });
   }, [isNewGame, gameId, team]);
 
@@ -81,7 +89,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   }, [round]);
 
   const viewingConfirmed = !!(state.confirmedRounds || {})[state.viewingRoundIdx];
-  const canAddRound = isLastRoundConfirmed(state.rounds, state.confirmedRounds);
+  // 마감 상태 — 라운드 추가는 확정취소로 마감을 푼 뒤에만(리듀서가 UNCONFIRM_ROUND에서 자동 해제).
+  const closed = state.phase === 'summary';
+  const canAddRound = !closed && isLastRoundConfirmed(state.rounds, state.confirmedRounds);
   const canFinish = allRoundsConfirmed(state.rounds, state.confirmedRounds);
 
   const handleConfirmRound = () => {
@@ -89,7 +99,8 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     dispatch({ type: 'CONFIRM_ROUND', roundIdx: round.roundIdx });
   };
   const handleUnconfirmRound = () => {
-    if (!confirm(`라운드 ${round.roundIdx} 확정을 취소할까요?\n취소하면 이 라운드를 다시 수정할 수 있습니다.`)) return;
+    const closedNote = closed ? '\n경기 마감도 함께 취소됩니다(자동 업로드 대상에서 빠짐).' : '';
+    if (!confirm(`라운드 ${round.roundIdx} 확정을 취소할까요?\n취소하면 이 라운드를 다시 수정할 수 있습니다.${closedNote}`)) return;
     dispatch({ type: 'UNCONFIRM_ROUND', roundIdx: round.roundIdx });
   };
 
@@ -160,12 +171,13 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     );
   }
 
-  if (state.phase === 'summary' || state.phase === 'done') {
+  // 마감 화면: 전송 완료(done)면 항상, 마감(summary)이면 보고 있을 때만. "← 경기로 돌아가기"는 화면만 내린다.
+  if (state.phase === 'done' || (closed && showSummary)) {
     return (
       <div style={s.app}>
         <MatchHeader title="🎾 경기 마감" subtitle={`${state.gameDate} · 기록 확인`} onHome={onBackToMenu} />
         <TennisSummaryView state={state} isAdmin={teamContext?.role === '관리자'} busy={busy}
-          onBack={() => dispatch({ type: 'SET_PHASE', phase: 'playing' })}
+          onBack={() => setShowSummary(false)}
           onSubmit={handleSubmitRecords} onArchive={handleArchive} C={C} styles={s} />
       </div>
     );
@@ -182,17 +194,22 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
           { key: 'attendees',  label: '참석명단', onClick: () => setMatchModal('attendees') },
           { key: 'results',    label: '오늘 결과', onClick: () => setMatchModal('results') },
           { key: 'playerStats', label: '개인기록', onClick: () => setMatchModal('playerStats') },
-          {
-            key: 'finish', label: '경기 마감', tone: 'green',
-            strong: canFinish,
-            onClick: () => {
-              if (!canFinish) {
-                alert('모든 라운드를 확정해야 마감할 수 있습니다.');
-                return;
-              }
-              dispatch({ type: 'SET_PHASE', phase: 'summary' });
+          // 마감 전: "경기 마감"(전 라운드 확정 필수) / 마감 후: 마감 화면으로 가는 네비게이션(풋살 "최종집계"와 같은 역할).
+          // 마감 해제 버튼은 없다 — 수정이 필요하면 하단 "라운드 확정취소"가 마감을 자동으로 푼다.
+          closed
+            ? { key: 'finish', label: '마감 화면', tone: 'orange', strong: true, onClick: () => setShowSummary(true) }
+            : {
+              key: 'finish', label: '경기 마감', tone: 'green',
+              strong: canFinish,
+              onClick: () => {
+                if (!canFinish) {
+                  alert('모든 라운드를 확정해야 마감할 수 있습니다.');
+                  return;
+                }
+                dispatch({ type: 'SET_PHASE', phase: 'summary' });
+                setShowSummary(true);
+              },
             },
-          },
           { key: 'delete', label: '경기삭제', tone: 'red', onClick: deleteTennisGame, hidden: teamContext?.role !== '관리자' },
         ]} />
       </MatchHeader>
