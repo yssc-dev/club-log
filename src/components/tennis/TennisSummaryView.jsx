@@ -22,11 +22,7 @@ export default function TennisSummaryView({ state, isAdmin, busy, onBack, onSubm
   }, [state.rounds]);
 
   return (
-    <div style={{ paddingBottom: 120 }}>
-      {!finalized && (
-        <button onClick={onBack} style={{ ...s.btnSm(), margin: '0 16px 10px' }}>← 경기로 돌아가기</button>
-      )}
-
+    <div style={{ paddingBottom: 90 }}>
       <div style={s.section}>
         <TennisResultsModal rounds={state.rounds} C={C} styles={s} />
 
@@ -43,14 +39,20 @@ export default function TennisSummaryView({ state, isAdmin, busy, onBack, onSubm
         )}
       </div>
 
-      <div style={{ ...s.bottomBar, flexDirection: 'column', gap: 6 }}>
+      {/* 하단 바 — 풋살 최종집계와 같은 한 줄 배치: [경기로] [기록확정(구글시트 전송)] [아카이브].
+          "경기로"는 화면만 내리고 마감 상태는 유지한다(onBack). 전송 완료 후엔 돌아갈 화면이 없어 숨긴다. */}
+      <div style={s.bottomBar}>
+        {!finalized && (
+          <button onClick={onBack} style={s.btn(C.grayDark)}>경기로</button>
+        )}
         <button disabled={!isAdmin || busy || finalized} onClick={onSubmit}
-          style={{ ...s.btnFull(finalized ? C.green : isAdmin ? C.accent : C.cardLight), opacity: isAdmin || finalized ? 1 : 0.5 }}>
+          style={{ ...s.btn(finalized ? C.green : isAdmin ? C.accent : C.cardLight), flex: 1, opacity: isAdmin || finalized ? 1 : 0.5 }}>
           {finalized ? '전송 완료' : busy ? '전송 중...' : isAdmin ? '기록확정 (구글시트 전송)' : '기록확정 (관리자만)'}
         </button>
         <button disabled={!finalized || busy || !isAdmin} onClick={onArchive}
-          style={{ ...s.btnFull(finalized && isAdmin ? C.accent : C.cardLight), opacity: finalized && isAdmin ? 1 : 0.5 }}>
-          {isAdmin ? '아카이브 저장' : '아카이브 저장 (관리자만)'}
+          title={isAdmin ? '' : '관리자만'}
+          style={{ ...s.btn(C.grayDark), opacity: finalized && isAdmin ? 1 : 0.3, cursor: finalized && isAdmin ? 'pointer' : 'not-allowed' }}>
+          아카이브
         </button>
       </div>
     </div>
