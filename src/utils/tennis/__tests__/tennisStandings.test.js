@@ -27,10 +27,11 @@ describe('buildSinglesStandings', () => {
     expect(s[1]).toMatchObject({ name: 'b', wins: 0, losses: 2, rate: 0 });
   });
 
-  it('복식과 미반영 판은 제외한다', () => {
+  it('복식과 게스트 낀 단식 판은 제외한다', () => {
     const rows = [
       pg({ player: 'a', format: '복식', league: '투몽' }),
-      pg({ player: 'a', league: '미반영' }),
+      pg({ player: 'a', match_id: 'R2_C1', side: 'A' }),
+      pg({ player: '손님', is_guest: true, result: '패', match_id: 'R2_C1', side: 'B' }),   // 게스트 낀 단식 → 번외
     ];
     const s = buildSinglesStandings({ rows, roster, asOfDate: '2026-12-31' });
     expect(s.find(x => x.name === 'a').games).toBe(0);
@@ -177,23 +178,28 @@ describe('buildPlayerSummary', () => {
     expect(s.attendanceDates).toBe(0);
   });
 
-  it('리그(길로틴/투몽)와 번외(미반영·게스트 낀 판)를 나눠 집계한다', () => {
+  it('리그(길로틴/투몽)와 번외(게스트 낀 단식·회원 2명 이하 복식)를 나눠 집계한다 — 구성 기준', () => {
     const rows2 = [
-      // 단식 길로틴 승 (리그)
+      // 단식 회원끼리 승 (리그)
       pg({ player: 'a', result: '승', league: '길로틴', match_id: 'R1_C1', game_id: 'g1' }),
-      // 단식 미반영 승 (번외)
-      pg({ player: 'a', result: '승', league: '미반영', match_id: 'R2_C1', game_id: 'g2' }),
+      // 단식, 상대가 게스트 (번외) — 라벨이 길로틴이어도 구성으로 번외
+      pg({ player: 'a', result: '승', league: '길로틴', match_id: 'R2_C1', game_id: 'g2' }),
+      pg({ player: 'q', result: '패', league: '길로틴', is_guest: true, match_id: 'R2_C1', game_id: 'g2' }),
       // 복식 투몽, 게스트 없음 (리그)
       pg({ player: 'a', format: '복식', league: '투몽', result: '승', partner: 'b', match_id: 'R3_C1', game_id: 'g3' }),
-      // 복식 투몽 라벨이지만 같은 매치에 게스트(z)가 낀 판 → 번외로 빠져야
+      // 복식, 게스트 1명(z) → 회원 3명 → 리그(규정)
+      pg({ player: 'a', format: '복식', league: '미반영', result: '패', partner: 'b', match_id: 'R5_C1', game_id: 'g5' }),
+      pg({ player: 'z', format: '복식', league: '미반영', result: '승', is_guest: true, match_id: 'R5_C1', game_id: 'g5' }),
+      // 복식, 게스트 2명(z, w) → 회원 2명 → 번외
       pg({ player: 'a', format: '복식', league: '투몽', result: '승', partner: 'b', match_id: 'R4_C1', game_id: 'g4' }),
       pg({ player: 'z', format: '복식', league: '투몽', result: '패', is_guest: true, match_id: 'R4_C1', game_id: 'g4' }),
+      pg({ player: 'w', format: '복식', league: '투몽', result: '패', is_guest: true, match_id: 'R4_C1', game_id: 'g4' }),
     ];
     const s = buildPlayerSummary({ rows: rows2, player: 'a' });
     // 단식: 리그 1-0, 번외 1-0
     expect(s.singles).toMatchObject({ wins: 1, losses: 0, extraWins: 1, extraLosses: 0 });
-    // 복식: 리그 1-0(g3), 번외 1-0(g4=게스트 오염)
-    expect(s.doubles).toMatchObject({ wins: 1, losses: 0, extraWins: 1, extraLosses: 0 });
+    // 복식: 리그 1-1(g3 승, g5 패), 번외 1-0(g4=게스트 2명)
+    expect(s.doubles).toMatchObject({ wins: 1, losses: 1, extraWins: 1, extraLosses: 0 });
     expect(s.singles.rate).toBe(1);        // 리그 1/1
     expect(s.singles.extraRate).toBe(1);   // 번외 1/1
   });
@@ -201,7 +207,8 @@ describe('buildPlayerSummary', () => {
   it('legacySingles는 리그(단식) 전적에만 가산 — 번외는 불변', () => {
     const rows2 = [
       pg({ player: 'a', result: '승', league: '길로틴', match_id: 'R1_C1', game_id: 'g1' }),
-      pg({ player: 'a', result: '패', league: '미반영', match_id: 'R2_C1', game_id: 'g2' }), // 번외 0-1
+      pg({ player: 'a', result: '패', match_id: 'R2_C1', game_id: 'g2' }),                       // 번외 0-1 (상대 게스트)
+      pg({ player: 'q', result: '승', is_guest: true, match_id: 'R2_C1', game_id: 'g2' }),
     ];
     const s = buildPlayerSummary({ rows: rows2, player: 'a', legacySingles: [{ player: 'a', wins: 10, losses: 2 }] });
     expect(s.singles).toMatchObject({ wins: 11, losses: 2, games: 13 });      // 리그 1-0 + legacy 10-2

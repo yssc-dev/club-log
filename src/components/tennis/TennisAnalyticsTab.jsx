@@ -148,7 +148,7 @@ function RecordSplitTable({ summary, ds, C }) {
         </tbody>
       </table>
       <div style={{ fontSize: 10, color: C.gray, marginTop: 8, lineHeight: 1.5 }}>
-        리그 = 길로틴(단식)·투몽(복식) / 번외 = 게스트 낀 판 등 리그 외 경기.
+        리그 = 길로틴(단식: 회원끼리)·투몽(복식: 회원 3명 이상) / 번외 = 그 외(게스트 낀 단식, 회원 2명 이하 복식).
       </div>
     </div>
   );
@@ -227,7 +227,7 @@ function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
           <StatCell C={C} label="베이글" value={`${b.bagelsGiven}/${b.bagelsTaken}`} />
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginTop: 8, lineHeight: 1.5 }}>
-          리그 = {leagueName}({format}) · 번외 = 게스트 낀 판 등 리그 외 경기.<br />
+          리그 = {leagueName}({format === '복식' ? '회원 3명 이상' : '회원끼리'}) · 번외 = 그 외.<br />
           에이스·타이브레이크·베이글은 상세 기록이 있는 경기만 집계됩니다.
         </div>
       </div>
@@ -499,7 +499,7 @@ function PlayerReportSection({ rows, format, periodLabel, ds, C }) {
             </tbody>
           </table>
           <div style={{ fontSize: 11, color: C.gray, marginTop: 6 }}>
-            {hasGuest ? '* 게스트 · ' : ''}{format} 판만 집계(위 토글). 득실 = 게임 득 − 실. "리그만"은 회원끼리의 {format === '단식' ? '길로틴' : '투몽'} 판만(개인지표 전적과 같은 기준).
+            {hasGuest ? '* 게스트 · ' : ''}{format} 판만 집계(위 토글). 득실 = 게임 득 − 실. "리그만"은 {format === '단식' ? '회원끼리의 길로틴' : '회원 3명 이상 투몽'} 판만(개인지표 전적과 같은 기준).
           </div>
         </div>
       )}

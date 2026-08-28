@@ -4,9 +4,8 @@
 import { COMPETITION_SINGLES } from './tennisSchema';
 import { deriveLeagueForDate, singlesWinRatesBefore } from './leagueDerivation';
 import { calcMatchPoints, DEFAULT_POINT_RULES } from './rankPoints';
-import { matchKey, guestMatchKeys, isLeagueRow } from './tennisAnalytics';
+import { matchKey, guestCountByMatch, isLeagueRow } from './tennisAnalytics';
 
-const isSingles = (r) => r.format === '단식' && r.league === COMPETITION_SINGLES;
 
 // legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — W/L(승률)에만 가산, 포인트 불가.
 export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEFAULT_POINT_RULES, sortBy = 'rate', legacySingles = [], seedOrder = [] }) {
@@ -15,9 +14,9 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0, points: 0,
   }]));
 
-  // 게스트 낀 단식은 애초에 league='미반영'(determineCompetition: 단식은 전원 회원일 때만 길로틴)이라
-  // isSingles(league==='길로틴')에서 이미 통째로 빠진다 → 복식처럼 별도 guestMatchKeys 제외가 불필요.
-  const singles = (rows || []).filter(r => isSingles(r) && r.is_guest !== true);
+  // 길로틴 성립 = 회원끼리(게스트 0명) 단식 — 구성 기준(leagueRule.js), 시트 라벨 무관.
+  const guestCounts = guestCountByMatch(rows);
+  const singles = (rows || []).filter(r => r.format === '단식' && isLeagueRow(r, guestCounts));
 
   for (const r of singles) {
     const cur = acc.get(r.player);
@@ -95,15 +94,15 @@ export function buildSinglesStandings({ rows, roster, asOfDate, pointRules = DEF
     .sort(cmp);
 }
 
-// 종목 전적을 리그(길로틴 단식/투몽 복식) vs 번외(그 외+게스트 낀 판)로 분리 집계.
-//  - 리그 판정은 리그탭(buildSinglesStandings/buildDoublesStandings)과 동일 기준:
-//    매치 단위로 게스트가 낀 판은 통째 번외, 그 위에서 format+league로 리그 성립.
+// 종목 전적을 리그(길로틴 단식/투몽 복식) vs 번외(그 외)로 분리 집계.
+//  - 리그 판정은 리그탭(buildSinglesStandings/buildDoublesStandings)과 동일 기준(isLeagueRow):
+//    단식은 회원끼리, 복식은 회원 3명 이상(게스트 ≤1) — 참가자 구성 기준, 라벨 무관.
 //  - wins/losses/rate/games = 리그, extra* = 번외. 레이더는 singles.rate(=리그)를 그대로 소비.
 //  - legacySingles: 상세 로우 없는 단식 집계 [{player, wins, losses}] — 단식 '리그' 전적에만 가산.
 //  - 에이스/DF/타이브레이크/베이글은 종목 상세 총계(리그+번외 로우, 레거시엔 경기별 값 없음).
 export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
   const all = rows || [];
-  const guests = guestMatchKeys(all);            // 게스트가 한 명이라도 낀 매치(game_id|match_id) 집합
+  const guests = guestCountByMatch(all);         // 판(game_id|match_id)별 게스트 수 — 리그 성립 판정 입력
   const mine = all.filter(r => r.player === player);
 
   const blank = () => ({

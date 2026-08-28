@@ -26,16 +26,17 @@ function doublesMatch({ date = '2026-01-10', a = ['갑', '을'], b = ['병', '�
 
 describe('buildDoublesStandings', () => {
   const roster4 = [...roster, { name: '정', grade: '동배' }];
-  it('전원 회원 복식만 집계 — 게스트 낀 판·미반영은 번외로 통째 제외', () => {
+  it('회원 3명 이상 복식만 집계(구성 기준, 라벨 무관) — 게스트 2명 판은 번외로 통째 제외, 게스트 본인은 순위 제외', () => {
     const rows = [
-      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),           // 전원 회원 → 집계
-      ...doublesMatch({ a: ['갑', '을'], b: ['병', '민환'], guests: ['민환'], winner: 'A' }),    // 게스트 낀 판(league='투몽'이어도) → 번외 제외
-      ...doublesMatch({ league: '미반영', guests: [], a: ['갑', '을'], b: ['병', '정'], winner: 'B' }),
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),                 // 전원 회원 → 집계
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '민환'], guests: ['민환'], winner: 'A' }),          // 회원 3 + 게스트 1 → 집계(규정)
+      ...doublesMatch({ league: '미반영', guests: [], a: ['갑', '을'], b: ['병', '정'], winner: 'B' }), // 라벨이 미반영이어도 전원 회원 → 집계
+      ...doublesMatch({ a: ['갑', '을'], b: ['용병1', '용병2'], guests: ['용병1', '용병2'], winner: 'A' }), // 게스트 2 → 번외 제외
     ];
     const out = buildDoublesStandings({ rows, roster: roster4 });
-    // 전원회원 1판만 집계: 갑 1승, 병 1패 (게스트 판의 회원 행도 제외됨)
-    expect(out.find(x => x.name === '갑')).toMatchObject({ games: 1, wins: 1, rate: 1 });
-    expect(out.find(x => x.name === '병')).toMatchObject({ games: 1, losses: 1 });
+    expect(out.find(x => x.name === '갑')).toMatchObject({ games: 3, wins: 2, losses: 1 });
+    expect(out.find(x => x.name === '병')).toMatchObject({ games: 3, wins: 1, losses: 2 });
+    expect(out.find(x => x.name === '정')).toMatchObject({ games: 2, wins: 1, losses: 1 });
     expect(out.some(x => x.name === '민환')).toBe(false);
   });
 });
@@ -44,7 +45,8 @@ describe('buildLeagueCounts', () => {
   it('판 분류 수 — 전체 = 투몽 + 길로틴 + 번외', () => {
     const rows = [
       ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),        // 투몽
-      ...doublesMatch({ a: ['갑', '을'], b: ['병', '민환'], guests: ['민환'], winner: 'A' }), // 번외(게스트)
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '민환'], guests: ['민환'], winner: 'A' }), // 회원 3 + 게스트 1 → 투몽
+      ...doublesMatch({ a: ['갑', '을'], b: ['용병1', '용병2'], guests: ['용병1', '용병2'], winner: 'A' }), // 게스트 2 → 번외
       // 단식 2판: 전원회원(길로틴) + 게스트(번외)
       { date: '2026-08-01', game_id: 'g_s1', match_id: 'R9_C1', format: '단식', league: '길로틴', player: '갑', side: 'A', is_guest: false, result: '승' },
       { date: '2026-08-01', game_id: 'g_s1', match_id: 'R9_C1', format: '단식', league: '길로틴', player: '을', side: 'B', is_guest: false, result: '패' },
@@ -52,7 +54,7 @@ describe('buildLeagueCounts', () => {
       { date: '2026-08-01', game_id: 'g_s2', match_id: 'R9_C2', format: '단식', league: '미반영', player: '민환', side: 'B', is_guest: true, result: '패' },
     ];
     const c = buildLeagueCounts({ rows });
-    expect(c).toEqual({ tumong: 1, guillotine: 1, exhibition: 2, total: 4 });
+    expect(c).toEqual({ tumong: 2, guillotine: 1, exhibition: 2, total: 5 });
     expect(c.tumong + c.guillotine + c.exhibition).toBe(c.total);
   });
 });
@@ -206,7 +208,7 @@ describe('buildRecentMatches', () => {
 });
 
 // ─── 선수 성적표 (전체지표) ─────────────────────────────
-import { buildPlayerReportCard, isLeagueRow, guestMatchKeys } from '../tennisAnalytics';
+import { buildPlayerReportCard, isLeagueRow, guestCountByMatch } from '../tennisAnalytics';
 
 // 단식 1판 = 2행 헬퍼.
 function singlesMatch({ date = '2026-08-10', a = '갑', b = '을', winner = 'A', league = '길로틴',
@@ -222,16 +224,18 @@ function singlesMatch({ date = '2026-08-10', a = '갑', b = '을', winner = 'A',
 }
 
 describe('isLeagueRow', () => {
-  it('회원끼리 길로틴(단식)/투몽(복식)만 리그, 게스트 낀 판·미반영·본인 게스트는 번외', () => {
+  it('구성 기준: 단식은 게스트 0, 복식은 게스트 ≤1 — 라벨 무관, 본인 게스트는 항상 번외', () => {
     const rows = [
       ...singlesMatch({ a: '갑', b: '을', league: '길로틴' }),
-      ...singlesMatch({ a: '갑', b: '손님', league: '길로틴', guests: ['손님'] }),
-      ...singlesMatch({ a: '갑', b: '병', league: '미반영' }),
+      ...singlesMatch({ a: '갑', b: '손님', league: '길로틴', guests: ['손님'] }),   // 게스트 낀 단식 → 번외(라벨과 무관)
+      ...singlesMatch({ a: '갑', b: '병', league: '미반영' }),                       // 회원끼리인데 라벨만 미반영 → 리그
       ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], league: '투몽' }),
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '손님'], guests: ['손님'], league: '미반영' }), // 회원 3 → 리그
+      ...doublesMatch({ a: ['갑', '손님'], b: ['병', '객'], guests: ['손님', '객'], league: '투몽' }), // 회원 2 → 번외
     ];
-    const guests = guestMatchKeys(rows);
+    const guests = guestCountByMatch(rows);
     const gap = rows.filter(r => r.player === '갑');
-    expect(gap.map(r => isLeagueRow(r, guests))).toEqual([true, false, false, true]);
+    expect(gap.map(r => isLeagueRow(r, guests))).toEqual([true, false, true, true, true, false]);
     expect(isLeagueRow(rows.find(r => r.player === '손님'), guests)).toBe(false);
   });
 });

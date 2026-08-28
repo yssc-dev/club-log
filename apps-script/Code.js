@@ -2,6 +2,9 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-28: relabelTennisLeague(관리자 전용) 추가 — game_id+match_id로 로그_테니스매치/선수경기의
+//             league 열 정정. 8-14~28 사이 복식 "회원 3명+게스트 1명"이 규정(회원 3명 이상=투몽)과
+//             달리 미반영으로 저장된 10판 정정용. 허용값 투몽/길로틴/미반영, 행 팀소유 검증.
 // 2026-08-27: 테니스 시트 쓰기에 _sanitizeCell 적용 — 수식 주입 차단(_tennisRowToArray)
 // 2026-08-19: _playerLogColMap 크로바/고구마 폴백 7/8 → -1(헤더 없으면 0). 하버FC
 //             선수기록보관소엔 두 헤더가 없어 클린시트/실점 열을 오독 — getPrevRankings의
@@ -347,7 +350,7 @@ function doPost(e) {
       deleteTournament: 1, reimportPointLog: 1,
       migrateEventTypes: 1, migrateMatchIds: 1, backfillFutsalGk: 1,
       backupSheet: 1, ensureEventLogHasGameId: 1,
-      getTennisRosterAdmin: 1, writeTennisRosterMember: 1,
+      getTennisRosterAdmin: 1, writeTennisRosterMember: 1, relabelTennisLeague: 1,
     };
     if (ADMIN_ACTIONS[action] && authInfo.role !== "관리자") {
       return _errorResponse("관리자 권한이 필요합니다");
@@ -413,6 +416,8 @@ function doPost(e) {
       return _jsonResponse(_getTennisRosterAdmin(requestTeam));
     } else if (action === "writeTennisRosterMember") {
       return _jsonResponse(_writeTennisRosterMember(requestTeam, body));
+    } else if (action === "relabelTennisLeague") {
+      return _jsonResponse(_relabelTennisLeague(requestTeam, body.data));
     } else if (action === "getTennisMatches") {
       return _jsonResponse(_readTennisRows(TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS, requestTeam, body.dateFrom, body.dateTo));
     } else if (action === "getTennisPlayerGames") {
@@ -3137,6 +3142,50 @@ function _getTennisRosterAdmin(team) {
 }
 
 // 관리자 전용 upsert(+소프트삭제). row 있으면 수정(팀 소유 검증·생년월일 보존), 없으면 append.
+// 리그 라벨 정정(관리자 전용) — data.items: [{game_id, match_id, league}]. 두 로그 시트에서
+// 같은 팀·game_id·match_id인 행의 league 열만 바꾼다. 허용값 화이트리스트, 값이 이미 같으면 건너뜀.
+function _relabelTennisLeague(team, data) {
+  if (!team || !String(team).trim()) return { success: false, error: "team 필수" };
+  var items = (data && data.items) || [];
+  if (!items.length) return { success: false, error: "items 누락" };
+  var ALLOWED = { "투몽": 1, "길로틴": 1, "미반영": 1 };
+  for (var k = 0; k < items.length; k++) {
+    if (!ALLOWED[items[k].league]) return { success: false, error: "허용되지 않는 league 값: " + items[k].league };
+  }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { success: false, error: "잠금 획득 실패" };
+  try {
+    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var defs = [[TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS], [TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS]];
+    var updated = {};
+    for (var d = 0; d < defs.length; d++) {
+      var sheetName = defs[d][0], headers = defs[d][1];
+      var sheet = ss.getSheetByName(sheetName);
+      updated[sheetName] = 0;
+      if (!sheet) continue;
+      var iTeam = headers.indexOf("team"), iGame = headers.indexOf("game_id"),
+          iMatch = headers.indexOf("match_id"), iLeague = headers.indexOf("league");
+      var lastRow = sheet.getLastRow();
+      if (lastRow < 2) continue;
+      var values = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+      for (var i = 0; i < values.length; i++) {
+        var row = values[i];
+        if (String(row[iTeam]).trim() !== String(team).trim()) continue;
+        for (var j = 0; j < items.length; j++) {
+          var it = items[j];
+          if (String(row[iGame]) !== String(it.game_id) || String(row[iMatch]) !== String(it.match_id)) continue;
+          if (String(row[iLeague]) === String(it.league)) continue;
+          sheet.getRange(i + 2, iLeague + 1).setValue(it.league);
+          updated[sheetName]++;
+        }
+      }
+    }
+    return { success: true, updated: updated };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
 function _writeTennisRosterMember(team, body) {
   if (!team || !String(team).trim()) return { success: false, error: "team 필수" };
   // 모든 자유입력은 trim 먼저→_sanitizeCell(선행공백+수식으로 우회 방지). enum은 화이트리스트.

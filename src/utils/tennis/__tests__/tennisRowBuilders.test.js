@@ -30,10 +30,11 @@ describe('determineCompetition', () => {
     expect(determineCompetition('단식', ['성언'], ['민환'], members)).toBe('미반영');
   });
 
-  it('복식은 4명 전원 회원이어야 투몽 — 게스트 1명이면 번외(미반영)', () => {
+  it('복식은 4명 중 회원 3명 이상이면 투몽(규정) — 게스트 2명부터 번외(미반영)', () => {
     expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '철우'], members)).toBe('투몽');
-    expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '민환'], members)).toBe('미반영'); // 게스트 1명
-    expect(determineCompetition('복식', ['성언', '다빈'], ['용병1', '용병2'], members)).toBe('미반영');
+    expect(determineCompetition('복식', ['성언', '다빈'], ['원희', '민환'], members)).toBe('투몽');   // 회원 3 + 게스트 1 → 성립
+    expect(determineCompetition('복식', ['성언', '다빈'], ['용병1', '용병2'], members)).toBe('미반영'); // 회원 2 → 번외
+    expect(determineCompetition('복식', ['성언', '다빈'], ['원희'], members)).toBe('미반영');          // 인원 부족
   });
 });
 
@@ -59,7 +60,7 @@ describe('membersFromState', () => {
     expect(membersFromState(st, []).has('성언')).toBe(false);                 // 명부 비면 종전(attendees\guests)대로
   });
 
-  it('통합: 용병이 attendees에 있어도 is_guest=TRUE·매치는 번외로 기록된다', () => {
+  it('통합: 용병이 attendees에 있어도 is_guest=TRUE — 회원 3명+용병 1명 복식은 투몽(규정)', () => {
     const st = {
       gameId: 'g_x', gameDate: '2026-08-15', season: 2026,
       attendees: ['성언', '다빈', '원희', '민환'], guests: ['민환'], // 민환=용병
@@ -75,7 +76,7 @@ describe('membersFromState', () => {
     const 성언 = rows.find(r => r.player === '성언');
     expect(민환.is_guest).toBe(true);      // 용병은 게스트
     expect(성언.is_guest).toBe(false);     // 회원은 회원
-    expect(rows.every(r => r.league === '미반영')).toBe(true); // 용병 낀 판 → 번외
+    expect(rows.every(r => r.league === '투몽')).toBe(true);   // 회원 3 + 용병 1 → 투몽 성립
   });
 });
 
@@ -96,7 +97,7 @@ describe('buildTennisMatchRows', () => {
       game_id: 'g_1', round_idx: 1, court_id: 1, match_idx: 1, match_id: 'R1_C1',
       format: '복식', best_of: 1,
       sets_a: 1, sets_b: 0, games_a: 6, games_b: 1, winner: 'A',
-      league: '미반영',   // 민환(게스트) 포함 → 번외
+      league: '투몽',     // 민환(게스트) 1명 + 회원 3명 → 투몽 성립
     });
   });
 
@@ -139,7 +140,7 @@ describe('buildTennisPlayerGameRows', () => {
       tb_played: 0, tb_won: 0,
       aces: 2, double_faults: 1,
       bagels_taken: 0, bagels_given: 0,
-      grade_at_date: '은배', is_guest: false, league: '미반영',   // 민환(게스트) 포함 → 번외
+      grade_at_date: '은배', is_guest: false, league: '투몽',     // 민환(게스트) 1명 + 회원 3명 → 투몽
     });
     expect(JSON.parse(r.opponents_json)).toEqual(['원희', '민환']);
   });

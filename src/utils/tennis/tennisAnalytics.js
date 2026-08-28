@@ -1,6 +1,6 @@
 // 분석 탭 계산기. 입력은 시트 행 그대로 — 빈 셀은 ''로 들어온다.
 // aces/double_faults의 ''은 "미기록"(마이그레이션 행)이므로 0으로 강제하지 말 것.
-import { COMPETITION_DOUBLES, COMPETITION_SINGLES } from './tennisSchema';
+import { isLeagueByGuests } from './leagueRule';
 
 const isDoubles = (r) => r.format === '복식';
 const memberNames = (roster) => new Set((roster || []).map(m => m.name));
@@ -11,23 +11,25 @@ const byRateWinsName = (a, b) =>
 // 판 식별 키 — game_id + match_id (match_id는 R{round}_C{court}라 날짜 넘어 재사용됨).
 export const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 
-// 게스트가 하나라도 낀 판(game_id|match_id) 키 집합 — 번외 판정용.
-// 리그 성립은 참가자 전원 회원일 때만이므로, 게스트 판은 회원 행까지 통째로 리그에서 뺀다.
-export function guestMatchKeys(rows) {
-  const keys = new Set();
+// 판(game_id|match_id)별 게스트 행 수 — 리그 성립 판정의 입력.
+export function guestCountByMatch(rows) {
+  const counts = new Map();
   for (const r of rows || []) {
-    if (r && r.is_guest === true) keys.add(matchKey(r));
+    if (r && r.is_guest === true) {
+      const k = matchKey(r);
+      counts.set(k, (counts.get(k) || 0) + 1);
+    }
   }
-  return keys;
+  return counts;
 }
 
-// 리그 성립 판정(행 단위) — 본인이 게스트가 아니고, 그 판에 게스트가 없고, 종목별 리그 라벨일 때.
-// guestKeys = guestMatchKeys(rows). 개인 전적(buildPlayerSummary)과 선수 성적표가 같은 판정을 쓴다.
-export function isLeagueRow(r, guestKeys) {
-  if (!r || r.is_guest === true || (guestKeys && guestKeys.has(matchKey(r)))) return false;
-  if (r.format === '단식') return r.league === COMPETITION_SINGLES;
-  if (r.format === '복식') return r.league === COMPETITION_DOUBLES;
-  return false;
+// 리그 성립 판정(행 단위) — 본인이 게스트가 아니고, 그 판의 게스트 수가 종목 허용치 이내일 때
+// (단식 0명 / 복식 1명, leagueRule.js). 시트의 league 라벨은 보지 않는다(구성이 진실 소스).
+// guestCounts = guestCountByMatch(rows). 순위표·개인 전적·선수 성적표·리그 카운트가 같은 판정을 쓴다.
+export function isLeagueRow(r, guestCounts) {
+  if (!r || r.is_guest === true) return false;
+  const guests = guestCounts ? (guestCounts.get(matchKey(r)) || 0) : 0;
+  return isLeagueByGuests(r.format, guests);
 }
 
 // 선수 성적표(전체지표): 기간 내 한 판이라도 뛴 모든 선수(게스트 포함, isGuest 표시).
@@ -36,7 +38,7 @@ export function isLeagueRow(r, guestKeys) {
 // 정렬: 승률↓ → 승↓ → 이름.
 export function buildPlayerReportCard({ rows, leagueOnly = false, format } = {}) {
   const all = rows || [];
-  const guests = leagueOnly ? guestMatchKeys(all) : null;
+  const guests = leagueOnly ? guestCountByMatch(all) : null;
   const acc = new Map();
   const blank = () => ({ games: 0, wins: 0, losses: 0, rate: 0 });
   for (const r of all) {
@@ -60,14 +62,13 @@ export function buildPlayerReportCard({ rows, leagueOnly = false, format } = {})
   return [...acc.values()].sort(byRateWinsName);
 }
 
-// 복식 순위표: 투몽 행만, 번외(게스트 낀 판) 통째 제외, 명부 전원 포함(0판도 표시)
+// 복식 순위표: 투몽 성립 판(회원 3명 이상)의 회원 행만, 명부 전원 포함(0판도 표시)
 export function buildDoublesStandings({ rows, roster }) {
   const acc = new Map((roster || []).filter(m => m?.name).map(m =>
     [m.name, { name: m.name, grade: m.grade || '', games: 0, wins: 0, losses: 0, rate: 0 }]));
-  const guests = guestMatchKeys(rows);
+  const guestCounts = guestCountByMatch(rows);
   for (const r of rows || []) {
-    if (!isDoubles(r) || r.league !== COMPETITION_DOUBLES || r.is_guest === true) continue;
-    if (guests.has(matchKey(r))) continue; // 게스트 낀 판 전체 제외(번외)
+    if (!isDoubles(r) || !isLeagueRow(r, guestCounts)) continue;
     const cur = acc.get(r.player);
     if (!cur) continue; // 로스터 밖(용병·탈퇴) 제외
     cur.games++;
@@ -78,23 +79,22 @@ export function buildDoublesStandings({ rows, roster }) {
 }
 
 // 판(game_id|match_id) 단위 분류 수. 전체 = 투몽 + 길로틴 + 번외.
-// 게스트 낀 판=번외, 아니면 형식으로 투몽(복식)/길로틴(단식). (집계 데이터 없이 로우 기준)
+// 리그 성립은 게스트 수로(단식 0 / 복식 ≤1, leagueRule.js). 형식 불명은 번외. (라벨 무관, 로우 기준)
 export function buildLeagueCounts({ rows }) {
-  const byMatch = new Map(); // key → { format, hasGuest }
+  const byMatch = new Map(); // key → { format, guests }
   for (const r of rows || []) {
     if (!r || !r.match_id) continue;
     const key = matchKey(r);
-    const cur = byMatch.get(key) || { format: r.format, hasGuest: false };
-    if (r.is_guest === true) cur.hasGuest = true;
+    const cur = byMatch.get(key) || { format: r.format, guests: 0 };
+    if (r.is_guest === true) cur.guests++;
     if (r.format) cur.format = r.format;
     byMatch.set(key, cur);
   }
   let tumong = 0, guillotine = 0, exhibition = 0;
   for (const m of byMatch.values()) {
-    if (m.hasGuest) exhibition++;
+    if (!isLeagueByGuests(m.format, m.guests)) exhibition++;
     else if (m.format === '복식') tumong++;
-    else if (m.format === '단식') guillotine++;
-    else exhibition++; // 형식 불명(전원 회원이지만 비표준)도 번외로
+    else guillotine++;
   }
   return { tumong, guillotine, exhibition, total: byMatch.size };
 }

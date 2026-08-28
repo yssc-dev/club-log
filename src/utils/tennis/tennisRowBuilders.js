@@ -3,7 +3,8 @@
 // match_id 포맷은 R{round}_C{court} — matchRowBuilder.js의 parseMatchIdFutsal과 같은 형식이지만
 // 격리를 위해 그 파일을 import하지 않는다.
 
-import { TENNIS_SPORT, COMPETITION_SINGLES, COMPETITION_DOUBLES, COMPETITION_NONE } from './tennisSchema';
+import { TENNIS_SPORT } from './tennisSchema';
+import { leagueForComposition } from './leagueRule';
 import { summarizeCourt } from './tennisScoring';
 
 // 참석자 중 '회원'만 추린 Set. 리듀서가 용병(ADD_ATTENDEE isGuest)을 attendees·guests
@@ -38,18 +39,11 @@ export function resolveGradeSource(state, roster) {
   };
 }
 
-// 리그 성립 = 참가자 전원이 회원일 때만. 게스트가 1명이라도 끼면 번외(미반영).
-// 그래야 전체경기 = 투몽 + 길로틴 + 번외 로 합계가 맞아떨어진다.
+// 리그 성립 판정 — 규칙은 leagueRule.js 한 곳(단식 회원끼리 / 복식 회원 3명 이상).
 export function determineCompetition(format, sideA, sideB, memberSet) {
   const all = [...(sideA || []), ...(sideB || [])];
   const memberCount = all.filter(n => memberSet && memberSet.has(n)).length;
-  if (format === '단식') {
-    return memberCount === all.length && all.length === 2 ? COMPETITION_SINGLES : COMPETITION_NONE;
-  }
-  if (format === '복식') {
-    return all.length === 4 && memberCount === 4 ? COMPETITION_DOUBLES : COMPETITION_NONE;
-  }
-  return COMPETITION_NONE;
+  return leagueForComposition(format, memberCount, all.length);
 }
 
 // 완료된 코트만 (roundIdx, court, summary) 형태로 평탄화. match_idx는 그날 일련번호.
