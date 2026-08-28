@@ -44,6 +44,17 @@ describe('buildMonthSummary', () => {
     expect(s.hotPlayer.name).toBe('박성언');
     expect(s.hotPlayer.rate).toBeCloseTo(2 / 3);
   });
+  it('이달 다승 1위: 승률이 낮아도 승수가 많은 쪽 (승수↓→승률↓)', () => {
+    const mk = (player, result, i) => ({ date: `2026-08-${String(10 + i).padStart(2, '0')}`, game_id: `g${i}`, match_id: `R${i}_C1`, format: '복식', player, is_guest: false, result });
+    const rows = [
+      ...[1, 1, 1].map((_, i) => mk('고승률', '승', i)),                          // 3승 0패 100%
+      ...[1, 1, 1, 1, 0, 0].map((w, i) => mk('다승', w ? '승' : '패', 10 + i)),   // 4승 2패 67%
+    ];
+    const s = buildMonthSummary({ rows, month: '2026-08' });
+    expect(s.hotPlayer.name).toBe('다승');
+    expect(s.hotPlayer.wins).toBe(4);
+  });
+
   it('해당 월 데이터 없으면 matches 0, null들', () => {
     const s = buildMonthSummary({ rows, month: '2026-01' });
     expect(s).toEqual({ month: '2026-01', matches: 0, days: 0, topAttender: null, hotPlayer: null, playerCount: 0 });

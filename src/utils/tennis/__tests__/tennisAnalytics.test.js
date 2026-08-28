@@ -41,6 +41,26 @@ describe('buildDoublesStandings', () => {
   });
 });
 
+describe('정렬 원칙: 승수↓→승률↓ (의뢰인 요구)', () => {
+  it('buildPairChemistry: 1승 100% 페어보다 3승 60% 페어가 앞선다, minGames 기본 1', () => {
+    const rows = [
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),
+      ...[1, 1, 1, 0, 0].flatMap(w => doublesMatch({ a: ['갑', '병'], b: ['을', '정'], guests: [], winner: w ? 'A' : 'B' })),
+    ];
+    const out = buildPairChemistry({ rows });
+    expect(out[0].players).toEqual(['갑', '병']);           // 3승 2패
+    expect(out.find(p => p.players.join('') === '갑을')).toMatchObject({ games: 1, wins: 1 });  // minGames 1이라 포함
+  });
+  it('buildPartnerBreakdown: 파트너별도 승수↓→승률↓', () => {
+    const rows = [
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A' }),                       // 을과 1승
+      ...[1, 1, 0].flatMap(w => doublesMatch({ a: ['갑', '병'], b: ['을', '정'], guests: [], winner: w ? 'A' : 'B' })), // 병과 2승 1패
+    ];
+    const out = buildPartnerBreakdown({ rows, player: '갑' });
+    expect(out.map(b => b.partner)).toEqual(['병', '을']);
+  });
+});
+
 describe('buildLeagueCounts', () => {
   it('판 분류 수 — 전체 = 투몽 + 길로틴 + 번외', () => {
     const rows = [

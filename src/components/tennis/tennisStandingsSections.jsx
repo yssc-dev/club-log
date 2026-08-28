@@ -92,6 +92,9 @@ export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
             ))}
           </tbody>
         </table>
+        <div style={{ fontSize: 11, color: C.gray, marginTop: 6 }}>
+          # = 승수순(승수↓→승률↓). 리그 = 경기 전 승률 기준 상위 8명 투어리그·나머지 챌린저리그(포인트 판정용)라 #와 다를 수 있음.
+        </div>
       </div>
     </>
   );

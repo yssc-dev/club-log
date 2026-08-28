@@ -80,8 +80,8 @@ describe('buildSinglesStandings', () => {
       pg({ player: 'a', result: '패', grade_at_date: '은배', match_id: 'R1_C3', side: 'B' }),
     ];
     // 기본(wins): a 2승 > b 1승
-    const byRate = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31' });
-    expect(byRate.map(x => x.name)).toEqual(['a', 'b']);
+    const byWins = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31' });
+    expect(byWins.map(x => x.name)).toEqual(['a', 'b']);
     // points: b(6) > a(2) — rate와 반대 순서
     const byPoints = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31', sortBy: 'points' });
     expect(byPoints.map(x => x.name)).toEqual(['b', 'a']);
@@ -91,8 +91,8 @@ describe('buildSinglesStandings', () => {
 
   it('사전(경기일 직전) 승률로 역전 보너스를 계산한다', () => {
     // 설계 근거:
-    //   x, y가 day0에 a, b를 각각 꺾어 두 사람 모두 BK 최상위에 자리 잡는다.
-    //   그 결과 day1·2에서 a와 b는 둘 다 BR 리그로 묶여 leagueUpset 경로가 없다.
+    //   x, y가 day0에 a, b를 각각 꺾어 두 사람 모두 투어리그 최상위에 자리 잡는다(정원 2).
+    //   그 결과 day1·2에서 a와 b는 둘 다 챌린저리그로 묶여 leagueUpset 경로가 없다.
     //   day1: a가 b를 이길 때 사전 승률이 같으므로(0:0) sameLeagueUpset 미발동 → a 1점.
     //   day2: b가 a를 이길 때 b의 사전 승률(0.0) < a의 사전 승률(0.5) → sameLeagueUpset 발동
     //         → b 1 + 2 = 3점.

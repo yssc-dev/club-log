@@ -44,6 +44,14 @@ describe('buildLegacyStandings', () => {
     expect(s[0]).toMatchObject({ name: 'A', wins: 10, losses: 5, games: 15 });
     expect(s[0].rate).toBeCloseTo(10 / 15);
   });
+  it('승수 우선: 승률이 높아도 승수가 적으면 뒤로 (승수↓→승률↓)', () => {
+    const rows = [
+      { player: 'X', season: 2025, format: '복식', wins: 3, losses: 0 },   // 100%지만 3승
+      { player: 'Y', season: 2025, format: '복식', wins: 8, losses: 6 },   // 57%지만 8승
+    ];
+    expect(buildLegacyStandings({ legacyRows: rows, year: '2025', format: '복식' }).map(x => x.name)).toEqual(['Y', 'X']);
+  });
+
   it('다른 연도/포맷은 제외', () => {
     expect(buildLegacyStandings({ legacyRows: legacy, year: '2024', format: '복식' }).map(x => x.name)).toEqual(['A']);
     expect(buildLegacyStandings({ legacyRows: legacy, year: '2025', format: '단식' })).toEqual([]);

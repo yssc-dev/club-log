@@ -40,7 +40,7 @@ describe('TennisDashboard 스모크', () => {
   // map/players.join/fmt 등 실데이터 경로에서 null-deref 없이 렌더되는지 확인.
   it('실데이터 픽스처 — 계산기+렌더 조합에서 선수명 표시·null-deref 없음', () => {
     const doubles = buildDoublesStandings({ rows: FIXTURE_ROWS, roster: FIXTURE_ROSTER }).slice(0, 5);
-    const chem = buildPairChemistry({ rows: FIXTURE_ROWS }).slice(0, 5);
+    const chem = buildPairChemistry({ rows: FIXTURE_ROWS, minGames: 3 }).slice(0, 5);   // 운영 대시보드와 동일 임곗값
 
     // 복식 순위 행 렌더 (MiniRankTable 내 map 경로 검증)
     function DoublesRows({ rows: tableRows }) {

@@ -280,7 +280,7 @@ function PairRecordsSection({ chemistry, periodLabel, ds, C }) {
     losses: { accessor: p => p.losses, type: 'num' },
     rate:   { accessor: p => p.rate, type: 'num' },
   }), []);
-  const { sorted, sort, onSort } = useSortableRows(chemistry, cols);
+  const { sorted, sort, onSort } = useSortableRows(chemistry, cols, { key: 'wins', dir: 'desc' });   // 기본 승수↓(동률은 승률↓→판수↓)
   const hasGuest = chemistry.some(p => p.hasGuest);
   return (
     <>
@@ -333,7 +333,7 @@ function PartnerRecordsSection({ breakdown, player, ds, C }) {
     rate:    { accessor: b => b.rate, type: 'num' },
   }), []);
   const rows = breakdown || [];
-  const { sorted, sort, onSort } = useSortableRows(rows, cols);
+  const { sorted, sort, onSort } = useSortableRows(rows, cols, { key: 'wins', dir: 'desc' });   // 기본 승수↓(동률은 승률↓→판수↓)
   const hasGuest = rows.some(b => b.isGuestPartner);
   return (
     <>
@@ -375,7 +375,7 @@ function PartnerRecordsSection({ breakdown, player, ds, C }) {
 function HeadToHeadSection({ h2h, player, ds, C }) {
   const h2hRows = (h2h || [])
     .slice()
-    .sort((a, b) => b.rate - a.rate || b.games - a.games)
+    .sort((a, b) => b.wins - a.wins || b.rate - a.rate || b.games - a.games)   // 승수 우선(의뢰인 요구)
     .map(e => ({
       label: e.opponent,
       value: e.rate,
@@ -477,7 +477,7 @@ function PlayerReportSection({ rows, format, periodLabel, ds, C }) {
     rate:   { accessor: e => e.rate, type: 'num' },
     diff:   { accessor: e => e.gameDiff, type: 'num' },
   }), []);
-  const { sorted, sort, onSort } = useSortableRows(report, cols);   // 기본(정렬 전)은 계산기 순서: 승률↓→승↓→이름
+  const { sorted, sort, onSort } = useSortableRows(report, cols, { key: 'wins', dir: 'desc' });   // 기본 승수↓(동률은 계산기 순서 승률↓→이름, 안정 정렬)
   const hasGuest = report.some(e => e.isGuest);
   const signed = (n) => (n > 0 ? `+${n}` : String(n));
   return (
