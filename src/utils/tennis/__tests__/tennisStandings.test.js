@@ -27,6 +27,23 @@ describe('buildSinglesStandings', () => {
     expect(s[1]).toMatchObject({ name: 'b', wins: 0, losses: 2, rate: 0 });
   });
 
+  it('길로틴 순위는 승률 우선: 승수가 많아도 승률이 낮으면 뒤 (승률↓→승수↓→이름)', () => {
+    const rosterAB = [{ name: 'a', grade: '동배' }, { name: 'b', grade: '동배' }, { name: 'c', grade: '동배' }];
+    const rows = [
+      // a: 3승 3패(50%), b: 2승 0패(100%) — b가 앞
+      ...[1, 1, 1, 0, 0, 0].flatMap((w, i) => [
+        pg({ player: 'a', result: w ? '승' : '패', match_id: `R${i}_C1`, side: 'A', date: `2026-03-1${i}` }),
+        pg({ player: 'c', result: w ? '패' : '승', match_id: `R${i}_C1`, side: 'B', date: `2026-03-1${i}` }),
+      ]),
+      pg({ player: 'b', result: '승', match_id: 'R9_C1', side: 'A', date: '2026-04-01' }),
+      pg({ player: 'c', result: '패', match_id: 'R9_C1', side: 'B', date: '2026-04-01' }),
+      pg({ player: 'b', result: '승', match_id: 'R9_C2', side: 'A', date: '2026-04-02' }),
+      pg({ player: 'c', result: '패', match_id: 'R9_C2', side: 'B', date: '2026-04-02' }),
+    ];
+    const s = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31' });
+    expect(s.map(x => x.name)).toEqual(['b', 'a', 'c']);
+  });
+
   it('복식과 게스트 낀 단식 판은 제외한다', () => {
     const rows = [
       pg({ player: 'a', format: '복식', league: '투몽' }),
@@ -65,7 +82,7 @@ describe('buildSinglesStandings', () => {
     expect(s.find(x => x.name === 'b').points).toBe(0);
   });
 
-  it("sortBy로 wins/points 정렬이 갈린다 — 다른 순서를 만든다", () => {
+  it("sortBy로 rate/points 정렬이 갈린다 — 다른 순서를 만든다", () => {
     // 모두 같은 날(2026-03-01, pg 기본) → 사전승률 없음 → 전원 투어리그, 리그/승률 업셋 미발동.
     // 그래서 포인트는 기본승 + 등급업셋만.
     // a(은배)가 b(동배)를 2번 이김: 등급업셋 없음(2<1 거짓) → a 2점, 승률 2/3.
@@ -79,9 +96,9 @@ describe('buildSinglesStandings', () => {
       pg({ player: 'b', result: '승', grade_at_date: '동배', match_id: 'R1_C3', side: 'A' }),
       pg({ player: 'a', result: '패', grade_at_date: '은배', match_id: 'R1_C3', side: 'B' }),
     ];
-    // 기본(wins): a 2승 > b 1승
-    const byWins = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31' });
-    expect(byWins.map(x => x.name)).toEqual(['a', 'b']);
+    // 기본(rate): a(0.667) > b(0.333) — 길로틴은 승률순
+    const byRate = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31' });
+    expect(byRate.map(x => x.name)).toEqual(['a', 'b']);
     // points: b(6) > a(2) — rate와 반대 순서
     const byPoints = buildSinglesStandings({ rows, roster: rosterAB, asOfDate: '2026-12-31', sortBy: 'points' });
     expect(byPoints.map(x => x.name)).toEqual(['b', 'a']);

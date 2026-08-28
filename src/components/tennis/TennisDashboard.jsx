@@ -116,7 +116,7 @@ export default function TennisDashboard({ C: propC }) {
     const years = new Set((rows || []).map(r => (r.date || '').slice(0, 4)).filter(Boolean));
     return aggregateLegacySingles(legacyRows, years);
   }, [rows, legacyRows]);
-  const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'wins', legacySingles: singlesAgg }).slice(0, 5), [rows, roster, today, singlesAgg]);
+  const singles = useMemo(() => buildSinglesStandings({ rows, roster, asOfDate: today, sortBy: 'rate', legacySingles: singlesAgg }).slice(0, 5), [rows, roster, today, singlesAgg]);   // 길로틴은 승률순(리그 탭과 동일)
   // 페어 케미는 다승 기준으로 상위 노출(승률은 소표본이 상단을 차지하기 쉬움).
   const chem = useMemo(() => buildPairChemistry({ rows, minGames: 3 }).slice(0, 5), [rows]);   // 계산기가 승수↓→승률↓ 정렬, TOP5는 3판↑만
   const tb = useMemo(() => buildTbRanking({ rows, roster }), [rows, roster]);

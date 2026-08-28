@@ -58,7 +58,7 @@ export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
     rate:       { accessor: s => s.rate, type: 'num' },
     points:     { accessor: s => s.points, type: 'num' },
   }), []);
-  // #는 입력 순서 등수(리그 탭=승수순). 티어(투어/챌린저)는 경기 전 승률로 파생되므로 표 등수와 다를 수 있다 — 리그 열로 확인.
+  // #는 입력 순서 등수(리그 탭=승률순). 티어(투어/챌린저)는 '경기일 직전' 승률로 파생되므로 기간 전체 승률 등수와 미세하게 다를 수 있다.
   const ranked = useMemo(() => standings.map((s, i) => ({ ...s, _rank: i + 1 })), [standings]);
   const { sorted, sort, onSort } = useSortableRows(ranked, cols);
   if (!standings.length) return null;
@@ -93,7 +93,7 @@ export function SinglesStandingsSection({ standings, periodLabel, ds, C }) {
           </tbody>
         </table>
         <div style={{ fontSize: 11, color: C.gray, marginTop: 6 }}>
-          # = 승수순(승수↓→승률↓). 리그 = 경기 전 승률 기준 상위 8명 투어리그·나머지 챌린저리그(포인트 판정용)라 #와 다를 수 있음.
+          # = 승률순(승률↓→승수↓→이름). 리그 = 각 경기일 직전 승률 기준 상위 8명 투어리그·나머지 챌린저리그(포인트 판정용).
         </div>
       </div>
     </>
