@@ -31,15 +31,17 @@ export function isLeagueRow(r, guestKeys) {
 }
 
 // 선수 성적표(전체지표): 기간 내 한 판이라도 뛴 모든 선수(게스트 포함, isGuest 표시).
+// format('단식'|'복식') 지정 시 그 종목 판만(전체지표의 단/복식 토글과 연동). 미지정이면 두 종목 합산.
 // leagueOnly면 리그 판만(게스트는 자연히 빠짐). 득실 = games_won − games_lost(빈 셀은 0).
 // 정렬: 승률↓ → 승↓ → 이름.
-export function buildPlayerReportCard({ rows, leagueOnly = false } = {}) {
+export function buildPlayerReportCard({ rows, leagueOnly = false, format } = {}) {
   const all = rows || [];
   const guests = leagueOnly ? guestMatchKeys(all) : null;
   const acc = new Map();
   const blank = () => ({ games: 0, wins: 0, losses: 0, rate: 0 });
   for (const r of all) {
     if (!r || !r.player) continue;
+    if (format !== undefined && r.format !== format) continue;
     if (leagueOnly && !isLeagueRow(r, guests)) continue;
     const cur = acc.get(r.player) || {
       name: r.player, isGuest: false, games: 0, wins: 0, losses: 0, rate: 0, gameDiff: 0,

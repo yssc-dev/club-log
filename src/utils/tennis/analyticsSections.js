@@ -5,7 +5,7 @@
 //  - hasMonth: 특정 월 선택 시 monthly 제외. hasLegacy: 연도별 전적 있을 때만 yearly.
 export function analyticsSectionKeys({ view = 'individual', indivTab = 'summary', player, format, hasLegacy, hasMonth = false }) {
   if (view === 'overall') {
-    // 'report'(선수 성적표)는 단·복식을 한 표에 보여주므로 format 토글과 무관하게 항상 맨 위.
+    // 'report'(선수 성적표)는 format 토글에 연동해 그 종목만 집계, 항상 맨 위.
     return format === '복식'
       ? ['report', 'chemistry', 'tb', 'acedf']
       : ['report', 'tb', 'acedf'];

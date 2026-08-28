@@ -269,6 +269,16 @@ describe('buildPlayerReportCard', () => {
     expect(gap.singles).toMatchObject({ games: 2, wins: 1, losses: 1 });
   });
 
+  it('format 지정 시 그 종목 판만 집계 (단/복식 토글 연동) — 다른 종목만 뛴 선수는 빠진다', () => {
+    const singles = buildPlayerReportCard({ rows, format: '단식' });
+    expect(singles.find(x => x.name === '갑')).toMatchObject({ games: 3, wins: 2, losses: 1, gameDiff: 8 });
+    expect(singles.some(x => x.name === '정')).toBe(false);          // 정은 복식만 뛰었다
+    const doubles = buildPlayerReportCard({ rows, format: '복식' });
+    expect(doubles.find(x => x.name === '갑')).toMatchObject({ games: 1, wins: 1, losses: 0, gameDiff: 2 });
+    expect(doubles.some(x => x.name === '손님')).toBe(false);         // 손님은 단식만
+    expect(doubles.map(x => x.name).sort()).toEqual(['갑', '을', '병', '정'].sort());
+  });
+
   it('기본 정렬: 승률↓ → 승↓ → 이름', () => {
     const out = buildPlayerReportCard({ rows });
     for (let i = 1; i < out.length; i++) {

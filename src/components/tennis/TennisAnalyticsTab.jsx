@@ -445,29 +445,26 @@ function MonthlyFormSection({ monthly, player, format, ds, C }) {
 }
 
 // ─── 선수 성적표 (전체지표) ──────────────────────────────
-// 기간 내 뛴 모든 선수의 단·복식 승-패·승률·득실. 전체/리그만 토글, 모든 열 정렬.
-// format 토글과 무관하게 두 종목을 한 표에 보여준다 — "이 기간에 누가 제일 잘했나"가 목적.
-function PlayerReportSection({ rows, periodLabel, ds, C }) {
+// 기간 내 뛴 모든 선수의 승-패·승률·득실. 전체지표의 단/복식 토글(format)에 연동해 그 종목만 집계.
+// 전체/리그만 토글, 모든 열 정렬 — "이 기간에 누가 제일 잘했나"가 목적.
+function PlayerReportSection({ rows, format, periodLabel, ds, C }) {
   const [leagueOnly, setLeagueOnly] = useState(false);
-  const report = useMemo(() => buildPlayerReportCard({ rows, leagueOnly }), [rows, leagueOnly]);
+  const report = useMemo(() => buildPlayerReportCard({ rows, leagueOnly, format }), [rows, leagueOnly, format]);
   const cols = useMemo(() => ({
-    name:    { accessor: e => e.name, type: 'text' },
-    games:   { accessor: e => e.games, type: 'num' },
-    wins:    { accessor: e => e.wins, type: 'num' },
-    losses:  { accessor: e => e.losses, type: 'num' },
-    rate:    { accessor: e => e.rate, type: 'num' },
-    singles: { accessor: e => e.singles.rate, type: 'num' },   // 표시는 승-패, 정렬은 그 종목 승률(승률 열과 같은 기준)
-    doubles: { accessor: e => e.doubles.rate, type: 'num' },
-    diff:    { accessor: e => e.gameDiff, type: 'num' },
+    name:   { accessor: e => e.name, type: 'text' },
+    games:  { accessor: e => e.games, type: 'num' },
+    wins:   { accessor: e => e.wins, type: 'num' },
+    losses: { accessor: e => e.losses, type: 'num' },
+    rate:   { accessor: e => e.rate, type: 'num' },
+    diff:   { accessor: e => e.gameDiff, type: 'num' },
   }), []);
   const { sorted, sort, onSort } = useSortableRows(report, cols);   // 기본(정렬 전)은 계산기 순서: 승률↓→승↓→이름
   const hasGuest = report.some(e => e.isGuest);
-  const wl = (b) => (b.games > 0 ? `${b.wins}-${b.losses}` : '·');
   const signed = (n) => (n > 0 ? `+${n}` : String(n));
   return (
     <>
       <div style={{ ...ds.sectionTitle, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span>선수 성적표 ({periodLabel} · {report.length}명)</span>
+        <span>선수 성적표 ({format} · {periodLabel} · {report.length}명)</span>
         <span style={{ marginLeft: 'auto' }}>
           <SortToggle value={leagueOnly ? 'league' : 'all'} onChange={v => setLeagueOnly(v === 'league')}
             options={[['all', '전체'], ['league', '리그만']]} ds={ds} />
@@ -485,8 +482,6 @@ function PlayerReportSection({ rows, periodLabel, ds, C }) {
                 <SortHeader label="승" sortKey="wins" sort={sort} onSort={onSort} ds={ds} />
                 <SortHeader label="패" sortKey="losses" sort={sort} onSort={onSort} ds={ds} />
                 <SortHeader label="승률" sortKey="rate" sort={sort} onSort={onSort} ds={ds} />
-                <SortHeader label="단식" sortKey="singles" sort={sort} onSort={onSort} ds={ds} />
-                <SortHeader label="복식" sortKey="doubles" sort={sort} onSort={onSort} ds={ds} />
                 <SortHeader label="득실" sortKey="diff" sort={sort} onSort={onSort} ds={ds} />
               </tr>
             </thead>
@@ -498,15 +493,13 @@ function PlayerReportSection({ rows, periodLabel, ds, C }) {
                   <td style={ds.td()}>{e.wins}</td>
                   <td style={ds.td()}>{e.losses}</td>
                   <td style={ds.td()}>{pct(e.rate)}</td>
-                  <td style={ds.td()}>{wl(e.singles)}</td>
-                  <td style={ds.td()}>{wl(e.doubles)}</td>
                   <td style={{ ...ds.td(), color: e.gameDiff > 0 ? C.green : e.gameDiff < 0 ? C.red : C.gray }}>{signed(e.gameDiff)}</td>
                 </tr>
               ))}
             </tbody>
           </table>
           <div style={{ fontSize: 11, color: C.gray, marginTop: 6 }}>
-            {hasGuest ? '* 게스트 · ' : ''}득실 = 게임 득 − 실. "리그만"은 회원끼리의 길로틴·투몽 판만(개인지표 전적과 같은 기준).
+            {hasGuest ? '* 게스트 · ' : ''}{format} 판만 집계(위 토글). 득실 = 게임 득 − 실. "리그만"은 회원끼리의 {format === '단식' ? '길로틴' : '투몽'} 판만(개인지표 전적과 같은 기준).
           </div>
         </div>
       )}
@@ -832,7 +825,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
       {sectionKeys.map((key) => {
         switch (key) {
           case 'radar':            return radar ? <RadarSection key={key} radar={radar} ds={ds} C={C} /> : null;
-          case 'report':           return <PlayerReportSection key={key} rows={fRows} periodLabel={`${effYear}${month ? ` · ${Number(month)}월` : ''}`} ds={ds} C={C} />;
+          case 'report':           return <PlayerReportSection key={key} rows={fRows} format={format} periodLabel={`${effYear}${month ? ` · ${Number(month)}월` : ''}`} ds={ds} C={C} />;
           case 'chemistry':        return <ChemistrySection key={key} chemistry={chemistry} showBreakdown={false} ds={ds} C={C} />;
           case 'recent':           return <RecentMatchesSection key={key} matches={recentMatches} ds={ds} C={C} />;
           case 'summaryDash':      return summary ? <SummaryDash key={key} summary={summary} breakdown={partnerBreakdown} ds={ds} C={C} /> : null;
