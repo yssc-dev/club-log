@@ -187,7 +187,7 @@ export default function TennisDashboard({ C: propC }) {
       <div style={ds.sectionTitle}>하이라이트{yearSpan ? ` · ${yearSpan}` : ''}</div>
       <div style={ds.card}>
         {highlight('타이브레이크', tb[0]?.tbPlayed > 0 ? tb[0] : null, t => `${t.name} ${t.tbWon}/${t.tbPlayed}`)}
-        {highlight('베이글', bagel[0]?.given > 0 ? bagel[0] : null, b => `${b.name} ${b.given}개`)}
+        {highlight('베이글 생산자', bagel[0]?.given > 0 ? bagel[0] : null, b => `${b.name} ${b.given}개`)}
         {highlight('에이스', topAce?.aces > 0 ? topAce : null, a => `${a.name} ${a.aces}개`)}
       </div>
     </div>
