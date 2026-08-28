@@ -33,7 +33,7 @@ const extraOf = (b) => ({ wins: b.extraWins, losses: b.extraLosses, games: b.ext
 const partnerLabel = (b) => b.partner + (b.isGuestPartner ? ' *' : '');
 
 // ─── 전체지표 공용 헬퍼 ─────────────────────────────────
-// 랭킹바 정렬 토글 (다승/승률·베이글 생산자/소비자 등). options: [[value, label], ...]
+// 랭킹바 정렬 토글 (다승/승률·베이글 Maker/Eater 등). options: [[value, label], ...]
 function SortToggle({ value, onChange, options, ds }) {
   return (
     <div style={{ display: 'flex', gap: 6, marginBottom: 6 }}>
@@ -100,7 +100,7 @@ function SplitStatTable({ singles, doubles, ds, C }) {
           <tr>
             <th style={{ ...ds.th, textAlign: 'left' }} />
             <th style={ds.th}>타이브레이크</th>
-            <th style={ds.th}>베이글(생산/소비)</th>
+            <th style={ds.th}>베이글(Maker/Eater)</th>
             <th style={ds.th}>에이스</th>
             <th style={ds.th}>DF</th>
           </tr>
@@ -224,11 +224,11 @@ function PerFormatSummary({ summary, format, player, points = 0, ds, C }) {
           <StatCell C={C} label="에이스" value={b.aces} />
           <StatCell C={C} label="더블폴트" value={b.doubleFaults} />
           <StatCell C={C} label="타이브레이크" value={b.tbPlayed > 0 ? `${b.tbWon}/${b.tbPlayed}` : '0/0'} />
-          <StatCell C={C} label="베이글 생산/소비" value={`${b.bagelsGiven}/${b.bagelsTaken}`} />
+          <StatCell C={C} label="베이글 Maker/Eater" value={`${b.bagelsGiven}/${b.bagelsTaken}`} />
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginTop: 8, lineHeight: 1.5 }}>
           리그 = {leagueName}({format === '복식' ? '회원 3명 이상' : '회원끼리'}) · 번외 = 그 외.<br />
-          에이스·타이브레이크·베이글은 상세 기록이 있는 경기만 집계됩니다. 베이글 생산자 = 6-0으로 이김, 소비자 = 6-0으로 짐.
+          에이스·타이브레이크·베이글은 상세 기록이 있는 경기만 집계됩니다. 베이글 Maker = 6-0으로 이김, Eater = 6-0으로 짐.
         </div>
       </div>
     </>
@@ -542,7 +542,7 @@ function TbBagelSection({ tb, bagel, ds, C }) {
   }), []);
   const { sorted: sortedBagel, sort: sortBagel, onSort: onSortBagel } = useSortableRows(bagel, bagelCols);
 
-  // 랭킹 바 정렬 토글 — TB: 승률(기본)/다승, 베이글: 생산자(기본)/소비자. 바 길이도 정렬기준 반영.
+  // 랭킹 바 정렬 토글 — TB: 승률(기본)/다승, 베이글: Maker(기본)/Eater. 바 길이도 정렬기준 반영.
   const [tbSort, setTbSort] = useState('rate');
   const [bagelSort, setBagelSort] = useState('given');
 
@@ -561,7 +561,7 @@ function TbBagelSection({ tb, bagel, ds, C }) {
     return [...bagel]
       .filter(b => (b[k] || 0) > 0)
       .sort((a, b) => b[k] - a[k] || String(a.name).localeCompare(String(b.name), 'ko')).slice(0, 8)
-      .map(e => ({ label: e.name, value: e[k] / maxV, note: `생산 ${e.given} · 소비 ${e.taken}` }));
+      .map(e => ({ label: e.name, value: e[k] / maxV, note: `Maker ${e.given} · Eater ${e.taken}` }));
   }, [bagel, bagelSort]);
 
   return (
@@ -602,7 +602,7 @@ function TbBagelSection({ tb, bagel, ds, C }) {
         <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>데이터 없음</div>
       ) : (
         <>
-          <SortToggle value={bagelSort} onChange={setBagelSort} options={[['given', '베이글 생산자'], ['taken', '베이글 소비자']]} ds={ds} />
+          <SortToggle value={bagelSort} onChange={setBagelSort} options={[['given', '베이글 Maker'], ['taken', '베이글 Eater']]} ds={ds} />
           {bagelBarRows.length > 0
             ? <HBarChart rows={bagelBarRows} ds={ds} C={C} />
             : <div style={{ ...ds.card, color: C.gray, fontSize: 12, textAlign: 'center' }}>해당 기록 없음</div>}
@@ -612,8 +612,8 @@ function TbBagelSection({ tb, bagel, ds, C }) {
                 <thead>
                   <tr>
                     <SortHeader label="이름" sortKey="name" sort={sortBagel} onSort={onSortBagel} align="left" ds={ds} />
-                    <SortHeader label="생산자" sortKey="given" sort={sortBagel} onSort={onSortBagel} ds={ds} />
-                    <SortHeader label="소비자" sortKey="taken" sort={sortBagel} onSort={onSortBagel} ds={ds} />
+                    <SortHeader label="Maker" sortKey="given" sort={sortBagel} onSort={onSortBagel} ds={ds} />
+                    <SortHeader label="Eater" sortKey="taken" sort={sortBagel} onSort={onSortBagel} ds={ds} />
                   </tr>
                 </thead>
                 <tbody>
