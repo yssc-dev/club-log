@@ -5,6 +5,9 @@ import { COMPETITION_DOUBLES, COMPETITION_SINGLES } from './tennisSchema';
 const isDoubles = (r) => r.format === '복식';
 const memberNames = (roster) => new Set((roster || []).map(m => m.name));
 const rate = (w, g) => (g > 0 ? w / g : 0);
+// 순위 정렬 공통: 승률↓ → 승↓ → 이름(ko). 복식 순위표·선수 성적표가 공유.
+const byRateWinsName = (a, b) =>
+  b.rate - a.rate || b.wins - a.wins || String(a.name).localeCompare(String(b.name), 'ko');
 // 판 식별 키 — game_id + match_id (match_id는 R{round}_C{court}라 날짜 넘어 재사용됨).
 export const matchKey = (r) => `${r.game_id || ''}|${r.match_id || ''}`;
 
@@ -52,8 +55,7 @@ export function buildPlayerReportCard({ rows, leagueOnly = false } = {}) {
     bucket.rate = rate(bucket.wins, bucket.games);
     acc.set(r.player, cur);
   }
-  return [...acc.values()].sort((a, b) =>
-    b.rate - a.rate || b.wins - a.wins || String(a.name).localeCompare(String(b.name), 'ko'));
+  return [...acc.values()].sort(byRateWinsName);
 }
 
 // 복식 순위표: 투몽 행만, 번외(게스트 낀 판) 통째 제외, 명부 전원 포함(0판도 표시)
@@ -70,8 +72,7 @@ export function buildDoublesStandings({ rows, roster }) {
     if (r.result === '승') cur.wins++; else if (r.result === '패') cur.losses++;
     cur.rate = rate(cur.wins, cur.games);
   }
-  return [...acc.values()].sort((a, b) =>
-    b.rate - a.rate || b.wins - a.wins || String(a.name).localeCompare(String(b.name), 'ko'));
+  return [...acc.values()].sort(byRateWinsName);
 }
 
 // 판(game_id|match_id) 단위 분류 수. 전체 = 투몽 + 길로틴 + 번외.

@@ -456,8 +456,8 @@ function PlayerReportSection({ rows, periodLabel, ds, C }) {
     wins:    { accessor: e => e.wins, type: 'num' },
     losses:  { accessor: e => e.losses, type: 'num' },
     rate:    { accessor: e => e.rate, type: 'num' },
-    singles: { accessor: e => e.singles.wins, type: 'num' },
-    doubles: { accessor: e => e.doubles.wins, type: 'num' },
+    singles: { accessor: e => e.singles.rate, type: 'num' },   // 표시는 승-패, 정렬은 그 종목 승률(승률 열과 같은 기준)
+    doubles: { accessor: e => e.doubles.rate, type: 'num' },
     diff:    { accessor: e => e.gameDiff, type: 'num' },
   }), []);
   const { sorted, sort, onSort } = useSortableRows(report, cols);   // 기본(정렬 전)은 계산기 순서: 승률↓→승↓→이름
@@ -467,7 +467,7 @@ function PlayerReportSection({ rows, periodLabel, ds, C }) {
   return (
     <>
       <div style={{ ...ds.sectionTitle, display: 'flex', alignItems: 'center', gap: 8, flexWrap: 'wrap' }}>
-        <span>선수 성적표{periodLabel ? ` (${periodLabel} · ${report.length}명)` : ` (${report.length}명)`}</span>
+        <span>선수 성적표 ({periodLabel} · {report.length}명)</span>
         <span style={{ marginLeft: 'auto' }}>
           <SortToggle value={leagueOnly ? 'league' : 'all'} onChange={v => setLeagueOnly(v === 'league')}
             options={[['all', '전체'], ['league', '리그만']]} ds={ds} />
