@@ -151,10 +151,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   if (state.phase === 'setup') {
     return (
       <div style={s.app}>
-        <div style={s.header}>
-          <div style={s.title}>🎾 테니스</div>
-          <div style={s.subtitle}>{state.gameDate} · 참석자 설정</div>
-        </div>
+        <MatchHeader title="🎾 테니스" subtitle={`${state.gameDate} · 참석자 설정`} onHome={onBackToMenu} />
         <TennisAttendeeSelector roster={roster} attendees={state.attendees} guests={state.guests}
           gameDate={state.gameDate} dispatch={dispatch} C={C} styles={s}
           scoringRules={state.scoringRules}
@@ -166,10 +163,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   if (state.phase === 'summary' || state.phase === 'done') {
     return (
       <div style={s.app}>
-        <div style={s.header}>
-          <div style={s.title}>🎾 경기 마감</div>
-          <div style={s.subtitle}>{state.gameDate} · 기록 확인</div>
-        </div>
+        <MatchHeader title="🎾 경기 마감" subtitle={`${state.gameDate} · 기록 확인`} onHome={onBackToMenu} />
         <TennisSummaryView state={state} isAdmin={teamContext?.role === '관리자'} busy={busy}
           onBack={() => dispatch({ type: 'SET_PHASE', phase: 'playing' })}
           onSubmit={handleSubmitRecords} onArchive={handleArchive} C={C} styles={s} />
