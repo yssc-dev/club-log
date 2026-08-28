@@ -1,6 +1,6 @@
 // 분석 탭 계산기. 입력은 시트 행 그대로 — 빈 셀은 ''로 들어온다.
 // aces/double_faults의 ''은 "미기록"(마이그레이션 행)이므로 0으로 강제하지 말 것.
-import { COMPETITION_DOUBLES } from './tennisSchema';
+import { COMPETITION_DOUBLES, COMPETITION_SINGLES } from './tennisSchema';
 
 const isDoubles = (r) => r.format === '복식';
 const memberNames = (roster) => new Set((roster || []).map(m => m.name));
@@ -16,6 +16,44 @@ export function guestMatchKeys(rows) {
     if (r && r.is_guest === true) keys.add(matchKey(r));
   }
   return keys;
+}
+
+// 리그 성립 판정(행 단위) — 본인이 게스트가 아니고, 그 판에 게스트가 없고, 종목별 리그 라벨일 때.
+// guestKeys = guestMatchKeys(rows). 개인 전적(buildPlayerSummary)과 선수 성적표가 같은 판정을 쓴다.
+export function isLeagueRow(r, guestKeys) {
+  if (!r || r.is_guest === true || (guestKeys && guestKeys.has(matchKey(r)))) return false;
+  if (r.format === '단식') return r.league === COMPETITION_SINGLES;
+  if (r.format === '복식') return r.league === COMPETITION_DOUBLES;
+  return false;
+}
+
+// 선수 성적표(전체지표): 기간 내 한 판이라도 뛴 모든 선수(게스트 포함, isGuest 표시).
+// leagueOnly면 리그 판만(게스트는 자연히 빠짐). 득실 = games_won − games_lost(빈 셀은 0).
+// 정렬: 승률↓ → 승↓ → 이름.
+export function buildPlayerReportCard({ rows, leagueOnly = false } = {}) {
+  const all = rows || [];
+  const guests = leagueOnly ? guestMatchKeys(all) : null;
+  const acc = new Map();
+  const blank = () => ({ games: 0, wins: 0, losses: 0, rate: 0 });
+  for (const r of all) {
+    if (!r || !r.player) continue;
+    if (leagueOnly && !isLeagueRow(r, guests)) continue;
+    const cur = acc.get(r.player) || {
+      name: r.player, isGuest: false, games: 0, wins: 0, losses: 0, rate: 0, gameDiff: 0,
+      singles: blank(), doubles: blank(),
+    };
+    if (r.is_guest === true) cur.isGuest = true;
+    const bucket = r.format === '복식' ? cur.doubles : cur.singles;
+    cur.games++; bucket.games++;
+    if (r.result === '승') { cur.wins++; bucket.wins++; }
+    else if (r.result === '패') { cur.losses++; bucket.losses++; }
+    cur.gameDiff += (Number(r.games_won) || 0) - (Number(r.games_lost) || 0);
+    cur.rate = rate(cur.wins, cur.games);
+    bucket.rate = rate(bucket.wins, bucket.games);
+    acc.set(r.player, cur);
+  }
+  return [...acc.values()].sort((a, b) =>
+    b.rate - a.rate || b.wins - a.wins || String(a.name).localeCompare(String(b.name), 'ko'));
 }
 
 // 복식 순위표: 투몽 행만, 번외(게스트 낀 판) 통째 제외, 명부 전원 포함(0판도 표시)

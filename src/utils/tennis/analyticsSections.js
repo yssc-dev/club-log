@@ -5,9 +5,10 @@
 //  - hasMonth: 특정 월 선택 시 monthly 제외. hasLegacy: 연도별 전적 있을 때만 yearly.
 export function analyticsSectionKeys({ view = 'individual', indivTab = 'summary', player, format, hasLegacy, hasMonth = false }) {
   if (view === 'overall') {
+    // 'report'(선수 성적표)는 단·복식을 한 표에 보여주므로 format 토글과 무관하게 항상 맨 위.
     return format === '복식'
-      ? ['chemistry', 'tb', 'acedf']
-      : ['tb', 'acedf'];
+      ? ['report', 'chemistry', 'tb', 'acedf']
+      : ['report', 'tb', 'acedf'];
   }
   // 개인지표: 선수 미선택이면 빈 목록(호출부가 '선수를 선택하세요' 힌트 표시)
   if (!player) return [];

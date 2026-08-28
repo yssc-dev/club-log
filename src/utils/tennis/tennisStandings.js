@@ -1,10 +1,10 @@
 // 로그_테니스선수경기 행 → 단식 순위표 / 개인 전적 요약.
 // 순위는 승률로 매기고 포인트는 별도 컬럼으로 적립한다(스펙 4.5).
 
-import { COMPETITION_SINGLES, COMPETITION_DOUBLES } from './tennisSchema';
+import { COMPETITION_SINGLES } from './tennisSchema';
 import { deriveLeagueForDate, singlesWinRatesBefore } from './leagueDerivation';
 import { calcMatchPoints, DEFAULT_POINT_RULES } from './rankPoints';
-import { matchKey, guestMatchKeys } from './tennisAnalytics';
+import { matchKey, guestMatchKeys, isLeagueRow } from './tennisAnalytics';
 
 const isSingles = (r) => r.format === '단식' && r.league === COMPETITION_SINGLES;
 
@@ -118,13 +118,7 @@ export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
   };
   const dates = new Set();
 
-  // 리그 성립: 본인 게스트 아님 + 매치에 게스트 없음 + format별 리그 라벨
-  const isLeagueRow = (r) => {
-    if (r.is_guest === true || guests.has(matchKey(r))) return false;
-    if (r.format === '단식') return r.league === COMPETITION_SINGLES;
-    if (r.format === '복식') return r.league === COMPETITION_DOUBLES;
-    return false;
-  };
+  // 리그 성립 판정은 tennisAnalytics.isLeagueRow(선수 성적표와 공유)
 
   for (const r of mine) {
     dates.add(r.date);
@@ -138,7 +132,7 @@ export function buildPlayerSummary({ rows, player, legacySingles = [] }) {
     bucket.aces += a; bucket.doubleFaults += df; bucket.tbPlayed += tp; bucket.tbWon += tw;
     bucket.bagelsGiven += bg; bucket.bagelsTaken += bt;
 
-    const league = isLeagueRow(r);
+    const league = isLeagueRow(r, guests);
     if (league) {
       bucket.games++;
       if (r.result === '승') bucket.wins++;

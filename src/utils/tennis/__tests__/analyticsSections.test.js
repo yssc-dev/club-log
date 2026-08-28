@@ -4,11 +4,11 @@ import { analyticsSectionKeys } from '../analyticsSections';
 describe('analyticsSectionKeys', () => {
   it('전체지표 복식 = 케미·TB(+베이글)·에이스', () => {
     expect(analyticsSectionKeys({ view: 'overall', format: '복식', hasLegacy: true }))
-      .toEqual(['chemistry', 'tb', 'acedf']);
+      .toEqual(['report', 'chemistry', 'tb', 'acedf']);
   });
   it('전체지표 단식 = TB(+베이글)·에이스', () => {
     expect(analyticsSectionKeys({ view: 'overall', format: '단식', hasLegacy: true }))
-      .toEqual(['tb', 'acedf']);
+      .toEqual(['report', 'tb', 'acedf']);
   });
 
   it('개인지표 선수 미선택 = 빈 목록(힌트 표시용)', () => {

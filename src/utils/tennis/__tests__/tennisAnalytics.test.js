@@ -204,3 +204,88 @@ describe('buildRecentMatches', () => {
     expect(buildRecentMatches({ rows, player: '갑', limit: 5 })).toEqual([]);
   });
 });
+
+// ─── 선수 성적표 (전체지표) ─────────────────────────────
+import { buildPlayerReportCard, isLeagueRow, guestMatchKeys } from '../tennisAnalytics';
+
+// 단식 1판 = 2행 헬퍼.
+function singlesMatch({ date = '2026-08-10', a = '갑', b = '을', winner = 'A', league = '길로틴',
+  guests = [], gamesA = 6, gamesB = 3, over = {} } = {}) {
+  const matchId = `R${++seq}_C1`;
+  const mk = (player, side, opp, gw, gl) => ({
+    date, season: 2026, game_id: `g_${date}`, match_id: matchId, format: '단식', league,
+    player, side, is_guest: guests.includes(player), partner: '', opponents_json: JSON.stringify([opp]),
+    result: (winner === side) ? '승' : '패', games_won: gw, games_lost: gl,
+    tb_played: 0, tb_won: 0, bagels_given: 0, bagels_taken: 0, aces: '', double_faults: '', ...over,
+  });
+  return [mk(a, 'A', b, gamesA, gamesB), mk(b, 'B', a, gamesB, gamesA)];
+}
+
+describe('isLeagueRow', () => {
+  it('회원끼리 길로틴(단식)/투몽(복식)만 리그, 게스트 낀 판·미반영·본인 게스트는 번외', () => {
+    const rows = [
+      ...singlesMatch({ a: '갑', b: '을', league: '길로틴' }),
+      ...singlesMatch({ a: '갑', b: '손님', league: '길로틴', guests: ['손님'] }),
+      ...singlesMatch({ a: '갑', b: '병', league: '미반영' }),
+      ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], league: '투몽' }),
+    ];
+    const guests = guestMatchKeys(rows);
+    const gap = rows.filter(r => r.player === '갑');
+    expect(gap.map(r => isLeagueRow(r, guests))).toEqual([true, false, false, true]);
+    expect(isLeagueRow(rows.find(r => r.player === '손님'), guests)).toBe(false);
+  });
+});
+
+describe('buildPlayerReportCard', () => {
+  const rows = [
+    ...singlesMatch({ a: '갑', b: '을', winner: 'A', gamesA: 6, gamesB: 2 }),                       // 갑 승 +4 / 을 패 -4
+    ...singlesMatch({ a: '갑', b: '병', winner: 'B', gamesA: 4, gamesB: 6 }),                       // 갑 패 -2 / 병 승 +2
+    ...doublesMatch({ a: ['갑', '을'], b: ['병', '정'], guests: [], winner: 'A', over: { games_won: 6, games_lost: 4 } }), // 모두 +2/-2? (아래 참고)
+    ...singlesMatch({ a: '갑', b: '손님', winner: 'A', guests: ['손님'], gamesA: 6, gamesB: 0 }),   // 번외(게스트) 갑 승 +6
+  ];
+
+  it('기간 내 뛴 모든 선수를 모으고 종목별 승-패·승률·득실을 낸다 (게스트 표시)', () => {
+    const out = buildPlayerReportCard({ rows });
+    const names = out.map(x => x.name);
+    expect(names).toEqual(expect.arrayContaining(['갑', '을', '병', '정', '손님']));
+    const gap = out.find(x => x.name === '갑');
+    expect(gap).toMatchObject({
+      games: 4, wins: 3, losses: 1,
+      singles: { games: 3, wins: 2, losses: 1 },
+      doubles: { games: 1, wins: 1, losses: 0 },
+      isGuest: false,
+    });
+    expect(gap.rate).toBeCloseTo(3 / 4);
+    // 득실: 단식 (+4) + (-2) + 복식 (+2) + 번외 (+6) = +10
+    expect(gap.gameDiff).toBe(10);
+    expect(out.find(x => x.name === '손님')).toMatchObject({ isGuest: true, games: 1, wins: 0, losses: 1, gameDiff: -6 });
+  });
+
+  it('leagueOnly면 리그 판(길로틴/투몽, 회원끼리)만 집계하고 게스트는 빠진다', () => {
+    const out = buildPlayerReportCard({ rows, leagueOnly: true });
+    expect(out.some(x => x.name === '손님')).toBe(false);
+    const gap = out.find(x => x.name === '갑');
+    expect(gap).toMatchObject({ games: 3, wins: 2, losses: 1, gameDiff: 4 });
+    expect(gap.singles).toMatchObject({ games: 2, wins: 1, losses: 1 });
+  });
+
+  it('기본 정렬: 승률↓ → 승↓ → 이름', () => {
+    const out = buildPlayerReportCard({ rows });
+    for (let i = 1; i < out.length; i++) {
+      const a = out[i - 1], b = out[i];
+      const ok = a.rate > b.rate || (a.rate === b.rate && (a.wins > b.wins || (a.wins === b.wins && a.name.localeCompare(b.name, 'ko') <= 0)));
+      expect(ok).toBe(true);
+    }
+  });
+
+  it('games_won/lost가 빈 셀(레거시)이면 득실 0으로 취급하고 승패는 그대로 센다', () => {
+    const legacy = singlesMatch({ a: '갑', b: '을', winner: 'A', over: { games_won: '', games_lost: '' } });
+    const out = buildPlayerReportCard({ rows: legacy });
+    expect(out.find(x => x.name === '갑')).toMatchObject({ wins: 1, gameDiff: 0 });
+  });
+
+  it('빈 입력 → 빈 배열', () => {
+    expect(buildPlayerReportCard({ rows: [] })).toEqual([]);
+    expect(buildPlayerReportCard({})).toEqual([]);
+  });
+});
