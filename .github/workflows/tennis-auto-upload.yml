@@ -5,6 +5,8 @@ name: Tennis Auto Upload
 # 실제로는 10:00~10:40 사이에 실행될 수 있다(설계 문서에서 허용된 오차).
 # 정각(0분) 스케줄은 GitHub 혼잡으로 아예 누락되기도 해(2026-08-28 첫 정기 실행이 11:20까지 미발화)
 # 10:30 KST 백업 스케줄을 하나 더 둔다. 이미 처리(아카이브)된 경기는 재처리되지 않으므로 두 번 돌아도 안전.
+# 2026-08-30: 실측 지연이 5~11시간이라 1차 트리거는 Apps Script 시간 트리거(triggerTennisAutoUpload,
+# 매일 10:00 KST ±15분)가 workflow_dispatch로 호출한다. 아래 schedule은 백업으로 유지(멱등).
 on:
   schedule:
     - cron: "0 1 * * *"

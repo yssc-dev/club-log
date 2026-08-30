@@ -2,6 +2,10 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-08-30: 테니스 자동 업로드 정시 트리거 — triggerTennisAutoUpload()가 GitHub workflow_dispatch API를
+//             호출(스크립트 속성 GITHUB_TOKEN). GitHub schedule 크론이 이 레포에서 5~11시간 지연·누락돼
+//             Apps Script 시간 트리거(매일 10:00 KST ±15분)를 1차 트리거로 둔다. installTennisAutoUploadTrigger()로
+//             트리거 설치, testTriggerTennisAutoUpload()로 dry-run 점검. doPost 액션 아님(외부 호출 불가).
 // 2026-08-28: relabelTennisLeague(관리자 전용) 추가 — game_id+match_id로 로그_테니스매치/선수경기의
 //             league 열 정정. 8-14~28 사이 복식 "회원 3명+게스트 1명"이 규정(회원 3명 이상=투몽)과
 //             달리 미반영으로 저장된 10판 정정용. 허용값 투몽/길로틴/미반영, 행 팀소유 검증.
@@ -3232,3 +3236,83 @@ function _writeTennisRosterMember(team, body) {
   ]]);
   return { success: true, row: newRow };
 }
+
+// ═══════════════════════════════════════════════════════════════
+// 테니스 자동 업로드 정시 트리거 (2026-08-30)
+//   GitHub Actions schedule은 정시 보장이 없어(실측 5~11시간 지연) Apps Script 시간 트리거에서
+//   workflow_dispatch API로 직접 실행시킨다. 실제 업로드 로직은 GitHub 쪽(scripts/tennisAutoUpload.mjs) 그대로.
+//   준비: 스크립트 속성 GITHUB_TOKEN = fine-grained PAT(레포 yssc-dev/club-log, Actions: Read and write).
+//   설치: installTennisAutoUploadTrigger() 1회 실행(기존 동일 트리거는 지우고 다시 만든다).
+//   점검: testTriggerTennisAutoUpload() → dry_run=true로 디스패치(시트 무변경).
+// ═══════════════════════════════════════════════════════════════
+var TENNIS_UPLOAD_GITHUB_REPO = "yssc-dev/club-log";
+var TENNIS_UPLOAD_WORKFLOW = "tennis-auto-upload.yml";
+var TENNIS_UPLOAD_BRANCH = "main";
+
+// 시간 트리거가 부르는 함수 — 실제 업로드(dry_run=false).
+function triggerTennisAutoUpload() {
+  return _dispatchTennisAutoUpload(false);
+}
+
+// 수동 점검용 — dry_run=true(처리 대상만 출력, 시트/RTDB 무변경).
+function testTriggerTennisAutoUpload() {
+  var r = _dispatchTennisAutoUpload(true);
+  Logger.log(JSON.stringify(r));
+  return r;
+}
+
+// 매일 10:00 KST(±15분, Apps Script 시간 트리거 오차) 트리거 설치. 중복 방지를 위해 같은 함수의 기존 트리거는 제거.
+function installTennisAutoUploadTrigger() {
+  var triggers = ScriptApp.getProjectTriggers();
+  for (var i = 0; i < triggers.length; i++) {
+    if (triggers[i].getHandlerFunction() === "triggerTennisAutoUpload") ScriptApp.deleteTrigger(triggers[i]);
+  }
+  ScriptApp.newTrigger("triggerTennisAutoUpload")
+    .timeBased()
+    .inTimezone("Asia/Seoul")
+    .atHour(10)
+    .nearMinute(0)
+    .everyDays(1)
+    .create();
+  Logger.log("triggerTennisAutoUpload 트리거 설치: 매일 10:00 KST (±15분)");
+  return { success: true };
+}
+
+// GitHub workflow_dispatch 호출. 204면 성공. 일시 오류(5xx/네트워크)는 60초 뒤 1회 재시도.
+function _dispatchTennisAutoUpload(dryRun) {
+  var token = PropertiesService.getScriptProperties().getProperty("GITHUB_TOKEN");
+  if (!token) {
+    Logger.log("GITHUB_TOKEN 스크립트 속성이 없습니다 — 프로젝트 설정 > 스크립트 속성에 추가하세요.");
+    return { success: false, error: "GITHUB_TOKEN 없음" };
+  }
+  var url = "https://api.github.com/repos/" + TENNIS_UPLOAD_GITHUB_REPO +
+            "/actions/workflows/" + TENNIS_UPLOAD_WORKFLOW + "/dispatches";
+  var options = {
+    method: "post",
+    contentType: "application/json",
+    headers: {
+      "Authorization": "Bearer " + token,
+      "Accept": "application/vnd.github+json",
+      "X-GitHub-Api-Version": "2022-11-28",
+    },
+    // workflow_dispatch inputs는 문자열로 보낸다(boolean 타입 입력도 "true"/"false" 문자열 허용).
+    payload: JSON.stringify({ ref: TENNIS_UPLOAD_BRANCH, inputs: { dry_run: dryRun ? "true" : "false" } }),
+    muteHttpExceptions: true,
+  };
+  var last = null;
+  for (var attempt = 1; attempt <= 2; attempt++) {
+    var resp = UrlFetchApp.fetch(url, options);
+    var code = resp.getResponseCode();
+    if (code === 204) {
+      Logger.log("tennis-auto-upload 디스패치 성공 (dry_run=" + dryRun + ", 시도 " + attempt + ")");
+      return { success: true, dryRun: dryRun, attempt: attempt };
+    }
+    last = { code: code, body: String(resp.getContentText()).slice(0, 300) };
+    Logger.log("디스패치 실패 HTTP " + code + " (시도 " + attempt + "): " + last.body);
+    // 4xx(토큰 만료·권한·워크플로 없음)는 재시도해도 같으므로 즉시 종료
+    if (code >= 400 && code < 500) break;
+    if (attempt === 1) Utilities.sleep(60000);
+  }
+  return { success: false, error: "HTTP " + (last && last.code), detail: last && last.body };
+}
+
