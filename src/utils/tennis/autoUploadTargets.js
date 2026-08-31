@@ -23,25 +23,14 @@ export function selectAutoTargets(games) {
     .filter(g => g.action !== ACTION_SKIP);
 }
 
-// 이 가드의 목적은 "지금 이 순간 저장이 오가는 중인 경기를 낚아채지 않는다"는 것이다.
-// "오래 방치된 것만 처리"가 아니다 — 그 역할은 resolveWithArchiveState(finalized 존재 확인)가 닫는다.
-// 아카이브 후 앱이 노드를 되살려 중복 업로드되는 경로는 resolveWithArchiveState가 차단하므로
-// 이 가드는 마감 직후 saveState가 아직 오가는 수 초~수 분의 레이스만 막으면 충분하다.
-// 값이 10분인 이유: 마감 후 같은 시간대 자동 실행(예: 09:32 마감 → 10:00 처리)에서 건너뛰지 않아야 한다.
-export const MIN_IDLE_MS = 10 * 60 * 1000;   // 10분
-
-// meta.updatedAt(서버 타임스탬프, ms)이 minIdleMs 이상 지났을 때만 true.
-// 값이 없거나 숫자가 아니거나 미래(클럭 스큐)면 false — 판단 불가는 "건드리지 않는다"로 처리한다.
-export function isSettled(updatedAt, nowMs, minIdleMs = MIN_IDLE_MS) {
-  if (typeof updatedAt !== 'number' || !Number.isFinite(updatedAt) || updatedAt <= 0) return false;
-  const age = nowMs - updatedAt;
-  return age >= minIdleMs;
-}
+// (2026-08-31 유저 결정) 신선도 가드(isSettled, 마지막 수정 후 10분)는 제거했다 —
+// 실행 시점에 마감(summary/done) 상태이기만 하면 처리한다. 편집 중 레이스로 부활한 노드의
+// 중복 업로드는 아래 resolveWithArchiveState가 닫는다.
 
 // 이미 아카이브된 gameId가 active에 다시 나타나면, 삭제를 모르는 클라이언트가
 // 되살린 것이다(앱은 RTDB를 구독하지 않는다). 그 상태는 gameFinalized:false라
 // upload_archive로 분류되지만 시트에는 이미 들어가 있다 — 다시 올리면 중복 행이 된다.
-// 신선도 가드(isSettled)는 확률만 줄일 뿐 이 경로를 닫지 못하므로, 여기서 닫는다.
+// 중복 업로드를 막는 유일한 장치이므로 제거 금지.
 export function resolveWithArchiveState(action, alreadyArchived) {
   if (alreadyArchived && action === ACTION_UPLOAD_ARCHIVE) return ACTION_ARCHIVE_ONLY;
   return action;
