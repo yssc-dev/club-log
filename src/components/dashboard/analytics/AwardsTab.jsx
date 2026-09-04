@@ -390,7 +390,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           🧤 키퍼 (수문장)
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          PG 누적 · 실점률 = 경기당 실점(낮을수록 ↑) · {isSoccer
+          PG 누적 · 실점률 = 경기당 실점 · {isSoccer
             ? '키퍼 4경기 이상'
             : `실점률은 최다 키퍼경기의 30%(현재 ${awards.thresholds?.minKeeperGames ?? 0}경기) 이상`}
         </div>
