@@ -178,6 +178,12 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   const totalAssists = members.reduce((s, p) => s + (p.assists || 0), 0);
   const activePlayers = members.filter(p => p.games > 0);
   const maxPoint = members.length > 0 ? Math.max(...members.map(p => p.point), 1) : 1;
+  // 포인트 TOP 5는 시트 행 순서를 쓰면 안 된다. 대시보드 시트의 RANK 열은
+  // "포인트 − 100×★"(100점 달성 시 별 부여 + 100 차감) 기준이라, 누적 포인트가
+  // 더 높은 ★ 보유자(정보영 142, 조승훈 120 등)가 순위표 아래로 밀려 있다.
+  // 표시 숫자는 N열 누적 포인트이므로 정렬도 누적 포인트로 맞춘다.
+  // 아래 '개인 누적 기록' 표와 같은 비교자를 써서 한 화면 안에서 순서가 갈리지 않게 한다.
+  const pointTop5 = [...members].sort(dashboardRankComparator).slice(0, 5);
 
   const Bar = ({ value, max, color, height = 10 }) => (
     <div style={{ background: "transparent", border: `1px dashed ${C.grayDarker}`,
@@ -304,7 +310,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
                 borderRadius: 14,
                 overflow: "hidden",
               }}>
-                {members.slice(0, 5).map((p, i) => {
+                {pointTop5.map((p, i) => {
                   const isFirst = i === 0;
                   const delta = (p.goalsDelta || 0) + (p.assistsDelta || 0)
                               + (p.ownGoalsDelta || 0) + (p.cleanSheetsDelta || 0);

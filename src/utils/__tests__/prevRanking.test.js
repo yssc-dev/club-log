@@ -51,4 +51,20 @@ describe('dashboardRankComparator', () => {
     ];
     expect([...rows].sort(dashboardRankComparator)[0].goals).toBe(19);
   });
+
+  // 회귀: 대시보드 '포인트 TOP 5'가 members를 정렬 없이 slice(0,5)로 잘라
+  // 시트 행 순서를 그대로 썼다. 시트 RANK 열은 "포인트 − 100×★"(100점 달성 시
+  // 별 부여 + 100 차감) 기준이라, 누적 포인트가 더 높은 ★ 보유자가 순위표
+  // 아래로 밀려 TOP 5에서 통째로 빠졌다(마스터FC 실측: 정보영 142pt가 시트 rank 18).
+  it('시트 행 순서(★ 100점 차감 순위)가 아니라 누적 포인트로 정렬한다', () => {
+    // 시트에 실려 오는 순서 그대로 — 신관수가 1행, ★ 보유자는 아래로 밀려 있다.
+    const sheetOrder = [
+      { name: '신관수', point: 96, ownGoals: 0, goguma: -5, goals: 29, assists: 49, cleanSheets: 13 },
+      { name: '노필선', point: 91, ownGoals: -2, goguma: -3, goals: 42, assists: 32, cleanSheets: 10 },
+      { name: '정보영', point: 142, ownGoals: -2, goguma: -3, goals: 67, assists: 44, cleanSheets: 26 }, // ★ 142-100=42
+      { name: '조승훈', point: 120, ownGoals: 0, goguma: -2, goals: 49, assists: 40, cleanSheets: 19 }, // ★ 120-100=20
+    ];
+    const top = [...sheetOrder].sort(dashboardRankComparator).map(p => p.name);
+    expect(top).toEqual(['정보영', '조승훈', '신관수', '노필선']);
+  });
 });
