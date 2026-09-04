@@ -125,3 +125,28 @@ describe('calcMetricLeaders', () => {
     expect(r.scoring.map(x => x.player)).toEqual(['Big', 'Small']);
   });
 });
+
+// 2026-09-04 어워드 기간 토글: 표본이 작아져도 진입선이 0으로 내려가면 안 된다.
+// perPlayer는 matchLogs뿐 아니라 eventLogs 루프에서도 ensure()로 채워져(calcPlayerSummary)
+// 매치 기록 없이 골 이벤트만 있는 선수가 rounds=0으로 들어온다(레거시 부분명단 구간).
+describe('진입선 하한 — 0 나눗셈 방어', () => {
+  it('축 최대치가 극소여도 minRounds는 1 이상', () => {
+    const perPlayer = {
+      유령: { rounds: 0, keeperRounds: 0, fieldRounds: 0, games: 0, goals: 3, assists: 0,
+              conceded: 0, avgConceded: 0, matches: 0, winRate: 0, teamGoals: 0, goalInvolvement: 0 },
+      실재: { rounds: 1, keeperRounds: 0, fieldRounds: 1, games: 1, goals: 1, assists: 0,
+              conceded: 0, avgConceded: 0, matches: 1, winRate: 0, teamGoals: 0, goalInvolvement: 0 },
+    };
+    const r = calcMetricLeaders({ perPlayer, totalSessions: 1 });
+    expect(r.thresholds.minRounds).toBe(1);
+    expect(r.scoring.map(x => x.player)).toEqual(['실재']);
+    expect(r.scoring.every(x => Number.isFinite(x.value))).toBe(true);
+  });
+
+  it('표본이 충분하면 하한은 아무 영향이 없다 — 누적 화면 무변경', () => {
+    const mk = (rounds) => ({ rounds, keeperRounds: 0, fieldRounds: rounds, games: rounds, goals: 1,
+      assists: 0, conceded: 0, avgConceded: 0, matches: rounds, winRate: 0, teamGoals: 0, goalInvolvement: 0 });
+    const r = calcMetricLeaders({ perPlayer: { A: mk(89), B: mk(20) }, totalSessions: 34 });
+    expect(r.thresholds.minRounds).toBe(27); // ceil(89*0.3)
+  });
+});

@@ -1,3 +1,6 @@
+// minGames에 **null을 명시**하면 동적: 최다 경기수(PG 세션)의 30%(올림) — dynamicMin 참조.
+// 어워드 탭 '최근 한 달'이 이 경로를 쓴다. 생략하면 고정 5라 누적 화면은 무변경.
+import { dynamicMin } from './dynamicMin';
 // 변동성 분석: 경기당 G+A의 표준편차로 컨디션 편차 측정.
 // - 몰빵형(streaky): std 큰 선수 — 몰아치는 타입
 // - 꾸준형(consistent): std 작은 선수 — 안정적인 타입 (단, 평균 G+A가 의미있는 선수만)
@@ -16,8 +19,10 @@ export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
     perPlayer[name].push(ga);
   }
 
+  const maxGames = Object.values(perPlayer).reduce((m, arr) => Math.max(m, arr.length), 0);
+  const resolvedMinGames = minGames ?? dynamicMin(maxGames);
   const stats = Object.entries(perPlayer)
-    .filter(([, arr]) => arr.length >= minGames)
+    .filter(([, arr]) => arr.length >= resolvedMinGames)
     .map(([player, arr]) => {
       const n = arr.length;
       const mean = arr.reduce((s, v) => s + v, 0) / n;
@@ -26,7 +31,8 @@ export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
       return { player, games: n, mean, std };
     });
 
-  if (stats.length === 0) return { streaky: [], consistent: [] };
+  const thresholds = { minGames: resolvedMinGames, maxGames };
+  if (stats.length === 0) return { streaky: [], consistent: [], thresholds };
 
   // 꾸준형 후보 = 평균 G+A가 전체 중앙값 이상 (영양가 있는 꾸준함)
   const sortedMeans = [...stats].map(s => s.mean).sort((a, b) => a - b);
@@ -54,5 +60,5 @@ export function calcVolatility({ playerLogs, minGames = 5, topN = 3 }) {
     .sort((a, b) => a.std - b.std || a.player.localeCompare(b.player, 'ko'))
     .slice(0, topN);
 
-  return { streaky, consistent };
+  return { streaky, consistent, thresholds };
 }

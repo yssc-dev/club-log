@@ -1,6 +1,7 @@
 // src/components/dashboard/analytics/AwardsTab.jsx
 import { useMemo, useState } from 'react';
 import RankBarList from './RankBarList';
+import { filterLogsByPeriod, recentCutoff, latestLogDate } from '../../../utils/analyticsPeriod';
 import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
 
@@ -11,24 +12,67 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
   // buildRawPlayerGamesFromSoccer가 축구 PG에 crova:0/goguma:0을 박아 합산에도 안 들어간다.
   // 자책골은 축구에도 있지만 용어가 다르다: 축구는 '자책'(SoccerApp 개인기록 헤더), 풋살은 '역주행'.
   const bonusTerms = isSoccer ? "자책" : "크로바+고구마+역주행";
+
+  // 기간 토글 (2026-09-04). 'all' = 누적(기본), 'recent' = 최근 한 달.
+  //
+  // ★ 비율형 카드만 기간을 따른다. 카운트형(일일 MVP 횟수·해트트릭·키퍼·자책)은
+  //   유저 결정으로 항상 누적이다 — 30일 창이면 값이 0~2로 뭉쳐 Top5가 동점으로만
+  //   채워져 순위가 의미를 잃기 때문(실측: 해트트릭 22명이 1~2회, 자책 4명이 1~2회).
+  //   덕분에 "PG 누적"·"자책 누적" 캡션도 계속 사실이다.
+  // ★ 월별 랭킹(ranking)과 그 선택기를 채우는 months도 원본 로그를 쓴다.
+  //   필터된 배열로 months를 만들면 최근 모드에서 드롭다운이 한 달로 쪼그라들어
+  //   과거 월 랭킹에 접근할 수 없게 된다.
+  const [period, setPeriod] = useState('all');
+  const isRecent = period === 'recent';
+  // 진입선이 동적으로 잡히는 조건 — 풋살은 항상, 축구는 최근 모드에서만.
+  const dynamicGate = !isSoccer || isRecent;
+
+  const periodLogs = useMemo(() => filterLogsByPeriod(
+    { matchLogs: matchLogs || [], eventLogs: eventLogs || [], playerGameLogs: playerGameLogs || [] },
+    period,
+  ), [matchLogs, eventLogs, playerGameLogs, period]);
+  // 창의 실제 범위 — 30일이 어디서 어디까지인지 안 보이면 숫자를 믿기 어렵다.
+  const windowRange = useMemo(() => {
+    if (!isRecent) return null;
+    const from = recentCutoff(periodLogs);
+    const to = latestLogDate(periodLogs.matchLogs, periodLogs.eventLogs, periodLogs.playerGameLogs);
+    return from && to ? { from, to } : null;
+  }, [isRecent, periodLogs]);
+
+  // ── 누적 고정 (원본 로그) ──
   const awards = useMemo(() => calcAwards({ playerLogs: playerGameLogs || [], eventLogs: eventLogs || [] }), [playerGameLogs, eventLogs]);
   const dailyMvp = useMemo(() => calcDailyMvp({ playerGameLogs: playerGameLogs || [] }), [playerGameLogs]);
-  // 임계값: 축구는 고정(threshold 10/minGames 5 등), 풋살은 생략 → 계산층이 축별 최대치의 30% 동적 적용
-  const slope = useMemo(() => calcRoundSlope({ eventLogs: eventLogs || [], matchLogs: matchLogs || [], ...(isSoccer ? { threshold: 10, minSessions: 3 } : {}) }), [eventLogs, matchLogs, isSoccer]);
-  const solo = useMemo(() => calcSoloGoalRatio({ eventLogs: eventLogs || [], ...(isSoccer ? { threshold: 10 } : {}) }), [eventLogs, isSoccer]);
-  const volatility = useMemo(() => calcVolatility({ playerLogs: playerGameLogs || [], ...(isSoccer ? { minGames: 5 } : {}), topN: 3 }), [playerGameLogs, isSoccer]);
+
+  // ── 기간 적용 (periodLogs) ──
+  // 임계값: 풋살은 생략 → 계산층이 축별 최대치의 30% 동적 적용.
+  // 축구는 누적이면 기존 고정값, 최근 모드면 null을 넘겨 같은 동적 규칙으로 완화한다
+  // (30일 창에 고정 10경기/5경기를 그대로 걸면 표본 대비 진입선이 과하다).
+  const soccerGate = (fixed) => (isSoccer ? (isRecent ? null : fixed) : undefined);
+  const slope = useMemo(() => calcRoundSlope({
+    eventLogs: periodLogs.eventLogs, matchLogs: periodLogs.matchLogs,
+    ...(isSoccer ? { threshold: soccerGate(10), minSessions: soccerGate(3) } : {}),
+  }), [periodLogs, isSoccer, isRecent]);
+  const solo = useMemo(() => calcSoloGoalRatio({
+    eventLogs: periodLogs.eventLogs,
+    ...(isSoccer ? { threshold: soccerGate(10) } : {}),
+  }), [periodLogs, isSoccer, isRecent]);
+  const volatility = useMemo(() => calcVolatility({
+    playerLogs: periodLogs.playerGameLogs,
+    ...(isSoccer ? { minGames: soccerGate(5) } : {}), topN: 3,
+  }), [periodLogs, isSoccer, isRecent]);
   // 개인 축 필드 수비 (풋살 전용) — 세션 평균 베이스라인이 로테이션 전제라 축구 미적용
   const fieldDefense = useMemo(
-    () => (isSoccer ? null : futsalCalc.calcFieldDefense({ matchLogs: matchLogs || [] })),
-    [isSoccer, matchLogs]
+    () => (isSoccer ? null : futsalCalc.calcFieldDefense({ matchLogs: periodLogs.matchLogs })),
+    [isSoccer, periodLogs]
   );
   // 지표 Top5 — 개인분석 레이더와 동일 단일소스(calcPlayerSummary)
   const metricLeaders = useMemo(() => {
-    const { perPlayer, totalSessions } = calcPlayerSummary({
-      matchLogs: matchLogs || [], eventLogs: eventLogs || [], playerGameLogs: playerGameLogs || [],
+    const { perPlayer, totalSessions } = calcPlayerSummary(periodLogs);
+    return calcMetricLeaders({
+      perPlayer, totalSessions: Math.max(totalSessions, 1),
+      ...(isSoccer && isRecent ? { minRounds: null, minKeeperRounds: null } : {}),
     });
-    return calcMetricLeaders({ perPlayer, totalSessions: Math.max(totalSessions, 1) });
-  }, [matchLogs, eventLogs, playerGameLogs]);
+  }, [periodLogs, isSoccer, isRecent]);
 
   const months = useMemo(() => {
     const set = new Set();
@@ -159,8 +203,30 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     </div>
   );
 
+  const PeriodTab = ({ value, label }) => (
+    <button onClick={() => setPeriod(value)}
+      style={{
+        padding: '6px 14px', borderRadius: 999, fontSize: 12,
+        fontWeight: period === value ? 700 : 500,
+        border: `1px solid ${period === value ? 'transparent' : C.grayDarker}`,
+        background: period === value ? C.white : 'transparent',
+        color: period === value ? C.cardLight : C.gray,
+        cursor: 'pointer',
+      }}>{label}</button>
+  );
+
   return (
     <div>
+      {/* 기간 토글 — 비율형 카드만 따른다. 카운트형·월별 랭킹은 항상 누적(위 주석 참조) */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 12, flexWrap: 'wrap' }}>
+        <PeriodTab value="all" label="누적" />
+        <PeriodTab value="recent" label="최근 한 달" />
+        {windowRange && (
+          <span style={{ fontSize: 10, color: C.gray }}>
+            {windowRange.from.slice(5)} ~ {windowRange.to.slice(5)} · 횟수형 카드(MVP·해트트릭·키퍼·자책)와 월별 랭킹은 누적 유지
+          </span>
+        )}
+      </div>
       {/* 🏆 일일 MVP — 그날 최종포인트(랭크점수+크로바+고구마) 1위 */}
       <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
         <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>🏆 일일 MVP</div>
@@ -189,9 +255,9 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
         <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>📊 지표 Top5</div>
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
           {/* 풋살은 축별 최대치의 30% 동적 진입선(calcMetricLeaders.thresholds), 축구는 고정 10경기 */}
-          개인분석 레이더와 동일 지표 · {isSoccer
-            ? '10경기 이상 (키퍼는 4경기 이상)'
-            : `최다 경기수의 30% 이상 (현재 출전 ${metricLeaders.thresholds?.minRounds ?? 0}·수비 ${metricLeaders.thresholds?.minFieldRounds ?? 0}·키퍼 ${metricLeaders.thresholds?.minKeeperRounds ?? 0}경기)`} · ↓는 낮을수록 상위
+          개인분석 레이더와 동일 지표 · {dynamicGate
+            ? `최다 경기수의 30% 이상 (현재 출전 ${metricLeaders.thresholds?.minRounds ?? 0}·수비 ${metricLeaders.thresholds?.minFieldRounds ?? 0}·키퍼 ${metricLeaders.thresholds?.minKeeperRounds ?? 0}경기)`
+            : '10경기 이상 (키퍼는 4경기 이상)'} · ↓는 낮을수록 상위
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <MetricBarCol title="⚽ 득점력 (경기당 골)" rows={metricLeaders.scoring} fmt={v => v.toFixed(2)} />
@@ -269,7 +335,9 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
               🏁 라운드 흐름 (G+A/라운드 변화)
             </div>
             <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
-              G+A 표본 최다치의 30%(현재 {slope.thresholds?.threshold ?? 0}개)·세션 최다치의 30%(현재 {slope.thresholds?.minSessions ?? 0}회) 이상
+              {dynamicGate
+                ? `G+A 표본 최다치의 30%(현재 ${slope.thresholds?.threshold ?? 0}개)·세션 최다치의 30%(현재 ${slope.thresholds?.minSessions ?? 0}회) 이상`
+                : `G+A 표본 ${slope.thresholds?.threshold ?? 0}개·세션 ${slope.thresholds?.minSessions ?? 0}회 이상`}
             </div>
             <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: 10, color: C.gray, marginBottom: 10 }}>
               <span>← 초반 강자</span>
@@ -292,7 +360,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
         <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: isSoccer ? 12 : 4 }}>
           🎯 단독드리블골 (어시 없는 골 비율)
         </div>
-        {!isSoccer && (
+        {dynamicGate && (
           <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
             골 최다치의 30%(현재 {solo.thresholds?.threshold ?? 0}골) 이상
           </div>
@@ -314,9 +382,9 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           🎢 컨디션 편차 (경기당 G+A 표준편차)
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          {isSoccer
-            ? '5경기 이상'
-            : `경기수 최다치의 30%(현재 ${volatility.thresholds?.minGames ?? 0}경기) 이상`} · 꾸준형은 평균 G+A 중앙값 이상에서만 선정
+          {dynamicGate
+            ? `경기수 최다치의 30%(현재 ${volatility.thresholds?.minGames ?? 0}경기) 이상`
+            : '5경기 이상'} · 꾸준형은 평균 G+A 중앙값 이상에서만 선정
         </div>
         {volatility.streaky.length === 0 && volatility.consistent.length === 0 ? (
           <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>

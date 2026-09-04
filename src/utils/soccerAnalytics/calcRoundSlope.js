@@ -1,3 +1,7 @@
+// threshold/minSessions에 **null을 명시**하면 동적: 각각 최다 유효표본/최다 세션수의
+// 30%(올림) — dynamicMin 참조. 어워드 탭 '최근 한 달'이 이 경로를 쓴다.
+// 생략하면 기존 고정값이라 누적 화면·개인분석은 무변경.
+import { dynamicMin } from './dynamicMin';
 // P3: 선수별 골/어시 이벤트의 라운드 분포 → "초반 강자 vs 후반 폭격기" 성향.
 //
 // 정의 (이벤트 단위, 출전 baseline 미사용):
@@ -122,16 +126,24 @@ export function calcRoundSlope({ eventLogs, matchLogs, threshold = 10, minSessio
     };
   }
 
+  const maxValidSample = Object.values(perPlayer).reduce((m, p) => Math.max(m, p.validSampleCount), 0);
+  const maxSessionCount = Object.values(perPlayer).reduce((m, p) => Math.max(m, p.sessionCount), 0);
+  const resolvedThreshold = threshold ?? dynamicMin(maxValidSample);
+  const resolvedMinSessions = minSessions ?? dynamicMin(maxSessionCount);
+
   const lateBloomers = [];
   const earlyBirds = [];
   for (const player of Object.keys(perPlayer)) {
     const { tendency, eventCount, validSampleCount, sessionCount } = perPlayer[player];
-    if (tendency == null || validSampleCount < threshold || sessionCount < minSessions) continue;
+    if (tendency == null || validSampleCount < resolvedThreshold || sessionCount < resolvedMinSessions) continue;
     if (tendency > 0.5) lateBloomers.push({ player, tendency, eventCount, slope: tendency - 0.5 });
     else if (tendency < 0.5) earlyBirds.push({ player, tendency, eventCount, slope: tendency - 0.5 });
   }
   lateBloomers.sort((a, b) => b.tendency - a.tendency || a.player.localeCompare(b.player, 'ko'));
   earlyBirds.sort((a, b) => a.tendency - b.tendency || a.player.localeCompare(b.player, 'ko'));
 
-  return { perPlayer, ranking: { lateBloomers, earlyBirds } };
+  return {
+    perPlayer, ranking: { lateBloomers, earlyBirds },
+    thresholds: { threshold: resolvedThreshold, minSessions: resolvedMinSessions },
+  };
 }

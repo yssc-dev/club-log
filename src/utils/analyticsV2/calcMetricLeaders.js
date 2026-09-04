@@ -23,7 +23,12 @@ export function calcMetricLeaders({ perPlayer, totalSessions, topN = 5, ratio = 
   const maxRounds = maxOf('rounds');
   const maxKeeperRounds = maxOf('keeperRounds');
   const maxFieldRounds = maxOf('fieldRounds');
-  const minRounds = dynamicMin(maxRounds, ratio);
+  // 하한 1은 표본 품질이 아니라 **0 나눗셈 방어**다. perPlayer는 matchLogs뿐 아니라
+  // eventLogs 루프에서도 ensure()로 채워져(calcPlayerSummary) 매치 기록 없이 골/어시
+  // 이벤트만 있는 선수가 rounds=0으로 들어올 수 있다(레거시 부분명단 구간).
+  // 기간 필터로 표본이 작아져 진입선이 0이 되면 그런 선수의 goals/rounds가
+  // Infinity로 1위에 오른다. 누적에서는 진입선이 항상 1 이상이라 무영향.
+  const minRounds = Math.max(dynamicMin(maxRounds, ratio), 1);
   const minKeeperRounds = dynamicMin(maxKeeperRounds, ratio);
   const minFieldRounds = dynamicMin(maxFieldRounds, ratio);
   const rated = entries.filter(([, s]) => s.rounds >= minRounds);

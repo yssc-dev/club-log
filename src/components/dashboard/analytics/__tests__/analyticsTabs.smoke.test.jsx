@@ -239,6 +239,22 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).toContain('5경기 이상');
   });
 
+  // 2026-09-04: 어워드 기간 토글. 기본값은 '누적'이라 위 케이스들이 그대로 통과해야 한다
+  // (렌더 스모크는 SSR이라 토글 클릭을 못 하므로, 전환 후 동작은 계산층 테스트로 고정한다).
+  it('AwardsTab: 기간 토글이 렌더되고 기본값은 누적 — 창 라벨은 아직 없다', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
+    expect(html).toContain('누적');
+    expect(html).toContain('최근 한 달');
+    // 누적이 기본이므로 창 범위 안내 문구는 안 나온다
+    expect(html).not.toContain('월별 랭킹은 누적 유지');
+  });
+
+  it('AwardsTab: 축구 — 기간 토글이 있어도 누적 진입선은 고정값 그대로', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
+    expect(html).toContain('10경기 이상 (키퍼는 4경기 이상)');
+    expect(html).not.toContain('최다 경기수의 30%');
+  });
+
   it('GoldenTrioView: 풋살 — 베스트 듀오 진입선 30% 동적 표기', () => {
     const html = wrap(GoldenTrioView, { matchLogs: [...matchLogs, ...matchLogs.map(m => ({ ...m, date: m.date.replace('2026-06', '2026-07') }))], C });
     expect(html).toContain('동행 최다치의 30%');
