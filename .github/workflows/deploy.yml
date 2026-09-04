@@ -13,11 +13,6 @@ concurrency:
   group: pages
   cancel-in-progress: true
 
-# Node 20 deprecation(2026-06-02 Node24 강제 전환) 대응: 모든 액션을 지금 Node 24로 실행.
-# pages 액션들은 아직 Node24 네이티브 릴리스가 없어 버전업 대신 공식 권장 env 사용.
-env:
-  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: "true"
-
 jobs:
   build-and-deploy:
     runs-on: ubuntu-latest
@@ -25,9 +20,9 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v4
+      - uses: actions/setup-node@v7
         with:
           node-version: 20
           cache: npm
@@ -49,9 +44,9 @@ jobs:
           VITE_ATTENDANCE_GID: ${{ secrets.VITE_ATTENDANCE_GID }}
         run: npx vite build --base=/club-log/
 
-      - uses: actions/configure-pages@v4
-      - uses: actions/upload-pages-artifact@v3
+      - uses: actions/configure-pages@v6
+      - uses: actions/upload-pages-artifact@v5
         with:
           path: dist
       - id: deployment
-        uses: actions/deploy-pages@v4
+        uses: actions/deploy-pages@v5

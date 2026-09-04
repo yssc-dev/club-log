@@ -4,7 +4,7 @@ import AppSync from '../../services/appSync';
 import AuthUtil from '../../services/authUtil';
 import { getSettings, getEffectiveSettings, loadSettingsFromFirebase } from '../../config/settings';
 import { buildAttendanceData, buildAttendanceView } from '../../utils/dashboardAttendance';
-import { buildPrevRankMap, dashboardRankComparator } from '../../utils/prevRanking';
+import { buildPrevRankMap, dashboardRankComparator, latestPointDelta } from '../../utils/prevRanking';
 import { pendingGameProgressLabel } from '../../utils/pendingGameLabel';
 import { useTheme } from '../../hooks/useTheme';
 import Modal from '../common/Modal';
@@ -61,6 +61,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   // 배열 prop 대신 파생 primitive로 의존 — 렌더마다 재fetch 방지
   const hasSoccerEntry = teamEntries.some(e => e.mode === "축구");
   const isTennis = activeSport === "테니스";
+  const isSoccer = activeSport === "축구";
 
   useEffect(() => {
     // 테니스는 대시보드 시트(풋살/축구 명부)를 읽지 않는다. 호출하면 빈 명단으로 위젯이 0으로 채워진다.
@@ -206,6 +207,21 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
     );
   };
 
+  // 직전 경기 증분의 항목별 내역 칩. d는 getLatestDeltas의 선수 1명 레코드.
+  // 역주행/고구마는 이미 부호가 실린 감점 포인트라 그대로 찍는다.
+  // 축구는 크로바/고구마 개념이 없고 서버 열매핑 폴백이 실점을 고구마로
+  // 오독해 보낸 전례가 있어 두 칩을 숨긴다(latestPointDelta의 isSoccer 가드와 동일 기준).
+  const DeltaChips = ({ d, isSoccer: soccer }) => {
+    if (!d) return null;
+    const items = [
+      ["골", d.goals], ["어시", d.assists], ["역주행", d.ownGoals], ["CS", d.cleanSheets],
+      ...(soccer ? [] : [["크로바", d.crova], ["고구마", d.goguma]]),
+    ];
+    return items.filter(([, v]) => (v || 0) !== 0).map(([label, v]) => (
+      <span key={label} style={{ fontSize: 10, color: C.gray }}>{label}{v > 0 ? "+" : ""}{v}</span>
+    ));
+  };
+
   const renderRecords = () => (
     <>
       {membersLoading ? (
@@ -312,8 +328,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
               }}>
                 {pointTop5.map((p, i) => {
                   const isFirst = i === 0;
-                  const delta = (p.goalsDelta || 0) + (p.assistsDelta || 0)
-                              + (p.ownGoalsDelta || 0) + (p.cleanSheetsDelta || 0);
+                  const delta = latestPointDelta(prevRanks[p.name], { isSoccer });
                   return (
                     <div key={i} style={{
                       display: "grid",
@@ -381,7 +396,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
                         <span style={{ fontWeight: 700, color: i < 3 ? C.orange : C.gray, minWidth: 14 }}>{i + 1}</span>
                         <span style={{ fontWeight: 600, flex: 1 }}>{p.name}</span>
                         <span style={{ fontWeight: 700, color: "#22c55e" }}>{p.goals}</span>
-                        <DeltaBadge value={p.goalsDelta} />
+                        <DeltaBadge value={(prevRanks[p.name] || {}).goals || 0} />
                       </div>
                     ))}
                   </div>
@@ -395,7 +410,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
                         <span style={{ fontWeight: 700, color: i < 3 ? C.orange : C.gray, minWidth: 14 }}>{i + 1}</span>
                         <span style={{ fontWeight: 600, flex: 1 }}>{p.name}</span>
                         <span style={{ fontWeight: 700, color: "#3b82f6" }}>{p.assists}</span>
-                        <DeltaBadge value={p.assistsDelta} />
+                        <DeltaBadge value={(prevRanks[p.name] || {}).assists || 0} />
                       </div>
                     ))}
                   </div>
@@ -409,17 +424,19 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
 
           {/* 최근 핫/콜드 */}
           {activePlayers.length > 0 && (() => {
-            // 포인트 변동 = 골 + 어시 - 역주행*2 + 클린시트 (크로바/고구마 변동은 시트 미제공)
+            // 직전 경기 증분(getLatestDeltas) 기준 — 대시보드 시트의 '변동' 열이 아니다.
+            // 시트 변동 열은 기준선이 시즌 단위라 '직전 경기'가 아니고 크로바/고구마가 빠진다.
             const withDelta = activePlayers.map(p => ({
               ...p,
-              totalDelta: (p.goalsDelta || 0) + (p.assistsDelta || 0) + (p.ownGoalsDelta || 0) + (p.cleanSheetsDelta || 0),
+              d: prevRanks[p.name] || null,
+              totalDelta: latestPointDelta(prevRanks[p.name], { isSoccer }),
             }));
             const hot = [...withDelta].sort((a, b) => b.totalDelta - a.totalDelta).slice(0, 3).filter(p => p.totalDelta > 0);
             const cold = [...withDelta].sort((a, b) => a.totalDelta - b.totalDelta).slice(0, 3).filter(p => p.totalDelta < 0);
             if (hot.length === 0 && cold.length === 0) return null;
             return (
               <div style={ds.section}>
-                <div style={ds.sectionTitle}>최근 변동 <span title="직전 경기 대비 포인트 변동 (골+어시+역주행+클린시트). 크로바/고구마 변동은 미포함" style={{ fontSize: 11, color: C.grayDark, cursor: "help", marginLeft: 2 }}>?</span></div>
+                <div style={ds.sectionTitle}>최근 변동 <span title="직전 경기 대비 포인트 변동 (골+어시+역주행+크로바+고구마+클린시트). 선수별집계기록 로그의 최신 경기일 증분 기준" style={{ fontSize: 11, color: C.grayDark, cursor: "help", marginLeft: 2 }}>?</span></div>
                 <div style={{ display: "flex", gap: 8 }}>
                   {hot.length > 0 && (
                     <div style={{ flex: 1 }}>
@@ -431,10 +448,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
                             <DeltaBadge value={p.totalDelta} />
                           </div>
                           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 3 }}>
-                            {p.goalsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>골{p.goalsDelta > 0 ? "+" : ""}{p.goalsDelta}</span>}
-                            {p.assistsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>어시{p.assistsDelta > 0 ? "+" : ""}{p.assistsDelta}</span>}
-                            {p.ownGoalsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>역주행{p.ownGoalsDelta > 0 ? "+" : ""}{p.ownGoalsDelta}</span>}
-                            {p.cleanSheetsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>CS{p.cleanSheetsDelta > 0 ? "+" : ""}{p.cleanSheetsDelta}</span>}
+                            <DeltaChips d={p.d} isSoccer={isSoccer} />
                           </div>
                         </div>
                       ))}
@@ -450,10 +464,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
                             <DeltaBadge value={p.totalDelta} />
                           </div>
                           <div style={{ display: "flex", gap: 4, flexWrap: "wrap", marginTop: 3 }}>
-                            {p.goalsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>골{p.goalsDelta > 0 ? "+" : ""}{p.goalsDelta}</span>}
-                            {p.assistsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>어시{p.assistsDelta > 0 ? "+" : ""}{p.assistsDelta}</span>}
-                            {p.ownGoalsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>역주행{p.ownGoalsDelta > 0 ? "+" : ""}{p.ownGoalsDelta}</span>}
-                            {p.cleanSheetsDelta !== 0 && <span style={{ fontSize: 10, color: C.gray }}>CS{p.cleanSheetsDelta > 0 ? "+" : ""}{p.cleanSheetsDelta}</span>}
+                            <DeltaChips d={p.d} isSoccer={isSoccer} />
                           </div>
                         </div>
                       ))}

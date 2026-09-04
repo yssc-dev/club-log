@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildPrevRankMap, dashboardRankComparator } from '../prevRanking';
+import { buildPrevRankMap, dashboardRankComparator, latestPointDelta } from '../prevRanking';
 
 // 8/18 실사고 재현 픽스처: 선효림은 포인트 변동이 없는데(골0 어시0 CS0),
 // 서버 열매핑 폴백이 실점 7을 '고구마'로 오독해 증분에 실어 보냈다.
@@ -66,5 +66,47 @@ describe('dashboardRankComparator', () => {
     ];
     const top = [...sheetOrder].sort(dashboardRankComparator).map(p => p.name);
     expect(top).toEqual(['정보영', '조승훈', '신관수', '노필선']);
+  });
+
+  // 회귀: 역주행/고구마는 시트에 '감점 포인트(음수)'로 저장되는데 오름차순으로
+  // 비교해 자책이 많은 쪽이 동점 대결에서 이겼다(110 동점 박재운 자책2 > 조재상 자책1).
+  it('포인트 동점에서 역주행 감점이 적은 쪽이 위로 온다', () => {
+    const rows = [
+      { name: '박재운', point: 110, ownGoals: -4, goguma: -4, goals: 56, assists: 32, cleanSheets: 24 },
+      { name: '조재상', point: 110, ownGoals: -2, goguma: -7, goals: 44, assists: 52, cleanSheets: 15 },
+    ];
+    expect([...rows].sort(dashboardRankComparator)[0].name).toBe('조재상');
+  });
+
+  it('역주행이 같으면 고구마 감점이 적은 쪽이 위로 온다', () => {
+    const rows = [
+      { name: '많이먹음', point: 50, ownGoals: -2, goguma: -9, goals: 20, assists: 20, cleanSheets: 5 },
+      { name: '적게먹음', point: 50, ownGoals: -2, goguma: -1, goals: 20, assists: 20, cleanSheets: 5 },
+    ];
+    expect([...rows].sort(dashboardRankComparator)[0].name).toBe('적게먹음');
+  });
+});
+
+describe('latestPointDelta', () => {
+  const d = { goals: 3, assists: 2, ownGoals: -2, cleanSheets: 1, crova: 4, goguma: -3 };
+
+  it('풋살은 크로바/고구마까지 6항 전부 합산한다', () => {
+    expect(latestPointDelta(d)).toBe(5); // 3+2-2+1+4-3
+  });
+
+  it('축구는 크로바/고구마를 버린다 — 실점이 고구마로 오독돼도 증분이 안 깎인다', () => {
+    expect(latestPointDelta(d, { isSoccer: true })).toBe(4); // 3+2-2+1
+  });
+
+  it('증분이 없는 선수는 0 — 그 경기 무변동', () => {
+    expect(latestPointDelta(undefined)).toBe(0);
+    expect(latestPointDelta(null, { isSoccer: true })).toBe(0);
+  });
+
+  it('buildPrevRankMap의 이전 포인트 계산과 같은 식이다', () => {
+    const members = [{ name: 'A', point: 20, goals: 5, assists: 5, ownGoals: 0, cleanSheets: 5, crova: 5, goguma: 0 }];
+    const prev = buildPrevRankMap(members, { A: d }, { isSoccer: false });
+    expect(prev['A']).toBe(1); // 단독이라 1위 — 식이 어긋나면 NaN 정렬로 깨진다
+    expect(20 - latestPointDelta(d)).toBe(15);
   });
 });
