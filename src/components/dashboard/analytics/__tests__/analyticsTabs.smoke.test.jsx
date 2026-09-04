@@ -245,8 +245,21 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
     expect(html).toContain('누적');
     expect(html).toContain('최근 한 달');
-    // 누적이 기본이므로 창 범위 안내 문구는 안 나온다
-    expect(html).not.toContain('월별 랭킹은 누적 유지');
+    expect(html).not.toContain('기준</span>'); // 누적이 기본이라 창 범위 라벨은 없다
+  });
+
+  // 토글 바로 아래에 누적 카드가 붙으면 토글의 영향을 받는 것처럼 읽힌다.
+  // 기간 적용 카드 → 구분선 → 누적 카드 순서를 고정한다.
+  it('AwardsTab: 기간 적용 카드가 위, 구분선 아래에 누적 카드', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
+    const top5 = html.indexOf('지표 Top5');
+    const divider = html.indexOf('기간 무관');
+    const mvp = html.indexOf('일일 MVP');
+    const owngoal = html.indexOf('자책 누적');
+    expect(top5).toBeGreaterThan(-1);
+    expect(divider).toBeGreaterThan(top5);   // 지표 Top5는 구분선 위
+    expect(mvp).toBeGreaterThan(divider);    // 일일 MVP는 구분선 아래
+    expect(owngoal).toBeGreaterThan(divider);
   });
 
   it('AwardsTab: 축구 — 기간 토글이 있어도 누적 진입선은 고정값 그대로', () => {

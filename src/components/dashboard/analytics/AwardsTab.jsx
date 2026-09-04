@@ -223,31 +223,8 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
         <PeriodTab value="recent" label="최근 한 달" />
         {windowRange && (
           <span style={{ fontSize: 10, color: C.gray }}>
-            {windowRange.from.slice(5)} ~ {windowRange.to.slice(5)} · 횟수형 카드(MVP·해트트릭·키퍼·자책)와 월별 랭킹은 누적 유지
+            {windowRange.from.slice(5)} ~ {windowRange.to.slice(5)} 기준
           </span>
-        )}
-      </div>
-      {/* 🏆 일일 MVP — 그날 최종포인트(랭크점수+크로바+고구마) 1위 */}
-      <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>🏆 일일 MVP</div>
-        <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          그날 최종포인트(골+어시+클린시트+{bonusTerms}) 1위 · 동점 시 공동 MVP
-        </div>
-        {dailyMvp.ranking.length === 0 ? (
-          <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <PlainRankingCol title="👑 MVP 횟수" rows={dailyMvp.ranking} suffix="회" />
-            <div>
-              <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🗓 최근 세션 MVP</div>
-              {dailyMvp.recent.map(r => (
-                <div key={r.date} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
-                  <span style={{ color: C.gray }}>{r.date.slice(5)}</span>
-                  <span style={{ color: C.white, fontWeight: 700 }}>{r.mvps.join(', ')} <span style={{ color: C.gray, fontWeight: 400 }}>({r.points}점)</span></span>
-                </div>
-              ))}
-            </div>
-          </div>
         )}
       </div>
       {/* 📊 지표 Top5 — 개인분석 레이더 6축(raw값) + 팀득점관여율 */}
@@ -269,39 +246,6 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           <MetricBarCol title="🎯 팀득점관여율 (골+어시/팀득점)" rows={metricLeaders.involvement} fmt={v => `${Math.round(v * 100)}%`} />
         </div>
       </div>
-      <Card title="🎩 해트트릭 (한 경기 3골 이상)" items={awards.hatTricks} valueKey="count" valueFmt={v => `${v}회`} />
-      {/* 클러치(결승골 등)는 2026-07-04 제거 — 입력 시각 기반 순서 복원은 사후 정정 입력을
-          오탐하고(합계 검증으로는 순서 오류를 못 잡음), 재구성 불일치 제외로 커버리지도 낮았음 */}
-      {/* 🧤 키퍼 — 클린시트 수 · 실점률 (PG 누적) */}
-      <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
-        <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>
-          🧤 키퍼 (수문장)
-        </div>
-        <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          PG 누적 · 실점률 = 경기당 실점(낮을수록 ↑) · {isSoccer
-            ? '키퍼 4경기 이상'
-            : `실점률은 최다 키퍼경기의 30%(현재 ${awards.thresholds?.minKeeperGames ?? 0}경기) 이상`}
-        </div>
-        {(awards.keepers.cleanSheetKings.length === 0 && awards.keepers.stingiest.length === 0) ? (
-          <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-            <RankingCol title="🧤 클린시트 수"
-              rows={awards.keepers.cleanSheetKings.map(k => ({ player: k.player, value: k.cleanSheets }))}
-              suffix="회" />
-            <div>
-              <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🧱 실점률 (경기당)</div>
-              <RankBarList
-                rows={awards.keepers.stingiest.map(k => ({
-                  player: k.player, value: k.concededRate, sub: `${k.keeperGames}경기`,
-                }))}
-                formatValue={v => v.toFixed(1)} lowerIsBetter color={C.accent} C={C} emptyText="-"
-              />
-            </div>
-          </div>
-        )}
-      </div>
-      <Card title="🤦 자책 누적" items={awards.owngoalKings} valueKey="total" valueFmt={v => `${v}회`} />
       {/* 🛡 수비 (필드) — 개인 축 2종: 무실점률 · 세션평균 대비 실점 억제. 풋살 전용 */}
       {!isSoccer && fieldDefense && (
         <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
@@ -403,6 +347,73 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           </div>
         )}
       </div>
+      {/* ── 여기서부터 기간 토글과 무관 ──
+          카운트형(횟수) 카드는 30일 창이면 값이 0~2로 뭉쳐 Top5가 동점으로만 채워진다 —
+          유저 결정으로 항상 누적. 월별 랭킹은 자체 월 선택기를 쓴다.
+          토글 바로 아래에 누적 카드가 붙으면 토글의 영향을 받는 것처럼 읽혀 구분한다. */}
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, margin: '24px 0 14px' }}>
+        <div style={{ flex: 1, height: 1, background: C.grayDarker }} />
+        <span style={{ fontSize: 11, fontWeight: 600, color: C.gray, whiteSpace: 'nowrap' }}>
+          기간 무관 · 항상 누적
+        </span>
+        <div style={{ flex: 1, height: 1, background: C.grayDarker }} />
+      </div>
+      {/* 🏆 일일 MVP — 그날 최종포인트(랭크점수+크로바+고구마) 1위 */}
+      <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>🏆 일일 MVP</div>
+        <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
+          그날 최종포인트(골+어시+클린시트+{bonusTerms}) 1위 · 동점 시 공동 MVP
+        </div>
+        {dailyMvp.ranking.length === 0 ? (
+          <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <PlainRankingCol title="👑 MVP 횟수" rows={dailyMvp.ranking} suffix="회" />
+            <div>
+              <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🗓 최근 세션 MVP</div>
+              {dailyMvp.recent.map(r => (
+                <div key={r.date} style={{ display: 'flex', justifyContent: 'space-between', fontSize: 11, marginBottom: 2 }}>
+                  <span style={{ color: C.gray }}>{r.date.slice(5)}</span>
+                  <span style={{ color: C.white, fontWeight: 700 }}>{r.mvps.join(', ')} <span style={{ color: C.gray, fontWeight: 400 }}>({r.points}점)</span></span>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+      <Card title="🎩 해트트릭 (한 경기 3골 이상)" items={awards.hatTricks} valueKey="count" valueFmt={v => `${v}회`} />
+      {/* 클러치(결승골 등)는 2026-07-04 제거 — 입력 시각 기반 순서 복원은 사후 정정 입력을
+          오탐하고(합계 검증으로는 순서 오류를 못 잡음), 재구성 불일치 제외로 커버리지도 낮았음 */}
+      {/* 🧤 키퍼 — 클린시트 수 · 실점률 (PG 누적) */}
+      <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
+        <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>
+          🧤 키퍼 (수문장)
+        </div>
+        <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
+          PG 누적 · 실점률 = 경기당 실점(낮을수록 ↑) · {isSoccer
+            ? '키퍼 4경기 이상'
+            : `실점률은 최다 키퍼경기의 30%(현재 ${awards.thresholds?.minKeeperGames ?? 0}경기) 이상`}
+        </div>
+        {(awards.keepers.cleanSheetKings.length === 0 && awards.keepers.stingiest.length === 0) ? (
+          <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
+        ) : (
+          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
+            <RankingCol title="🧤 클린시트 수"
+              rows={awards.keepers.cleanSheetKings.map(k => ({ player: k.player, value: k.cleanSheets }))}
+              suffix="회" />
+            <div>
+              <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🧱 실점률 (경기당)</div>
+              <RankBarList
+                rows={awards.keepers.stingiest.map(k => ({
+                  player: k.player, value: k.concededRate, sub: `${k.keeperGames}경기`,
+                }))}
+                formatValue={v => v.toFixed(1)} lowerIsBetter color={C.accent} C={C} emptyText="-"
+              />
+            </div>
+          </div>
+        )}
+      </div>
+      <Card title="🤦 자책 누적" items={awards.owngoalKings} valueKey="total" valueFmt={v => `${v}회`} />
 
       {/* ── 월별 랭킹 ── */}
       <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
