@@ -50,10 +50,16 @@ get(dataset)
 | L2 RTDB | 앱 첫 진입 | 100~300ms, Apps Script 0회 |
 | L3 Sheets | 쓰기 직후 / 수동 동기화 / TTL 만료 | 전체조회 1회 |
 
-### 3.1 in-flight 중복 제거 (필수)
+### 3.1 in-flight 중복 제거
 
-`TennisDashboard`는 `Promise.all`로 3개를 동시에 쏜다. Promise 자체를 캐싱하지
-않으면 L2도 똑같이 3번 두드린다. 진행 중 요청은 같은 Promise를 공유한다.
+진행 중인 요청은 같은 Promise를 공유한다. 같은 노드를 동시에 요청하는 곳이
+실제로 있기 때문이다 — `TennisApp`의 `get('roster')`와 그 아래 대시보드의
+`get('roster')`가 겹친다.
+
+**탭 전환을 막는 것은 in-flight가 아니라 L1이다.** `TennisTabs`는 `activeTab`별
+early-return이라 탭 전환이 완전한 언마운트/리마운트이고, 두 번째 탭의 `get()`은
+L1 히트로 즉시 반환해 Promise를 만들지도 않는다. (`TennisDashboard`가 `Promise.all`로
+쏘는 3개는 서로 다른 노드라 원래 3번 읽는 것이 맞다 — 이건 중복이 아니다.)
 
 ### 3.2 L1 메모리 TTL = 5분
 
