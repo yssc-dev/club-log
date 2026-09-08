@@ -51,15 +51,19 @@ function _adapter(sport, dataset) {
   return ADAPTERS[sport]?.[dataset] || null;
 }
 
-// L3 조회 후 L2 저장. store 실패를 호출부가 구분할 수 있도록 throw 한다.
+// L3 조회 후 L2 저장. 빈 결과나 저장 실패를 호출부(refresh)가 강등할 수 있도록
+// 둘 다 throw 한다. refresh 의 호출부는 전부 쓰기 직후 무효화이므로, 이 시점의
+// []는 "진짜 0행"일 수 없다 — get()의 보수적 보존(§6.1, shouldStore)과 달리
+// 여기서는 빈 결과도 실패로 본다(스펙 §5: 재적재 실패 시 낡은 캐시를 남기지 않는다).
 async function _fetchAndStore(adapter, path) {
   const rows = (await adapter.fetch()) || [];
-  if (shouldStore(rows)) {
-    await set(ref(firebaseDb, path), {
-      ...encodeRows(adapter.columns, rows),
-      version: serverTimestamp(),
-    });
+  if (!shouldStore(rows)) {
+    throw new Error('재적재가 빈 결과를 받음 — 강등 대상');
   }
+  await set(ref(firebaseDb, path), {
+    ...encodeRows(adapter.columns, rows),
+    version: serverTimestamp(),
+  });
   return rows;
 }
 
@@ -105,7 +109,12 @@ const SheetCache = {
         console.warn(`[sheetCache] ${dataset} L2 읽기 실패, 시트 폴백:`, e.message);
         rows = (await adapter.fetch()) || [];
       }
-      _l1.set(path, { rows, ts: Date.now() });
+      // 빈 결과는 L1에도 넣지 않는다(refresh 와 대칭, shouldStore 로 판정).
+      // Apps Script 콜드스타트 실패가 _safeRead 에 의해 []로 삼켜진 경우, 이걸
+      // L1에 5분 박으면 이후 모든 탭 전환이 같은 빈 화면을 반복해서 보여준다 —
+      // 캐시 도입 전엔 탭을 바꿀 때마다 시트를 다시 쳐서 두 번째 시도에 복구됐다.
+      // L1을 비워두면 다음 get() 이 L2(유효할 수 있음) → L3 순으로 다시 시도한다.
+      if (shouldStore(rows)) _l1.set(path, { rows, ts: Date.now() });
       return rows;
     })();
 
@@ -114,21 +123,23 @@ const SheetCache = {
   },
 
   // 쓰기 직후 재적재. 그냥 지우면 다음에 들어온 사람이 콜드스타트를 뒤집어쓴다.
-  // 재적재가 실패하면 노드를 삭제해 다음 읽기가 시트로 폴백하게 강등한다 —
-  // 낡은 캐시를 남기지 않는다.
+  // 재적재가 실패하면(예외든, _fetchAndStore 가 빈 결과를 강등 대상으로 던진 것이든)
+  // 노드를 삭제해 다음 읽기가 시트로 강등한다 — 낡은 캐시를 남기지 않는다(스펙 §5).
+  // 절대 throw 하지 않는다 — 호출부가 try/catch 없이도 안전해야 한다.
+  // 반환값 { ok, rows } 로 호출부(refreshAll)가 성공 여부를 구분할 수 있게 한다.
   async refresh(dataset) {
     const { team, sport } = _ctx();
     const adapter = _adapter(sport, dataset);
-    if (!adapter) return [];
+    if (!adapter) return { ok: true, rows: [] };
+    // 롤백 스위치(§14): true 면 캐시(L2/L1) 자체를 건드리지 않는다 — get() 이
+    // 이미 매번 L3 직행이라 여기서 재적재할 대상이 없다.
+    if (DISABLED) return { ok: true, rows: [] };
     const path = cachePath(team, sport, dataset);
     _l1.delete(path);
     try {
       const rows = await _fetchAndStore(adapter, path);
-      // 빈 결과는 L1에도 넣지 않는다. _safeRead 가 조회 실패를 [] 로 삼키므로,
-      // 이걸 L1에 박으면 L2에 멀쩡한 캐시가 남아 있어도 5분간 빈 화면이 된다.
-      // L1 을 비워둔 채로 두면 다음 get() 이 L2(유효할 수 있음) → L3 순으로 다시 확인한다.
-      if (shouldStore(rows)) _l1.set(path, { rows, ts: Date.now() });
-      return rows;
+      _l1.set(path, { rows, ts: Date.now() });
+      return { ok: true, rows };
     } catch (e) {
       console.warn(`[sheetCache] ${dataset} 재적재 실패, 캐시 강등:`, e.message);
       try {
@@ -137,7 +148,7 @@ const SheetCache = {
         // 삭제까지 실패하면 version 을 0 으로 덮어 즉시 만료시킨다(2단 방어).
         try { await set(ref(firebaseDb, `${path}/version`), 0); } catch { /* best-effort */ }
       }
-      return [];
+      return { ok: false, rows: [] };
     }
   },
 
@@ -145,8 +156,8 @@ const SheetCache = {
     const { sport } = _ctx();
     const out = [];
     for (const dataset of this.datasetsOf(sport)) {
-      const rows = await this.refresh(dataset);
-      out.push({ dataset, ok: true, count: rows.length });
+      const { ok, rows } = await this.refresh(dataset);
+      out.push({ dataset, ok, count: rows.length });
     }
     return out;
   },
@@ -155,6 +166,8 @@ const SheetCache = {
   // playerGames 노드는 635KB(2,330행, 2026-09 실측)까지 자라 있다 — "마지막 동기화"
   // 한 줄 띄우자고 노드 전체를 받으면 캐시로 아낀 트래픽을 그 자리에서 도로 쓴다.
   async status() {
+    // 롤백 스위치(§14): true 면 캐시가 없으므로 조회할 것도 없다.
+    if (DISABLED) return [];
     const { team, sport } = _ctx();
     const out = [];
     for (const dataset of this.datasetsOf(sport)) {
@@ -176,6 +189,13 @@ const SheetCache = {
   _resetForTest() {
     _l1.clear();
     _inflight.clear();
+  },
+
+  // 테스트 전용 — 어댑터 레지스트리 원본을 노출한다. 새 데이터셋(축구·풋살 확장)을
+  // 추가하면서 columns/fetch 를 빠뜨리는 실수를 커버리지 테스트가 직접 순회해 잡을
+  // 수 있게 한다. 프로덕션 코드에서는 쓰지 않는다.
+  _adaptersForTest() {
+    return ADAPTERS;
   },
 };
 

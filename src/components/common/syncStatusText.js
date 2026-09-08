@@ -1,6 +1,7 @@
 // 설정 화면의 캐시 상태 문구. 렌더에서 분리해 단위 테스트 가능하게 둔다.
 
-const LABELS = { roster: '명부', playerGames: '선수경기', legacy: '레거시' };
+// SettingsScreen 의 실패 메시지("명부 갱신 실패")도 이 표기를 재사용한다.
+export const DATASET_LABELS = { roster: '명부', playerGames: '선수경기', legacy: '레거시' };
 
 function ago(ms) {
   const m = Math.max(0, Math.floor(ms / 60000));
@@ -20,7 +21,7 @@ export function formatSyncStatus(entries, now = Date.now()) {
   if (cached.length === 0) return '아직 캐시 없음';
   const oldest = Math.min(...cached.map(e => e.version));
   const counts = cached
-    .map(e => `${LABELS[e.dataset] || e.dataset} ${Number(e.count || 0).toLocaleString('ko-KR')}행`)
+    .map(e => `${DATASET_LABELS[e.dataset] || e.dataset} ${Number(e.count || 0).toLocaleString('ko-KR')}행`)
     .join(' · ');
   return `마지막 동기화 ${hhmmKST(oldest)} (${ago(now - oldest)}) — ${counts}`;
 }

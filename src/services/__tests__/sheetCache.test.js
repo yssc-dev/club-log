@@ -127,6 +127,19 @@ describe('get — 3층 캐시', () => {
     expect(h.store.has('cache/몽피스/테니스/legacy/all')).toBe(false);
   });
 
+  // refresh 와 대칭인 가드. L3가 []를 주면(콜드스타트 실패가 _safeRead 에 의해
+  // 삼켜진 상황) L1에 5분간 고착시키지 않아야 다음 탭 전환에서 재시도할 수 있다.
+  it('L3가 빈 결과를 주면 L1에 고착되지 않고 다음 get() 이 다시 L3를 시도한다', async () => {
+    const first = await SheetCache.get('legacy');
+    expect(first).toEqual([]);
+    expect(h.fetchCounts.legacy).toBe(1);
+
+    const second = await SheetCache.get('legacy');
+    expect(second).toEqual([]);
+    // L1 히트였다면 fetchCounts 가 늘지 않았을 것 — 늘었다는 것은 L3를 다시 쳤다는 뜻.
+    expect(h.fetchCounts.legacy).toBe(2);
+  });
+
   it('L2 읽기가 실패하면 조용히 L3 로 폴백한다', async () => {
     h.failNextGet = true;
     const rows = await SheetCache.get('roster');
@@ -158,7 +171,8 @@ describe('refresh', () => {
   it('L1 을 비우고 L3 에서 다시 읽어 L2 를 교체한다', async () => {
     await SheetCache.get('playerGames');
     expect(h.fetchCounts.playerGames).toBe(1);
-    await SheetCache.refresh('playerGames');
+    const r = await SheetCache.refresh('playerGames');
+    expect(r.ok).toBe(true);
     expect(h.fetchCounts.playerGames).toBe(2);
     expect(h.store.get('cache/몽피스/테니스/playerGames/all').count).toBe(1);
   });
@@ -167,33 +181,34 @@ describe('refresh', () => {
     await SheetCache.get('playerGames');
     expect(h.store.has('cache/몽피스/테니스/playerGames/all')).toBe(true);
     h.failNextSet = true;
-    await SheetCache.refresh('playerGames');
+    const r = await SheetCache.refresh('playerGames');
+    expect(r).toEqual({ ok: false, rows: [] });
     expect(h.store.has('cache/몽피스/테니스/playerGames/all')).toBe(false);
   });
 
-  // _safeRead 는 Apps Script/네트워크 조회 실패를 조용히 [] 로 삼킨다. refresh 가
-  // 그 [] 를 L1에 그대로 박으면, L2에 아직 유효한 캐시가 남아 있어도 5분간
-  // 빈 화면이 된다(불변식 위반). refresh 는 빈 결과일 때 L1을 건드리지 말아야 한다.
-  it('재적재가 빈 결과([])를 받으면 L1을 오염시키지 않고 L2의 기존 캐시를 보존한다', async () => {
+  // _safeRead 는 Apps Script/네트워크 조회 실패를 조용히 [] 로 삼킨다. refresh 의
+  // 호출부(마감·회원 upsert)는 전부 쓰기 직후 무효화이므로, 이 시점의 []는
+  // "진짜 0행"일 수 없다 — get()의 보수적 보존(§6.1)과 다르게, refresh 는 이걸
+  // 실패로 보고 강등해야 한다(스펙 §5). 예전엔 여기서 L2를 "보존"하는 것을
+  // 정답으로 삼았는데, 그게 바로 낡은 캐시를 최대 12시간 방치하는 사고였다.
+  it('재적재가 빈 결과([])를 받으면 L2의 기존 캐시를 강등(삭제)하고 L1도 오염시키지 않는다', async () => {
     await SheetCache.get('roster');
     expect(h.fetchCounts.roster).toBe(1);
-    const before = h.store.get('cache/몽피스/테니스/roster/all');
-    expect(before).toBeTruthy();
+    expect(h.store.has('cache/몽피스/테니스/roster/all')).toBe(true);
 
     h.rosterEmptyNext = true; // 다음 fetch 는 [] (조회 실패가 삼켜진 상황)
-    const refreshed = await SheetCache.refresh('roster');
-    expect(refreshed).toEqual([]);
+    const r = await SheetCache.refresh('roster');
+    expect(r).toEqual({ ok: false, rows: [] });
     expect(h.fetchCounts.roster).toBe(2);
 
-    // L2 는 빈 값으로 덮이지 않는다 — shouldStore([]) === false 라 애초에 set() 이 안 불린다.
-    expect(h.store.get('cache/몽피스/테니스/roster/all')).toEqual(before);
+    // L2 는 낡은 채로 남지 않는다 — 강등(삭제)된다.
+    expect(h.store.has('cache/몽피스/테니스/roster/all')).toBe(false);
 
-    // L1은 refresh 시작 시 삭제됐고, 빈 결과라 다시 채워지지 않았어야 한다.
-    // 그래서 다음 get() 은 L2(아직 유효)를 다시 읽어 원래 로스터를 반환하고,
-    // L3(fetch) 는 다시 부르지 않는다.
+    // L1도 빈 값으로 오염되지 않는다. 다음 get() 은 L2 미스이므로 L3(fetch)를
+    // 다시 시도한다 — 이번엔 mock 이 정상 데이터로 복귀해 있으므로 로스터가 돌아온다.
     const rows = await SheetCache.get('roster');
     expect(rows).toEqual(ROSTER);
-    expect(h.fetchCounts.roster).toBe(2);
+    expect(h.fetchCounts.roster).toBe(3);
   });
 });
 
@@ -232,5 +247,24 @@ describe('어댑터 등록 커버리지', () => {
     const node = h.store.get('cache/몽피스/테니스/playerGames/all');
     expect(node.headers.length).toBeGreaterThan(0);
     expect(node.headers).toContain('player');
+  });
+
+  // 위 테스트는 Array.isArray(rows) 만 본다 — 어댑터에 columns 가 없으면
+  // encodeRows(undefined, rows) 가 TypeError 를 던지고, 그게 get()/refresh() 의
+  // L2 저장 try/catch 에 삼켜져 그 데이터셋만 조용히 영구 L3 직행이 된다(비용
+  // 회귀가 나도 테스트가 안 잡는다). 축구·풋살 어댑터 등록(5단계)에서 정확히
+  // 이 실수를 하기 쉬우므로, 레지스트리를 직접 순회해 형태를 단언한다.
+  it('등록된 모든 어댑터가 비어있지 않은 columns 배열과 fetch 함수를 갖는다(레지스트리 직접 순회)', () => {
+    const adapters = SheetCache._adaptersForTest();
+    const entries = Object.entries(adapters).flatMap(([sport, byDataset]) =>
+      Object.entries(byDataset).map(([dataset, adapter]) => ({ sport, dataset, adapter }))
+    );
+    expect(entries.length).toBeGreaterThan(0);
+    for (const { sport, dataset, adapter } of entries) {
+      const label = `${sport}.${dataset}`;
+      expect(Array.isArray(adapter.columns), label).toBe(true);
+      expect(adapter.columns.length, label).toBeGreaterThan(0);
+      expect(typeof adapter.fetch, label).toBe('function');
+    }
   });
 });

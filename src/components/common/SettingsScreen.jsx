@@ -10,7 +10,7 @@ import FirebaseSync from '../../services/firebaseSync';
 import SheetCache from '../../services/sheetCache';
 import { buildRoundRowsFromFutsal, buildRoundRowsFromSoccer } from '../../utils/matchRowBuilder';
 import { recoverFinalizedStateFromSheets } from '../../utils/recoverFinalizedFromSheets';
-import { formatSyncStatus } from './syncStatusText';
+import { formatSyncStatus, DATASET_LABELS } from './syncStatusText';
 
 export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmin, onBack }) {
   const isSoccer = teamMode === "축구";
@@ -199,9 +199,17 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
     try {
       const r = await SheetCache.refreshAll();
       const total = r.reduce((s, x) => s + x.count, 0);
-      setSyncResult({ ok: true, total });
+      const failedNames = r.filter(x => !x.ok).map(x => DATASET_LABELS[x.dataset] || x.dataset);
+      setSyncResult(
+        failedNames.length === 0
+          ? { ok: true, total }
+          : { ok: false, error: `${failedNames.join(', ')} 갱신 실패 — 잠시 후 다시 시도해 주세요` }
+      );
       setSyncStatus(await SheetCache.status());
     } catch (e) {
+      // SheetCache.refreshAll 은 실패를 내부에서 삼키고 절대 throw 하지 않는다
+      // (개별 실패는 위 failedNames 로 반영된다). 이 catch 는 status() 재조회처럼
+      // refreshAll 밖에서 던질 수 있는 예상 밖 예외에 대한 방어로만 남겨둔다.
       setSyncResult({ ok: false, error: e?.message || '알 수 없는 오류' });
     } finally {
       setSyncing(false);
