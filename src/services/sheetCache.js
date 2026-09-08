@@ -147,24 +147,20 @@ const SheetCache = {
     return out;
   },
 
-  // 설정 화면용. version/count 만 보고하고 rows 는 호출부에 노출하지 않는다.
-  // 주의: `${path}/version` 처럼 하위 경로를 따로 get() 하지 않는다 — 실제 RTDB
-  // 클라이언트는 그런 하위 경로 조회를 지원하지만, 이 노드는 어차피 작아서
-  // 얻는 이득이 없고, 노드 전체를 한 번 읽는 편이 테스트 더블(경로 문자열 완전
-  // 일치로만 값을 찾는 인메모리 스토어)과도 자연스럽게 맞는다.
+  // 설정 화면용. rows 를 내려받지 않도록 version/count 만 얕게 읽는다.
+  // playerGames 노드는 635KB(2,330행, 2026-09 실측)까지 자라 있다 — "마지막 동기화"
+  // 한 줄 띄우자고 노드 전체를 받으면 캐시로 아낀 트래픽을 그 자리에서 도로 쓴다.
   async status() {
     const { team, sport } = _ctx();
     const out = [];
     for (const dataset of this.datasetsOf(sport)) {
       const path = cachePath(team, sport, dataset);
       try {
-        const snap = await get(ref(firebaseDb, path));
-        const node = snap.val();
-        out.push({
-          dataset,
-          version: typeof node?.version === 'number' ? node.version : null,
-          count: typeof node?.count === 'number' ? node.count : null,
-        });
+        const [v, c] = await Promise.all([
+          get(ref(firebaseDb, `${path}/version`)),
+          get(ref(firebaseDb, `${path}/count`)),
+        ]);
+        out.push({ dataset, version: v.val() ?? null, count: c.val() ?? null });
       } catch {
         out.push({ dataset, version: null, count: null });
       }

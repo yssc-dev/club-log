@@ -18,7 +18,18 @@ vi.mock('firebase/database', () => ({
   get: async (r) => {
     h.getCalls++;
     if (h.failNextGet) { h.failNextGet = false; throw new Error('RTDB down'); }
-    return { val: () => (h.store.has(r.path) ? h.store.get(r.path) : null) };
+    if (h.store.has(r.path)) return { val: () => h.store.get(r.path) };
+    // 하위경로 조회: 실제 RTDB 처럼 `<노드경로>/<필드>` 를 부모 노드에서 꺼낸다.
+    // status() 가 `${path}/version`, `${path}/count` 를 얕게 읽는 것을 흉내낸다.
+    const i = r.path.lastIndexOf('/');
+    if (i > 0) {
+      const parent = h.store.get(r.path.slice(0, i));
+      if (parent && typeof parent === 'object') {
+        const field = r.path.slice(i + 1);
+        return { val: () => (field in parent ? parent[field] : null) };
+      }
+    }
+    return { val: () => null };
   },
   set: async (r, value) => {
     if (h.failNextSet) { h.failNextSet = false; throw new Error('write denied'); }
