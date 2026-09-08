@@ -19,11 +19,11 @@ const GAMES = [
   { match_id: '[T]2_CM', game_id: 'g2', format: '복식', side: 'B', player: '문형민', partner: '', result: '패', date: '2026-08-02', season: '2026', aces: 1, double_faults: 3 },
 ];
 
-vi.mock('../../../services/tennisSync', () => ({
+vi.mock('../../../services/sheetCache', () => ({
   default: {
-    getPlayerGames: () => Promise.resolve(GAMES),
-    getLegacyRecords: () => Promise.resolve([]),
-    getRoster: () => Promise.resolve(ROSTER),
+    get: (dataset) => Promise.resolve(
+      dataset === 'playerGames' ? GAMES : dataset === 'roster' ? ROSTER : []
+    ),
   },
 }));
 

@@ -7,8 +7,10 @@ import {
 } from '../../config/settings';
 import AppSync from '../../services/appSync';
 import FirebaseSync from '../../services/firebaseSync';
+import SheetCache from '../../services/sheetCache';
 import { buildRoundRowsFromFutsal, buildRoundRowsFromSoccer } from '../../utils/matchRowBuilder';
 import { recoverFinalizedStateFromSheets } from '../../utils/recoverFinalizedFromSheets';
+import { formatSyncStatus, DATASET_LABELS } from './syncStatusText';
 
 export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmin, onBack }) {
   const isSoccer = teamMode === "축구";
@@ -25,11 +27,25 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
   const [fbMigrateResult, setFbMigrateResult] = useState(null);
   const [recovering, setRecovering] = useState(false);
   const [recoverResult, setRecoverResult] = useState(null);
+  const [syncing, setSyncing] = useState(false);
+  const [syncStatus, setSyncStatus] = useState(null);   // null = 아직 조회 전
+  const [syncResult, setSyncResult] = useState(null);
   // null | { newPreset, diffs: [{key, from, to}], overrides: {k:v} }
 
   useEffect(() => {
     setLoadingSheets(true);
     AppSync.getSheetList().then(list => setSheetList(list)).finally(() => setLoadingSheets(false));
+  }, []);
+
+  // 캐시 상태는 version/count 만 얕게 읽는다 — rows 를 내려받지 않는다.
+  useEffect(() => {
+    if (SheetCache.datasetsOf(sport).length === 0) return;
+    let cancelled = false;
+    SheetCache.status()
+      .then(s => { if (!cancelled) setSyncStatus(s); })
+      .catch(() => { if (!cancelled) setSyncStatus([]); });
+    return () => { cancelled = true; };
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회만
   }, []);
 
   // Firebase async load가 Root의 fire-and-forget보다 늦으면 초기 state가 fallback(defaults)으로 고정됨.
@@ -176,6 +192,29 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
       setRecovering(false);
     }
   }
+
+  const handleManualSync = async () => {
+    setSyncing(true);
+    setSyncResult(null);
+    try {
+      const r = await SheetCache.refreshAll();
+      const total = r.reduce((s, x) => s + x.count, 0);
+      const failedNames = r.filter(x => !x.ok).map(x => DATASET_LABELS[x.dataset] || x.dataset);
+      setSyncResult(
+        failedNames.length === 0
+          ? { ok: true, total }
+          : { ok: false, error: `${failedNames.join(', ')} 갱신 실패 — 잠시 후 다시 시도해 주세요` }
+      );
+      setSyncStatus(await SheetCache.status());
+    } catch (e) {
+      // SheetCache.refreshAll 은 실패를 내부에서 삼키고 절대 throw 하지 않는다
+      // (개별 실패는 위 failedNames 로 반영된다). 이 catch 는 status() 재조회처럼
+      // refreshAll 밖에서 던질 수 있는 예상 밖 예외에 대한 방어로만 남겨둔다.
+      setSyncResult({ ok: false, error: e?.message || '알 수 없는 오류' });
+    } finally {
+      setSyncing(false);
+    }
+  };
 
   const applyPresetChange = (keepOverrides) => {
     if (!presetChangeDialog) return;
@@ -416,6 +455,30 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
           </>
         )}
       </div>
+
+      {SheetCache.datasetsOf(sport).length > 0 && (
+        <div style={{ display: "grid", gap: 8, padding: 12, borderRadius: 12, background: "var(--app-bg-row)", marginBottom: 12 }}>
+          <div style={{ fontSize: 13, fontWeight: 700 }}>데이터 동기화</div>
+          <div style={{ fontSize: 12, color: "var(--app-gray)" }}>
+            {syncStatus === null ? "확인 중..." : formatSyncStatus(syncStatus)}
+          </div>
+          <div style={{ fontSize: 11, color: "var(--app-gray)" }}>
+            구글시트를 앱 밖에서 직접 고쳤을 때만 누르면 됩니다. 평소에는 경기 마감·회원 등록 시 자동으로 갱신됩니다.
+          </div>
+          <button
+            onClick={handleManualSync}
+            disabled={syncing}
+            style={{ padding: "10px 12px", fontSize: 13, fontWeight: 600, borderRadius: 10, border: "none", cursor: syncing ? "not-allowed" : "pointer", background: "var(--app-blue)", color: "#fff", opacity: syncing ? 0.6 : 1 }}
+          >
+            {syncing ? "동기화 중..." : "구글시트에서 다시 불러오기"}
+          </button>
+          {syncResult && (
+            <div style={{ fontSize: 12, color: syncResult.ok ? "var(--app-green)" : "var(--app-red)" }}>
+              {syncResult.ok ? `✓ 동기화 완료 — 총 ${syncResult.total.toLocaleString('ko-KR')}행` : `✗ 실패: ${syncResult.error}`}
+            </div>
+          )}
+        </div>
+      )}
 
       {isAdmin && !isTennis && (
         <div style={ss.section}>

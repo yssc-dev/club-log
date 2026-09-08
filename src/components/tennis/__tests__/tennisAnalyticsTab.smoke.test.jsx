@@ -1,5 +1,5 @@
 // 렌더 크래시 방어 + 뷰 전환 + 날짜필터 모드 검증.
-// TennisSync는 내부 fetch라 renderToStaticMarkup에서 빈 데이터로 그려짐(크래시만 검증).
+// SheetCache는 내부 fetch라 renderToStaticMarkup에서 빈 데이터로 그려짐(크래시만 검증).
 import { describe, it, expect, vi } from 'vitest';
 import { renderToStaticMarkup } from 'react-dom/server';
 import { createElement } from 'react';
@@ -8,8 +8,8 @@ import TennisAnalyticsTab from '../TennisAnalyticsTab';
 import { LegacyStandingsSection } from '../tennisStandingsSections';
 import { buildLegacyStandings } from '../../../utils/tennis/tennisDateFilter';
 
-vi.mock('../../../services/tennisSync', () => ({
-  default: { getPlayerGames: () => Promise.resolve([]), getLegacyRecords: () => Promise.resolve([]), getRoster: () => Promise.resolve([]) },
+vi.mock('../../../services/sheetCache', () => ({
+  default: { get: () => Promise.resolve([]) },
 }));
 
 Object.defineProperty(window, 'matchMedia', {

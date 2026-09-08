@@ -2,6 +2,7 @@
 // 진실 소스 쓰기라 모든 저장은 window.confirm 확인 후. 순수 로직은 memberForm.js.
 import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
+import SheetCache from '../../services/sheetCache';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import {
@@ -142,7 +143,20 @@ export default function TennisMembers({ C: propC }) {
   const runWrite = (payload, okMsg) => {
     setSaving(true); setStatus(null);
     return TennisSync.writeRosterMember(payload)
-      .then(() => { setStatus({ type: 'ok', msg: okMsg }); setEditing(null); return reload(); })
+      .then(() => {
+        // refresh(전역 roster 캐시 — TennisApp·대시보드·리그·분석이 쓴다)와
+        // reload(이 화면만의 getRosterAdmin 재조회, 캐시 비대상)는 서로 독립이라
+        // 동시에 시작한다. 직렬로 하면 저장 1회에 Apps Script 왕복이 3회
+        // (쓰기 → refresh → reload) 붙어 콜드스타트(2~10초)를 세 번 겪는다.
+        // refresh 실패를 여기서 삼키는 것은 의도적이다 — 바깥 .catch 로 새면
+        // 시트 저장이 성공했는데도 '저장에 실패했습니다' 가 뜬다. reload() 는
+        // 자체적으로 실패를 삼키고 setError 로 반영하므로 추가 보호가 필요 없다.
+        const refreshP = SheetCache.refresh('roster')
+          .catch(e => console.warn('[sheetCache] 명부 재적재 실패:', e?.message));
+        setStatus({ type: 'ok', msg: okMsg });
+        setEditing(null);
+        return Promise.all([refreshP, reload()]);
+      })
       .catch(e => setStatus({ type: 'err', msg: e?.message || '저장에 실패했습니다' }))
       .finally(() => setSaving(false));
   };

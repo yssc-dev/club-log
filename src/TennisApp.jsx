@@ -4,8 +4,9 @@ import { useTheme } from './hooks/useTheme';
 import { makeStyles } from './styles/theme';
 import { getEffectiveSettings } from './config/settings';
 import FirebaseSync from './services/firebaseSync';
-import TennisSync from './services/tennisSync';
+import SheetCache from './services/sheetCache';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
+import { finalizeTennisRecords } from './utils/tennis/finalizeTennisRecords';
 import { buildTennisMatchRows, buildTennisPlayerGameRows, resolveGradeSource } from './utils/tennis/tennisRowBuilders';
 import { nowKST } from './utils/tennis/tennisTime';
 import { allRoundsConfirmed, isLastRoundConfirmed } from './utils/tennis/roundConfirm';
@@ -38,7 +39,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const [showSummary, setShowSummary] = useState(false);
   const team = teamContext?.team || '';
 
-  useEffect(() => { TennisSync.getRoster().then(setRoster); }, []);
+  useEffect(() => { SheetCache.get('roster').then(setRoster); }, []);
 
   // 등급 스냅샷 — 명부가 손에 들어오면 그 즉시 state에 고정한다.
   // "빈 맵 무시 / 최초 1회만 / phase==='done' 제외" 판단은 전부 리듀서가 하므로 여기선 조건 없이 던진다.
@@ -121,13 +122,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
       const inputBy = authUser?.name || '';
       const matchRows = buildTennisMatchRows({ team, state, inputTime, inputBy, memberSet });
       const pgRows = buildTennisPlayerGameRows({ team, state, inputTime, inputBy, memberSet, gradeByPlayer });
-      const results = await Promise.allSettled([
-        TennisSync.writeMatches(matchRows),
-        TennisSync.writePlayerGames(pgRows),
-      ]);
-      const failed = results.filter(r => r.status === 'rejected');
-      if (failed.length > 0) {
-        alert(`전송 실패 ${failed.length}건 — 미확정 상태를 유지합니다.\n${failed.map(f => f.reason?.message).join('\n')}`);
+      const { ok, failed } = await finalizeTennisRecords({ matchRows, pgRows });
+      if (!ok) {
+        alert(`전송 실패 ${failed.length}건 — 미확정 상태를 유지합니다.\n${failed.join('\n')}`);
         return;
       }
       dispatch({ type: 'FINALIZE' });

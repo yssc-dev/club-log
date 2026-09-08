@@ -19,6 +19,9 @@ import { stripNameDecorations } from '../src/services/tennisSync.js';
 import {
   selectAutoTargets, ACTION_UPLOAD_ARCHIVE, ACTION_ARCHIVE_ONLY, resolveWithArchiveState,
 } from '../src/utils/tennis/autoUploadTargets.js';
+import { safeTeam, cachePath } from '../src/services/rtdbPath.js';
+import { encodeRows } from '../src/services/sheetCacheCore.js';
+import { TENNIS_PLAYER_GAME_COLUMNS } from '../src/utils/tennis/tennisSchema.js';
 
 const DB = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || '';
@@ -29,11 +32,6 @@ const INPUT_BY = '자동업로드';
 
 // 사람이 반드시 확인해야 하는 상태가 생기면 켜진다 → 종료 코드 1
 let manualCheck = false;
-
-// firebaseSync._safeTeam 의 복사본. 한쪽을 고치면 다른 쪽도 고칠 것.
-function safeTeam(team) {
-  return (team || '기본팀').replace(/[.#$/[\]]/g, '_');
-}
 
 // firebaseSync._kstDateFromGameId 의 복사본 (gameDate가 빈 레거시 경기 폴백).
 function kstDateFromGameId(gameId) {
@@ -137,6 +135,26 @@ async function archiveGame(teamKey, gameId, state) {
   console.log('  아카이브 완료');
 }
 
+// 업로드가 있었던 팀의 playerGames 캐시를 재적재한다.
+// 봇이 이걸 안 하면 앱이 L2 TTL(12h) 내내 어제 데이터를 보여준다.
+// ★ 캐시 실패가 업로드 성공을 되돌리면 안 된다 — 캐시는 파생 데이터다.
+//   실패 시 노드를 지워 다음 읽기를 시트로 강등하고, manualCheck 도 세우지 않는다.
+async function refreshPlayerGamesCache(teamKey, teamName) {
+  const path = cachePath(teamName, SPORT_KEY, 'playerGames');
+  try {
+    const rows = (await appsScript('getTennisPlayerGames', teamName)).rows || [];
+    if (rows.length === 0) {
+      console.log('  캐시 재적재 건너뜀 — 조회 결과 0행(조회 실패와 구분 불가)');
+      return;
+    }
+    await rtdb('PUT', path, { ...encodeRows(TENNIS_PLAYER_GAME_COLUMNS, rows), version: { '.sv': 'timestamp' } });
+    console.log(`  캐시 재적재 완료 — ${rows.length}행`);
+  } catch (e) {
+    console.log(`  캐시 재적재 실패, 노드 삭제로 강등: ${e.message}`);
+    try { await rtdb('DELETE', path); } catch { /* best-effort */ }
+  }
+}
+
 async function processTeam(teamKey, teamName) {
   const raw = (await rtdb('GET', `games/${encodeURIComponent(teamKey)}/active`)) || {};
   const games = Object.keys(raw).map(gameId => ({
@@ -148,6 +166,7 @@ async function processTeam(teamKey, teamName) {
   const targets = selectAutoTargets(games);
   console.log(`[${teamName}] 활성 ${games.length}건 · 처리 대상 ${targets.length}건`);
 
+  let uploaded = false;
   for (const t of targets) {
     const label = `${t.gameId} (${t.state.gameDate || '?'}) ${t.action}`;
     if (DRY_RUN) {
@@ -166,6 +185,7 @@ async function processTeam(teamKey, teamName) {
       if (action === ACTION_UPLOAD_ARCHIVE) {
         const ok = await uploadRows(teamKey, teamName, t.gameId, t.state);
         if (!ok) continue;   // 등급 출처 없음 — 아카이브도 하지 않는다
+        uploaded = true;
       }
       await archiveGame(teamKey, t.gameId, t.state);
     } catch (e) {
@@ -173,6 +193,11 @@ async function processTeam(teamKey, teamName) {
       console.error(`  실패: ${t.gameId} — ${e.message}`);
       process.exitCode = 1;
     }
+  }
+
+  // 경기마다가 아니라 실행당 1회로 모아 전량 재조회를 줄인다.
+  if (uploaded && !DRY_RUN) {
+    await refreshPlayerGamesCache(teamKey, teamName);
   }
 }
 

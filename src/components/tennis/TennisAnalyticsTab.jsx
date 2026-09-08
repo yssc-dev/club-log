@@ -1,7 +1,7 @@
 // 분석 탭 본문. 시트 2종(로그_테니스선수경기 + 테니스_레거시전적)을 읽어 클라이언트에서 계산한다.
 // 경기 중 화면과 무관 — 당일/누적 경계(스펙 §2)를 지킨다.
 import { useEffect, useMemo, useState } from 'react';
-import TennisSync from '../../services/tennisSync';
+import SheetCache from '../../services/sheetCache';
 import { buildSinglesStandings, buildPlayerSummary } from '../../utils/tennis/tennisStandings';
 import { priorYearSinglesOrder } from '../../utils/tennis/leagueDerivation';
 import {
@@ -712,9 +712,9 @@ export default function TennisAnalyticsTab({ C: propC }) {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      TennisSync.getPlayerGames().then(setRows),
-      TennisSync.getLegacyRecords().then(setLegacyRows),
-      TennisSync.getRoster().then(setRoster),
+      SheetCache.get('playerGames').then(setRows),
+      SheetCache.get('legacy').then(setLegacyRows),
+      SheetCache.get('roster').then(setRoster),
     ]).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);

@@ -1,6 +1,6 @@
 // 테니스 클럽 개요 대시보드(2단계). 정적·비인터랙티브. 분석 계산기 재사용.
 import { useEffect, useMemo, useState } from 'react';
-import TennisSync from '../../services/tennisSync';
+import SheetCache from '../../services/sheetCache';
 import { buildMonthSummary, buildLastMatchDay } from '../../utils/tennis/tennisDashboard';
 import { buildDoublesStandings, buildPairChemistry, buildTbRanking, buildBagelRanking, buildAceDfRanking } from '../../utils/tennis/tennisAnalytics';
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
@@ -92,9 +92,9 @@ export default function TennisDashboard({ C: propC }) {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      TennisSync.getPlayerGames().then(setRows),
-      TennisSync.getRoster().then(setRoster),
-      TennisSync.getLegacyRecords().then(setLegacyRows),
+      SheetCache.get('playerGames').then(setRows),
+      SheetCache.get('roster').then(setRoster),
+      SheetCache.get('legacy').then(setLegacyRows),
     ]).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
