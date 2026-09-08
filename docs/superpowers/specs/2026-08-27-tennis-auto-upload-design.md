@@ -55,7 +55,10 @@ GitHub Actions (cron 0 1 * * *)
                  └─(7) DELETE {DB}/games/{team}/active/{id}.json
 ```
 
-RTDB는 인증 없이 REST 읽기/쓰기가 가능하다(현행 보안 규칙). 러너는 Firebase JS SDK를 쓰지 않고 REST + `fetch`만 쓴다 — `src/config/firebase.js`가 `import.meta.env` 기반이라 headless 초기화가 불안정하기 때문.
+RTDB는 인증 없이 REST 읽기/쓰기가 가능하다 — **단 보안 규칙에 명시된 최상위 경로에 한해서다.**
+(2026-09-08 실측: 규칙은 `games`/`settings`/`settings_legacy_backup`/`cache`를 각각 열어두는 화이트리스트이고,
+그 외 최상위 경로는 읽기·쓰기 모두 Permission denied. **새 최상위 노드를 쓰는 기능은 규칙 추가가 선행돼야 한다** —
+이 문장을 전역 허용으로 읽어 시트 캐시가 무동작으로 배포된 사고가 있었다.) 러너는 Firebase JS SDK를 쓰지 않고 REST + `fetch`만 쓴다 — `src/config/firebase.js`가 `import.meta.env` 기반이라 headless 초기화가 불안정하기 때문.
 
 ## 5. 컴포넌트
 
