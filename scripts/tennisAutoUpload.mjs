@@ -19,6 +19,7 @@ import { stripNameDecorations } from '../src/services/tennisSync.js';
 import {
   selectAutoTargets, ACTION_UPLOAD_ARCHIVE, ACTION_ARCHIVE_ONLY, resolveWithArchiveState,
 } from '../src/utils/tennis/autoUploadTargets.js';
+import { safeTeam } from '../src/services/rtdbPath.js';
 
 const DB = (process.env.FIREBASE_DATABASE_URL || '').replace(/\/$/, '');
 const APPS_SCRIPT_URL = process.env.APPS_SCRIPT_URL || '';
@@ -29,11 +30,6 @@ const INPUT_BY = '자동업로드';
 
 // 사람이 반드시 확인해야 하는 상태가 생기면 켜진다 → 종료 코드 1
 let manualCheck = false;
-
-// firebaseSync._safeTeam 의 복사본. 한쪽을 고치면 다른 쪽도 고칠 것.
-function safeTeam(team) {
-  return (team || '기본팀').replace(/[.#$/[\]]/g, '_');
-}
 
 // firebaseSync._kstDateFromGameId 의 복사본 (gameDate가 빈 레거시 경기 폴백).
 function kstDateFromGameId(gameId) {

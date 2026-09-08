@@ -11,6 +11,7 @@ import {
   matchesToObj,
   soccerMatchesToObj,
 } from './firebaseSyncDiff';
+import { safeTeam } from './rtdbPath';
 
 // gameId 타임스탬프(g_<ts>)에서 KST 기준 yyyy-MM-dd 추출
 function _kstDateFromGameId(gameId) {
@@ -64,7 +65,7 @@ function _expandStateForRtdb(state) {
 
 const FirebaseSync = {
   _safeTeam(team) {
-    return (team || "기본팀").replace(/[.#$/[\]]/g, "_");
+    return safeTeam(team);
   },
 
   _gameRef(team, gameId) {
