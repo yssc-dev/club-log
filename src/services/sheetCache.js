@@ -26,7 +26,8 @@ export const DISABLED = false;
 
 const L1_TTL_MS = 5 * 60 * 1000;          // appSync 대회 캐시와 같은 관례.
                                           // 무제한이면 오래 열어둔 탭이 갱신을 영영 못 본다.
-export const L2_TTL_MS = 30 * 60 * 1000;  // 쓰기 경로 무효화가 붙기 전(2단계)이라 짧게 둔다.
+// 모든 쓰기 경로(마감·회원 upsert·자동 업로드 봇)가 재적재하므로 순수 백스톱이다.
+export const L2_TTL_MS = 12 * 60 * 60 * 1000;
 
 // 종목 → 데이터셋 → { columns, fetch }.
 // 축구·풋살 확장은 여기에 항목을 추가하는 것으로 끝난다.

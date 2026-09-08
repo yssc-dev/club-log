@@ -4,9 +4,9 @@ import { useTheme } from './hooks/useTheme';
 import { makeStyles } from './styles/theme';
 import { getEffectiveSettings } from './config/settings';
 import FirebaseSync from './services/firebaseSync';
-import TennisSync from './services/tennisSync';
 import SheetCache from './services/sheetCache';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
+import { finalizeTennisRecords } from './utils/tennis/finalizeTennisRecords';
 import { buildTennisMatchRows, buildTennisPlayerGameRows, resolveGradeSource } from './utils/tennis/tennisRowBuilders';
 import { nowKST } from './utils/tennis/tennisTime';
 import { allRoundsConfirmed, isLastRoundConfirmed } from './utils/tennis/roundConfirm';
@@ -122,13 +122,9 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
       const inputBy = authUser?.name || '';
       const matchRows = buildTennisMatchRows({ team, state, inputTime, inputBy, memberSet });
       const pgRows = buildTennisPlayerGameRows({ team, state, inputTime, inputBy, memberSet, gradeByPlayer });
-      const results = await Promise.allSettled([
-        TennisSync.writeMatches(matchRows),
-        TennisSync.writePlayerGames(pgRows),
-      ]);
-      const failed = results.filter(r => r.status === 'rejected');
-      if (failed.length > 0) {
-        alert(`전송 실패 ${failed.length}건 — 미확정 상태를 유지합니다.\n${failed.map(f => f.reason?.message).join('\n')}`);
+      const { ok, failed } = await finalizeTennisRecords({ matchRows, pgRows });
+      if (!ok) {
+        alert(`전송 실패 ${failed.length}건 — 미확정 상태를 유지합니다.\n${failed.join('\n')}`);
         return;
       }
       dispatch({ type: 'FINALIZE' });

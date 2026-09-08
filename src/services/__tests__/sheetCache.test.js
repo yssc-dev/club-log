@@ -61,7 +61,13 @@ vi.mock('../tennisSync', () => ({
   },
 }));
 
-import SheetCache from '../sheetCache';
+import SheetCache, { L2_TTL_MS } from '../sheetCache';
+
+describe('L2 TTL', () => {
+  it('12시간 백스톱', () => {
+    expect(L2_TTL_MS).toBe(12 * 60 * 60 * 1000);
+  });
+});
 
 beforeEach(() => {
   h.store.clear();

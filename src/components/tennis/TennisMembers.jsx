@@ -2,6 +2,7 @@
 // 진실 소스 쓰기라 모든 저장은 window.confirm 확인 후. 순수 로직은 memberForm.js.
 import { useEffect, useMemo, useState } from 'react';
 import TennisSync from '../../services/tennisSync';
+import SheetCache from '../../services/sheetCache';
 import { makeStyles } from '../../styles/theme';
 import { useTheme } from '../../hooks/useTheme';
 import {
@@ -142,7 +143,17 @@ export default function TennisMembers({ C: propC }) {
   const runWrite = (payload, okMsg) => {
     setSaving(true); setStatus(null);
     return TennisSync.writeRosterMember(payload)
-      .then(() => { setStatus({ type: 'ok', msg: okMsg }); setEditing(null); return reload(); })
+      .then(async () => {
+        // reload() 는 getRosterAdmin(캐시 비대상)을 다시 읽어 이 화면만 갱신한다.
+        // 앱 전역(TennisApp·대시보드·리그·분석)이 쓰는 roster 캐시는 여기서 갱신해야 한다.
+        // 캐시 실패를 여기서 삼키는 것은 의도적이다 — 바깥 .catch 로 새면
+        // 시트 저장이 성공했는데도 '저장에 실패했습니다' 가 뜬다.
+        try { await SheetCache.refresh('roster'); }
+        catch (e) { console.warn('[sheetCache] 명부 재적재 실패:', e?.message); }
+        setStatus({ type: 'ok', msg: okMsg });
+        setEditing(null);
+        return reload();
+      })
       .catch(e => setStatus({ type: 'err', msg: e?.message || '저장에 실패했습니다' }))
       .finally(() => setSaving(false));
   };
