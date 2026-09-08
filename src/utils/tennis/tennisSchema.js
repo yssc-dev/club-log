@@ -40,3 +40,10 @@ export const TENNIS_PLAYER_GAME_COLUMNS = [
 export const TENNIS_LEGACY_COLUMNS = [
   'team', 'sport', 'season', 'format', 'player', 'wins', 'losses',
 ];
+
+// ★ 시트 헤더(TENNIS_ROSTER_HEADERS)가 아니라 Apps Script _getTennisRoster 가
+// 내려주는 객체의 키다. 서버가 생년월일·가입일 등을 빼고 5개만 내린다.
+// 캐시 배열형 인코딩의 컬럼 순서로 쓰인다 — 서버 반환 shape 이 바뀌면 함께 고칠 것.
+export const TENNIS_ROSTER_CACHE_COLUMNS = [
+  'name', 'nickname', 'grade', 'status', 'seasonStartRank',
+];
