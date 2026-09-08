@@ -18,11 +18,11 @@ const GAMES = [
 ];
 const ROSTER = [{ name: '박성언' }, { name: '김원희' }, { name: '기다빈' }];
 
-vi.mock('../../../services/tennisSync', () => ({
+vi.mock('../../../services/sheetCache', () => ({
   default: {
-    getPlayerGames: () => Promise.resolve(GAMES),
-    getRoster: () => Promise.resolve(ROSTER),
-    getLegacyRecords: () => Promise.resolve([]),
+    get: (dataset) => Promise.resolve(
+      dataset === 'playerGames' ? GAMES : dataset === 'roster' ? ROSTER : []
+    ),
   },
 }));
 

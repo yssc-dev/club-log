@@ -4,12 +4,8 @@ import { createElement } from 'react';
 import { ThemeProvider } from '../../../hooks/useTheme';
 import TennisLeague from '../TennisLeague';
 
-vi.mock('../../../services/tennisSync', () => ({
-  default: {
-    getPlayerGames: () => Promise.resolve([]),
-    getLegacyRecords: () => Promise.resolve([]),
-    getRoster: () => Promise.resolve([]),
-  },
+vi.mock('../../../services/sheetCache', () => ({
+  default: { get: () => Promise.resolve([]) },
 }));
 Object.defineProperty(window, 'matchMedia', {
   writable: true, value: (q) => ({ matches: false, media: q, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){} }),

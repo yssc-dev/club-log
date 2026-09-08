@@ -5,6 +5,7 @@ import { makeStyles } from './styles/theme';
 import { getEffectiveSettings } from './config/settings';
 import FirebaseSync from './services/firebaseSync';
 import TennisSync from './services/tennisSync';
+import SheetCache from './services/sheetCache';
 import { normalizeTennisMatch } from './utils/tennis/normalizeTennisMatch';
 import { buildTennisMatchRows, buildTennisPlayerGameRows, resolveGradeSource } from './utils/tennis/tennisRowBuilders';
 import { nowKST } from './utils/tennis/tennisTime';
@@ -38,7 +39,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const [showSummary, setShowSummary] = useState(false);
   const team = teamContext?.team || '';
 
-  useEffect(() => { TennisSync.getRoster().then(setRoster); }, []);
+  useEffect(() => { SheetCache.get('roster').then(setRoster); }, []);
 
   // 등급 스냅샷 — 명부가 손에 들어오면 그 즉시 state에 고정한다.
   // "빈 맵 무시 / 최초 1회만 / phase==='done' 제외" 판단은 전부 리듀서가 하므로 여기선 조건 없이 던진다.

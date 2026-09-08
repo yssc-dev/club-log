@@ -1,6 +1,6 @@
 // 리그 탭 — 투몽리그(복식)·길로틴리그(단식 포인트), 연도 단위. 정적·비인터랙티브.
 import { useEffect, useMemo, useState } from 'react';
-import TennisSync from '../../services/tennisSync';
+import SheetCache from '../../services/sheetCache';
 import { buildDoublesStandings, buildLeagueCounts } from '../../utils/tennis/tennisAnalytics';
 import { buildSinglesStandings } from '../../utils/tennis/tennisStandings';
 import { priorYearSinglesOrder } from '../../utils/tennis/leagueDerivation';
@@ -22,9 +22,9 @@ export default function TennisLeague({ C: propC }) {
   useEffect(() => {
     let alive = true;
     Promise.all([
-      TennisSync.getPlayerGames().then(setRows),
-      TennisSync.getLegacyRecords().then(setLegacyRows),
-      TennisSync.getRoster().then(setRoster),
+      SheetCache.get('playerGames').then(setRows),
+      SheetCache.get('legacy').then(setLegacyRows),
+      SheetCache.get('roster').then(setRoster),
     ]).finally(() => { if (alive) setLoading(false); });
     return () => { alive = false; };
   }, []);
