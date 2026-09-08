@@ -123,7 +123,10 @@ const SheetCache = {
     _l1.delete(path);
     try {
       const rows = await _fetchAndStore(adapter, path);
-      _l1.set(path, { rows, ts: Date.now() });
+      // 빈 결과는 L1에도 넣지 않는다. _safeRead 가 조회 실패를 [] 로 삼키므로,
+      // 이걸 L1에 박으면 L2에 멀쩡한 캐시가 남아 있어도 5분간 빈 화면이 된다.
+      // L1 을 비워둔 채로 두면 다음 get() 이 L2(유효할 수 있음) → L3 순으로 다시 확인한다.
+      if (shouldStore(rows)) _l1.set(path, { rows, ts: Date.now() });
       return rows;
     } catch (e) {
       console.warn(`[sheetCache] ${dataset} 재적재 실패, 캐시 강등:`, e.message);

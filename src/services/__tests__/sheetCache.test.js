@@ -10,6 +10,7 @@ const h = vi.hoisted(() => ({
   failNextGet: false,
   failNextSet: false,
   fetchCounts: { roster: 0, playerGames: 0, legacy: 0 },
+  rosterEmptyNext: false, // _safeRead 가 조회 실패를 [] 로 삼킨 상황 재현용
 }));
 
 vi.mock('../../config/firebase', () => ({ firebaseDb: {} }));
@@ -50,7 +51,11 @@ const ROSTER = [{ name: '박성언', nickname: '', grade: '금배', status: '활
 const GAMES = [{ team: '몽피스', sport: '테니스', date: '2026-09-01', player: '박성언' }];
 vi.mock('../tennisSync', () => ({
   default: {
-    getRoster: () => { h.fetchCounts.roster++; return Promise.resolve(ROSTER); },
+    getRoster: () => {
+      h.fetchCounts.roster++;
+      if (h.rosterEmptyNext) { h.rosterEmptyNext = false; return Promise.resolve([]); }
+      return Promise.resolve(ROSTER);
+    },
     getPlayerGames: () => { h.fetchCounts.playerGames++; return Promise.resolve(GAMES); },
     getLegacyRecords: () => { h.fetchCounts.legacy++; return Promise.resolve([]); },
   },
@@ -64,6 +69,7 @@ beforeEach(() => {
   h.failNextGet = false;
   h.failNextSet = false;
   h.fetchCounts = { roster: 0, playerGames: 0, legacy: 0 };
+  h.rosterEmptyNext = false;
   SheetCache._resetForTest();
 });
 
@@ -157,6 +163,31 @@ describe('refresh', () => {
     h.failNextSet = true;
     await SheetCache.refresh('playerGames');
     expect(h.store.has('cache/몽피스/테니스/playerGames/all')).toBe(false);
+  });
+
+  // _safeRead 는 Apps Script/네트워크 조회 실패를 조용히 [] 로 삼킨다. refresh 가
+  // 그 [] 를 L1에 그대로 박으면, L2에 아직 유효한 캐시가 남아 있어도 5분간
+  // 빈 화면이 된다(불변식 위반). refresh 는 빈 결과일 때 L1을 건드리지 말아야 한다.
+  it('재적재가 빈 결과([])를 받으면 L1을 오염시키지 않고 L2의 기존 캐시를 보존한다', async () => {
+    await SheetCache.get('roster');
+    expect(h.fetchCounts.roster).toBe(1);
+    const before = h.store.get('cache/몽피스/테니스/roster/all');
+    expect(before).toBeTruthy();
+
+    h.rosterEmptyNext = true; // 다음 fetch 는 [] (조회 실패가 삼켜진 상황)
+    const refreshed = await SheetCache.refresh('roster');
+    expect(refreshed).toEqual([]);
+    expect(h.fetchCounts.roster).toBe(2);
+
+    // L2 는 빈 값으로 덮이지 않는다 — shouldStore([]) === false 라 애초에 set() 이 안 불린다.
+    expect(h.store.get('cache/몽피스/테니스/roster/all')).toEqual(before);
+
+    // L1은 refresh 시작 시 삭제됐고, 빈 결과라 다시 채워지지 않았어야 한다.
+    // 그래서 다음 get() 은 L2(아직 유효)를 다시 읽어 원래 로스터를 반환하고,
+    // L3(fetch) 는 다시 부르지 않는다.
+    const rows = await SheetCache.get('roster');
+    expect(rows).toEqual(ROSTER);
+    expect(h.fetchCounts.roster).toBe(2);
   });
 });
 
