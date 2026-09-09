@@ -773,7 +773,10 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
       const finalState = { ...gameState, gameFinalized: allOk };
       await FirebaseSync.syncDiff(team, gameId || "legacy", lastSyncedStateRef.current, finalState);
       lastSyncedStateRef.current = finalState;
-      // 캐시 재적재는 마감 기록(saveFinalized + syncDiff)이 끝난 뒤에 돈다 — 파생 데이터를
+      // 로컬 확정 플래그는 재적재(최대 ~70초) 전에 올린다 — 축구와 동일. 뒤에 두면 그동안 버튼이
+      // "기록확정"인 채로 남아 재클릭 시 5개 시트에 중복 행이 생긴다.
+      set('gameFinalized', allOk);
+      // 캐시 재적재는 마감 기록(saveFinalized + syncDiff + set)이 끝난 뒤에 돈다 — 파생 데이터를
       // critical path 에 두면 이 구간(Apps Script 최대 7회, 콜드스타트 각 10초)에서 앱이
       // 닫힐 때 gameFinalized 가 유실돼 유저가 재전송하고 5개 시트에 중복 행이 생긴다
       // (자동 멱등화가 없어 수동 삭제가 필요하다).
@@ -792,7 +795,6 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
       } else {
         alert(`⚠️ 분석 로그 일부 전송 실패: ${rawFailed.join(', ')}\n\n${detail}\n\n분석용 데이터가 누락됐습니다. "기록확정"을 다시 눌러 재전송하세요.\n(전부 성공 전까지 미확정 상태로 둡니다.)`);
       }
-      set('gameFinalized', allOk);
     } catch (err) {
       alert("시트 저장 실패: " + err.message);
     }
