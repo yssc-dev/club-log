@@ -2,6 +2,11 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-09-09: 회원인증·테니스_회원명부를 비공개 스프레드시트로 분리 — 스크립트 속성 PRIVATE_SHEET_ID 가
+//             가리키는 시트에서만 읽고 쓴다(_getPrivateSpreadsheet/_getPrivateSheet). 원래 스프레드시트가
+//             링크 공개라 로그인 자격증명(이름+휴대폰뒷자리+역할)과 생년월일이 무인증 CSV 로 읽혔다.
+//             속성이 없으면 폴백 없이 throw — 조용히 공개 시트를 계속 읽으면 분리 목적이 무산된다.
+//             _ensureTennisSheets 의 자동생성 목록에서 회원명부 제거(공개 시트에 빈 탭이 되살아나지 않게).
 // 2026-08-30: 테니스 자동 업로드 정시 트리거 — triggerTennisAutoUpload()가 GitHub workflow_dispatch API를
 //             호출(스크립트 속성 GITHUB_TOKEN). GitHub schedule 크론이 이 레포에서 5~11시간 지연·누락돼
 //             Apps Script 시간 트리거(매일 10:00 KST ±15분)를 1차 트리거로 둔다. installTennisAutoUploadTrigger()로
@@ -477,15 +482,30 @@ function doPost(e) {
 // 시트 컬럼: A=팀이름, B=모드, C=이름, D=휴대폰뒷자리, E=역할
 // ═══════════════════════════════════════════════════════════════
 
-function _getAuthSheet() {
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
-  var sheet = ss.getSheetByName(AUTH_SHEET_NAME);
+// 비공개 스프레드시트 — 스크립트 속성 PRIVATE_SHEET_ID. 회원인증(로그인 자격증명)과
+// 테니스_회원명부(생년월일)만 여기 둔다. 원래 스프레드시트는 링크 공개라 CSV 로 무인증 열람된다.
+// 속성이 없으면 폴백하지 않고 던진다 — 조용히 공개 시트로 돌아가면 분리한 의미가 없다.
+function _getPrivateSpreadsheet() {
+  var id = PropertiesService.getScriptProperties().getProperty("PRIVATE_SHEET_ID");
+  if (!id) throw new Error("PRIVATE_SHEET_ID 스크립트 속성이 없습니다 — 프로젝트 설정 > 스크립트 속성에 비공개 시트 ID를 추가하세요.");
+  return SpreadsheetApp.openById(id);
+}
+
+// 비공개 시트에서 name 탭을 가져오고, 없으면 헤더와 함께 만든다.
+function _getPrivateSheet(name, headers) {
+  var ss = _getPrivateSpreadsheet();
+  var sheet = ss.getSheetByName(name);
   if (!sheet) {
-    sheet = ss.insertSheet(AUTH_SHEET_NAME);
-    sheet.getRange("A1:E1").setValues([["팀이름", "모드", "이름", "휴대폰뒷자리", "역할"]]);
-    sheet.getRange("A1:E1").setFontWeight("bold");
+    sheet = ss.insertSheet(name);
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.getRange(1, 1, 1, headers.length).setFontWeight("bold");
+    sheet.setFrozenRows(1);
   }
   return sheet;
+}
+
+function _getAuthSheet() {
+  return _getPrivateSheet(AUTH_SHEET_NAME, ["팀이름", "모드", "이름", "휴대폰뒷자리", "역할"]);
 }
 
 function _verifyAuth(name, phone4) {
@@ -2961,8 +2981,8 @@ function _getTournamentEventLog(tournamentId) {
 
 function _ensureTennisSheets() {
   var ss = SpreadsheetApp.getActiveSpreadsheet();
+  // 회원명부는 비공개 시트(_getPrivateSheet)에서 관리한다 — 여기 두면 공개 시트에 빈 탭이 되살아난다.
   var defs = [
-    [TENNIS_ROSTER_SHEET, TENNIS_ROSTER_HEADERS],
     [TENNIS_MATCHES_SHEET, TENNIS_MATCH_HEADERS],
     [TENNIS_PLAYER_GAMES_SHEET, TENNIS_PLAYER_GAME_HEADERS],
     [TENNIS_LEGACY_SHEET, TENNIS_LEGACY_HEADERS]
@@ -3066,7 +3086,7 @@ function _readTennisRows(sheetName, headers, team, dateFrom, dateTo) {
 // 읽기 hot-path라 _ensureTennisRosterColumns를 호출하지 않는다(구분은 v[9] 인덱스로 읽음, 헤더 불필요).
 function _getTennisRoster(team) {
   _ensureTennisSheets();
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  var sheet = _getPrivateSheet(TENNIS_ROSTER_SHEET, TENNIS_ROSTER_HEADERS);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: true, players: [] };
   var ncol = Math.min(TENNIS_ROSTER_HEADERS.length, sheet.getMaxColumns()); // 좁은 시트 방어
@@ -3094,7 +3114,7 @@ function _getTennisRoster(team) {
 
 // 회원명부 "구분"(10열) 헤더 보정 — 10열만, 이미 있으면 무동작. 쓰기/관리 경로에서만 호출.
 function _ensureTennisRosterColumns() {
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  var sheet = _getPrivateSheet(TENNIS_ROSTER_SHEET, TENNIS_ROSTER_HEADERS);
   if (!sheet) return;
   var col = TENNIS_ROSTER_HEADERS.length; // 10
   if (sheet.getMaxColumns() < col) sheet.insertColumnsAfter(sheet.getMaxColumns(), col - sheet.getMaxColumns());
@@ -3114,7 +3134,7 @@ function _getTennisRosterAdmin(team) {
   if (!team || !String(team).trim()) return { success: false, error: "team 필수" };
   _ensureTennisSheets();
   _ensureTennisRosterColumns();
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  var sheet = _getPrivateSheet(TENNIS_ROSTER_SHEET, TENNIS_ROSTER_HEADERS);
   var lastRow = sheet.getLastRow();
   if (lastRow < 2) return { success: true, members: [] };
   var ncol = Math.min(TENNIS_ROSTER_HEADERS.length, sheet.getMaxColumns());
@@ -3202,7 +3222,7 @@ function _writeTennisRosterMember(team, body) {
 
   _ensureTennisSheets();
   _ensureTennisRosterColumns();
-  var sheet = SpreadsheetApp.getActiveSpreadsheet().getSheetByName(TENNIS_ROSTER_SHEET);
+  var sheet = _getPrivateSheet(TENNIS_ROSTER_SHEET, TENNIS_ROSTER_HEADERS);
   var ncol = TENNIS_ROSTER_HEADERS.length;
 
   var nickname = _sanitizeCell(String(body.nickname || "").trim());
