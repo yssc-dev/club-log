@@ -37,9 +37,9 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
     setLoading(true);
     Promise.all([
       fetchSheetData().catch(() => null),
-      SheetCache.get('matchLog').catch(() => []),
-      SheetCache.get('eventLog').catch(() => []),
-      SheetCache.get('playerGameLog').catch(() => []),
+      SheetCache.get('matchLog', { sport }).catch(() => []),
+      SheetCache.get('eventLog', { sport }).catch(() => []),
+      SheetCache.get('playerGameLog', { sport }).catch(() => []),
     ]).then(([sheetData, matchRows, eventRows, pgRows]) => {
       if (sheetData) setMembers(sheetData.players);
       setMatchLogs(matchRows || []);

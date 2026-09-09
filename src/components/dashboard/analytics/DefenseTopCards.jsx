@@ -81,7 +81,7 @@ export default function DefenseTopCards({ activeSport, C, ds }) {
 
   useEffect(() => {
     let alive = true;
-    SheetCache.get('matchLog')
+    SheetCache.get('matchLog', { sport: activeSport })
       .then(rows => { if (alive) setLoaded({ sport: activeSport, rows: rows || [] }); })
       .catch(() => { if (alive) setLoaded({ sport: activeSport, rows: [] }); });
     return () => { alive = false; };

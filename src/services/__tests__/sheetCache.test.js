@@ -381,6 +381,59 @@ describe('풋살·축구 어댑터', () => {
     expect(h.store.has('cache/하버FC/축구/matchLog/all')).toBe(true);
   });
 
+  // 겸직팀(한 팀에 풋살·축구 entry 가 둘 다 있는 경우) 대응. AuthUtil.mode 는
+  // 팀 선택 시 entries[0].mode 로 한 번만 저장되고 TeamDashboard 의 종목 탭
+  // 클릭(activeSport)으로는 갱신되지 않는다 — sport 오버라이드가 없으면 축구 탭을
+  // 보고 있어도 풋살 캐시를 읽는 사고가 난다(화면 라벨과 데이터가 갈린다).
+  it('sport 오버라이드를 주면 AuthUtil.mode(풋살) 대신 그 종목 노드를 읽고 쓴다', async () => {
+    const rows = await SheetCache.get('matchLog', { sport: '축구' });
+    expect(Array.isArray(rows)).toBe(true);
+    expect(h.store.has('cache/마스터FC/축구/matchLog/all')).toBe(true);
+    expect(h.store.has('cache/마스터FC/풋살/matchLog/all')).toBe(false);
+  });
+
+  it('오버라이드 없이 부르면 AuthUtil.mode(풋살) 노드를 그대로 쓴다', async () => {
+    const rows = await SheetCache.get('matchLog');
+    expect(Array.isArray(rows)).toBe(true);
+    expect(h.store.has('cache/마스터FC/풋살/matchLog/all')).toBe(true);
+    expect(h.store.has('cache/마스터FC/축구/matchLog/all')).toBe(false);
+  });
+
+  // refresh/refreshAll/status 도 같은 오버라이드를 받는다 — SettingsScreen 이
+  // datasetsOf(teamMode) 로 목록을 만들고 refreshAll()/status() 로 갱신·조회하는데,
+  // 오버라이드가 없으면 목록(teamMode 기준)과 실제 갱신·조회 대상(AuthUtil.mode 기준)이
+  // 겸직팀에서 갈릴 수 있다 — get() 과 같은 계열의 버그.
+  it('refresh 도 sport 오버라이드를 받아 그 종목 노드를 재적재한다', async () => {
+    await SheetCache.get('matchLog', { sport: '축구' });
+    expect(h.fetchCounts.matchLog).toBe(1);
+    const r = await SheetCache.refresh('matchLog', { sport: '축구' });
+    expect(r.ok).toBe(true);
+    expect(h.fetchCounts.matchLog).toBe(2);
+    expect(h.store.has('cache/마스터FC/축구/matchLog/all')).toBe(true);
+    expect(h.store.has('cache/마스터FC/풋살/matchLog/all')).toBe(false);
+  });
+
+  it('refreshAll 도 sport 오버라이드를 받아 그 종목의 모든 데이터셋을 재적재한다', async () => {
+    const out = await SheetCache.refreshAll({ sport: '축구' });
+    const datasets = out.map(x => x.dataset);
+    expect(datasets).toEqual(SheetCache.datasetsOf('축구'));
+    expect(h.store.has('cache/마스터FC/축구/matchLog/all')).toBe(true);
+    expect(h.store.has('cache/마스터FC/풋살/matchLog/all')).toBe(false);
+  });
+
+  it('status 도 sport 오버라이드를 받아 그 종목 노드의 상태를 본다', async () => {
+    await SheetCache.get('matchLog', { sport: '축구' });
+    const s = await SheetCache.status({ sport: '축구' });
+    const ml = s.find(x => x.dataset === 'matchLog');
+    expect(ml.count).toBe(1);
+
+    // 오버라이드 없이 부르면(AuthUtil.mode=풋살) 풋살 노드를 본다 — 축구 노드만
+    // 있는 상태라 matchLog 는 비어있어야 한다.
+    const s2 = await SheetCache.status();
+    const ml2 = s2.find(x => x.dataset === 'matchLog');
+    expect(ml2.version).toBeNull();
+  });
+
   // R5: AppSync.getCumulativeBonus 는 !enabled() 와 조회 실패 둘 다
   // { crova:{}, goguma:{} } 를 반환한다 — top-level 키 존재만 보면 "비어있지 않다"고
   // 오판해 실패 응답이 L2_TTL_MS(12시간) 동안 고착된다. isEmpty 가 내부까지 들여다봐서

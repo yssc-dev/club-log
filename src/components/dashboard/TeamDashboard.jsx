@@ -78,15 +78,15 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
         .then(data => { if (cancelled) return; setMembers(data.players || []); setKeepers(data.keepers || []); })
         .catch(() => { if (!cancelled) setMembers([]); })
         .finally(() => { if (!cancelled) setMembersLoading(false); });
-      SheetCache.get('latestDeltas').then(deltas => {
+      SheetCache.get('latestDeltas', { sport: activeSport }).then(deltas => {
         if (!cancelled) setPrevRanks(deltas);
       }).catch(() => {});
       // 축구팀: 포인트로그에서 팀 전적 + 선수별집계에서 출석률
       if (hasSoccerEntry) {
-        SheetCache.get('playerLog').then(plog => {
+        SheetCache.get('playerLog', { sport: activeSport }).then(plog => {
           if (!cancelled) setAttendanceData(buildAttendanceData(plog));
         }).catch(() => {});
-        SheetCache.get('pointLog').then(events => {
+        SheetCache.get('pointLog', { sport: activeSport }).then(events => {
           if (cancelled) return;
           if (!events || events.length === 0) return;
           const matches = {};
@@ -995,7 +995,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
 
       {showDualTeam && (
         <Modal onClose={() => setShowDualTeam(false)} title="팀전 랭킹">
-          <DualTeamTab teamName={teamName} isAdmin={activeEntry?.role === "관리자"} />
+          <DualTeamTab teamName={teamName} isAdmin={activeEntry?.role === "관리자"} activeSport={activeSport} />
         </Modal>
       )}
 

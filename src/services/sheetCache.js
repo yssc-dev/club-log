@@ -71,10 +71,15 @@ const ADAPTERS = {
 const _l1 = new Map();       // path → { rows, ts }
 const _inflight = new Map(); // path → Promise
 
-function _ctx() {
+// 종목은 기본적으로 AuthUtil 의 mode 를 쓰지만, 화면이 자체 종목 토글을 가진 경우
+// (TeamDashboard 의 activeSport — 겸직팀은 한 팀에 풋살·축구 탭이 함께 뜬다)
+// 그 값을 명시적으로 넘겨야 한다. AuthUtil.mode 는 팀 선택 시 entries[0].mode 로
+// 한 번 저장될 뿐 종목 탭 클릭으로 갱신되지 않는다(Root.jsx가 유일한 저장 호출부) —
+// 오버라이드 없이 AuthUtil.mode 에만 의존하면 겸직팀에서 탭과 캐시 종목이 갈린다.
+function _ctx(sportOverride) {
   const a = AuthUtil.getStored();
   const team = a?.team || '';
-  const sport = a?.mode || '';
+  const sport = sportOverride || a?.mode || '';
   return { team, sport, settings: getEffectiveSettings(team, sport) || {} };
 }
 
@@ -127,13 +132,13 @@ const SheetCache = {
     return Object.keys(ADAPTERS[sport] || {});
   },
 
-  async get(dataset) {
-    const { team, sport, settings } = _ctx();
-    const adapter = _adapter(sport, dataset);
+  async get(dataset, { sport } = {}) {
+    const { team, sport: sp, settings } = _ctx(sport);
+    const adapter = _adapter(sp, dataset);
     if (!adapter) return [];
     if (DISABLED) return (await adapter.fetch(settings)) || (adapter.mode === 'raw' ? null : []);
 
-    const path = cachePath(team, sport, dataset);
+    const path = cachePath(team, sp, dataset);
 
     const hit = _l1.get(path);
     if (hit && Date.now() - hit.ts < L1_TTL_MS) return hit.rows;
@@ -183,14 +188,14 @@ const SheetCache = {
   // 노드를 삭제해 다음 읽기가 시트로 강등한다 — 낡은 캐시를 남기지 않는다(스펙 §5).
   // 절대 throw 하지 않는다 — 호출부가 try/catch 없이도 안전해야 한다.
   // 반환값 { ok, rows } 로 호출부(refreshAll)가 성공 여부를 구분할 수 있게 한다.
-  async refresh(dataset) {
-    const { team, sport, settings } = _ctx();
-    const adapter = _adapter(sport, dataset);
+  async refresh(dataset, { sport } = {}) {
+    const { team, sport: sp, settings } = _ctx(sport);
+    const adapter = _adapter(sp, dataset);
     if (!adapter) return { ok: true, rows: [] };
     // 롤백 스위치(§14): true 면 캐시(L2/L1) 자체를 건드리지 않는다 — get() 이
     // 이미 매번 L3 직행이라 여기서 재적재할 대상이 없다.
     if (DISABLED) return { ok: true, rows: [] };
-    const path = cachePath(team, sport, dataset);
+    const path = cachePath(team, sp, dataset);
     _l1.delete(path);
     try {
       const rows = await _fetchAndStore(adapter, path, settings);
@@ -208,11 +213,11 @@ const SheetCache = {
     }
   },
 
-  async refreshAll() {
-    const { sport } = _ctx();
+  async refreshAll({ sport } = {}) {
+    const { sport: sp } = _ctx(sport);
     const out = [];
-    for (const dataset of this.datasetsOf(sport)) {
-      const { ok, rows } = await this.refresh(dataset);
+    for (const dataset of this.datasetsOf(sp)) {
+      const { ok, rows } = await this.refresh(dataset, { sport: sp });
       out.push({ dataset, ok, count: Array.isArray(rows) ? rows.length : Object.keys(rows || {}).length });
     }
     return out;
@@ -221,13 +226,13 @@ const SheetCache = {
   // 설정 화면용. rows 를 내려받지 않도록 version/count 만 얕게 읽는다.
   // playerGames 노드는 635KB(2,330행, 2026-09 실측)까지 자라 있다 — "마지막 동기화"
   // 한 줄 띄우자고 노드 전체를 받으면 캐시로 아낀 트래픽을 그 자리에서 도로 쓴다.
-  async status() {
+  async status({ sport } = {}) {
     // 롤백 스위치(§14): true 면 캐시가 없으므로 조회할 것도 없다.
     if (DISABLED) return [];
-    const { team, sport } = _ctx();
+    const { team, sport: sp } = _ctx(sport);
     const out = [];
-    for (const dataset of this.datasetsOf(sport)) {
-      const path = cachePath(team, sport, dataset);
+    for (const dataset of this.datasetsOf(sp)) {
+      const path = cachePath(team, sp, dataset);
       try {
         const [v, c] = await Promise.all([
           get(ref(firebaseDb, `${path}/version`)),
