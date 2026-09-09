@@ -61,7 +61,9 @@ export function decodeRows(headers, rows) {
 export function readCacheNode(node, opts, ttlMs, now) {
   const { mode = 'rows', columns, sheetName } = opts || {};
   if (!node || typeof node !== 'object') return { ok: false, reason: MISS_NO_NODE };
-  if (typeof node.version !== 'number') return { ok: false, reason: MISS_NO_VERSION };
+  // Number.isFinite 로 NaN/Infinity 까지 배제한다 — version: NaN 이면 아래 TTL 비교
+  // (now - NaN > ttlMs)가 항상 false 라 만료 백스톱이 통째로 무력화된다.
+  if (!Number.isFinite(node.version)) return { ok: false, reason: MISS_NO_VERSION };
 
   const nodeIsRaw = Object.prototype.hasOwnProperty.call(node, 'data');
   if ((mode === 'raw') !== nodeIsRaw) return { ok: false, reason: MISS_MODE };

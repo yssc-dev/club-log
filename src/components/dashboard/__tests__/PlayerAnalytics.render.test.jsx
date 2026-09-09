@@ -34,15 +34,17 @@ vi.mock('../../../config/settings', () => ({
 
 // 로그 3종은 캐시에서 {rows} 래퍼가 아니라 배열로 온다 — 호출부(PlayerAnalytics)가
 // 그 가정을 그대로 쓰는지 확인하는 게 이 테스트의 핵심.
+// 스파이로 받는다(2번째 인자를 버리지 않는다) — teamMode → { sport } 배선이 사라지면
+// 겸직팀에서 축구 탭을 보면서 풋살 캐시를 읽는 사고가 나는데, 인자를 버리는 목은
+// 그 회귀를 전혀 잡지 못한다.
+const getSpy = vi.fn((dataset) => Promise.resolve(
+  dataset === 'matchLog' ? matchLogs
+  : dataset === 'eventLog' ? eventLogs
+  : dataset === 'playerGameLog' ? playerGameLogs
+  : []
+));
 vi.mock('../../../services/sheetCache', () => ({
-  default: {
-    get: (dataset) => Promise.resolve(
-      dataset === 'matchLog' ? matchLogs
-      : dataset === 'eventLog' ? eventLogs
-      : dataset === 'playerGameLog' ? playerGameLogs
-      : []
-    ),
-  },
+  default: { get: (...args) => getSpy(...args) },
 }));
 
 Object.defineProperty(window, 'matchMedia', {
@@ -52,7 +54,7 @@ Object.defineProperty(window, 'matchMedia', {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let container, root;
-beforeEach(() => { container = document.createElement('div'); document.body.appendChild(container); });
+beforeEach(() => { getSpy.mockClear(); container = document.createElement('div'); document.body.appendChild(container); });
 afterEach(() => { act(() => root?.unmount()); container.remove(); });
 
 async function mount(props) {
@@ -75,5 +77,22 @@ describe('PlayerAnalytics 실렌더(act) — SheetCache 읽기 경로 (.rows 래
     await mount({ teamMode: '축구' });
     expect(container.textContent).not.toContain('NaN');
     expect(container.textContent).toContain('팀 득점 관여율');
+  });
+
+  // teamMode → { sport } 배선 단언. 로그 3종은 서버가 sport 로 실제 필터하므로
+  // (종목 무관 시트인 pointLog/playerLog 와 달리) 이 인자가 빠지면 겸직팀에서
+  // 축구 탭에 풋살 데이터가 뜬다.
+  it('teamMode 를 SheetCache.get 의 2번째 인자로 넘긴다(풋살)', async () => {
+    await mount();
+    expect(getSpy).toHaveBeenCalledWith('matchLog', { sport: '풋살' });
+    expect(getSpy).toHaveBeenCalledWith('eventLog', { sport: '풋살' });
+    expect(getSpy).toHaveBeenCalledWith('playerGameLog', { sport: '풋살' });
+  });
+
+  it('teamMode="축구" 면 축구로 넘긴다(하드코딩이 아니라 prop 을 따름)', async () => {
+    await mount({ teamMode: '축구' });
+    expect(getSpy).toHaveBeenCalledWith('matchLog', { sport: '축구' });
+    expect(getSpy).toHaveBeenCalledWith('eventLog', { sport: '축구' });
+    expect(getSpy).toHaveBeenCalledWith('playerGameLog', { sport: '축구' });
   });
 });

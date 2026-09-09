@@ -78,6 +78,17 @@ describe('readCacheNode', () => {
       .toEqual({ ok: false, reason: MISS_NO_VERSION });
   });
 
+  // typeof NaN === 'number' 라 typeof 검사만으로는 통과해버린다. 그러면 아래 TTL 비교
+  // (now - NaN > ttlMs)가 항상 false 가 되어 12시간 백스톱이 통째로 무력화되고,
+  // 그 노드가 영구히 히트가 된다. 현 쓰기 경로로는 NaN 이 들어갈 수 없지만(RTDB 는
+  // NaN 을 거부한다) 가드 비용이 0 이므로 막아 둔다.
+  it('version 이 NaN/Infinity 면 미스 — TTL 백스톱이 무력화되지 않게', () => {
+    expect(readCacheNode({ ...fresh, version: NaN }, { columns: COLS }, TTL, NOW).reason)
+      .toBe(MISS_NO_VERSION);
+    expect(readCacheNode({ ...fresh, version: Infinity }, { columns: COLS }, TTL, NOW).reason)
+      .toBe(MISS_NO_VERSION);
+  });
+
   it('헤더가 다르면 미스 — 컬럼 추가', () => {
     const node = { ...fresh, headers: ['date', 'player'] };
     expect(readCacheNode(node, { columns: COLS }, TTL, NOW).reason).toBe(MISS_SCHEMA);

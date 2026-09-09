@@ -6,7 +6,7 @@ import { getPlayerPoint, getPlayerData, teamPower, calcMatchScore } from './util
 import { snakeDraft } from './utils/draft';
 import { generate4Team2Court, generate5Team2Court, generate6Team2Court, generate6TeamSecondHalf, generate7Team2Court, generate8Team2Court, generate8TeamSecondHalf, generate1Court } from './utils/brackets';
 import { generateEventId, formatEventInputTime } from './utils/idGenerator';
-import { refreshAfterFinalize, FINALIZE_DATASETS } from './utils/refreshAfterFinalize';
+import { refreshAfterFinalize } from './utils/refreshAfterFinalize';
 import { buildRawEventsFromFutsal, buildRawPlayerGamesFromFutsal } from './utils/rawLogBuilders';
 import { buildRoundRowsFromFutsal } from './utils/matchRowBuilder';
 import { gameDateFromId } from './utils/gameDate';
@@ -78,7 +78,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     Promise.all([
       fetchSheetData().catch(() => null),
       es.useCrovaGoguma
-        ? SheetCache.get('cumulativeBonus').catch(() => ({ crova: {}, goguma: {} }))
+        ? SheetCache.get('cumulativeBonus', { sport: '풋살' }).catch(() => ({ crova: {}, goguma: {} }))
         : Promise.resolve({ crova: {}, goguma: {} }),
     ]).then(([sheetData, cumBonus]) => {
       const fields = {};
@@ -94,7 +94,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     const loadPromises = [
       fetchSheetData().catch(err => { console.warn("시트 로딩 실패:", err.message); return null; }),
       es.useCrovaGoguma
-        ? SheetCache.get('cumulativeBonus').catch(err => { console.warn("누적보너스 로딩 실패:", err.message); return { crova: {}, goguma: {} }; })
+        ? SheetCache.get('cumulativeBonus', { sport: '풋살' }).catch(err => { console.warn("누적보너스 로딩 실패:", err.message); return { crova: {}, goguma: {} }; })
         : Promise.resolve({ crova: {}, goguma: {} }),
     ];
     if (gameMode === "sheetSync") {
@@ -767,14 +767,20 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
       //   히스토리에 '완료'처럼 보여 재전송 의무를 놓치게 됨.
       if (allOk) {
         await FirebaseSync.saveFinalized(teamContext?.team, gameId, gameState);
-        // 5개 시트가 전부 성공했을 때만 — 캐시 재적재가 실패해도 위 saveFinalized/마감은 되돌리지 않는다.
-        await refreshAfterFinalize(FINALIZE_DATASETS);
       }
       // 모든 시트 성공 시에만 gameFinalized:true (분석 로그 누락 시 false로 두어 재전송 유도 + Archive 차단)
       const team = teamContext?.team || '';
       const finalState = { ...gameState, gameFinalized: allOk };
       await FirebaseSync.syncDiff(team, gameId || "legacy", lastSyncedStateRef.current, finalState);
       lastSyncedStateRef.current = finalState;
+      // 캐시 재적재는 마감 기록(saveFinalized + syncDiff)이 끝난 뒤에 돈다 — 파생 데이터를
+      // critical path 에 두면 이 구간(Apps Script 최대 7회, 콜드스타트 각 10초)에서 앱이
+      // 닫힐 때 gameFinalized 가 유실돼 유저가 재전송하고 5개 시트에 중복 행이 생긴다
+      // (자동 멱등화가 없어 수동 삭제가 필요하다).
+      // allOk 가 아니어도 돈다 — legacyOk 를 통과한 이상 포인트로그·선수별집계에는 이미
+      // 행이 들어갔고, refresh 는 시트(진실 소스)를 다시 읽으므로 어떤 상태든 정확히 반영한다.
+      // 여기서 돌지 않으면 그 두 시트의 캐시가 최대 12시간(L2 TTL) 낡은 채 남는다.
+      await refreshAfterFinalize({ sport: '풋살' });
       const r1v = r1.value, r2v = r2.value;
       const r3v = r3.status === 'fulfilled' ? r3.value : null;
       const r4v = r4.status === 'fulfilled' ? r4.value : null;

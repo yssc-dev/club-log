@@ -497,6 +497,16 @@ function soccerLikeAdapters(sport) {
 }
 ```
 
+> **정정 (2026-09-09, 적대적 리뷰 후):** 위 어댑터 표가 두 곳 틀렸다.
+> 1. `cumulativeBonus` 는 **축구에 등록하지 않는다**(`sport === '풋살'` 조건). 축구팀 선수집계
+>    시트에 크로바·고구마 열이 없어 서버가 항상 빈 맵을 반환하고, `isEmpty` 가 그걸 조회
+>    실패로 판정해 `refresh` 가 영구히 `{ok:false}` → 설정 화면이 매번 "누적보너스 갱신 실패".
+>    `refreshAll`/`status`/마감 재적재가 전부 `datasetsOf(sport)` 를 순회하므로 "등록해도
+>    호출되지 않을 뿐" 이 아니다.
+> 2. 시트명이 종목 무관인 4종(`pointLog`/`playerLog`/`latestDeltas`/`cumulativeBonus`)에는
+>    `sharedSheet: true` 를 달고 경로의 종목 세그먼트를 `'공용'` 으로 쓴다 — 같은 시트가 두
+>    노드로 갈려 한쪽만 갱신되는 문제. 설계 문서 §4.3/§4.4 가 최종 기준이다.
+
 `ADAPTERS` 에 두 종목을 더한다:
 
 ```js
@@ -680,6 +690,13 @@ import SheetCache from '../../services/sheetCache';
 (`{ sport: activeSport }` 인자를 제거한다 — 캐시가 `AuthUtil` 의 종목으로 판단한다.
 `activeSport` 가 다른 용도로 쓰이면 남길 것.)
 
+> **정정 (2026-09-09, 적대적 리뷰 후):** 위 지시는 **반대로 적혀 있었다.** `{ sport }` 인자는
+> 제거하는 게 아니라 **넘겨야** 한다. `AuthUtil.getStored().mode` 는 팀 선택 시
+> `entries[0].mode` 로 한 번만 저장되고 `TeamDashboard` 의 종목 탭 클릭으로는 갱신되지 않아,
+> 겸직팀에서 축구 탭을 보면서 풋살 캐시를 읽는다. 실제 구현은 이 블록 아래의 모든
+> `SheetCache.get` 에 `{ sport: activeSport }`(또는 화면이 아는 종목 리터럴)를 넘긴다.
+> 설계 문서 §6.1 이 최종 기준이다. (계획서는 실행 기록이므로 원문은 지우지 않고 정정만 남긴다.)
+
 `DefenseTopCards.jsx`:
 ```js
     SheetCache.get('matchLog')
@@ -693,6 +710,7 @@ import SheetCache from '../../services/sheetCache';
       SheetCache.get('eventLog').catch(() => []),
       SheetCache.get('playerGameLog').catch(() => []),
 ```
+(위 정정과 동일 — 실제 구현은 `{ sport: isSoccer ? '축구' : '풋살' }` 를 넘긴다.)
 `fetchSheetData()` 는 **그대로 둔다**(CSV, 캐시 대상 아님).
 이어지는 `.rows` 접근을 전부 배열 직접 사용으로 바꾼다.
 
@@ -862,6 +880,26 @@ await refreshAfterFinalize(FINALIZE_DATASETS);
 `src/SoccerApp.jsx` — `272~276행` 부근에 동일하게. import 경로는 `./utils/refreshAfterFinalize`.
 
 **전송이 하나라도 실패하면 재적재하지 않는다**(기존 "미확정 유지" 규칙과 같은 분기).
+
+> **정정 (2026-09-09, 적대적 리뷰 후):** 위 두 가지가 틀렸다.
+> 1. **조건** — "하나라도 실패하면 재적재하지 않는다"는 회귀였다. `allOk`(로그_* 3종까지
+>    성공)가 아니어도 `legacyOk` 를 통과한 이상 포인트로그·선수별집계 시트에는 이미 행이
+>    들어갔다. 재적재를 건너뛰면 그 캐시가 최대 12시간 낡는다. → `if (allOk)` 블록 **밖**에서
+>    무조건 돈다.
+> 2. **위치** — 재적재를 `gameFinalized` 기록 **앞**에서 await 하면 그 구간(Apps Script 최대
+>    7회)에서 앱이 닫힐 때 `gameFinalized` 가 유실돼 재전송 → 5개 시트 중복 행이 된다.
+>    → `saveFinalized` + `syncDiff` + `set('gameFinalized')` 가 **전부 끝난 뒤**로 옮긴다.
+> 3. **목록** — `FINALIZE_DATASETS` 상수(어댑터 키의 수동 복제)를 없애고
+>    `refreshAfterFinalize({ sport })` 가 내부에서 `SheetCache.datasetsOf(sport)` 로 만든다
+>    (축구에는 `cumulativeBonus` 가 없다). 데이터셋을 직접 지정하는 경로는 `refreshDatasets`.
+>
+> 최종 형태:
+> ```js
+> import { refreshAfterFinalize } from './utils/refreshAfterFinalize';
+> // ... saveFinalized / syncDiff / set('gameFinalized') 후
+> await refreshAfterFinalize({ sport: '풋살' });   // SoccerApp.jsx 는 '축구'
+> ```
+> 설계 문서 §7.1 이 최종 기준이다.
 
 - [ ] **Step 6: 대회·재전송 도구 배선**
 

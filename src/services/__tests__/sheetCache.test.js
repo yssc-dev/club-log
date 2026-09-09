@@ -317,7 +317,22 @@ describe('어댑터 등록 커버리지', () => {
   it('cumulativeBonus 어댑터는 isEmpty 를 갖는다(조회 실패를 "0건"과 구분)', () => {
     const all = SheetCache._adaptersForTest();
     expect(typeof all['풋살'].cumulativeBonus.isEmpty).toBe('function');
-    expect(typeof all['축구'].cumulativeBonus.isEmpty).toBe('function');
+  });
+
+  // sharedSheet 는 선택 필드지만, 있으면 true 여야 한다(경로의 종목 세그먼트를
+  // '공용' 으로 고정하는 플래그 — _pathFor).
+  it('sharedSheet 는 선언됐다면 true 이고, sheetOf 를 함께 갖는다', () => {
+    const all = SheetCache._adaptersForTest();
+    for (const [sport, datasets] of Object.entries(all)) {
+      for (const [name, a] of Object.entries(datasets)) {
+        if (a.sharedSheet === undefined) continue;
+        const where = `${sport}.${name}`;
+        expect(a.sharedSheet, where).toBe(true);
+        // 종목 무관이라는 판단의 근거는 "시트명이 SHARED_KEYS" 라는 것이다 —
+        // sheetOf 없이 sharedSheet 만 있으면 그 근거가 없다.
+        expect(typeof a.sheetOf, where).toBe('function');
+      }
+    }
   });
 });
 
@@ -327,10 +342,26 @@ describe('풋살·축구 어댑터', () => {
     h.settings = { pointLogSheet: '마스터FC 포인트 로그', playerLogSheet: '마스터FC 선수별집계기록 로그' };
   });
 
-  it('풋살·축구 데이터셋 7종', () => {
-    const expected = ['matchLog', 'eventLog', 'playerGameLog', 'pointLog', 'playerLog', 'latestDeltas', 'cumulativeBonus'];
-    expect(SheetCache.datasetsOf('풋살')).toEqual(expected);
-    expect(SheetCache.datasetsOf('축구')).toEqual(expected);
+  const SHARED_4 = ['pointLog', 'playerLog', 'latestDeltas', 'cumulativeBonus'];
+
+  it('풋살 데이터셋 7종', () => {
+    expect(SheetCache.datasetsOf('풋살')).toEqual([
+      'matchLog', 'eventLog', 'playerGameLog', 'pointLog', 'playerLog', 'latestDeltas', 'cumulativeBonus',
+    ]);
+  });
+
+  // 축구팀 선수집계 시트(하버FC 선수기록보관소 = 경기일자,선수명,전체경기,필드경기,
+  // 키퍼경기,골,어시,클린시트,실점,자책골,입력시간)에는 크로바·고구마 열이 아예 없다.
+  // 그래서 _getCumulativeBonus 가 축구팀에서는 항상 { crova:{}, goguma:{} } 를 돌려주고,
+  // isEmpty 가 그걸 "조회 실패"로 판정해 refresh 가 영구히 { ok:false } 가 된다 —
+  // SettingsScreen 의 "구글시트에서 다시 불러오기"가 매번 "누적보너스 갱신 실패"를
+  // 띄우고 다시 눌러도 영원히 실패한다. refreshAll/status/마감 재적재가 전부
+  // datasetsOf 를 순회하므로 "등록해도 호출되지 않을 뿐" 이 아니다.
+  it('축구 데이터셋 6종 — cumulativeBonus 는 등록하지 않는다(크로바/고구마 열이 없는 시트)', () => {
+    expect(SheetCache.datasetsOf('축구')).toEqual([
+      'matchLog', 'eventLog', 'playerGameLog', 'pointLog', 'playerLog', 'latestDeltas',
+    ]);
+    expect(SheetCache.datasetsOf('축구')).not.toContain('cumulativeBonus');
   });
 
   it('로그 3종은 {rows} 래퍼를 벗겨 배열로 캐시한다', async () => {
@@ -345,7 +376,7 @@ describe('풋살·축구 어댑터', () => {
   it('맵 2종은 raw 모드로 그대로 보관된다', async () => {
     const v = await SheetCache.get('latestDeltas');
     expect(v).toEqual({ 박성언: { goals: 1, assists: 0 } });
-    const node = h.store.get('cache/마스터FC/풋살/latestDeltas/all');
+    const node = h.store.get('cache/마스터FC/공용/latestDeltas/all');
     expect(node.data).toEqual({ 박성언: { goals: 1, assists: 0 } });
     expect(node.headers).toBeUndefined();
   });
@@ -361,7 +392,7 @@ describe('풋살·축구 어댑터', () => {
 
   it('시트명 의존 데이터셋은 노드에 sheetName 을 남긴다', async () => {
     await SheetCache.get('pointLog');
-    expect(h.store.get('cache/마스터FC/풋살/pointLog/all').sheetName).toBe('마스터FC 포인트 로그');
+    expect(h.store.get('cache/마스터FC/공용/pointLog/all').sheetName).toBe('마스터FC 포인트 로그');
   });
 
   it('설정에서 시트명을 바꾸면 캐시가 미스가 되어 다시 읽는다', async () => {
@@ -442,6 +473,133 @@ describe('풋살·축구 어댑터', () => {
     h.cumulativeBonusEmptyNext = true;
     const v = await SheetCache.get('cumulativeBonus');
     expect(v).toEqual({ crova: {}, goguma: {} });
-    expect(h.store.has('cache/마스터FC/풋살/cumulativeBonus/all')).toBe(false);
+    expect(h.store.has('cache/마스터FC/공용/cumulativeBonus/all')).toBe(false);
+  });
+
+  // pointLogSheet/playerLogSheet 는 settings.js 의 SHARED_KEYS 라 풋살·축구가 같은
+  // 시트를 읽고, 서버(_getPointLog/_getPlayerLog/_getPrevRankings/_getCumulativeBonus)에도
+  // sport 필터가 없다. 종목별 노드로 쪼개면 같은 내용이 두 노드로 갈려 마감 재적재가
+  // 한쪽만 갱신하고 반대편은 refreshAll 로도 영영 갱신되지 않는다.
+  describe("종목 무관 4종은 '공용' 세그먼트를 쓴다", () => {
+    it('풋살로 읽어도 축구로 읽어도 같은 노드를 쓴다(공용)', async () => {
+      for (const dataset of SHARED_4) {
+        await SheetCache.get(dataset, { sport: '풋살' });
+        expect(h.store.has(`cache/마스터FC/공용/${dataset}/all`), dataset).toBe(true);
+        expect(h.store.has(`cache/마스터FC/풋살/${dataset}/all`), dataset).toBe(false);
+      }
+      // 축구에는 cumulativeBonus 어댑터가 없으므로 3종만 확인한다.
+      SheetCache._resetForTest();
+      h.store.clear();
+      for (const dataset of ['pointLog', 'playerLog', 'latestDeltas']) {
+        await SheetCache.get(dataset, { sport: '축구' });
+        expect(h.store.has(`cache/마스터FC/공용/${dataset}/all`), dataset).toBe(true);
+        expect(h.store.has(`cache/마스터FC/축구/${dataset}/all`), dataset).toBe(false);
+      }
+    });
+
+    // 같은 노드를 공유한다는 것의 실질적 의미: 풋살에서 채운 캐시를 축구가 L2 히트로
+    // 재사용하고(L3 재호출 없음), 축구 마감의 재적재가 풋살 쪽 낡음도 함께 푼다.
+    it('풋살이 채운 노드를 축구가 L2 히트로 재사용한다', async () => {
+      await SheetCache.get('playerLog', { sport: '풋살' });
+      expect(h.fetchCounts.playerLog).toBe(1);
+      SheetCache._resetForTest();               // L1 만 비움
+      const rows = await SheetCache.get('playerLog', { sport: '축구' });
+      expect(rows[0].name).toBe('박성언');
+      expect(h.fetchCounts.playerLog).toBe(1);  // L3 재호출 없음 = 같은 노드
+    });
+
+    it('refresh/status 도 같은 공용 경로를 본다(경로 생성이 한 곳)', async () => {
+      const r = await SheetCache.refresh('pointLog', { sport: '축구' });
+      expect(r.ok).toBe(true);
+      expect(h.store.has('cache/마스터FC/공용/pointLog/all')).toBe(true);
+      // 풋살 status 가 축구 refresh 의 결과를 본다 — 공용 노드를 공유하기 때문.
+      const s = await SheetCache.status({ sport: '풋살' });
+      expect(s.find(x => x.dataset === 'pointLog').count).toBe(1);
+    });
+
+    // 종목 축을 유지하는 3종(서버가 {sport} 로 실제 필터)은 '공용' 으로 새지 않아야 한다.
+    it('로그 3종은 종목 축을 유지한다', async () => {
+      for (const dataset of ['matchLog', 'eventLog', 'playerGameLog']) {
+        await SheetCache.get(dataset, { sport: '축구' });
+        expect(h.store.has(`cache/마스터FC/축구/${dataset}/all`), dataset).toBe(true);
+        expect(h.store.has(`cache/마스터FC/공용/${dataset}/all`), dataset).toBe(false);
+      }
+    });
+  });
+});
+
+// 테니스는 sharedSheet 를 선언하지 않으므로 경로가 바뀌면 안 된다 — 배포되어 운영 중인
+// 경로이므로 명시적으로 못 박는다.
+describe('테니스 경로는 공용 세그먼트를 쓰지 않는다', () => {
+  it('테니스 3종 전부 종목 세그먼트가 "테니스" 다', async () => {
+    for (const dataset of SheetCache.datasetsOf('테니스')) {
+      await SheetCache.refresh(dataset);
+      expect(h.store.has(`cache/몽피스/공용/${dataset}/all`), dataset).toBe(false);
+    }
+    // legacy 는 목이 [] 를 주므로 노드가 생기지 않는다(빈 결과 강등) — 나머지 2종만 확인.
+    expect(h.store.has('cache/몽피스/테니스/roster/all')).toBe(true);
+    expect(h.store.has('cache/몽피스/테니스/playerGames/all')).toBe(true);
+  });
+});
+
+// get() 의 L2 쓰기는 버전 비교 없이 serverTimestamp() 로 덮는다. 오래 걸린 get
+// (L3 콜드스타트 2~10초)이 그 사이 지나간 refresh(마감 직후 재적재)를 덮어쓰면,
+// "오늘 경기가 빠진" 응답이 더 최신 version 으로 박혀 모두에게 12시간 동안 보인다.
+describe('세대(generation) 가드 — get 이 더 신선한 refresh 를 덮지 않는다', () => {
+  beforeEach(() => {
+    h.auth = { team: '마스터FC', mode: '풋살' };
+    h.settings = { pointLogSheet: '마스터FC 포인트 로그', playerLogSheet: '마스터FC 선수별집계기록 로그' };
+  });
+
+  // 이벤트 루프를 한 바퀴 돌려 pending get 이 L3 fetch 까지 진입하게 한다
+  // (마이크로태스크 몇 틱으로 세는 것은 구현 변경에 취약하다).
+  const flush = () => new Promise(r => setTimeout(r, 0));
+
+  it('get 의 L3 응답이 도착하기 전에 refresh 가 끝나면 get 은 L2 를 덮지 않는다', async () => {
+    const PATH = 'cache/마스터FC/풋살/matchLog/all';
+    const appSync = (await import('../appSync')).default;
+    const realGetMatchLog = appSync.getMatchLog;
+    try {
+      // get 의 L3 fetch 를 붙잡아 둔다.
+      let releaseGet;
+      const gate = new Promise(r => { releaseGet = r; });
+      appSync.getMatchLog = () => {
+        h.fetchCounts.matchLog++;
+        return gate.then(() => ({ rows: [{ team: '마스터FC', date: '2026-09-01', match_id: 'STALE' }] }));
+      };
+
+      const pending = SheetCache.get('matchLog');   // L2 미스 → L3 진입(붙잡힘)
+      await flush();
+      expect(h.fetchCounts.matchLog).toBe(1);       // L3 에 내려가 붙잡혀 있음을 확인
+
+      // 그 사이 마감 재적재가 끝난다 — 오늘 경기를 포함한 노드를 기록.
+      appSync.getMatchLog = () => {
+        h.fetchCounts.matchLog++;
+        return Promise.resolve({ rows: [{ team: '마스터FC', date: '2026-09-09', match_id: 'FRESH' }] });
+      };
+      const r = await SheetCache.refresh('matchLog');
+      expect(r.ok).toBe(true);
+      expect(h.store.get(PATH).rows[0]).toContain('FRESH');
+
+      // 이제 낡은 get 응답이 도착한다.
+      releaseGet();
+      const rows = await pending;
+      expect(rows[0].match_id).toBe('STALE');  // 호출부에는 그대로 반환한다(화면을 비우지 않는다)
+
+      // L2 는 refresh 의 신선한 값을 유지한다 — 덮이지 않았다.
+      expect(h.store.get(PATH).rows[0]).toContain('FRESH');
+
+      // L1 도 오염되지 않았다 — 다음 get() 은 refresh 가 넣은 신선한 값을 본다.
+      const next = await SheetCache.get('matchLog');
+      expect(next[0].match_id).toBe('FRESH');
+    } finally {
+      appSync.getMatchLog = realGetMatchLog;
+    }
+  });
+
+  it('경합이 없으면 get 은 평소처럼 L2 를 채운다(가드가 정상 경로를 막지 않는다)', async () => {
+    await SheetCache.get('matchLog');
+    expect(h.store.has('cache/마스터FC/풋살/matchLog/all')).toBe(true);
+    expect(h.fetchCounts.matchLog).toBe(1);
   });
 });

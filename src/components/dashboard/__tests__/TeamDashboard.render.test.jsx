@@ -35,15 +35,17 @@ const pg = (date, player, o = {}) => ({
 });
 const PLAYER_GAME_LOG = PG_DATES.map(d => pg(d, '테스트선수', { goals: 2, assists: 1 }));
 
+// 스파이로 받는다 — 2번째 인자({ sport })를 버리면 누가 TeamDashboard.jsx 의
+// { sport: activeSport } 를 지워도 깨지는 테스트가 없다(DefenseTopCards.render.test.jsx
+// 와 같은 방식의 재발 방지선).
+const getSpy = vi.fn((dataset) => Promise.resolve(
+  dataset === 'latestDeltas' ? { '테스트선수': { goals: 2, assists: 1 } }
+  : dataset === 'playerGameLog' ? PLAYER_GAME_LOG
+  : dataset === 'cumulativeBonus' ? { crova: {}, goguma: {} }
+  : []
+));
 vi.mock('../../../services/sheetCache', () => ({
-  default: {
-    get: (dataset) => Promise.resolve(
-      dataset === 'latestDeltas' ? { '테스트선수': { goals: 2, assists: 1 } }
-      : dataset === 'playerGameLog' ? PLAYER_GAME_LOG
-      : dataset === 'cumulativeBonus' ? { crova: {}, goguma: {} }
-      : []
-    ),
-  },
+  default: { get: (...args) => getSpy(...args) },
 }));
 
 Object.defineProperty(window, 'matchMedia', {
@@ -63,7 +65,7 @@ const BASE_PROPS = {
 };
 
 let container, root;
-beforeEach(() => { container = document.createElement('div'); document.body.appendChild(container); });
+beforeEach(() => { getSpy.mockClear(); container = document.createElement('div'); document.body.appendChild(container); });
 afterEach(() => { act(() => root?.unmount()); container.remove(); });
 
 async function mount(props = {}) {
@@ -83,5 +85,26 @@ describe('TeamDashboard 실렌더(act) — SheetCache 읽기 경로', () => {
     expect(container.textContent).toContain('↑2');
     // RecentFormTop3 내부의 SheetCache.get('playerGameLog') 호출 결과가 반영됐는지
     expect(container.textContent).toContain('최근 한 달 기세 TOP3');
+  });
+
+  // 겸직팀(한 팀에 풋살·축구 탭)에서 activeSport 를 넘기지 않으면 캐시가 AuthUtil.mode
+  // (팀 선택 시 entries[0].mode 로 한 번만 저장됨)로 판단해 화면 탭과 데이터가 갈린다.
+  // 2번째 인자를 단언해야 { sport: activeSport } 제거가 테스트로 잡힌다.
+  it('activeSport 를 SheetCache.get 의 2번째 인자로 넘긴다(풋살 팀)', async () => {
+    await mount();
+    expect(getSpy).toHaveBeenCalledWith('latestDeltas', { sport: '풋살' });
+    // RecentFormTop3(무조건 렌더)도 같은 배선이어야 한다.
+    expect(getSpy).toHaveBeenCalledWith('playerGameLog', { sport: '풋살' });
+    // 풋살 전용 팀에서는 축구 전용 조회(playerLog/pointLog)가 아예 돌지 않는다.
+    expect(getSpy.mock.calls.map(c => c[0])).not.toContain('pointLog');
+  });
+
+  // 하드코딩("풋살")이 아니라 실제로 teamEntries 의 종목을 따르는지 증명.
+  it('축구 팀이면 축구로 넘기고 축구 전용 데이터셋도 같은 종목으로 조회한다', async () => {
+    await mount({ teamEntries: [{ mode: '축구', role: '관리자' }] });
+    expect(getSpy).toHaveBeenCalledWith('latestDeltas', { sport: '축구' });
+    expect(getSpy).toHaveBeenCalledWith('playerLog', { sport: '축구' });
+    expect(getSpy).toHaveBeenCalledWith('pointLog', { sport: '축구' });
+    expect(getSpy).toHaveBeenCalledWith('playerGameLog', { sport: '축구' });
   });
 });
