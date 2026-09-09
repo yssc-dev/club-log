@@ -13,13 +13,18 @@ import { ref, get, set, remove, serverTimestamp } from 'firebase/database';
 import { firebaseDb } from '../config/firebase';
 import AuthUtil from './authUtil';
 import TennisSync from './tennisSync';
+import AppSync from './appSync';
+import { getEffectiveSettings } from '../config/settings';
 import { cachePath } from './rtdbPath';
-import { encodeRows, readCacheNode, shouldStore } from './sheetCacheCore';
+import { encodeRows, encodeRaw, readCacheNode, shouldStoreValue } from './sheetCacheCore';
 import {
   TENNIS_ROSTER_CACHE_COLUMNS,
   TENNIS_PLAYER_GAME_COLUMNS,
   TENNIS_LEGACY_COLUMNS,
 } from '../utils/tennis/tennisSchema';
+import { RAW_MATCH_COLUMNS } from '../utils/matchRowBuilder';
+import { RAW_EVENT_COLUMNS, RAW_PLAYER_GAME_COLUMNS } from '../utils/rawLogBuilders';
+import { POINT_LOG_CACHE_COLUMNS, PLAYER_LOG_CACHE_COLUMNS } from '../utils/soccerCacheColumns';
 
 // 롤백 스위치 — true 면 모든 호출이 L3 직행. 캐시 도입 전과 동일한 동작이 된다.
 export const DISABLED = false;
@@ -29,7 +34,29 @@ const L1_TTL_MS = 5 * 60 * 1000;          // appSync 대회 캐시와 같은 관
 // 모든 쓰기 경로(마감·회원 upsert·자동 업로드 봇)가 재적재하므로 순수 백스톱이다.
 export const L2_TTL_MS = 12 * 60 * 60 * 1000;
 
-// 종목 → 데이터셋 → { columns, fetch }.
+// 풋살·축구는 같은 Apps Script 함수를 쓰지만 sport 인자와 시트명이 다르다.
+// {rows} 래퍼는 여기서 벗겨 배열만 캐시한다 — 호출부도 배열을 직접 받는다.
+function soccerLikeAdapters(sport) {
+  return {
+    matchLog:      { columns: RAW_MATCH_COLUMNS,       fetch: () => AppSync.getMatchLog({ sport }).then(r => r?.rows || []) },
+    eventLog:      { columns: RAW_EVENT_COLUMNS,       fetch: () => AppSync.getEventLog({ sport }).then(r => r?.rows || []) },
+    playerGameLog: { columns: RAW_PLAYER_GAME_COLUMNS, fetch: () => AppSync.getPlayerGameLog({ sport }).then(r => r?.rows || []) },
+    pointLog:  { columns: POINT_LOG_CACHE_COLUMNS,  sheetOf: s => s.pointLogSheet,  fetch: s => AppSync.getPointLog(s.pointLogSheet) },
+    playerLog: { columns: PLAYER_LOG_CACHE_COLUMNS, sheetOf: s => s.playerLogSheet, fetch: s => AppSync.getPlayerLog(s.playerLogSheet) },
+    latestDeltas:    { mode: 'raw', sheetOf: s => s.playerLogSheet, fetch: s => AppSync.getLatestDeltas(s.playerLogSheet) },
+    // cumulativeBonus 는 풋살 진입 경로만 호출하지만, 양쪽에 등록해 어댑터 표를 단순하게 둔다.
+    // AppSync.getCumulativeBonus 는 !enabled() 와 조회 실패 둘 다 { crova:{}, goguma:{} } 를
+    // 반환한다(appSync.js) — top-level 키 존재만 보는 기본 판정(shouldStoreValue)으로는
+    // "조회 실패"와 "보너스 0건"을 구분할 수 없다. isEmpty 로 내부까지 비었는지 본다.
+    cumulativeBonus: {
+      mode: 'raw', sheetOf: s => s.playerLogSheet,
+      isEmpty: v => !v || (Object.keys(v.crova || {}).length === 0 && Object.keys(v.goguma || {}).length === 0),
+      fetch: s => AppSync.getCumulativeBonus(s.playerLogSheet),
+    },
+  };
+}
+
+// 종목 → 데이터셋 → { mode?, columns?, sheetOf?, fetch }.
 // 축구·풋살 확장은 여기에 항목을 추가하는 것으로 끝난다.
 const ADAPTERS = {
   '테니스': {
@@ -37,6 +64,8 @@ const ADAPTERS = {
     playerGames: { columns: TENNIS_PLAYER_GAME_COLUMNS,  fetch: () => TennisSync.getPlayerGames() },
     legacy:      { columns: TENNIS_LEGACY_COLUMNS,       fetch: () => TennisSync.getLegacyRecords() },
   },
+  '풋살': soccerLikeAdapters('풋살'),
+  '축구': soccerLikeAdapters('축구'),
 };
 
 const _l1 = new Map();       // path → { rows, ts }
@@ -44,27 +73,53 @@ const _inflight = new Map(); // path → Promise
 
 function _ctx() {
   const a = AuthUtil.getStored();
-  return { team: a?.team || '', sport: a?.mode || '' };
+  const team = a?.team || '';
+  const sport = a?.mode || '';
+  return { team, sport, settings: getEffectiveSettings(team, sport) || {} };
 }
 
 function _adapter(sport, dataset) {
   return ADAPTERS[sport]?.[dataset] || null;
 }
 
+// 어댑터가 isEmpty 를 선언하면 그걸로 "저장할 가치가 있는 결과인가"를 판정한다.
+// 기본 판정(shouldStoreValue)은 top-level 키 존재만 보는 얕은 검사라, 실패 시에도
+// 비어있지 않은 모양({crova:{}, goguma:{}} 등)을 돌려주는 어댑터(cumulativeBonus)는
+// "조회 실패"와 "결과 0건"을 구분하지 못한다.
+function _isEmptyValue(adapter, value) {
+  if (adapter.isEmpty) return adapter.isEmpty(value);
+  return !shouldStoreValue(value, adapter.mode || 'rows');
+}
+
+// 어댑터가 선언한 모드로 저장 노드를 만든다. sheetOf 가 있으면 sheetName 도 남긴다.
+function _encodeNode(adapter, value, settings) {
+  const mode = adapter.mode || 'rows';
+  const body = mode === 'raw' ? encodeRaw(value) : encodeRows(adapter.columns, value);
+  const sheetName = adapter.sheetOf ? adapter.sheetOf(settings) : undefined;
+  return sheetName === undefined ? body : { ...body, sheetName };
+}
+
+function _readOpts(adapter, settings) {
+  const opts = { mode: adapter.mode || 'rows', columns: adapter.columns };
+  if (adapter.sheetOf) opts.sheetName = adapter.sheetOf(settings);
+  return opts;
+}
+
 // L3 조회 후 L2 저장. 빈 결과나 저장 실패를 호출부(refresh)가 강등할 수 있도록
 // 둘 다 throw 한다. refresh 의 호출부는 전부 쓰기 직후 무효화이므로, 이 시점의
-// []는 "진짜 0행"일 수 없다 — get()의 보수적 보존(§6.1, shouldStore)과 달리
+// []는 "진짜 0행"일 수 없다 — get()의 보수적 보존(§6.1, shouldStoreValue)과 달리
 // 여기서는 빈 결과도 실패로 본다(스펙 §5: 재적재 실패 시 낡은 캐시를 남기지 않는다).
-async function _fetchAndStore(adapter, path) {
-  const rows = (await adapter.fetch()) || [];
-  if (!shouldStore(rows)) {
+async function _fetchAndStore(adapter, path, settings) {
+  // 변수명은 value — raw 모드(latestDeltas/cumulativeBonus)에서는 배열이 아니라 맵이 담긴다.
+  const value = (await adapter.fetch(settings)) || (adapter.mode === 'raw' ? null : []);
+  if (_isEmptyValue(adapter, value)) {
     throw new Error('재적재가 빈 결과를 받음 — 강등 대상');
   }
   await set(ref(firebaseDb, path), {
-    ...encodeRows(adapter.columns, rows),
+    ..._encodeNode(adapter, value, settings),
     version: serverTimestamp(),
   });
-  return rows;
+  return value;
 }
 
 const SheetCache = {
@@ -73,10 +128,10 @@ const SheetCache = {
   },
 
   async get(dataset) {
-    const { team, sport } = _ctx();
+    const { team, sport, settings } = _ctx();
     const adapter = _adapter(sport, dataset);
     if (!adapter) return [];
-    if (DISABLED) return (await adapter.fetch()) || [];
+    if (DISABLED) return (await adapter.fetch(settings)) || (adapter.mode === 'raw' ? null : []);
 
     const path = cachePath(team, sport, dataset);
 
@@ -88,18 +143,19 @@ const SheetCache = {
     if (pending) return pending;
 
     const p = (async () => {
+      // 변수명은 rows 지만, raw 모드(latestDeltas/cumulativeBonus)에서는 맵이 담긴다.
       let rows;
       try {
         const snap = await get(ref(firebaseDb, path));
-        const res = readCacheNode(snap.val(), { columns: adapter.columns }, L2_TTL_MS, Date.now());
+        const res = readCacheNode(snap.val(), _readOpts(adapter, settings), L2_TTL_MS, Date.now());
         if (res.ok) {
           rows = res.rows;
         } else {
-          rows = (await adapter.fetch()) || [];
-          if (shouldStore(rows)) {
+          rows = (await adapter.fetch(settings)) || (adapter.mode === 'raw' ? null : []);
+          if (!_isEmptyValue(adapter, rows)) {
             try {
               await set(ref(firebaseDb, path), {
-                ...encodeRows(adapter.columns, rows),
+                ..._encodeNode(adapter, rows, settings),
                 version: serverTimestamp(),
               });
             } catch (e) { console.warn(`[sheetCache] ${dataset} L2 저장 실패:`, e.message); }
@@ -107,14 +163,14 @@ const SheetCache = {
         }
       } catch (e) {
         console.warn(`[sheetCache] ${dataset} L2 읽기 실패, 시트 폴백:`, e.message);
-        rows = (await adapter.fetch()) || [];
+        rows = (await adapter.fetch(settings)) || (adapter.mode === 'raw' ? null : []);
       }
-      // 빈 결과는 L1에도 넣지 않는다(refresh 와 대칭, shouldStore 로 판정).
+      // 빈 결과는 L1에도 넣지 않는다(refresh 와 대칭, _isEmptyValue 로 판정).
       // Apps Script 콜드스타트 실패가 _safeRead 에 의해 []로 삼켜진 경우, 이걸
       // L1에 5분 박으면 이후 모든 탭 전환이 같은 빈 화면을 반복해서 보여준다 —
       // 캐시 도입 전엔 탭을 바꿀 때마다 시트를 다시 쳐서 두 번째 시도에 복구됐다.
       // L1을 비워두면 다음 get() 이 L2(유효할 수 있음) → L3 순으로 다시 시도한다.
-      if (shouldStore(rows)) _l1.set(path, { rows, ts: Date.now() });
+      if (!_isEmptyValue(adapter, rows)) _l1.set(path, { rows, ts: Date.now() });
       return rows;
     })();
 
@@ -128,7 +184,7 @@ const SheetCache = {
   // 절대 throw 하지 않는다 — 호출부가 try/catch 없이도 안전해야 한다.
   // 반환값 { ok, rows } 로 호출부(refreshAll)가 성공 여부를 구분할 수 있게 한다.
   async refresh(dataset) {
-    const { team, sport } = _ctx();
+    const { team, sport, settings } = _ctx();
     const adapter = _adapter(sport, dataset);
     if (!adapter) return { ok: true, rows: [] };
     // 롤백 스위치(§14): true 면 캐시(L2/L1) 자체를 건드리지 않는다 — get() 이
@@ -137,7 +193,7 @@ const SheetCache = {
     const path = cachePath(team, sport, dataset);
     _l1.delete(path);
     try {
-      const rows = await _fetchAndStore(adapter, path);
+      const rows = await _fetchAndStore(adapter, path, settings);
       _l1.set(path, { rows, ts: Date.now() });
       return { ok: true, rows };
     } catch (e) {
@@ -157,7 +213,7 @@ const SheetCache = {
     const out = [];
     for (const dataset of this.datasetsOf(sport)) {
       const { ok, rows } = await this.refresh(dataset);
-      out.push({ dataset, ok, count: rows.length });
+      out.push({ dataset, ok, count: Array.isArray(rows) ? rows.length : Object.keys(rows || {}).length });
     }
     return out;
   },
