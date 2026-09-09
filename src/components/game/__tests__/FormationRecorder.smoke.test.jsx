@@ -24,4 +24,16 @@ describe('FormationRecorder 렌더 스모크', () => {
     expect(html).toContain('BN1');
     expect(html).not.toContain('NaN');
   });
+
+  // 골 표기는 SoccerMatchView 와 utils/soccerGoalEvent.goalLabel 을 공유한다.
+  // 두 화면이 갈라지지 않는지 렌더 레벨에서 한 번 잡아둔다.
+  it('골 표기가 "득점자(골)/어시(어시)" 형태다', () => {
+    const html = render({ events: [
+      { id: 'e1', type: 'goal', player: '주건호', assist: '신관수', timestamp: 2 },
+      { id: 'e2', type: 'goal', player: '주건호', assist: null, timestamp: 3 },
+    ] });
+    expect(html).toContain('주건호(골)/신관수(어시)');
+    expect(html).toContain('주건호(골)');
+    expect(html).not.toContain('🅰️');
+  });
 });
