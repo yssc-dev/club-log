@@ -11,6 +11,7 @@ import { buildRoundRowsFromFutsal } from './utils/matchRowBuilder';
 import { gameDateFromId } from './utils/gameDate';
 import { fetchSheetData, fetchAttendanceData } from './services/sheetService';
 import AppSync from './services/appSync';
+import SheetCache from './services/sheetCache';
 import FirebaseSync from './services/firebaseSync';
 import { useGameReducer } from './hooks/useGameReducer';
 import { useFirebaseSync } from './hooks/useFirebaseSync';
@@ -76,7 +77,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     Promise.all([
       fetchSheetData().catch(() => null),
       es.useCrovaGoguma
-        ? AppSync.getCumulativeBonus(es.playerLogSheet).catch(() => ({ crova: {}, goguma: {} }))
+        ? SheetCache.get('cumulativeBonus').catch(() => ({ crova: {}, goguma: {} }))
         : Promise.resolve({ crova: {}, goguma: {} }),
     ]).then(([sheetData, cumBonus]) => {
       const fields = {};
@@ -92,7 +93,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     const loadPromises = [
       fetchSheetData().catch(err => { console.warn("시트 로딩 실패:", err.message); return null; }),
       es.useCrovaGoguma
-        ? AppSync.getCumulativeBonus(es.playerLogSheet).catch(err => { console.warn("누적보너스 로딩 실패:", err.message); return { crova: {}, goguma: {} }; })
+        ? SheetCache.get('cumulativeBonus').catch(err => { console.warn("누적보너스 로딩 실패:", err.message); return { crova: {}, goguma: {} }; })
         : Promise.resolve({ crova: {}, goguma: {} }),
     ];
     if (gameMode === "sheetSync") {

@@ -1,6 +1,7 @@
 import { useState, useEffect, useMemo, useRef } from 'react';
 import { fetchSheetData } from '../../services/sheetService';
 import AppSync from '../../services/appSync';
+import SheetCache from '../../services/sheetCache';
 import AuthUtil from '../../services/authUtil';
 import { getSettings, getEffectiveSettings, loadSettingsFromFirebase } from '../../config/settings';
 import { buildAttendanceData, buildAttendanceView } from '../../utils/dashboardAttendance';
@@ -73,20 +74,19 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
       // 않는다 — 이 catch는 함수가 나중에 throw하게 바뀌어도 대시보드가 죽지 않게 하는 보험.
       try { await loadSettingsFromFirebase(teamName, teamEntries); } catch { /* 보험용 */ }
       if (cancelled) return;
-      const s = getSettings(teamName);
       fetchSheetData()
         .then(data => { if (cancelled) return; setMembers(data.players || []); setKeepers(data.keepers || []); })
         .catch(() => { if (!cancelled) setMembers([]); })
         .finally(() => { if (!cancelled) setMembersLoading(false); });
-      AppSync.getLatestDeltas(s.playerLogSheet).then(deltas => {
+      SheetCache.get('latestDeltas').then(deltas => {
         if (!cancelled) setPrevRanks(deltas);
       }).catch(() => {});
       // 축구팀: 포인트로그에서 팀 전적 + 선수별집계에서 출석률
       if (hasSoccerEntry) {
-        AppSync.getPlayerLog(s.playerLogSheet).then(plog => {
+        SheetCache.get('playerLog').then(plog => {
           if (!cancelled) setAttendanceData(buildAttendanceData(plog));
         }).catch(() => {});
-        AppSync.getPointLog(s.pointLogSheet).then(events => {
+        SheetCache.get('pointLog').then(events => {
           if (cancelled) return;
           if (!events || events.length === 0) return;
           const matches = {};

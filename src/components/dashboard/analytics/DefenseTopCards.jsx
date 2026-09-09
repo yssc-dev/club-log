@@ -7,7 +7,7 @@
 import { useEffect, useMemo, useState } from 'react';
 import { calcDefenseAnalysis, sortDefenseRows } from '../../../utils/soccerAnalytics';
 import { DEFENSE_METRICS } from './defenseMetrics';
-import AppSync from '../../../services/appSync';
+import SheetCache from '../../../services/sheetCache';
 
 const TOP_N = 5;
 
@@ -81,8 +81,8 @@ export default function DefenseTopCards({ activeSport, C, ds }) {
 
   useEffect(() => {
     let alive = true;
-    AppSync.getMatchLog({ sport: activeSport })
-      .then(res => { if (alive) setLoaded({ sport: activeSport, rows: res?.rows || [] }); })
+    SheetCache.get('matchLog')
+      .then(rows => { if (alive) setLoaded({ sport: activeSport, rows: rows || [] }); })
       .catch(() => { if (alive) setLoaded({ sport: activeSport, rows: [] }); });
     return () => { alive = false; };
   }, [activeSport]);
