@@ -10,6 +10,7 @@ import FirebaseSync from '../../services/firebaseSync';
 import SheetCache from '../../services/sheetCache';
 import { buildRoundRowsFromFutsal, buildRoundRowsFromSoccer } from '../../utils/matchRowBuilder';
 import { recoverFinalizedStateFromSheets } from '../../utils/recoverFinalizedFromSheets';
+import { refreshAfterFinalize } from '../../utils/refreshAfterFinalize';
 import { formatSyncStatus, DATASET_LABELS } from './syncStatusText';
 
 export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmin, onBack }) {
@@ -149,6 +150,8 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
         const res = await AppSync.writeMatchLog(allRows.slice(i, i + BATCH));
         total += (res && res.count) || 0;
       }
+      // 배치 루프가 전부 끝난 뒤 1회만 — 루프 안에서 부르면 배치마다 전량 재조회가 돈다.
+      await refreshAfterFinalize(['matchLog'], { sport });
       setFbMigrateResult({ ok: true, dates: datesTouched.size, rows: total });
     } catch (err) {
       setFbMigrateResult({ ok: false, error: String(err?.message || err) });

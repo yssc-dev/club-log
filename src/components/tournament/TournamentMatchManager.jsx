@@ -9,6 +9,7 @@ import { calcSoccerScore, buildEventLogRows } from '../../utils/soccerScoring';
 import { generateEventId } from '../../utils/idGenerator';
 import AppSync from '../../services/appSync';
 import { buildRawEventsFromSoccer, buildRawPlayerGamesFromTournament } from '../../utils/rawLogBuilders';
+import { refreshAfterFinalize, TOURNAMENT_DATASETS } from '../../utils/refreshAfterFinalize';
 
 export default function TournamentMatchManager({ tournament, schedule: rawSchedule, ourTeamName, attendees: rawAttendees, gameSettings, onScheduleUpdate }) {
   const schedule = rawSchedule || [];
@@ -166,6 +167,14 @@ export default function TournamentMatchManager({ tournament, schedule: rawSchedu
       alert("로그_선수경기 저장 실패: " + e.message);
       return null;
     });
+
+    // 로그_이벤트·로그_선수경기 전송을 시도한 뒤 재적재. 이 파일은 원래도 raw 로그
+    // 실패를 막지 않고 알림만 띄운 뒤 계속 진행하므로(위 두 블록), 여기서도 성공
+    // 여부로 더 엄격히 막지 않는다 — SheetCache.refresh 는 throw 하지 않고, 실패 시
+    // 캐시를 강등해 다음 읽기가 시트로 직행하므로 새로 들어올 낡음은 없다.
+    // 겸직팀(한 팀에 풋살·축구 탭 공존)에서 AuthUtil.mode 와 어긋나지 않도록 sport 명시
+    // (이 파일은 대회=축구 전용, 163행의 replaceBy sport 하드코딩과 동일).
+    await refreshAfterFinalize(TOURNAMENT_DATASETS, { sport: '축구' });
 
     // clear Firebase activeGame
     await set(ref(firebaseDb, fbPath), null);

@@ -26,6 +26,7 @@ import {
 } from './utils/soccerScoring';
 import { buildRawEventsFromSoccer, buildRawPlayerGamesFromSoccer } from './utils/rawLogBuilders';
 import { buildRoundRowsFromSoccer } from './utils/matchRowBuilder';
+import { refreshAfterFinalize, FINALIZE_DATASETS } from './utils/refreshAfterFinalize';
 import { gameDateFromId } from './utils/gameDate';
 
 export default function SoccerApp({ authUser, teamContext, isNewGame, gameMode, gameId, onLogout, onBackToMenu }) {
@@ -293,6 +294,8 @@ export default function SoccerApp({ authUser, teamContext, isNewGame, gameMode, 
       const finalState = { ...gameState, gameFinalized: allOk };
       if (allOk) {
         await FirebaseSync.saveFinalized(teamContext?.team, gameId, finalState);
+        // 5개 시트가 전부 성공했을 때만 — 캐시 재적재가 실패해도 위 saveFinalized/마감은 되돌리지 않는다.
+        await refreshAfterFinalize(FINALIZE_DATASETS);
       }
       // gameFinalized를 active 노드에 반영(풋살과 동일) — 대시보드 '전송완료' 뱃지 + Archive 활성 근거.
       // 자동 종료(clearState/메뉴) 제거: 확정 후에도 summary에 남아 '수정 후 재전송'·'Archive' 단계 제공.

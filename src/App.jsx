@@ -6,6 +6,7 @@ import { getPlayerPoint, getPlayerData, teamPower, calcMatchScore } from './util
 import { snakeDraft } from './utils/draft';
 import { generate4Team2Court, generate5Team2Court, generate6Team2Court, generate6TeamSecondHalf, generate7Team2Court, generate8Team2Court, generate8TeamSecondHalf, generate1Court } from './utils/brackets';
 import { generateEventId, formatEventInputTime } from './utils/idGenerator';
+import { refreshAfterFinalize, FINALIZE_DATASETS } from './utils/refreshAfterFinalize';
 import { buildRawEventsFromFutsal, buildRawPlayerGamesFromFutsal } from './utils/rawLogBuilders';
 import { buildRoundRowsFromFutsal } from './utils/matchRowBuilder';
 import { gameDateFromId } from './utils/gameDate';
@@ -766,6 +767,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
       //   히스토리에 '완료'처럼 보여 재전송 의무를 놓치게 됨.
       if (allOk) {
         await FirebaseSync.saveFinalized(teamContext?.team, gameId, gameState);
+        // 5개 시트가 전부 성공했을 때만 — 캐시 재적재가 실패해도 위 saveFinalized/마감은 되돌리지 않는다.
+        await refreshAfterFinalize(FINALIZE_DATASETS);
       }
       // 모든 시트 성공 시에만 gameFinalized:true (분석 로그 누락 시 false로 두어 재전송 유도 + Archive 차단)
       const team = teamContext?.team || '';
