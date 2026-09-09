@@ -91,7 +91,7 @@ const SheetCache = {
       let rows;
       try {
         const snap = await get(ref(firebaseDb, path));
-        const res = readCacheNode(snap.val(), adapter.columns, L2_TTL_MS, Date.now());
+        const res = readCacheNode(snap.val(), { columns: adapter.columns }, L2_TTL_MS, Date.now());
         if (res.ok) {
           rows = res.rows;
         } else {
