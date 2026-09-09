@@ -1,4 +1,5 @@
 import { useState, useLayoutEffect } from 'react';
+import { goalEventFromTap, goalLabel } from '../../utils/soccerGoalEvent';
 import { useTheme } from '../../hooks/useTheme';
 import { FORMATIONS, FORMATION_KEYS, swapFormationSlots, defendersFromPositionMap, revertSubInFormation } from '../../utils/formations';
 import { getSubCandidates } from '../../utils/soccerScoring';
@@ -53,11 +54,10 @@ export default function FormationRecorder({
 
   const handlePlayerTap = (posIdx, name) => {
     if (goalFlow) {
-      if (goalFlow.type === "selectAssist") {
-        onAddEvent({ type: "goal", player: goalFlow.scorer, assist: name, id: generateEventId(), timestamp: Date.now() });
-        setGoalFlow(null);
-      } else if (goalFlow.type === "selectScorer") {
-        onAddEvent({ type: "goal", player: name, assist: goalFlow.assister, id: generateEventId(), timestamp: Date.now() });
+      // null = 본인 어시 등 무시할 탭. goalFlow 를 유지해 다른 선수를 탭하거나 "노어시" 를 누를 수 있다.
+      const ev = goalEventFromTap(goalFlow, name);
+      if (ev) {
+        onAddEvent({ ...ev, id: generateEventId(), timestamp: Date.now() });
         setGoalFlow(null);
       }
       return;
@@ -238,7 +238,7 @@ export default function FormationRecorder({
           {sortedEvents.map(e => (
             <div key={e.id} style={{ display: "flex", alignItems: "center", gap: 6, padding: "5px 8px", background: C.cardLight, borderRadius: 6, marginBottom: 3, fontSize: 11 }}>
               <span style={{ color: C.grayDark, minWidth: 24 }}>{formatTime(e.timestamp)}</span>
-              {e.type === "goal" && <><span>⚽</span><span style={{ fontWeight: 600, color: C.white }}>{e.player}</span>{e.assist && <span style={{ color: C.gray }}> · 🅰️ {e.assist}</span>}</>}
+              {e.type === "goal" && <><span>⚽</span><span style={{ fontWeight: 600, color: C.white }}>{goalLabel(e.player, e.assist)}</span></>}
               {e.type === "owngoal" && <><span>🔴</span><span style={{ color: C.red }}>{e.player} (자책)</span></>}
               {e.type === "opponentGoal" && <><span>⚽</span><span style={{ color: C.red }}>상대골</span>{e.currentGk && <span style={{ color: C.gray }}> GK:{e.currentGk}</span>}</>}
               {e.type === "opponentOwnGoal" && <><span>🔴</span><span style={{ color: C.green }}>상대 자책골 (+1)</span></>}

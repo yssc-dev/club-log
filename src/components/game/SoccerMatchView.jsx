@@ -1,4 +1,5 @@
 import { useState, useEffect } from 'react';
+import { goalLabel } from '../../utils/soccerGoalEvent';
 import { useTheme } from '../../hooks/useTheme';
 import { calcSoccerScore, getCleanSheetPlayers, getSoccerPlayedPlayers, getNonPlayers, soccerResultLabel } from '../../utils/soccerScoring';
 import { generateEventId } from '../../utils/idGenerator';
@@ -321,7 +322,7 @@ export default function SoccerMatchView({
             )}
             {[...(node.events || [])].filter(e => e.type !== "gkChange").sort((a, b) => a.timestamp - b.timestamp).map(e => (
               <div key={e.id} style={{ padding: "5px 10px", background: C.cardLight, borderRadius: 6, marginBottom: 3, fontSize: 11, color: C.white }}>
-                {e.type === "goal" && `⚽ ${e.player}${e.assist ? ` · 🅰️ ${e.assist}` : ""}`}
+                {e.type === "goal" && `⚽ ${goalLabel(e.player, e.assist)}`}
                 {e.type === "owngoal" && `🔴 ${e.player} (자책골)`}
                 {e.type === "opponentGoal" && `⚽ 상대골 (GK: ${e.currentGk || ""})`}
                 {e.type === "opponentOwnGoal" && `🔴 상대 자책골`}
