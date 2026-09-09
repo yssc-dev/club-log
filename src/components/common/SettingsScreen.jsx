@@ -10,6 +10,7 @@ import FirebaseSync from '../../services/firebaseSync';
 import SheetCache from '../../services/sheetCache';
 import { buildRoundRowsFromFutsal, buildRoundRowsFromSoccer } from '../../utils/matchRowBuilder';
 import { recoverFinalizedStateFromSheets } from '../../utils/recoverFinalizedFromSheets';
+import { refreshDatasets } from '../../utils/refreshAfterFinalize';
 import { formatSyncStatus, DATASET_LABELS } from './syncStatusText';
 
 export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmin, onBack }) {
@@ -41,7 +42,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
   useEffect(() => {
     if (SheetCache.datasetsOf(sport).length === 0) return;
     let cancelled = false;
-    SheetCache.status()
+    SheetCache.status({ sport })
       .then(s => { if (!cancelled) setSyncStatus(s); })
       .catch(() => { if (!cancelled) setSyncStatus([]); });
     return () => { cancelled = true; };
@@ -149,6 +150,8 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
         const res = await AppSync.writeMatchLog(allRows.slice(i, i + BATCH));
         total += (res && res.count) || 0;
       }
+      // 배치 루프가 전부 끝난 뒤 1회만 — 루프 안에서 부르면 배치마다 전량 재조회가 돈다.
+      await refreshDatasets(['matchLog'], { sport });
       setFbMigrateResult({ ok: true, dates: datesTouched.size, rows: total });
     } catch (err) {
       setFbMigrateResult({ ok: false, error: String(err?.message || err) });
@@ -197,7 +200,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
     setSyncing(true);
     setSyncResult(null);
     try {
-      const r = await SheetCache.refreshAll();
+      const r = await SheetCache.refreshAll({ sport });
       const total = r.reduce((s, x) => s + x.count, 0);
       const failedNames = r.filter(x => !x.ok).map(x => DATASET_LABELS[x.dataset] || x.dataset);
       setSyncResult(
@@ -205,7 +208,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
           ? { ok: true, total }
           : { ok: false, error: `${failedNames.join(', ')} 갱신 실패 — 잠시 후 다시 시도해 주세요` }
       );
-      setSyncStatus(await SheetCache.status());
+      setSyncStatus(await SheetCache.status({ sport }));
     } catch (e) {
       // SheetCache.refreshAll 은 실패를 내부에서 삼키고 절대 throw 하지 않는다
       // (개별 실패는 위 failedNames 로 반영된다). 이 catch 는 status() 재조회처럼

@@ -1,12 +1,12 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useTheme } from '../../../hooks/useTheme';
-import AppSync from '../../../services/appSync';
-import { getSettings, getEffectiveSettings, saveSettings, loadSettingsFromFirebase } from '../../../config/settings';
+import SheetCache from '../../../services/sheetCache';
+import { getEffectiveSettings, saveSettings, loadSettingsFromFirebase } from '../../../config/settings';
 
 const RED = "#ef4444";
 const GREEN = "#22c55e";
 
-export default function DualTeamTab({ teamName, isAdmin }) {
+export default function DualTeamTab({ teamName, isAdmin, activeSport }) {
   const { C } = useTheme();
   const [loading, setLoading] = useState(true);
   const [playerLog, setPlayerLog] = useState(null);
@@ -16,16 +16,15 @@ export default function DualTeamTab({ teamName, isAdmin }) {
   const [detailPlayer, setDetailPlayer] = useState(null);
 
   useEffect(() => {
-    const s = getSettings(teamName);
     setLoading(true);
     Promise.all([
-      AppSync.getPlayerLog(s.playerLogSheet).catch(() => []),
+      SheetCache.get('playerLog', { sport: activeSport }).catch(() => []),
       loadSettingsFromFirebase(teamName).then(() => getEffectiveSettings(teamName, "풋살")),
     ]).then(([plog, es]) => {
       setPlayerLog(plog || []);
       setDualSettings(es);
     }).finally(() => setLoading(false));
-  }, [teamName]);
+  }, [teamName, activeSport]);
 
   const computed = useMemo(() => {
     if (!playerLog || !dualSettings) return null;

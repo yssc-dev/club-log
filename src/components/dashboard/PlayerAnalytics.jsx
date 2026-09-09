@@ -1,6 +1,6 @@
 import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../hooks/useTheme';
-import AppSync from '../../services/appSync';
+import SheetCache from '../../services/sheetCache';
 import { fetchSheetData } from '../../services/sheetService';
 import { getEffectiveSettings } from '../../config/settings';
 
@@ -37,14 +37,14 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
     setLoading(true);
     Promise.all([
       fetchSheetData().catch(() => null),
-      AppSync.getMatchLog({ sport }).catch(() => ({ rows: [] })),
-      AppSync.getEventLog({ sport }).catch(() => ({ rows: [] })),
-      AppSync.getPlayerGameLog({ sport }).catch(() => ({ rows: [] })),
-    ]).then(([sheetData, matchRes, eventRes, pgRes]) => {
+      SheetCache.get('matchLog', { sport }).catch(() => []),
+      SheetCache.get('eventLog', { sport }).catch(() => []),
+      SheetCache.get('playerGameLog', { sport }).catch(() => []),
+    ]).then(([sheetData, matchRows, eventRows, pgRows]) => {
       if (sheetData) setMembers(sheetData.players);
-      setMatchLogs(matchRes?.rows || []);
-      setEventLogs(eventRes?.rows || []);
-      setPlayerGameLogs(pgRes?.rows || []);
+      setMatchLogs(matchRows || []);
+      setEventLogs(eventRows || []);
+      setPlayerGameLogs(pgRows || []);
       setLoadedSport(sport);
     }).finally(() => setLoading(false));
   }, [teamName, isSoccer]);

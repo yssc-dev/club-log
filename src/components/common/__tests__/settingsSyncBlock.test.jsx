@@ -37,3 +37,36 @@ describe('formatSyncStatus', () => {
     expect(s).not.toContain('레거시');
   });
 });
+
+describe('풋살·축구 데이터셋 라벨', () => {
+  const NOW4 = Date.parse('2026-09-09T10:00:00+09:00');
+  it('7종 모두 한글 이름으로 표시된다', () => {
+    const entries = [
+      ['matchLog', 3], ['eventLog', 5], ['playerGameLog', 7], ['pointLog', 11],
+      ['playerLog', 13], ['latestDeltas', 17], ['cumulativeBonus', 19],
+    ].map(([dataset, count]) => ({ dataset, version: NOW4 - 60_000, count }));
+    const s = formatSyncStatus(entries, NOW4);
+    for (const label of ['매치', '이벤트', '선수경기', '포인트로그', '선수집계', '최근증감', '누적보너스']) {
+      expect(s).toContain(label);
+    }
+    expect(s).not.toContain('matchLog');
+  });
+});
+
+describe('raw 데이터셋은 count 가 null 이라 행수를 생략한다', () => {
+  const NOW5 = Date.parse('2026-09-09T10:00:00+09:00');
+  it("count 가 숫자가 아니면 '0행'을 표시하지 않고 라벨만 보여준다", () => {
+    const s = formatSyncStatus([
+      { dataset: 'matchLog', version: NOW5 - 60_000, count: 554 },
+      { dataset: 'eventLog', version: NOW5 - 60_000, count: 1279 },
+      { dataset: 'latestDeltas', version: NOW5 - 60_000, count: null },
+      { dataset: 'cumulativeBonus', version: NOW5 - 60_000, count: null },
+    ], NOW5);
+    expect(s).toContain('매치 554행');
+    expect(s).toContain('이벤트 1,279행');
+    expect(s).toContain('최근증감');
+    expect(s).toContain('누적보너스');
+    expect(s).not.toContain('최근증감 0행');
+    expect(s).not.toContain('누적보너스 0행');
+  });
+});

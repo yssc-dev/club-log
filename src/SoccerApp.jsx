@@ -26,6 +26,7 @@ import {
 } from './utils/soccerScoring';
 import { buildRawEventsFromSoccer, buildRawPlayerGamesFromSoccer } from './utils/rawLogBuilders';
 import { buildRoundRowsFromSoccer } from './utils/matchRowBuilder';
+import { refreshAfterFinalize } from './utils/refreshAfterFinalize';
 import { gameDateFromId } from './utils/gameDate';
 
 export default function SoccerApp({ authUser, teamContext, isNewGame, gameMode, gameId, onLogout, onBackToMenu }) {
@@ -299,6 +300,14 @@ export default function SoccerApp({ authUser, teamContext, isNewGame, gameMode, 
       await FirebaseSync.syncDiff(teamContext?.team || '', gameId || "legacy", lastSyncedStateRef.current, finalState);
       lastSyncedStateRef.current = finalState;
       set('gameFinalized', allOk);
+      // 캐시 재적재는 마감 기록(saveFinalized + syncDiff + set)이 끝난 뒤에 돈다 — 파생
+      // 데이터를 critical path 에 두면 이 구간(Apps Script 최대 6회, 콜드스타트 각 10초)에서
+      // 앱이 닫힐 때 gameFinalized 가 유실돼 유저가 재전송하고 5개 시트에 중복 행이 생긴다
+      // (자동 멱등화가 없어 수동 삭제가 필요하다).
+      // allOk 가 아니어도 돈다 — legacyOk 를 통과한 이상 포인트로그·선수별집계에는 이미
+      // 행이 들어갔고, refresh 는 시트(진실 소스)를 다시 읽으므로 어떤 상태든 정확히 반영한다.
+      // 여기서 돌지 않으면 그 두 시트의 캐시가 최대 12시간(L2 TTL) 낡은 채 남는다.
+      await refreshAfterFinalize({ sport: '축구' });
       const r1v = r1.value, r2v = r2.value;
       const ct = (r, unit) => r.status === 'fulfilled' ? `${r.value?.count || 0}${unit}${r.value?.skipped ? ` (skip ${r.value.skipped})` : ''}` : '❌ 실패';
       const detail = `포인트로그: ${r1v?.count || 0}건\n선수별집계: ${r2v?.count || 0}명\n로그_이벤트: ${ct(r3, '건')}\n로그_선수경기: ${ct(r4, '명')}\n로그_매치: ${ct(r5, '건')}`;

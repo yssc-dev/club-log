@@ -8,7 +8,7 @@
 // 대시보드는 로그_선수경기를 읽지 않으므로 이 컴포넌트가 자기 fetch를 소유한다(지연 로드) —
 // DefenseTopCards와 같은 규약. 로그_매치는 필요 없어 네트워크는 1회만 는다.
 import { useEffect, useMemo, useState } from 'react';
-import AppSync from '../../../services/appSync';
+import SheetCache from '../../../services/sheetCache';
 import { calcRecentHotStreak as calcFutsal } from '../../../utils/analyticsV2';
 import { calcRecentHotStreak as calcSoccer } from '../../../utils/soccerAnalytics';
 
@@ -142,8 +142,8 @@ export default function RecentFormTop3({ activeSport, members, C, ds }) {
 
   useEffect(() => {
     let alive = true;
-    AppSync.getPlayerGameLog({ sport: activeSport })
-      .then(res => { if (alive) setLoaded({ sport: activeSport, rows: res?.rows || [] }); })
+    SheetCache.get('playerGameLog', { sport: activeSport })
+      .then(rows => { if (alive) setLoaded({ sport: activeSport, rows: rows || [] }); })
       .catch(() => { if (alive) setLoaded({ sport: activeSport, rows: [] }); });
     return () => { alive = false; };
   }, [activeSport]);

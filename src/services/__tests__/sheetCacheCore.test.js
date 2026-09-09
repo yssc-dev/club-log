@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   encodeRows, decodeRows, readCacheNode, shouldStore,
+  encodeRaw, shouldStoreValue, MISS_MODE, MISS_SHEET,
   MISS_NO_NODE, MISS_NO_VERSION, MISS_SCHEMA, MISS_EXPIRED,
 } from '../sheetCacheCore';
 
@@ -55,7 +56,7 @@ describe('readCacheNode', () => {
   const fresh = { version: NOW - 1000, headers: COLS, rows: [['2026-09-01', '박성언', 3]], count: 1 };
 
   it('신선한 노드는 히트', () => {
-    const r = readCacheNode(fresh, COLS, TTL, NOW);
+    const r = readCacheNode(fresh, { columns: COLS }, TTL, NOW);
     expect(r.ok).toBe(true);
     expect(r.rows).toEqual([{ date: '2026-09-01', player: '박성언', games: 3 }]);
   });
@@ -63,48 +64,59 @@ describe('readCacheNode', () => {
   // RTDB 가 빈 배열을 저장하지 않아 rows 키가 사라진 노드.
   // rows 로 히트를 판정하면 "진짜 0행"을 영원히 미스로 오판한다.
   it('rows 가 없어도 version 이 있으면 히트(빈배열 함정)', () => {
-    const r = readCacheNode({ version: NOW - 1000, headers: COLS, count: 0 }, COLS, TTL, NOW);
+    const r = readCacheNode({ version: NOW - 1000, headers: COLS, count: 0 }, { columns: COLS }, TTL, NOW);
     expect(r.ok).toBe(true);
     expect(r.rows).toEqual([]);
   });
 
   it('노드가 없으면 미스', () => {
-    expect(readCacheNode(null, COLS, TTL, NOW)).toEqual({ ok: false, reason: MISS_NO_NODE });
+    expect(readCacheNode(null, { columns: COLS }, TTL, NOW)).toEqual({ ok: false, reason: MISS_NO_NODE });
   });
 
   it('version 이 없으면 미스', () => {
-    expect(readCacheNode({ headers: COLS, rows: [] }, COLS, TTL, NOW))
+    expect(readCacheNode({ headers: COLS, rows: [] }, { columns: COLS }, TTL, NOW))
       .toEqual({ ok: false, reason: MISS_NO_VERSION });
+  });
+
+  // typeof NaN === 'number' 라 typeof 검사만으로는 통과해버린다. 그러면 아래 TTL 비교
+  // (now - NaN > ttlMs)가 항상 false 가 되어 12시간 백스톱이 통째로 무력화되고,
+  // 그 노드가 영구히 히트가 된다. 현 쓰기 경로로는 NaN 이 들어갈 수 없지만(RTDB 는
+  // NaN 을 거부한다) 가드 비용이 0 이므로 막아 둔다.
+  it('version 이 NaN/Infinity 면 미스 — TTL 백스톱이 무력화되지 않게', () => {
+    expect(readCacheNode({ ...fresh, version: NaN }, { columns: COLS }, TTL, NOW).reason)
+      .toBe(MISS_NO_VERSION);
+    expect(readCacheNode({ ...fresh, version: Infinity }, { columns: COLS }, TTL, NOW).reason)
+      .toBe(MISS_NO_VERSION);
   });
 
   it('헤더가 다르면 미스 — 컬럼 추가', () => {
     const node = { ...fresh, headers: ['date', 'player'] };
-    expect(readCacheNode(node, COLS, TTL, NOW).reason).toBe(MISS_SCHEMA);
+    expect(readCacheNode(node, { columns: COLS }, TTL, NOW).reason).toBe(MISS_SCHEMA);
   });
 
   it('헤더가 다르면 미스 — 순서 변경', () => {
     const node = { ...fresh, headers: ['player', 'date', 'games'] };
-    expect(readCacheNode(node, COLS, TTL, NOW).reason).toBe(MISS_SCHEMA);
+    expect(readCacheNode(node, { columns: COLS }, TTL, NOW).reason).toBe(MISS_SCHEMA);
   });
 
   it('TTL 을 넘으면 미스', () => {
     const node = { ...fresh, version: NOW - TTL - 1 };
-    expect(readCacheNode(node, COLS, TTL, NOW).reason).toBe(MISS_EXPIRED);
+    expect(readCacheNode(node, { columns: COLS }, TTL, NOW).reason).toBe(MISS_EXPIRED);
   });
 
   it('TTL 경계(정확히 TTL)는 히트', () => {
     const node = { ...fresh, version: NOW - TTL };
-    expect(readCacheNode(node, COLS, TTL, NOW).ok).toBe(true);
+    expect(readCacheNode(node, { columns: COLS }, TTL, NOW).ok).toBe(true);
   });
 
   // 기기 시계가 뒤처지면 age 가 음수가 된다 — 만료로 오판하지 않는다.
   it('version 이 미래여도 히트(클럭 스큐)', () => {
     const node = { ...fresh, version: NOW + 3_600_000 };
-    expect(readCacheNode(node, COLS, TTL, NOW).ok).toBe(true);
+    expect(readCacheNode(node, { columns: COLS }, TTL, NOW).ok).toBe(true);
   });
 
   it('version 을 0 으로 강등한 노드는 미스', () => {
-    expect(readCacheNode({ ...fresh, version: 0 }, COLS, TTL, NOW).reason).toBe(MISS_EXPIRED);
+    expect(readCacheNode({ ...fresh, version: 0 }, { columns: COLS }, TTL, NOW).reason).toBe(MISS_EXPIRED);
   });
 });
 
@@ -117,5 +129,87 @@ describe('shouldStore', () => {
   });
   it('1행 이상이면 저장한다', () => {
     expect(shouldStore([{ a: 1 }])).toBe(true);
+  });
+});
+
+describe('raw 모드', () => {
+  const NOW2 = 1_757_000_000_000;
+  const TTL2 = 30 * 60 * 1000;
+  const MAP = { 박성언: { goals: 2, assists: 1 }, 김원희: { goals: 0, assists: 3 } };
+
+  it('encodeRaw 는 값을 data 에 그대로 담는다', () => {
+    expect(encodeRaw(MAP)).toEqual({ data: MAP });
+  });
+
+  it('raw 노드를 읽으면 저장한 맵이 그대로 나온다', () => {
+    const node = { version: NOW2 - 1000, ...encodeRaw(MAP) };
+    const r = readCacheNode(node, { mode: 'raw' }, TTL2, NOW2);
+    expect(r.ok).toBe(true);
+    expect(r.rows).toEqual(MAP);
+  });
+
+  // rows 모드로 저장된 노드를 raw 로 읽으면(또는 그 반대) 형태가 어긋난다.
+  // 모드 전환 배포 직후 낡은 노드가 그대로 살아있는 상황을 막는다.
+  it('모드가 다른 노드는 미스', () => {
+    const rowsNode = { version: NOW2 - 1000, headers: ['a'], rows: [['x']], count: 1 };
+    expect(readCacheNode(rowsNode, { mode: 'raw' }, TTL2, NOW2).reason).toBe(MISS_MODE);
+    const rawNode = { version: NOW2 - 1000, data: MAP };
+    expect(readCacheNode(rawNode, { mode: 'rows', columns: ['a'] }, TTL2, NOW2).reason).toBe(MISS_MODE);
+  });
+
+  it('raw 도 version 이 없으면 미스', () => {
+    expect(readCacheNode({ data: MAP }, { mode: 'raw' }, TTL2, NOW2).reason).toBe(MISS_NO_VERSION);
+  });
+
+  it('raw 도 TTL 을 넘기면 미스', () => {
+    const node = { version: NOW2 - TTL2 - 1, data: MAP };
+    expect(readCacheNode(node, { mode: 'raw' }, TTL2, NOW2).reason).toBe(MISS_EXPIRED);
+  });
+});
+
+describe('sheetName 드리프트 가드', () => {
+  const NOW3 = 1_757_000_000_000;
+  const TTL3 = 30 * 60 * 1000;
+  const COLS3 = ['date', 'name'];
+  const node = (sheetName) => ({
+    version: NOW3 - 1000, sheetName, headers: COLS3, rows: [['2026-09-01', '박성언']], count: 1,
+  });
+
+  it('시트명이 같으면 히트', () => {
+    const r = readCacheNode(node('마스터FC 포인트 로그'), { columns: COLS3, sheetName: '마스터FC 포인트 로그' }, TTL3, NOW3);
+    expect(r.ok).toBe(true);
+  });
+
+  // 캐시 키는 팀+종목이라 설정에서 시트명을 바꿔도 같은 노드를 가리킨다.
+  it('시트명이 다르면 미스', () => {
+    const r = readCacheNode(node('옛 시트'), { columns: COLS3, sheetName: '새 시트' }, TTL3, NOW3);
+    expect(r.reason).toBe(MISS_SHEET);
+  });
+
+  it('시트명을 요구하지 않는 데이터셋은 가드를 적용하지 않는다', () => {
+    const bare = { version: NOW3 - 1000, headers: COLS3, rows: [['2026-09-01', '박성언']], count: 1 };
+    expect(readCacheNode(bare, { columns: COLS3 }, TTL3, NOW3).ok).toBe(true);
+  });
+
+  it('시트명을 요구하는데 노드에 없으면 미스', () => {
+    const bare = { version: NOW3 - 1000, headers: COLS3, rows: [['2026-09-01', '박성언']], count: 1 };
+    expect(readCacheNode(bare, { columns: COLS3, sheetName: '어떤 시트' }, TTL3, NOW3).reason).toBe(MISS_SHEET);
+  });
+});
+
+describe('shouldStoreValue', () => {
+  it('rows 모드는 빈 배열을 거부한다', () => {
+    expect(shouldStoreValue([], 'rows')).toBe(false);
+    expect(shouldStoreValue([{ a: 1 }], 'rows')).toBe(true);
+  });
+  it('raw 모드는 빈 맵/빈 배열/null 을 거부한다', () => {
+    expect(shouldStoreValue({}, 'raw')).toBe(false);
+    expect(shouldStoreValue([], 'raw')).toBe(false);
+    expect(shouldStoreValue(null, 'raw')).toBe(false);
+    expect(shouldStoreValue(undefined, 'raw')).toBe(false);
+  });
+  it('raw 모드는 내용이 있으면 저장한다', () => {
+    expect(shouldStoreValue({ 박성언: { goals: 1 } }, 'raw')).toBe(true);
+    expect(shouldStoreValue({ crova: {}, goguma: { 박성언: 1 } }, 'raw')).toBe(true);
   });
 });
