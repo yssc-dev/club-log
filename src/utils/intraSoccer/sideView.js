@@ -39,6 +39,8 @@ export function sideView(m, side) {
     if (e.type === 'owngoal') return [{ type: 'opponentOwnGoal', id: e.id, timestamp: e.timestamp, mirrorOf: e.id }];
     return []; // 상대 편 교체·GK변경·카드는 내 시점에 없다
   });
-  const { sideA, sideB, ...rest } = m; // eslint-disable-line no-unused-vars
+  // ourScore/opponentScore 는 저장 시점의 A 시점 점수라 B 뷰에서 뒤집혀 있다 — 뷰로 통과시키지 않는다.
+  // 점수는 언제나 calcSoccerScore(v.events) 로 계산한다(스펙 §4).
+  const { sideA, sideB, ourScore, opponentScore, ...rest } = m; // eslint-disable-line no-unused-vars
   return { ...rest, ...me, opponent: other.name, events };
 }

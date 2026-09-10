@@ -437,6 +437,12 @@ export default function IntraSoccerMatchView({
                 {fieldsOfA(currentMatch).name} {scoreA.ourScore} : {scoreA.opponentScore} {fieldsOfB(currentMatch).name}
               </div>
             )}
+            {/* 위 헤더는 항상 A:B, 아래 레코더의 점수판은 '현재 편 : 상대 편' — 모순으로 읽히지 않게 기준을 명시한다 */}
+            {intra && (
+              <div style={{ textAlign: "center", fontSize: 11, color: C.gray, marginBottom: 6 }}>
+                아래는 {side === "A" ? fieldsOfA(currentMatch).name : fieldsOfB(currentMatch).name} 시점 점수판
+              </div>
+            )}
             <FormationRecorder
               key={`${currentMatch.matchIdx}:${side}`}
               formation={live.formation} assignments={live.assignments} positionMap={live.positionMap}
@@ -497,9 +503,18 @@ export default function IntraSoccerMatchView({
                 <FormationPitch positions={form.positions} assignments={fm.assignments} size={300} />
                 {played.length > 0 && (
                   <div style={{ marginTop: 10, fontSize: 11, color: C.grayLight, textAlign: "center", lineHeight: 1.6 }}>
-                    <span style={{ fontWeight: 700, color: C.white }}>출전 ({played.length}):</span> {played.join(", ")}
+                    {/* 자체전은 이 패널 전체가 A 시점이라 출전 줄도 A 편 — 편 이름을 붙여 B 줄과 구분한다 */}
+                    <span style={{ fontWeight: 700, color: C.white }}>{nodeIntra ? `${fieldsOfA(node).name} ` : ""}출전 ({played.length}):</span> {played.join(", ")}
                   </div>
                 )}
+                {nodeIntra && (() => {
+                  const playedB = getSoccerPlayedPlayers(sideView(node, 'B'));
+                  return playedB.length > 0 && (
+                    <div style={{ marginTop: 4, fontSize: 11, color: C.grayLight, textAlign: "center", lineHeight: 1.6 }}>
+                      <span style={{ fontWeight: 700, color: C.white }}>{fieldsOfB(node).name} 출전 ({playedB.length}):</span> {playedB.join(", ")}
+                    </div>
+                  );
+                })()}
                 {benchNeverPlayed.length > 0 && (
                   <div style={{ marginTop: 4, fontSize: 11, color: C.gray, textAlign: "center" }}>
                     <span style={{ fontWeight: 600 }}>미출전:</span> {benchNeverPlayed.join(", ")}

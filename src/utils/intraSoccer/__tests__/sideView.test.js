@@ -3,6 +3,7 @@ import { isIntra, fieldsOfA, fieldsOfB, sideView } from '../sideView';
 
 const intra = {
   matchIdx: 0, status: 'playing', startedAt: 1000, opponent: '파랑',
+  ourScore: 1, opponentScore: 2,   // 저장된 A 시점 점수 — 뷰로 새어나오면 안 된다(F-M3)
   lineup: ['a1', 'a2'], gk: 'a1', defenders: ['a2'], formation: '4-4-2',
   assignments: { 0: 'a1', 1: 'a2' }, positionMap: { a1: 'GK', a2: 'DF' }, subs: ['a3'],
   sideA: { name: '주황' },
@@ -43,6 +44,11 @@ describe('sideView — 자체전', () => {
     expect(v.opponent).toBe('파랑');
     expect(v.sideA).toBeUndefined();
     expect(v.sideB).toBeUndefined();
+    // 저장 점수는 뷰에 없다 — 점수는 calcSoccerScore(v.events) 로만 구한다(스펙 §4)
+    expect(v.ourScore).toBeUndefined();
+    expect(v.opponentScore).toBeUndefined();
+    expect(sideView(intra, 'B').ourScore).toBeUndefined();
+    expect(sideView(intra, 'B').opponentScore).toBeUndefined();
     expect(v.events.map(e => [e.id, e.type])).toEqual([
       ['e1', 'goal'], ['e2', 'opponentGoal'], ['e3', 'opponentOwnGoal'], ['e5', 'redCard'], ['e6', 'goal'],
     ]);

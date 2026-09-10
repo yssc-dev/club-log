@@ -16,6 +16,7 @@
   - P1의 "우리팀 vs 우리팀이면 동작은 동일" 통찰은 **뷰 층**에서 채택(§5). 저장은 한 번, 표시·빌더 입력은 편 기준으로 변환.
 - 리뷰로 바로잡은 사실: (a) 로그_이벤트에 편 구분 열이 이미 있다(`our_team`/`opponent`, 풋살이 세션 팀명을 씀) → 스키마 변경 불필요. (b) 회전 라벨('A팀'/'B팀')의 상대 버킷 노이즈는 양 모델 공통 → `mode='자체전'` 분기로 해결. (c) 리듀서 액션은 전부 명시적 `matchIdx`라 "현재 경기" 동기화 문제는 설계로 회피.
 - 스펙 리뷰(5렌즈)에서 반영한 것: 상대골 버튼 처리(§6.4), 포인트 로그 이중 계산(§7 — 자체전은 포인트 로그 미기록), `match_id` +1 오프셋(§7), B편 교체 삭제 되돌리기(§6.5), B편 라인업 정정(§6.6), sideA 이름 저장(§4.1), 완료 패널·결과표의 점수(§6.7), 교체 후보 집합(§6.3), 빈 배열 복구 시점(§5), `calcOpponentBreakdown` 이벤트 폴백(§8), 수비 분석 B편 집계 구조(§8).
+- 최종 리뷰 C1 — Apps Script 로그_선수경기 dedupe 키(`team|sport|mode|tournament_id|date|player`)로 인해 경기×편 행은 불가 → 날짜 집계로 변경(§7).
 
 ## 2. 확정된 요구사항
 
@@ -41,18 +42,18 @@
 - RTDB `settings/빅마스터FC/축구`는 `loadSettingsFromFirebase`가 회원인증 종목을 보고 자동 생성(settings.js:195).
 
 ### 3.2 진입 분기
-`src/Root.jsx` 변경: import 2줄(`getEffectiveSettings`, `IntraSoccerApp`) + GameApp 선택 분기.
+`src/Root.jsx` 변경: import 2줄(`isIntraSquadTeam`, `IntraSoccerApp`) + GameApp 선택 분기.
 ```js
-import { loadSettingsFromFirebase, getEffectiveSettings } from './config/settings';
 import IntraSoccerApp from './IntraSoccerApp';
+import { isIntraSquadTeam } from './utils/intraSoccer/isIntraSquadTeam';
 // ...
-const isIntra = teamContext?.mode === "축구" && getEffectiveSettings(teamContext.team, "축구").intraSquad === true;
+const isIntra = isIntraSquadTeam(teamContext?.team, teamContext?.mode);
 const GameApp = isIntra ? IntraSoccerApp
   : teamContext?.mode === "축구" ? SoccerApp
   : teamContext?.mode === "테니스" ? TennisApp
   : App;
 ```
-하버FC는 `intraSquad`가 undefined → 기존 식과 동일. 대시보드·설정 화면·pending 필터(`Root.jsx:83`, `matchMode==='soccer'`→'축구')는 무변경. 롤백 = 이 분기 제거.
+게이트 규칙의 단일 소스는 `src/utils/intraSoccer/isIntraSquadTeam.js`: 저장된 설정(`getEffectiveSettings`)의 `intraSquad`가 true면 true, 없으면 팀 기본 프리셋(`getPresetValue('축구', resolvePreset(team,'축구'), 'intraSquad')`)으로 폴백한다. 저장 설정만 보면 **RTDB 로드 실패·첫 접속(설정 노드 미생성)에서 빅마스터FC가 하버FC 모드로 열린다** — `PRESET_MAP`은 `loadSettingsFromFirebase` 안에서만 적용되고 그 catch 경로는 preset을 쓰지 않는다(settings.js:225-227). 하버FC는 두 경로 모두 undefined → 기존 식과 동일. 대시보드·설정 화면·pending 필터(`Root.jsx:83`, `matchMode==='soccer'`→'축구')는 무변경. 롤백 = 이 분기 제거.
 
 ### 3.3 시트 (Apps Script 변경 없음)
 
@@ -150,7 +151,7 @@ export function sideView(m, side /* 'A'|'B' */) {
     if (e.type === 'owngoal') return [{ type: 'opponentOwnGoal', id: e.id, timestamp: e.timestamp, mirrorOf: e.id }];
     return [];                                                                    // 상대 편 교체·GK변경·카드는 내 시점에 없음
   });
-  const { sideA, sideB, ...rest } = m;
+  const { sideA, sideB, ourScore, opponentScore, ...rest } = m;   // 저장 점수는 뷰로 통과시키지 않는다(§4 — B 뷰에서 뒤집혀 있다)
   return { ...rest, ...me, opponent: other.name, events };
 }
 ```
@@ -230,8 +231,8 @@ const onDeleteEvent = (id) => {
 |---|---|---|
 | **로그_매치** | **1행** | `rowA = buildRoundRowsFromSoccer({team, mode:'자체전', tournamentId:'', date: dateStr, stateJSON:{soccerMatches:[{...vA, matchIdx: vA.matchIdx+1}]}, inputTime})[0]`, `rowB` 동일(vB). 결과 `= { ...rowA, game_id: sessionGameId, our_team_name: vA.name, opponent_team_name: vB.name, opponent_members_json: JSON.stringify({ players: JSON.parse(rowB.our_members_json), formation: vB.formation || '', defenders: vB.defenders }), opponent_gk: vB.gk }`. `our_score/opponent_score`는 rowA가 events로 도출(A:B 방향). `match_id`·`match_idx`는 양 뷰가 같은 `matchIdx`라 동일 |
 | **로그_이벤트** | 출전 22 + 골/자책/교체 + 상대 시점 실점 행 | `evA = buildEventLogRows([vA], dateStr)`, `evB = buildEventLogRows([vB], dateStr)` → `buildRawEventsFromSoccer({team, mode:'자체전', gameId: sessionGameId, events: evA}).map(r => ({...r, our_team: vA.name}))` + B 동일. A의 골 = `goal`행(`our_team=A, opponent=B`) + B 시점 `concede`행(`our_team=B, concede_gk=B GK`) — 풋살이 `our_team`/`opponent`에 세션 팀명을 쓰는 용법과 동일 |
-| **로그_선수경기** | 선수당 1행(22행) | `plA = buildPlayerLogRows([vA], dateStr, inputTime)`, `plB` 동일 → `buildRawPlayerGamesFromSoccer({team, inputTime, players: plA}).map(r => ({...r, mode:'자체전', session_team: vA.name}))` + B 동일. 각 선수는 한 편에만 → 중복 없음. 클린시트·실점·키퍼경기는 시점 뷰 덕에 `calcSoccerPlayerStats`가 편별로 올바르게 계산 |
-| **선수별집계** | 선수당 1행 | `plA.concat(plB)` → `AppSync.writeSoccerPlayerLog` |
+| **로그_선수경기** | **선수당 1행(날짜 기준 집계)**, `session_team='자체전'` | `intraViews = 자체전 경기.flatMap(m => [vA, vB])` → `buildRawPlayerGamesFromSoccer({team, inputTime, players: buildPlayerLogRows(intraViews, dateStr, inputTime)}).map(r => ({...r, mode:'자체전', session_team:'자체전'}))`. 외부전 집계(`mode='기본'`, `session_team=team`)와 concat. **경기×편 1행은 불가** — Apps Script `_rawPlayerGameKey`(Code.js:1751)가 `team\|sport\|mode\|tournament_id\|date\|player`만 보므로 같은 날 2번째 경기 행이 조용히 버려진다(Code.js:1717-1721). `session_team`이 상수인 이유: 한 선수가 1경기 A·2경기 B를 뛸 수 있다. **편 소속은 로그_매치 `our_members_json`/`opponent_members_json`으로 복원**하며 분석 코드는 `session_team`을 읽지 않는다. 클린시트·실점·키퍼경기는 시점 뷰 덕에 `calcSoccerPlayerStats`가 편별로 올바르게 계산되고 이름 키로 경기 간 합산된다 |
+| **선수별집계** | **선수당 1행** — 외부전 + 자체전 양편 뷰 전체를 한 번에 집계 | `buildPlayerLogRows([...external, ...intraViews], dateStr, inputTime)` → `AppSync.writeSoccerPlayerLog`. 한 선수는 한 경기에서 한 편에만 있으므로 games/goals 등이 경기 간 정확히 합산된다 |
 | **포인트 로그** | **0행** | 자체전은 기록하지 않는다. 유일한 소비자 `TeamDashboard.jsx:89-130`이 `matchId`별 득점/실점 행으로 **팀 전적·상대팀별 전적**을 계산하는데, 양팀 행을 넣으면 A 2골·B 1골이 3:3으로 합산되고(이중 계산), A 시점만 넣으면 "vs B팀 전적"이 생긴다. 두 지표는 자체전에서 무의미하므로 외부전 행만 남겨 **팀 전적 = 외부전 전적**이 되게 한다. 골/어시 데이터는 로그_이벤트·선수별집계에 모두 있다 |
 
 - 외부전 경기는 `sideView`가 입력을 그대로 돌려주고 빌더 인자·후처리가 하버FC와 같다(포인트 로그 포함) → 출력 deep-equal 테스트. 외부전 `mode='기본'`.
@@ -276,14 +277,15 @@ const onDeleteEvent = (id) => {
 ## 10. 테스트 계획
 
 신규(전부 순수함수 또는 리듀서):
-- `sideView`: A/B 뷰의 필드·`opponent`·events 변환(골→`opponentGoal`+`concedeGk`, 자책→`opponentOwnGoal`, 상대 교체·카드 제거, 내 이벤트 보존, 미러 `id` 동일, `side` 누락=A), 빈 배열 복구, 외부전 입력 **참조 동일** 반환, `sideA/sideB` 키 제거.
+- `sideView`: A/B 뷰의 필드·`opponent`·events 변환(골→`opponentGoal`+`concedeGk`, 자책→`opponentOwnGoal`, 상대 교체·카드 제거, 내 이벤트 보존, 미러 `id` 동일, `side` 누락=A), 빈 배열 복구, 외부전 입력 **참조 동일** 반환, `sideA/sideB`·`ourScore/opponentScore` 키 제거.
 - `subPool`: 상대 피치·상대 퇴장자 제외, 내 편은 제외하지 않음.
-- `buildIntraRows`: 자체전 1경기 → 로그_매치 1행(양팀 명단·GK·점수 방향·객체형 B 명단 with formation/defenders·`mode`·`game_id`·`match_id`가 이벤트 행과 일치), 로그_이벤트(출전 22·골/실점 쌍·교체·`our_team` 편 이름), 로그_선수경기(22행·`session_team`·클린시트/실점 편별), 포인트 로그 0행. **외부전 경기 → 하버FC 빌더 출력과 deep-equal(포인트 로그 포함).**
+- `buildIntraRows`: 자체전 1경기 → 로그_매치 1행(양팀 명단·GK·점수 방향·객체형 B 명단 with formation/defenders·`mode`·`game_id`·`match_id`가 이벤트 행과 일치), 로그_이벤트(출전 22·골/실점 쌍·교체·`our_team` 편 이름), 로그_선수경기(출전 선수당 1행·`session_team='자체전'`·클린시트/실점 편별), 포인트 로그 0행. **같은 날 자체전 2경기(편 교체 포함) → 로그_선수경기·선수별집계 모두 선수당 1행, 경기수 합산, Apps Script dedupe 키 유일.** **혼합일(외부전+자체전) → `mode='기본'` 집계와 `mode='자체전'` 집계 두 갈래, 선수별집계는 한 번에 합산.** **외부전 경기 → 하버FC 빌더 출력과 deep-equal(포인트 로그 포함).** `mergeEventRowsByTimestamp` 길이 불일치 → throw.
 - `PATCH_SOCCER_SIDE`: A는 name만, B는 화이트리스트, 논리 matchIdx 매칭, 타 경기 무변경, `remapEvents`가 그 편 이벤트만 치환. `DELETE_SOCCER_EVENT`로 B 교체 삭제 시 A `assignments` 무변경(no-op).
 - 오케스트레이터 핸들러(순수 부분 추출): `onAddEvent`의 side/`concedeGk` 부착·자체전 `opponentGoal` 가로채기, `onDeleteEvent`의 B 되돌리기 patch, B `onCorrect`의 patch+remap.
 - 분석: `expandIntraMatchRows`(펼침·비자체전 통과), 자체전 행이 있을 때 B팀 rounds/wins/케미 집계, 수비 B편 집계, 상대 축 함수 skip(이벤트 폴백 포함). 하버FC 픽스처(기존 테스트 데이터)에 대한 출력 **변화 없음** 스냅샷.
-- 정적: IntraSoccerApp 계열 파일에 `ourScore`/`opponentScore` 직접 읽기 없음(grep 테스트).
-검증(수동, 배포 후): 빅마스터FC 자체전 테스트 경기 1회 마감 → 로그_매치 1행·선수경기 22행·이벤트 편 이름·포인트 로그 미기록 확인 → 테스트 행 삭제(유저). 하버FC 대시보드·개인분석 화면 변화 없음 확인.
+- 정적: IntraSoccerApp 계열 파일에 `ourScore`/`opponentScore` 직접 읽기 없음(grep 테스트 — 수신자 화이트리스트 `sc`/`scoreA`/`score`만 허용, 그 밖의 모든 수신자는 실패).
+- `isIntraSquadTeam`: 저장 설정 없이도 빅마스터FC 축구 true(프리셋 폴백), 하버FC false, 비축구 false, 팀 없음 false.
+검증(수동, 배포 후): 빅마스터FC 자체전 테스트 경기 1회 마감 → 로그_매치 1행·선수경기 출전 선수당 1행(`session_team='자체전'`)·이벤트 편 이름·포인트 로그 미기록 확인 → 테스트 행 삭제(유저). 하버FC 대시보드·개인분석 화면 변화 없음 확인.
 
 ## 11. 운영 준비(유저 작업)
 

@@ -8,7 +8,7 @@ import { isIntra, sideView } from '../../utils/intraSoccer/sideView';
 
 // 아카이브 상세의 축구(matchMode==="soccer") 게임 렌더 — 자체전(빅마스터FC) 지원판.
 // 팀 순위(상대별 전적) · 경기 결과(스코어) · 선수별 기록. 데이터는 gs.soccerMatches에서 파생.
-// 팀 순위(상대별 전적)는 외부전만 집계(자체전은 상대팀이 없어 의미 없음), 외부전이 하나도 없으면 섹션 자체를 숨긴다.
+// 팀 순위(상대별 전적)는 외부전만 집계(자체전은 상대팀이 없어 의미 없음), 전적이 될 외부전(휴식 제외)이 없으면 섹션 자체를 숨긴다.
 // 선수별 기록은 자체전 경기를 A/B 양편 시점(sideView)으로 펼쳐 넣어 양팀 선수 모두 집계한다.
 // HistoryView의 hs 스타일(th/td(highlight)/card)을 그대로 받아 futsal 상세와 톤을 맞춘다.
 export default function IntraSoccerArchiveDetail({ soccerMatches, es, styles: hs }) {
@@ -16,6 +16,8 @@ export default function IntraSoccerArchiveDetail({ soccerMatches, es, styles: hs
   const matches = soccerMatches || [];
   const finished = matches.filter(m => m.status === "finished");
   const externalOnly = matches.filter(m => !isIntra(m));          // 팀 전적·상대별 전적은 외부전만(자체전은 무의미)
+  // 휴식 노드는 외부전 모양이지만 전적이 없다 — 자체전 + 휴식만인 날 0전적 표를 막는다.
+  const hasExternalRecord = externalOnly.some(m => m.status === "finished" && m.opponent !== "휴식");
   const rec = calcSoccerTeamRecord(externalOnly);
   const oppRecords = calcSoccerOpponentRecords(externalOnly);
   const perSide = finished.flatMap(m => (isIntra(m) ? [sideView(m, 'A'), sideView(m, 'B')] : [m]));
@@ -33,7 +35,7 @@ export default function IntraSoccerArchiveDetail({ soccerMatches, es, styles: hs
   return (
     <>
       {/* 팀 순위 (상대별 전적) — 외부전이 있을 때만 */}
-      {externalOnly.length > 0 && (
+      {hasExternalRecord && (
         <div style={{ marginBottom: 16 }}>
           <div style={{ fontSize: 14, fontWeight: 800, color: C.white, marginBottom: 8 }}>🏆 팀 순위 (상대별 전적)</div>
           <div style={hs.card}>

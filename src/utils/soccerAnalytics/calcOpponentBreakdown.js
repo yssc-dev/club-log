@@ -18,7 +18,7 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
     const opp = String(m.opponent_team_name || '').trim();
     if (opp) oppByKey[key] = opp;
     if (m.is_extra) extraKeys.add(key);
-    if (m.mode === '자체전') { extraKeys.add(key); delete oppByKey[key]; } // 자체전: 상대 축 지표에서 제외(이벤트 폴백까지 차단)
+    if (m.mode === '자체전') extraKeys.add(key); // 자체전: 상대 축 지표에서 제외(extraKeys 가 골 루프·경기 루프를 모두 막는다)
   }
 
   const cells = {};

@@ -1,5 +1,4 @@
-import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
-import { FALLBACK_DATA } from './config/fallbackData';
+import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { fetchSheetData, fetchAttendanceData } from './services/sheetService';
 import AppSync from './services/appSync';
@@ -36,6 +35,9 @@ import { gameDateFromId } from './utils/gameDate';
 //   externalOnly : 팀/상대팀 축 지표 — 자체전은 '상대팀'이 우리 멤버라 무의미하므로 제외(스펙 §7).
 const perSide = (ms) => (ms || []).flatMap(m => (isIntra(m) ? [sideView(m, 'A'), sideView(m, 'B')] : [m]));
 const externalOnly = (ms) => (ms || []).filter(m => !isIntra(m));
+// 팀순위(상대별 전적) 섹션·탭 게이트. 휴식 노드는 외부전 모양이지만 전적이 없다 —
+// 자체전 + 휴식만 있는 날에 0전적 팀순위 표가 렌더되는 것을 막는다.
+const hasExternalRecord = (ms) => externalOnly(ms).some(m => m.status === 'finished' && m.opponent !== '휴식');
 
 export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameMode, gameId, onLogout, onBackToMenu }) {
   const gameSettings = useMemo(() => getSettings(teamContext?.team), [teamContext?.team]);
@@ -454,7 +456,7 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
           syncStatus={AppSync.enabled() ? syncStatus : null}>
           <MatchTabBar tabs={[
             { key: 'schedule', label: '대진표', onClick: () => set('matchModal', 'soccerSchedule') },
-            { key: 'standings', label: '팀순위', onClick: () => set('matchModal', 'soccerStandings') },
+            { key: 'standings', label: '팀순위', onClick: () => set('matchModal', 'soccerStandings'), hidden: !hasExternalRecord(state.soccerMatches) },
             { key: 'playerStats', label: '개인기록', onClick: () => set('matchModal', 'playerStats') },
             { key: 'roster', label: '참석명단', onClick: () => set('matchModal', 'roster') },
             { key: 'finish', label: '경기마감', tone: 'green', strong: true, onClick: () => set('phase', 'summary'), hidden: finishedCount === 0 },
@@ -554,7 +556,7 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
           <div style={s.subtitle}>{gameDate.toLocaleDateString("ko-KR")} · {finished.length}경기</div>
         </div>
         <PhaseIndicator activeIndex={3} />
-        {externals.length > 0 && (
+        {hasExternalRecord(state.soccerMatches) && (
           <div style={s.section}>
             <div style={s.sectionTitle}>🏆 팀 순위 (상대별 전적)</div>
             <div style={s.card}>
