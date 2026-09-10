@@ -1,6 +1,8 @@
 import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
-import { fetchSheetData, fetchAttendanceData } from './services/sheetService';
+import { fetchSheetData } from './services/sheetService';
+import { fetchIntraRoster } from './utils/intraSoccer/rosterSheet';
+import { canIntra, floatingOf } from './utils/intraSoccer/pools';
 import AppSync from './services/appSync';
 import FirebaseSync from './services/firebaseSync';
 import { useGameReducer } from './hooks/useGameReducer';
@@ -94,10 +96,10 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
     ];
     if (gameMode === "sheetSync") {
       loadPromises.push(
-        fetchAttendanceData().catch(err => { console.warn("참석명단 로딩 실패:", err.message); return null; })
+        fetchIntraRoster().catch(err => { console.warn("참석명단 로딩 실패:", err.message); return null; })
       );
     }
-    Promise.all(loadPromises).then(([sheetData, cumBonus, attendanceData]) => {
+    Promise.all(loadPromises).then(([sheetData, cumBonus, roster]) => {
       const fields = { dataLoading: false };
       if (sheetData) { fields.seasonPlayers = sheetData.players; fields.dataSource = "sheet"; }
       else { fields.dataSource = "fallback"; }
@@ -111,23 +113,17 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
       // 상대팀 후보: 구글시트 대시보드에서 (settings 영구저장 대신 시트가 소스)
       if (sheetData?.opponents?.length > 0) setOpponentSuggestions(sheetData.opponents);
 
-      // 시트 연동 시 참석자는 미리 채우되, setup 화면에 머문다 (자동 경기진입 제거)
-      if (gameMode === "sheetSync" && attendanceData && attendanceData.attendees.length > 0) {
-        dispatch({
-          type: 'SET_FIELDS',
-          fields: { attendees: attendanceData.attendees, matchMode: "soccer", courtCount: 1 },
-        });
+      // 시트 연동 시 참석자·팀 명단을 미리 채우되 setup 화면에 머문다 (자동 경기진입 없음).
+      if (gameMode === "sheetSync" && roster && roster.attendees.length > 0) {
+        if (roster.warnings.length) console.warn("[빅마스터FC 참석명단]", roster.warnings.join(" / "));
+        dispatch({ type: 'SET_FIELDS', fields: { attendees: roster.attendees, matchMode: "soccer", courtCount: 1 } });
+        // 팀 명단은 whole-replace 동기 필드 soccerFormation.intra 에(새 게임이라 기존 soccerFormation 은 null).
+        dispatch({ type: 'SET_SOCCER_FORMATION', formation: {
+          viewState: "selectOpponent", selectedOpponent: null, selectedPlayers: [],
+          intra: { teams: roster.teams, syncedAt: Date.now() },
+        } });
       }
     });
-  };
-
-  // ── 참석자 시트 연동 ──
-  const syncAttendance = () => {
-    set('attendanceLoading', true);
-    fetchAttendanceData()
-      .then(data => dispatch({ type: 'SET_FIELDS', fields: { attendees: data.attendees } }))
-      .catch(err => alert("참석명단 연동 실패: " + err.message))
-      .finally(() => set('attendanceLoading', false));
   };
 
   // ── 자동저장 + 구독 — 풋살/축구 공용 훅 (src/hooks/useFirebaseSync.js) ──
@@ -190,6 +186,23 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
     for (const m of perSide(state.soccerMatches)) for (const n of getSoccerPlayedPlayers(m)) s.add(n);
     return s;
   }, [state.soccerMatches]);
+
+  // ── 참석명단(팀별 열) 재연동 — 팀 명단은 시트 기준으로 갱신, 출전 기록 있는 선수(locked)는 참석자에 남긴다(D3).
+  const syncAttendance = () => {
+    set('attendanceLoading', true);
+    fetchIntraRoster()
+      .then(r => {
+        if (r.warnings.length) console.warn("[빅마스터FC 참석명단]", r.warnings.join(" / "));
+        const merged = Array.from(new Set([...r.attendees, ...Array.from(locked)]));
+        dispatch({ type: 'SET_FIELDS', fields: { attendees: merged } });
+        const prev = state.soccerFormation || { viewState: "selectOpponent", selectedOpponent: null, selectedPlayers: [] };
+        dispatch({ type: 'SET_SOCCER_FORMATION', formation: {
+          ...prev, intra: { teams: r.teams, syncedAt: Date.now(), selectedPair: prev.intra?.selectedPair },
+        } });
+      })
+      .catch(err => alert("참석명단 연동 실패: " + err.message))
+      .finally(() => set('attendanceLoading', false));
+  };
 
   // ── 축구 핸들러 ──
   const createSoccerMatch = ({ opponent, lineup, gk, defenders, subs, formation, assignments, positionMap }) => {
@@ -372,6 +385,20 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
             attendanceLoading={attendanceLoading} styles={s}
           />
         </div>
+        {(() => {
+          const teams = state.soccerFormation?.intra?.teams || [];
+          if (teams.length === 0) return null;
+          const floating = floatingOf(attendees, teams);
+          return (
+            <div style={s.section}>
+              <div style={s.sectionTitle}>🟧🟦 자체전 팀 (시트)</div>
+              <div style={{ ...s.card, fontSize: 12, color: C.grayLight, lineHeight: 1.7 }}>
+                {teams.map(t => <div key={t.name}><b style={{ color: C.white }}>{t.name}</b> {t.players.filter(n => attendees.includes(n)).length}명</div>)}
+                {floating.length > 0 && <div><b style={{ color: C.white }}>팀 없음(유동)</b> {floating.join(", ")}</div>}
+              </div>
+            </div>
+          );
+        })()}
         <div style={s.section}>
           <div style={s.sectionTitle}>🆚 참석팀 <span style={{ fontSize: 12, fontWeight: 400, color: C.gray }}>({(state.opponents || []).length}팀)</span></div>
           <div style={s.card}>
@@ -406,12 +433,13 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
         </div>
         <div style={s.bottomBar}>
           {(() => {
-            const canStart = (state.opponents || []).length > 0 || attendees.length >= 22; // 외부전(상대팀) 또는 자체전(22명)
+            const intraGate = canIntra({ teams: state.soccerFormation?.intra?.teams || [], attendees, pair: state.soccerFormation?.intra?.selectedPair });
+            const canStart = (state.opponents || []).length > 0 || intraGate.ok;
             return (
               <button onClick={() => { if (canStart) dispatch({ type: 'START_MATCHES', schedule: null, pushState: null }); }}
                 disabled={!canStart}
                 style={{ ...s.btnFull(C.accent, C.bg), opacity: canStart ? 1 : 0.4, cursor: canStart ? "pointer" : "not-allowed" }}>
-                {canStart ? `축구 경기 시작 (${attendees.length}명)` : "상대팀을 선택하거나 참석자 22명 이상(자체전)이어야 합니다"}
+                {canStart ? `축구 경기 시작 (${attendees.length}명)` : `외부전: 상대팀 선택 · 자체전: ${intraGate.reason}`}
               </button>
             );
           })()}
