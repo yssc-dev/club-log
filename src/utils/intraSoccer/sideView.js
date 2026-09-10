@@ -1,7 +1,8 @@
 // 빅마스터FC 자체전: 저장은 경기 1개(A팀 = 기존 '우리' 필드, B팀 = sideB) 한 번,
 // 읽기는 이 함수로 '편 기준 하버FC 모양' 뷰를 만들어 하버FC 잎 컴포넌트·빌더를 무수정 재사용한다.
 // RTDB 빈 배열 소실(undefined) 복구도 여기서만 한다 — IntraSoccerApp 계열은 경기 객체를 이 함수를 거쳐서만 읽는다.
-const ARR = (v) => (Array.isArray(v) ? v : []);
+// RTDB 는 빈 배열을 저장하지 않고(→ undefined) 비어있지 않은 배열을 객체화({0:..})할 수 있다 — 공유 normalizeSoccerMatch 의 asArr 와 같은 규칙.
+const ARR = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
 
 export function isIntra(m) {
   return !!(m && m.sideB);

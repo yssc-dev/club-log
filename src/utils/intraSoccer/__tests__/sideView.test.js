@@ -34,6 +34,11 @@ describe('isIntra / fieldsOf*', () => {
     expect(fieldsOfB({ ...intra, sideB: {} }).name).toBe('B팀');
     expect(fieldsOfA(intra).lineup).toEqual(['a1', 'a2']);
   });
+  it('RTDB 가 객체화한 배열({0:..,1:..})도 배열로 복구한다', () => {
+    const m = { ...intra, sideB: { ...intra.sideB, lineup: { 0: 'b1', 1: 'b2' }, subs: undefined } };
+    expect(fieldsOfB(m).lineup).toEqual(['b1', 'b2']);
+    expect(fieldsOfB(m).subs).toEqual([]);
+  });
 });
 
 describe('sideView — 자체전', () => {
