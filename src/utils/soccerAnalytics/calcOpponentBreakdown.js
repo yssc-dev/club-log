@@ -18,6 +18,7 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
     const opp = String(m.opponent_team_name || '').trim();
     if (opp) oppByKey[key] = opp;
     if (m.is_extra) extraKeys.add(key);
+    if (m.mode === '자체전') { extraKeys.add(key); delete oppByKey[key]; } // 자체전: 상대 축 지표에서 제외(이벤트 폴백까지 차단)
   }
 
   const cells = {};
@@ -39,6 +40,7 @@ export function calcOpponentBreakdown({ eventLogs, matchLogs }) {
 
   for (const m of matchLogs || []) {
     if (m.is_extra) continue;
+    if (m.mode === '자체전') continue;
     const members = parseActualPlayers(m.our_members_json);
     if (members.length === 0) continue; // 명단 자체가 없는 행(휴식 등)은 경기수에 안 넣는다
     const opp = String(m.opponent_team_name || '').trim();

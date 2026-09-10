@@ -12,7 +12,7 @@ export function calcOpponentDefense({ matchLogs } = {}) {
   const byOpponent = {}; // opponent → [{ name, ... }]
 
   for (const m of matchLogs || []) {
-    if (m.is_extra) continue;
+    if (m.is_extra || m.mode === '자체전') continue;
     const opp = String(m.opponent_team_name || '').trim();
     if (!opp) continue;
     let defenders = [];

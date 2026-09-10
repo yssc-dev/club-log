@@ -20,7 +20,7 @@ export function calcOpponentLeaders({
   minGames = 3,
   topN = 5,
 } = {}) {
-  const scoped = (matchLogs || []).filter(m => !m.is_extra && oppName(m));
+  const scoped = (matchLogs || []).filter(m => !m.is_extra && m.mode !== '자체전' && oppName(m));
   const keys = new Set(scoped.map(matchKey));
   const scopedEvents = (eventLogs || []).filter(e => keys.has(matchKey(e)));
 

@@ -12,6 +12,7 @@
 // 상대팀명이 없는 데이터는 단일 버킷으로 떨어져 옛 전체-부재 수식과 정확히 일치한다.
 // 한계(의도): GK 미보정 — UI 캡션에 명시.
 import { parseActualPlayers } from './parseMembers';
+import { expandIntraMatchRows } from './expandIntraMatchRows';
 
 // 지표별 정렬 축.
 //   delta     = 부재 대비 억제. 두 지표 모두 '클수록 좋음'으로 부호를 맞춰 놓았다.
@@ -48,7 +49,8 @@ export function sortDefenseRows(rows, { metric = 'conceded', dir = 'desc', by = 
 
 export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairThreshold = 5, trioThreshold = 3 }) {
   const scope = [];
-  for (const m of matchLogs || []) {
+  // 자체전 행은 A·B 두 시점 행으로 펼친다(상대 버킷 '자체전'). 비자체전 행은 그대로 — 하버FC 무영향.
+  for (const m of expandIntraMatchRows(matchLogs || [])) {
     if (m.is_extra) continue;
     const dfs = [...new Set(parseActualPlayers(m.our_defenders_json))];
     if (dfs.length === 0) continue;
