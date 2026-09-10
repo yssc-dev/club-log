@@ -360,7 +360,8 @@ const onDeleteEvent = (id) => {
 ### 14.2 현재 상태 실측 (바꿀 필요 없는 것 / 있는 것)
 이미 충족 — 추가 작업 없음:
 - **이벤트 계열**(골·어시·자책·카드·상대 득점): `diffStateToWrites`가 `soccerMatches/{idx}/events/{eventId}` 경로로 이벤트 1개 = 경로 1개로 쓴다(firebaseSyncDiff.js:180-184). 여러 명이 동시에 넣어도 서로를 덮지 않는다.
-- **점수판·기록 목록·교체 후보**: `FormationRecorder`가 `events`를 prop 에서 매 렌더 읽고(FormationRecorder.jsx:41) 점수를 렌더 중 계산하며(`:49-53`) `getSubCandidates(attendees, assignments, events)`도 파생이다(`:46`) → 원격 이벤트가 0.3~1초(자동저장 디바운스 300ms + 구독) 안에 반영된다.
+- **점수판·기록 목록**: `FormationRecorder`가 `events`를 prop 에서 매 렌더 읽고(FormationRecorder.jsx:41) 점수를 렌더 중 계산하므로(`:49-53`) 원격 골·어시·자책·카드·상대 득점이 0.3~1초(자동저장 디바운스 300ms + 구독) 안에 반영된다.
+- **교체 후보는 절반만 충족**: `getSubCandidates(attendees, assignments, events)`(`:46`)에서 `attendees`·`events`는 prop 파생이라 원격 참석자 추가·퇴장(redCard)은 반영되지만, **피치 위 집합을 정하는 `assignments` 는 레코더 로컬 `useState`**(`:24`, soccerScoring.js:122 `onPitch`)다. 그래서 원격 교체로 들어온 선수가 여전히 후보로 보이고 나간 선수가 후보에서 빠진다 — 아래 '충족 못 함'의 배치 계열 문제와 같은 원인이며 §14.3 재마운트가 함께 해결한다.
 - **참석자·팀 명단**(`attendees`, `soccerFormation.intra`): whole-replace 동기 필드 → 원격 변경이 `subPool`/`teamsOf` 재계산으로 즉시 반영.
 - **완료 패널·결과표·아카이브**: 전부 prop 파생.
 - 편 상태 경로 분리: A 편은 `assignments/positionMap/subs/gk`, B 편은 `sideB` — **서로 다른 필드 경로**라 A 감독의 교체와 B 감독의 교체가 충돌하지 않는다(firebaseSyncDiff.js:170-177).
@@ -369,33 +370,87 @@ const onDeleteEvent = (id) => {
 - **배치 계열(교체·위치교대·GK 변경)이 전파되지 않는다.** `FormationRecorder`는 `formation/assignments/positionMap/gk`를 마운트 시 `useState(init…)`로 1회만 시드하는 uncontrolled 컴포넌트다(FormationRecorder.jsx:23-26). 그래서 (a) 다른 사람의 배치 변경이 내 화면에 들어오지 않고, (b) 내가 다음 교체를 하면 `onStateChange`가 **내 stale 배치를 기준으로 계산한 값**을 써서 그 사람의 변경을 조용히 되돌린다(`:88-93`, `:135-140`). 이 저장소가 두 번 당한 패턴이다([[project_realtime_sync_arch]] CourtRecorder GK 버그, 하버FC 6/30 출전 누락).
 - **전파 지연 창의 두 경합**: 다른 기기가 이미 종료한 경기에 이벤트를 더 넣을 수 있고(내 화면엔 아직 진행 중), 두 명이 동시에 새 경기를 만들면 같은 `soccerMatches/{idx}` 경로를 노린다(`newIdx = soccerMatches.length`).
 
-### 14.3 설계 — 원격 배치 변경 시 레코더 재마운트 (A안; 잎 컴포넌트 무수정)
-하버FC `FormationRecorder`를 controlled 로 재작성하지 않는다(기능 밀도가 가장 높은 600줄 — 골 플로우·교체·카드·위치교대 — 을 다시 쓰는 비용·리스크가 요구 충족 대비 과하다). 대신 **원격 변경이 감지되면 `key`를 바꿔 레코더를 새 props 로 다시 마운트**한다. 재마운트 직후 로컬 `useState`가 최신 배치로 재시드되므로 (a) 화면에 보이고 (b) 다음 저장이 남의 변경을 덮지 않는다.
+### 14.3 설계 — 원격 배치 변경 시 레코더 재마운트 (A안)
+하버FC `FormationRecorder`를 controlled 로 재작성하지 않는다(기능 밀도가 가장 높은 600줄 — 골 플로우·교체·카드·위치교대 — 을 다시 쓰는 비용·리스크가 요구 충족 대비 과하다). 대신 **원격 배치 변경이 감지되면 `key`를 바꿔 레코더를 새 props 로 다시 마운트**한다. 재마운트 직후 로컬 `useState`가 최신 배치로 재시드되므로 (a) 화면에 보이고 (b) 다음 저장이 남의 변경을 덮지 않는다.
 
-신규 순수 모듈 `src/utils/intraSoccer/liveSync.js`:
-- `formationFingerprint(view) → string` — 편 뷰(`sideView` 결과)의 배치 지문. `formation`, `gk`, `assignments`(슬롯 인덱스 숫자 오름차순), `positionMap`(이름 사전순), `subs`(사전순)을 안정 직렬화한다. 같은 배치는 항상 같은 문자열, 한 필드라도 다르면 다른 문자열. `events`·점수는 포함하지 않는다(이벤트는 이미 prop 파생이라 재마운트 불필요 — 재마운트하면 진행 중 골 입력이 날아간다).
-- `decideRemount({ currentFp, seedFp, localFp, flowActive, pending }) → { remount: boolean, pending: boolean }`
-  - `currentFp === seedFp` (마운트 때 값) 또는 `currentFp === localFp` (내가 방금 보낸 값) → `{ remount: false, pending }` — 내 변경의 왕복 echo 는 재마운트하지 않는다.
-  - 그 외(= 원격 변경)에 `flowActive`면 `{ remount: false, pending: true }` — **골 입력 중에는 보류**(레코더 remount = 진행 중 골 유실, [[project_formationrecorder_goalflow_local]]).
-  - 그 외에 `!flowActive`면 `{ remount: true, pending: false }`.
-  - `pending === true` 이고 `!flowActive` 면 `{ remount: true, pending: false }` — 보류분을 플로우가 닫힌 뒤 적용.
+#### 14.3.1 신규 순수 모듈 `src/utils/intraSoccer/liveSync.js`
+- `formationFingerprint(view) → string` — 편 뷰(`sideView` 결과)의 배치 지문. `formation`, `gk`, `assignments`(슬롯 인덱스 숫자 오름차순), `positionMap`(이름 사전순), `subs`(사전순)을 안정 직렬화한다. 같은 배치 = 항상 같은 문자열, 한 필드라도 다르면 다른 문자열. 키 삽입 순서·배열 순서에 영향받지 않아야 한다. `events`·점수는 **포함하지 않는다**(이벤트는 이미 prop 파생이라 재마운트가 불필요하고, 재마운트하면 진행 중 입력이 날아간다).
+- `decideRemount({ currentFp, seedFp, localFps, busy }) → { remount: boolean, pending: boolean, consume: string|null }` — 순수. `localFps`는 내가 보낸(아직 왕복 echo 가 오지 않은) 지문들의 `Set`.
+  1. `currentFp === seedFp` → `{ remount: false, pending: false, consume: null }` — 지금 마운트된 시드와 같다(원격 변경이 되돌려진 경우 포함) → 보류도 해제.
+  2. `localFps.has(currentFp)` → `{ remount: false, pending: false, consume: currentFp }` — **내 변경의 왕복 echo**. 호출부가 `consume` 지문을 Set 에서 **1회만** 제거한다(같은 지문으로 두 번 억제되지 않게 — 남이 내 상태를 되돌렸을 때 그것을 echo 로 오인하지 않는다).
+  3. `busy` → `{ remount: false, pending: true, consume: null }` — 사용자가 입력 중이면 **보류**.
+  4. 그 외 → `{ remount: true, pending: false, consume: null }`.
+  `busy` 가 false 로 떨어지면 effect 가 재실행되어 4번으로 내려가므로 **보류분은 자동으로 적용**된다(별도 flush 분기 불필요).
 
-`IntraSoccerMatchView` 배선:
-- `const [recorderRev, setRecorderRev] = useState(0)`, refs `seedFpRef`/`localFpRef`/`pendingRef`.
-- 진행 중 노드 렌더에서 `const fp = formationFingerprint(v)` (v = `sideView(currentMatch, side)`), `useEffect([fp, navLocked, side, currentMatch?.matchIdx])`에서 `decideRemount({ currentFp: fp, seedFp: seedFpRef.current, localFp: localFpRef.current, flowActive: navLocked, pending: pendingRef.current })`를 호출해 `remount`면 `setRecorderRev(r => r + 1)` + `seedFpRef.current = fp`, `pending`을 ref 에 반영.
-- 레코더 `key={`${currentMatch.matchIdx}:${side}:${recorderRev}`}`. 경기·편 전환 시 `seedFpRef/localFpRef/pendingRef`를 초기화한다(`matchIdx:side`가 바뀌면 새 시드).
-- `handleFormationStateChange(updates, side)`에서 dispatch 전에 `localFpRef.current = formationFingerprint({ ...v, ...updates })`로 **내가 만든 다음 상태의 지문**을 기록한다(echo 무시용).
-- `navLocked`는 이미 `onFlowActiveChange`로 골 플로우 상태를 받는다(§13 기존 배선) — 그대로 쓴다.
+**왜 `localFps` 가 Set 인가(리뷰 지적 반영)**: 단일 문자열이면 교체를 연속 두 번 하는 동안 두 번째 지문이 첫 번째를 덮어, 나중에 도착한 **첫 번째 echo 가 원격 변경으로 오인돼 레코더가 통째로 재마운트**된다(진행 중 입력·모달 소실).
 
-### 14.4 설계 — 전파 지연 창 경합 두 개
-- **종료된 경기 입력 차단**: `handleAddEvent`/`handleDeleteEvent` 첫 줄에서 `currentMatch.status !== 'playing'`이면 저장하지 않고 `alert('다른 기기에서 이미 종료된 경기입니다. 화면을 새로 고쳐 확인하세요.')` 후 return. 종료 전파(0.3~1초) 전에 찍힌 입력이 종료된 경기에 붙는 것을 막는다.
-- **동시 생성 가드**: `handleIntraConfirm`(자체전)·`handleFormationConfirm`(외부전)에서 생성 직전에 `soccerMatches.some(m => m.status === 'playing')`이면 생성하지 않고 `alert('다른 기기에서 이미 경기를 시작했습니다.')` + 배치 상태 정리(`setPendingA(null)`, `setMatchType(null)`, `setViewState('selectOpponent')`) 후 return. 지금은 "진행 중 경기가 있으면 새 경기 노드가 사라진다"는 렌더 조건에만 의존한다.
+#### 14.3.2 입력 중 판정 — `onBusyChange` (공유 파일 1개 추가만)
+기존 `onFlowActiveChange` 는 `goalFlow` 만 덮는다(FormationRecorder.jsx:36-39). 교체 모달(`showSubModal`)·포메이션 피커(`showFormationPicker`)·선수 액션 메뉴(`actionPlayer`)가 열린 중에 재마운트되면 **사용자 손 밑에서 모달이 닫힌다**(자체전에서 두 기록자가 비슷한 시각에 교체할 때 고빈도).
+
+그래서 `src/components/game/FormationRecorder.jsx` 에 **선택적 prop `onBusyChange` 하나를 추가한다**(추가만):
+```js
+  // 상위가 '입력 중'을 알아야 하는 경우(빅마스터FC 실시간 재마운트 보류)에만 연결한다.
+  // 하버FC 는 이 prop 을 넘기지 않으므로 ?. 로 no-op — 기존 동작 완전 불변.
+  useLayoutEffect(() => {
+    onBusyChange?.(goalFlow != null || showSubModal || showFormationPicker || actionPlayer != null);
+    return () => onBusyChange?.(false);
+  }, [goalFlow, showSubModal, showFormationPicker, actionPlayer, onBusyChange]);
+```
+`onFlowActiveChange`(네비 잠금)는 **손대지 않는다** — 하버FC 의 ◀▶ 잠금 조건이 바뀌면 안 된다. 이 변경으로 §14.6 의 접촉 면은 "공유 파일 0" 이 아니라 **"공유 파일 1개, 선택적 prop 추가만"** 이 된다. 대안은 (a) 모달이 사용자 손 밑에서 닫히게 두거나 (b) 600줄 잎 컴포넌트를 포크하는 것뿐이어서 이 추가를 택했다(룰링).
+
+#### 14.3.3 `IntraSoccerMatchView` 배선
+- **최상위 파생**(early return 보다 위, 훅 순서 고정): 현재 보고 있는 편과 그 지문을 IIFE 밖에서 계산한다 — 현재 구현은 `side`·`v` 를 진행 중 노드 렌더 IIFE 안에서만 만든다(IntraSoccerMatchView.jsx:421-465).
+  ```js
+  const currentMatch = currentMatchIdx >= 0 ? soccerMatches[currentMatchIdx] : null; // 기존 파생 재사용
+  const liveSide = currentMatch && isIntra(currentMatch) ? tab : 'A';
+  const liveFp = currentMatch ? formationFingerprint(sideView(currentMatch, liveSide)) : '';
+  ```
+  IIFE 안에서는 이 값을 다시 계산하지 말고 그대로 쓴다(중복 계산·불일치 방지).
+- **상태·ref**: `const [recorderRev, setRecorderRev] = useState(0)`, `const [pendingRemote, setPendingRemote] = useState(false)`, `const seedFpRef = useRef('')`, `const localFpsRef = useRef(new Set())`, `const busyRef = useRef(false)` + `const [busy, setBusy] = useState(false)`(effect 의존성으로 쓰려면 state 여야 한다). `useRef` 를 import 에 추가한다.
+- **effect A — 경기·편 전환 시 초기화(먼저 선언)**:
+  ```js
+  useEffect(() => {
+    seedFpRef.current = liveFp; localFpsRef.current = new Set(); setPendingRemote(false);
+  }, [currentMatch?.matchIdx, liveSide]); // eslint-disable-line react-hooks/exhaustive-deps
+  ```
+  `liveFp` 를 의존성에 넣지 않는다(넣으면 매 변경마다 시드가 따라가 재마운트가 영영 안 일어난다).
+- **effect B — 재마운트 판정(A 다음에 선언)**:
+  ```js
+  useEffect(() => {
+    if (!currentMatch) return;                       // 종료 전파로 currentMatchIdx=-1 → 무의미한 rev 증가 방지
+    const r = decideRemount({ currentFp: liveFp, seedFp: seedFpRef.current, localFps: localFpsRef.current, busy });
+    if (r.consume) localFpsRef.current.delete(r.consume);
+    if (r.remount) { seedFpRef.current = liveFp; setRecorderRev(n => n + 1); }
+    setPendingRemote(r.pending);
+  }, [liveFp, busy, currentMatch]);
+  ```
+  같은 렌더에서 effect 는 **선언 순서대로** 실행되므로 A(초기화) → B(판정) 순서가 보장된다.
+- **로컬 변경 기록**: `handleFormationStateChange(updates, side)` 에서 dispatch 전에
+  `localFpsRef.current.add(formationFingerprint({ ...sideView(currentMatch, side), ...updates }))`.
+  Set 이 무한히 커지지 않게 크기가 8을 넘으면 가장 오래된 항목부터 버린다(삽입 순서 보존 — `Set` 기본 동작).
+- **레코더 렌더**: `key={`${currentMatch.matchIdx}:${side}:${recorderRev}`}`, `onBusyChange={setBusy}`, `onFlowActiveChange={setNavLocked}`(기존 그대로).
+- **보류 안내**: `pendingRemote` 이면 레코더 위에 한 줄 — `다른 기기에서 배치가 변경됐습니다 · 입력을 마치면 화면에 반영됩니다`. 사용자가 모달을 닫으면 자동 반영된다.
+
+### 14.4 전파 지연 창 경합 — 가드 두 개(방어 심화)
+- **종료된 경기 입력 차단**: `handleAddEvent`/`handleDeleteEvent` 첫 줄에서 `currentMatch.status !== 'playing'` 이면 저장하지 않고 `alert('다른 기기에서 이미 종료된 경기입니다. 잠시 후 화면이 갱신됩니다.')` 후 return. **정직한 범위**: 종료가 전파돼 `status` 가 바뀌면 레코더 자체가 사라지므로(`isPlayingNode`) 이 가드는 같은 틱에 진행 중이던 클릭·디바운스 대기 중 입력을 막는 **방어 심화**다. 전파 이전 0.3~1초 창에 찍힌 입력은 막지 못한다(§14.5).
+- **동시 생성 가드**: `handleIntraConfirm`(자체전)·`handleFormationConfirm`(외부전)에서 생성 직전 `soccerMatches.some(m => m.status === 'playing')` 이면 생성하지 않고 `alert('다른 기기에서 이미 경기를 시작했습니다.')` + 배치 상태 정리(`setPendingA(null)`, `setMatchType(null)`, `setViewState('selectOpponent')`) 후 return. **정직한 범위**: 이미 진행 중 경기가 있는 경우만 막는다(§14.5).
 
 ### 14.5 남는 한계 (문서화, 비범위)
-- **1초 이내 완전 동시 편집은 마지막 쓰기가 이긴다.** 같은 편 배치를 두 사람이 거의 같은 순간에 바꾸면 한쪽이 유실된다(편 상태는 필드 통짜 쓰기). 재마운트로 **화면은 곧 일치**하므로 유실을 모르고 계속 쓰는 상황은 생기지 않는다. 이벤트(골·교체 기록 자체)는 경로가 달라 유실되지 않는다.
-- 골 입력 플로우 중 도착한 원격 배치 변경은 플로우를 닫을 때까지 화면에 늦게 반영된다(의도 — 진행 중 골 보호).
-- 여전히 한 명이 마감(기록확정)을 수행한다는 운영 관례는 유지(관리자 전용).
+- **종료 전파 창(0.3~1초)에 찍힌 이벤트는 막히지 않는다.** 내 화면이 아직 '진행 중'이면 입력이 저장되고, 종료된 경기에 이벤트가 붙는다. 완전한 해결은 서버측 검증(Apps Script/RTDB 규칙)이 필요해 비범위. 실무 영향: 마감 전 기록 목록에서 눈으로 확인 가능.
+- **경기가 0개인 상태에서 두 기기가 동시에 생성하면** 둘 다 `matchIdx=0` 을 계산해 같은 `soccerMatches/0` 경로를 써 한쪽이 덮인다(가드는 '이미 진행 중 경기가 있는' 경우만 보호). 완전한 해결은 RTDB 트랜잭션 또는 서버측 `matchIdx` 할당 — 비범위.
+- **1초 이내 완전 동시 배치 편집은 마지막 쓰기가 이긴다**(편 상태는 필드 통짜 쓰기). 재마운트로 **화면은 곧 일치**하므로 유실을 모르고 계속 쓰는 상황은 생기지 않는다. 이벤트(골·교체 기록 자체)는 경로가 달라 유실되지 않는다.
+- 위치교대로 GK 가 바뀌면 `gkChange` 이벤트와 배치 패치가 함께 나가는데, §14.4 의 status 가드는 이벤트 경로에만 있다. 종료 노드에서는 레코더가 렌더되지 않아 도달 불가 — 비범위.
+- 입력 중(골 플로우·모달) 도착한 원격 배치 변경은 입력을 마칠 때까지 늦게 반영된다(의도 — 진행 중 입력 보호, 안내 문구 표시).
+- 마감(기록확정)은 관리자 1명이 수행하는 운영 관례 유지.
 
 ### 14.6 접촉 면·테스트
-- 변경 파일: 신규 `src/utils/intraSoccer/liveSync.js`(+ 테스트), 수정 `src/components/intra/IntraSoccerMatchView.jsx`. **공유 파일 0** — §9 표 불변. 하버FC 잎 컴포넌트·리듀서·`firebaseSyncDiff`·Apps Script 무수정.
-- 테스트: `formationFingerprint`(같은 배치 = 같은 지문, 키 순서·배열 순서 무관, 한 필드 변경 시 달라짐, 빈/누락 필드 안전), `decideRemount`(seed echo·local echo·원격 변경·플로우 중 보류·보류 후 적용 5케이스), 스모크(원격 배치 변경 후 레코더가 새 배치를 보여준다 / 골 입력 중에는 보류된다 / 종료된 경기에 이벤트 입력이 차단된다). UI 나머지는 빌드 + 정독.
+- 변경 파일: 신규 `src/utils/intraSoccer/liveSync.js`(+ 테스트), 수정 `src/components/intra/IntraSoccerMatchView.jsx`, **수정(추가만) `src/components/game/FormationRecorder.jsx` — 선택적 prop `onBusyChange` 1개 + `useLayoutEffect` 1개**. 그 외 공유 파일 0(리듀서·`firebaseSyncDiff`·Apps Script·`SoccerApp.jsx`·`SoccerMatchView.jsx` 무수정).
+- **하버FC 무영향 보증**: `SoccerMatchView.jsx` 의 `<FormationRecorder …/>` 호출에 `onBusyChange` 가 없으므로 새 effect 는 `undefined?.()` = no-op 이고 `onFlowActiveChange` 동작은 불변. 리뷰어는 (a) 하버FC 호출부 diff 0, (b) 새 effect 가 기존 state 를 읽기만 하고 쓰지 않음, (c) 기존 테스트 무수정 통과를 확인한다.
+- 테스트(진짜 회귀 가드는 순수함수 단위테스트다):
+  - `formationFingerprint`: 같은 배치·다른 키 삽입 순서 → 같은 지문; `subs` 배열 순서 무관; `gk`/`formation`/슬롯 1개 변경 → 다른 지문; `assignments/positionMap/subs` 누락·`null` 안전; `events` 변경은 지문에 영향 없음.
+  - `decideRemount`: 5케이스 — seed 일치(보류 해제), local echo(consume 반환·remount 없음), busy 중 원격 변경(pending), busy 해제 후 동일 입력(remount), 연속 두 변경의 첫 echo 가 Set 에 남아 있어 오인하지 않음.
+  - 컴포넌트(스모크 파일에 추가 — 진행 중 자체전 노드 렌더는 이미 있다, `IntraSoccerMatchView.smoke.test.jsx:153`):
+    1. **원격 배치 변경 반영**: 진행 중 노드를 마운트해 피치에 보이는 선수 이름을 확인 → `sideB.assignments` 를 바꾼 props 로 re-render → 새 선수 이름이 보인다(재마운트 전에는 보이지 않았음을 같은 테스트에서 대조).
+    2. **입력 중 보류**: '🔄 교체' 버튼을 눌러 교체 모달을 연 뒤(= `onBusyChange(true)`) 같은 원격 변경을 주면 피치가 **그대로**이고 안내 문구가 보인다; 모달을 닫으면 새 배치가 반영된다.
+    3. **종료된 경기 입력 차단**: `status:'finished'` 로 바꾼 뒤 `onAddEvent` prop spy 가 호출되지 않음(레코더 미렌더로 입력 경로 자체가 없음을 확인).
+  - 정적 테스트(`intraNoScoreRead.test.js`) 유지.
