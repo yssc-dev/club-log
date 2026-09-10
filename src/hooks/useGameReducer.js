@@ -944,6 +944,28 @@ function gameReducer(state, action) {
       );
       return { ...state, soccerMatches: matches };
     }
+    // [빅마스터FC 자체전] 편 상태 생성/갱신. side 'A'는 표시 이름만(sideA.name), 'B'는 전 필드(sideB).
+    // 논리 matchIdx 매칭(SET_SOCCER_MATCH_OPPONENT 규약). remapEvents=[from,to]면 그 편 이벤트의 선수명만 치환.
+    // 하버FC 경로는 이 액션을 dispatch 하지 않는다 — 기존 case 무변경.
+    case 'PATCH_SOCCER_SIDE': {
+      const { matchIdx, side, patch, remapEvents } = action;
+      const keys = side === 'A'
+        ? ["name"]
+        : ["name", "lineup", "gk", "defenders", "formation", "assignments", "positionMap", "subs"];
+      const allowed = {};
+      for (const k of keys) if (patch && patch[k] !== undefined) allowed[k] = patch[k];
+      const key = side === 'A' ? 'sideA' : 'sideB';
+      const matches = state.soccerMatches.map(m => {
+        if (m.matchIdx !== matchIdx) return m;
+        let events = m.events || [];
+        if (Array.isArray(remapEvents) && remapEvents.length === 2) {
+          const [from, to] = remapEvents;
+          events = events.map(e => ((e.side || 'A') === side ? remapPlayerInSoccerEvents([e], from, to)[0] : e));
+        }
+        return { ...m, [key]: { ...(m[key] || {}), ...allowed }, events };
+      });
+      return { ...state, soccerMatches: matches };
+    }
     // 선발 오기입 정정: out(b, 잘못 기록)→in(a, 실제 뜀). 매치 전체 b→a 치환, b는 벤치로.
     // 교체(sub) 아님 → sub 이벤트 생성 안 함. b의 이벤트는 a로 이관. 논리 matchIdx 매칭.
     case 'CORRECT_SOCCER_LINEUP': {
