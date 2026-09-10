@@ -170,4 +170,27 @@ describe('IntraSoccerMatchView 실렌더(act) — 증분 2', () => {
     expect(text()).toContain('자체전 (주황 vs 파랑 · 참석 22명)');
     expect(byPartialText('button', '자체전').disabled).toBe(false);
   });
+
+  // 위 2팀 케이스는 teams.length>=3 select 분기( 이 컴포넌트에서 유일하게 내부 ARR
+  // 방어가 없는 t.players.filter 읽기 지점)를 건드리지 않아, 컴포넌트가 teamsOf 를
+  // 빼먹고 intra.teams 를 그대로 읽도록 되돌려도 통과해버린다. 3팀 객체화(teams 자체도
+  // 객체화, players 도 객체화)로 그 분기까지 회귀를 가드한다.
+  it('3팀 객체화(teams·players 모두) → select 2개 렌더 + 옵션 라벨의 팀별 참석 인원이 정상, 게이트 활성', async () => {
+    const objTeams3 = {
+      0: { name: '주황', players: Object.fromEntries(WHITE.map((n, i) => [i, n])) },
+      1: { name: '파랑', players: Object.fromEntries(BLACK.map((n, i) => [i, n])) },
+      2: { name: '검정', players: { 0: RED[0] } },
+    };
+    await mount({
+      attendees: [...WHITE, ...BLACK, RED[0]],
+      savedFormation: { intra: { teams: objTeams3 } },
+    });
+    const selects = [...container.querySelectorAll('select')];
+    expect(selects).toHaveLength(2);
+    expect(text()).toContain('주황 (11명)');
+    expect(text()).toContain('파랑 (11명)');
+    expect(text()).toContain('검정 (1명)');
+    expect(text()).toContain('자체전 (주황 vs 파랑 · 참석 23명)');
+    expect(byPartialText('button', '자체전').disabled).toBe(false);
+  });
 });
