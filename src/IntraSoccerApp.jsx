@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect } from 'react';
 import { useTheme } from './hooks/useTheme';
 import { fetchSheetData } from './services/sheetService';
 import { fetchIntraRoster } from './utils/intraSoccer/rosterSheet';
-import { canIntra, floatingOf } from './utils/intraSoccer/pools';
+import { canIntra, floatingOf, teamsOf } from './utils/intraSoccer/pools';
 import AppSync from './services/appSync';
 import FirebaseSync from './services/firebaseSync';
 import { useGameReducer } from './hooks/useGameReducer';
@@ -186,6 +186,11 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
     for (const m of perSide(state.soccerMatches)) for (const n of getSoccerPlayedPlayers(m)) s.add(n);
     return s;
   }, [state.soccerMatches]);
+
+  // RTDB 는 빈 배열을 저장하지 않고(→ undefined) 배열을 객체화({0:..,1:..})할 수 있는데,
+  // soccerFormation 은 reconstructState 가 정규화 없이 그대로 복원한다(firebaseSyncDiff.js:388).
+  // intra.teams 를 읽는 아래 두 사용처 모두 이 단일 보정 지점을 통과한다.
+  const intraTeams = teamsOf(state.soccerFormation);
 
   // ── 참석명단(팀별 열) 재연동 — 팀 명단은 시트 기준으로 갱신, 출전 기록 있는 선수(locked)는 참석자에 남긴다(D3).
   const syncAttendance = () => {
@@ -386,13 +391,14 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
           />
         </div>
         {(() => {
-          const teams = state.soccerFormation?.intra?.teams || [];
+          const teams = intraTeams;
           if (teams.length === 0) return null;
           const floating = floatingOf(attendees, teams);
           return (
             <div style={s.section}>
               <div style={s.sectionTitle}>🟧🟦 자체전 팀 (시트)</div>
               <div style={{ ...s.card, fontSize: 12, color: C.grayLight, lineHeight: 1.7 }}>
+                {/* t.players: teamsOf(intraTeams)가 배열을 보장하므로 여기서 || [] 방어가 불필요하다. */}
                 {teams.map(t => <div key={t.name}><b style={{ color: C.white }}>{t.name}</b> {t.players.filter(n => attendees.includes(n)).length}명</div>)}
                 {floating.length > 0 && <div><b style={{ color: C.white }}>팀 없음(유동)</b> {floating.join(", ")}</div>}
               </div>
@@ -433,7 +439,7 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
         </div>
         <div style={s.bottomBar}>
           {(() => {
-            const intraGate = canIntra({ teams: state.soccerFormation?.intra?.teams || [], attendees, pair: state.soccerFormation?.intra?.selectedPair });
+            const intraGate = canIntra({ teams: intraTeams, attendees, pair: state.soccerFormation?.intra?.selectedPair });
             const canStart = (state.opponents || []).length > 0 || intraGate.ok;
             return (
               <button onClick={() => { if (canStart) dispatch({ type: 'START_MATCHES', schedule: null, pushState: null }); }}

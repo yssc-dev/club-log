@@ -6,6 +6,17 @@ export const DEFAULT_PAIR = [0, 1];
 const uniq = (arr) => Array.from(new Set(arr));
 const inter = (list, attendees) => { const a = new Set(attendees || []); return list.filter(n => a.has(n)); };
 
+// RTDB 는 빈 배열을 저장하지 않고(→ undefined) 배열을 객체화({0:..,1:..})할 수 있는데,
+// soccerFormation 은 reconstructState 가 정규화 없이 그대로 복원한다(firebaseSyncDiff.js:388).
+// intra.teams 를 읽는 모든 곳은 teamsOf 를 통과해야 한다 — sideView.ARR 와 같은 단일 지점 규약.
+const ARR = (v) => (Array.isArray(v) ? v : (v && typeof v === 'object' ? Object.values(v) : []));
+
+export function teamsOf(formation) {
+  return ARR(formation?.intra?.teams)
+    .filter(t => t && typeof t === 'object' && t.name)
+    .map(t => ({ ...t, players: ARR(t.players) }));
+}
+
 export function resolvePair(teams, selectedPair) {
   const n = (teams || []).length;
   const ok = (i) => Number.isInteger(i) && i >= 0 && i < n;
@@ -15,16 +26,16 @@ export function resolvePair(teams, selectedPair) {
 
 export function rosterOf(teams, name) {
   const t = (teams || []).find(t => t.name === name);
-  return t ? t.players : null;
+  return t ? ARR(t.players) : null;
 }
 
 export function floatingOf(attendees, teams) {
-  const inTeam = new Set((teams || []).flatMap(t => t.players || []));
+  const inTeam = new Set(ARR(teams).flatMap(t => ARR(t?.players)));
   return (attendees || []).filter(n => !inTeam.has(n));
 }
 
 export function setupPoolA({ teams, a, attendees }) {
-  const roster = (teams || [])[a]?.players || [];
+  const roster = ARR(ARR(teams)[a]?.players);
   return inter(uniq([...roster, ...floatingOf(attendees, teams)]), attendees);
 }
 

@@ -157,4 +157,17 @@ describe('IntraSoccerMatchView 실렌더(act) — 증분 2', () => {
     expect(text()).toContain('진행중');
     expect(text()).not.toContain('확정(수정 불가)');
   });
+
+  // RTDB 는 빈 배열을 저장하지 않고(→ undefined) 배열을 객체화({0:..,1:..})할 수 있는데,
+  // soccerFormation 은 reconstructState 가 정규화 없이 그대로 복원한다(firebaseSyncDiff.js:388).
+  // 새로고침·다른 기기 진입 후 intra.teams 가 이 모양으로 들어와도 렌더가 던지면 안 된다.
+  it('intra.teams 가 객체화되어 와도 던지지 않고 팀 이름·인원·게이트가 정상 표시된다', async () => {
+    const objTeams = {
+      0: { name: '주황', players: Object.fromEntries(WHITE.map((n, i) => [i, n])) },
+      1: { name: '파랑', players: Object.fromEntries(BLACK.map((n, i) => [i, n])) },
+    };
+    await mount({ savedFormation: { intra: { teams: objTeams } } });
+    expect(text()).toContain('자체전 (주황 vs 파랑 · 참석 22명)');
+    expect(byPartialText('button', '자체전').disabled).toBe(false);
+  });
 });

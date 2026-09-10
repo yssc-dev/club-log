@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { resolvePair, rosterOf, floatingOf, setupPoolA, setupPoolB, sidePool, canIntra, mergeFormationState } from '../pools';
+import { resolvePair, rosterOf, floatingOf, setupPoolA, setupPoolB, sidePool, canIntra, mergeFormationState, teamsOf } from '../pools';
 
 const eleven = (p) => Array.from({ length: 11 }, (_, i) => `${p}${i + 1}`);
 const teams = [
@@ -78,6 +78,48 @@ describe('canIntra', () => {
     const t3 = [...teams, { name: '검정', players: ['c1'] }];
     expect(canIntra({ teams: t3, attendees }).ok).toBe(true);
     expect(canIntra({ teams: t3, attendees, pair: [0, 2] }).ok).toBe(false);
+  });
+});
+
+// RTDB 는 빈 배열을 저장하지 않고(→ undefined) 배열을 객체화({0:..,1:..})할 수 있다
+// (memory: RTDB 빈배열 누락 함정). soccerFormation 은 reconstructState 가 정규화 없이
+// 그대로 복원하므로(firebaseSyncDiff.js:388) intra.teams 를 읽는 모든 곳은 teamsOf 를 거쳐야 한다.
+describe('teamsOf', () => {
+  it('intra·teams 가 없으면 []', () => {
+    expect(teamsOf(undefined)).toEqual([]);
+    expect(teamsOf({})).toEqual([]);
+    expect(teamsOf({ intra: {} })).toEqual([]);
+  });
+  it('객체화된 teams·players 를 배열로 복구', () => {
+    const out = teamsOf({ intra: { teams: {
+      0: { name: '주황', players: { 0: 'a1', 1: 'a2' } },
+      1: { name: '파랑', players: ['b1'] },
+    } } });
+    expect(out).toEqual([{ name: '주황', players: ['a1', 'a2'] }, { name: '파랑', players: ['b1'] }]);
+  });
+  it('players 누락은 [], name 없는 항목은 제외, 다른 키는 보존', () => {
+    const out = teamsOf({ intra: { teams: [
+      { name: '주황', extra: 'x' },          // players 없음
+      { players: ['z1'] },                  // name 없음 → 제외
+      { name: '파랑', players: ['b1'], syncedAt: 7 },
+    ] } });
+    expect(out).toEqual([
+      { name: '주황', players: [], extra: 'x' },
+      { name: '파랑', players: ['b1'], syncedAt: 7 },
+    ]);
+  });
+});
+
+describe('RTDB 객체화 방어 — teamsOf 를 깜빡한 호출자도 크래시하지 않게', () => {
+  const objTeams = { 0: { name: '주황', players: { 0: 'a1', 1: 'a2' } }, 1: { name: '파랑', players: { 0: 'b1' } } };
+  it('floatingOf 는 객체화된 teams 에도 던지지 않는다', () => {
+    expect(floatingOf(['a1'], { 0: { name: '주황', players: { 0: 'a1' } } })).toEqual([]);
+  });
+  it('setupPoolA 는 객체화된 teams·players 에도 던지지 않는다', () => {
+    expect(setupPoolA({ teams: { 0: { name: '주황', players: { 0: 'a1' } } }, a: 0, attendees: ['a1'] })).toEqual(['a1']);
+  });
+  it('canIntra 는 객체화된 teams 에도 던지지 않는다', () => {
+    expect(() => canIntra({ teams: objTeams, attendees: ['a1', 'a2', 'b1'] })).not.toThrow();
   });
 });
 

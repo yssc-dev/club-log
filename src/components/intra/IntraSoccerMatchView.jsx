@@ -13,7 +13,7 @@ import LineupEditView from '../game/LineupEditView';
 import RoundNav from '../game/RoundNav';
 import ConfirmBar from '../game/ConfirmBar';
 import { isIntra, sideView, fieldsOfA, fieldsOfB } from '../../utils/intraSoccer/sideView';
-import { resolvePair, setupPoolA, setupPoolB, sidePool, canIntra, mergeFormationState } from '../../utils/intraSoccer/pools';
+import { resolvePair, setupPoolA, setupPoolB, sidePool, canIntra, mergeFormationState, teamsOf } from '../../utils/intraSoccer/pools';
 import { planAddEvent, planDeleteEvent, sideBSwapPatch, sideBCorrectPatch, pickSidePatch } from '../../utils/intraSoccer/handlers';
 // 빅마스터FC 기록화면 = SoccerMatchView(하버FC) 포크. 외부전 경로는 원본과 동일하고,
 // 자체전(A팀 vs B팀)은 한 경기 객체에 두 편을 저장한 뒤 A/B 탭으로 한 기기에서 기록한다.
@@ -61,11 +61,14 @@ export default function IntraSoccerMatchView({
 
   // [증분 2] 팀 명단·선택 쌍은 시트 → soccerFormation.intra (IntraSoccerApp이 채운다). 편 이름은 팀 이름 그대로.
   const intra = savedFormation?.intra || { teams: [] };
-  const teams = intra.teams || [];
+  // teamsOf 가 배열화·players 배열화까지 단일 지점에서 보장한다(RTDB 객체화 방어, pools.js).
+  const teams = teamsOf(savedFormation);
   const pair = resolvePair(teams, intra.selectedPair);
   const teamA = teams[pair[0]] || null, teamB = teams[pair[1]] || null;
   const gate = canIntra({ teams, attendees, pair });
-  const setPair = (p) => saveFormationState({ intra: { ...intra, selectedPair: p } });
+  // teams 를 다시 써 넣어 쓰기 경로도 치유한다 — intra.teams 가 RTDB 에서 객체화된 채로
+  // 읽혔더라도 이 저장 이후에는 정규화된 배열 모양으로 남는다.
+  const setPair = (p) => saveFormationState({ intra: { ...intra, teams, selectedPair: p } });
 
   // ── 연속체 파생 ──
   const orderedMatches = [...soccerMatches].sort((a, b) => a.matchIdx - b.matchIdx);
@@ -393,7 +396,8 @@ export default function IntraSoccerMatchView({
                   {[0, 1].map(k => (
                     <select key={k} value={pair[k]} onChange={e => { const v = Number(e.target.value); const other = pair[1 - k]; if (v !== other) setPair(k === 0 ? [v, other] : [other, v]); }}
                       style={{ ...s.input, flex: 1, minWidth: 0 }}>
-                      {teams.map((t, i) => <option key={t.name} value={i}>{t.name} ({(t.players || []).filter(n => attendees.includes(n)).length}명)</option>)}
+                      {/* t.players: teamsOf 가 배열을 보장하므로 여기서 다시 || [] 방어할 필요가 없다. */}
+                      {teams.map((t, i) => <option key={t.name} value={i}>{t.name} ({t.players.filter(n => attendees.includes(n)).length}명)</option>)}
                     </select>
                   ))}
                 </div>
