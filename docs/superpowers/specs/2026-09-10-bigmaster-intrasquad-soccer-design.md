@@ -62,7 +62,7 @@ const GameApp = isIntra ? IntraSoccerApp
 | `빅마스터FC 포인트 로그` | 첫 마감 시 자동 생성(Code.js:997) | **외부전만** 기록(§7). 대시보드 팀 전적·상대팀별 전적 |
 | `빅마스터FC 선수별집계기록 로그` | 첫 마감 시 자동 생성(Code.js:1037) | 양팀 선수 집계. 대시보드 POINT/GAME·개인 분석 모집단 |
 | `빅마스터FC 대시보드` | 유저: `하버FC 대시보드` 수식 복사, 참조 탭을 위 집계 탭으로 | `fetchSheetData` 축구 파서(`parseSoccerCSV`·`parseSoccerOpponents`) — 명단 + 외부 상대팀 마스터 |
-| `빅마스터FC 참석명단` | 유저: 마스터FC 회원 전원 | `fetchAttendanceData` → 참석자. `mergeAttendeesIntoRoster`가 대시보드에 없는 이름도 합치므로 기록 0건인 첫날에도 전원 선택 가능 |
+| `빅마스터FC 참석명단` | 유저: **팀별 열**(1행 팀 이름, 아래 참석자) — §13 | 빅마스터FC 전용 `fetchIntraRoster`(§13.2) → 참석자 + 팀 명단. `mergeAttendeesIntoRoster`가 대시보드에 없는 이름도 합치므로 기록 0건인 첫날에도 전원 선택 가능. (§13 이전 설계의 `fetchAttendanceData` B열 읽기는 폐기) |
 | 로그_이벤트·로그_선수경기·로그_매치 | 기존 전 팀 공유 | `team='빅마스터FC'`, `sport='축구'`, `mode='자체전'|'기본'` |
 
 - shared 설정 5키(`sheetId`·`dashboardSheet`·`attendanceSheet`·`pointLogSheet`·`playerLogSheet`)는 설정 화면에서 위 이름으로 입력.
@@ -290,7 +290,7 @@ const onDeleteEvent = (id) => {
 ## 11. 운영 준비(유저 작업)
 
 1. 회원인증에 빅마스터FC 행 추가(회원 복사).
-2. 스프레드시트에 `빅마스터FC 대시보드`(하버FC 대시보드 수식 복사·참조 탭 교체), `빅마스터FC 참석명단` 생성.
+2. 스프레드시트에 `빅마스터FC 참석명단`(팀별 열, §13.1) 생성. `빅마스터FC 대시보드`는 기록이 쌓인 뒤 하버FC 대시보드 수식을 복사해 만들면 됨(없어도 경기 기록·마감은 동작, 대시보드 회원 목록만 빈 화면).
 3. 설정 화면에서 빅마스터FC shared 5키 입력.
 4. 포인트 로그·선수별집계 탭은 첫 마감 때 자동 생성.
 
@@ -300,3 +300,49 @@ const onDeleteEvent = (id) => {
 - club-platform 마이그레이션: 자체전 행은 이미 "경기 1개 = 양팀"이라 변환이 직접적. 외부전 행은 하버FC와 동일.
 - 팀 규모 가변(7~9인), 2기기 동시 기록, 자체전 전용 수비 지표, 자체전 전용 팀(편) 전적은 비범위.
 - `calcGkChemistry`는 프로덕션에서 호출되지 않음(리뷰 확인) — 건드리지 않는다.
+
+## 13. 증분 2 — 시트 기반 팀 명단·유동 인원·종료 확정 (2026-09-10, 1차 구현 머지 후 요구 변경)
+
+### 13.1 요구 변경
+- **팀 소속은 시트에서 미리 지정**한다(앱에서 22명을 A/B로 고르는 단계 제거). 시트 `빅마스터FC 참석명단`: **1행 = 팀 이름(열마다 하나), 그 아래 = 그 팀 참석자**. 팀 이름은 1행 값 그대로(그날그날 자유). 한 열이 11명을 넘으면 넘는 인원이 그 팀 벤치.
+- **외부팀은 앱에서 추가**(기존 외부전 흐름의 상대팀 선택/직접 추가 그대로). 시트에 상대팀 열 없음.
+- **지각 참석자는 앱 "수동 추가"** → 팀 없는 **유동 인원**. 유동 인원은 자체전에서 어느 편 벤치로든 교체 투입 가능하고 다음 경기 배치에서 양쪽 선발 후보에 뜬다. 한 경기 안에서 양 편에 동시에 기록되는 것은 §6.3(상대 편 출전 이력 제외)으로 이미 차단.
+- **종료 = 확정(수정 불가)**: 빅마스터FC에서는 종료된 경기의 확정취소·출전 수정·상대팀 변경을 제공하지 않는다(외부전 포함).
+- 기록은 한 사람이 A/B 탭 전환(§6.2 3단계 그대로). 2기기 배치·기록은 비범위.
+- 로그_선수경기는 "그날 개인 결과"(편 무관, `session_team='자체전'`)로 확정. 편 소속은 로그_매치 명단·로그_이벤트 `our_team`이 담당(유저 합의).
+
+### 13.2 시트 파서·읽기 (신규, 공유 파일 무접촉)
+`src/utils/intraSoccer/rosterSheet.js`
+- `parseIntraRosterCsv(text) → { teams: [{ name, players: string[] }], attendees: string[], warnings: string[] }`
+  - 첫 비어있지 않은 행 = 헤더. 비어있지 않은 헤더 셀 하나 = 팀 1개(trim). 헤더가 빈 열은 무시.
+  - 그 아래 각 행의 해당 열 셀 = 선수 이름(trim, 끝의 `★`·공백 제거; 빈 셀 건너뜀). 빈 행이 중간에 있어도 멈추지 않는다.
+  - 같은 열 중복 → 1회만(warning). 같은 이름이 두 열에 → **먼저 나온 열** 소속(warning).
+  - `attendees` = 열 순서대로 합집합. `teams.length === 0` → `Error('팀 열 없음')`. 1개면 자체전 불가(외부전 전용 날) — 호출부가 판단.
+  - CSV 한 줄 파싱은 모듈 내부 최소 구현(따옴표·쉼표 처리) — `sheetService`의 비공개 헬퍼를 export 하지 않는다(공유 파일 무접촉).
+- `fetchIntraRoster() → Promise<{ teams, attendees, warnings }>`: `AuthUtil.getStored().team` → `getSettings(team)` → `SHEET_CONFIG.csvUrlBySheet(sheetId, attendanceSheet)` → fetch → 파서. `attendanceSheet` 미설정/HTTP 오류는 throw(호출부가 `console.warn` + 수동 진행).
+- 시트는 40행 이하라 gviz CSV 절단 함정(메모리)과 무관 — 하버FC 참석명단과 같은 메커니즘.
+
+### 13.3 상태 — `soccerFormation.intra`
+- 팀 명단은 기존 whole-replace 동기 필드 `soccerFormation` 안에 둔다(공유 `firebaseSyncDiff` 무수정, 새 필드 등록 불필요, 단일 기록자라 경합 없음): `soccerFormation.intra = { teams: [{ name, players }], syncedAt }`.
+- `IntraSoccerMatchView.saveFormationState(updates)`는 `{ ...savedFormation, ...updates }`로 저장해 `intra` 키를 보존한다(외부전 복원 계약 `viewState/selectedOpponent/selectedPlayers` 모양은 불변).
+- `attendees`(기존 필드) = 시트 참석자 ∪ 수동 추가. **유동 인원** = `attendees − ∪teams.players`. 참석자 선택 화면에서 해제한 이름은 모든 풀에서 빠진다(풀은 항상 `∩ attendees`).
+
+### 13.4 풀 계산 (신규 순수함수 `src/utils/intraSoccer/pools.js`)
+- `floatingOf(attendees, teams) → string[]`
+- `setupPoolA({ teams, a, attendees }) → (roster(a) ∪ floating) ∩ attendees`
+- `setupPoolB({ teams, b, attendees, aAssigned }) → ((roster(b) ∪ floating) ∩ attendees) − aAssigned`
+- `sidePool(m, side, attendees, teams) → subPool(m, side, (roster(sideName) ∪ floating) ∩ attendees)` — `sideName = fieldsOfA/B(m).name`으로 팀을 찾고, 없으면 `attendees` 전체로 폴백. 교체 후보 = 자기 팀 벤치 + 유동 인원 − 상대 편 출전 이력·퇴장자.
+- `canIntra({ teams, attendees })` = `teams.length ≥ 2` 이고 선택된 두 팀 각각 `(roster ∪ floating) ∩ attendees ≥ 11` 이고 `attendees.length ≥ 22`.
+
+### 13.5 흐름 변경 (§6.2 대체)
+1. **참석자 선택** — 시작 시 `fetchIntraRoster()`로 참석자·팀 명단 적재(`gameMode==='sheetSync'`일 때, 하버FC의 `fetchAttendanceData` 자리). "참석명단 연동" 버튼 = 재조회: `soccerFormation.intra.teams := 시트`, `attendees := unique([...시트 참석자, ...locked])`(locked = 출전 기록 있는 선수, 기존 D3 잠금) — 수동 추가한 무기록 선수는 재연동 시 빠지므로 다시 추가. 실패 시 경고만, 수동 진행.
+2. **경기 생성** — 유형 카드: 팀 이름 입력 없음. 팀이 2개면 자동 A/B(열 순서), **3개 이상이면 두 팀 선택**(두 개의 select, 기본 1·2열). 자체전 버튼은 `canIntra`일 때만 활성(부족 시 어느 팀이 몇 명인지 안내). 외부전은 기존 그대로.
+   - 자체전: **A 배치**(`FormationSetup selectedPlayers=setupPoolA`, 11명이면 자동배치 1회로 완성) → **B 배치**(`setupPoolB`) → `CREATE`(A, `opponent`=B 이름) → `PATCH_SOCCER_SIDE`(A,{name}) → `PATCH_SOCCER_SIDE`(B). `FormationSetup.onConfirm.subs`(풀 − 배치)가 곧 그 편 벤치(유동 인원 포함); A 벤치에서 B 선발 제외 규칙(1차 구현) 유지.
+3. **기록 화면** — 탭 X 레코더 `attendees={sidePool(m, X, attendees, teams)}`. 그 외 §6.2 3단계 동일.
+4. **경기 종료 = 확정** — 종료된 노드는 읽기 전용: 확정취소·출전 수정·상대팀 변경 버튼 렌더하지 않음. (리듀서 `REOPEN_SOCCER_MATCH`는 그대로 있으나 빅마스터FC 화면에서 도달 불가.)
+5. **마감** — §7 그대로.
+
+### 13.6 접촉 면·테스트
+- 변경 파일: 신규 `rosterSheet.js`·`pools.js`(+ 테스트), 수정 `IntraSoccerApp.jsx`(시트 적재·재연동·canStart·유형 카드 데이터 전달), `IntraSoccerMatchView.jsx`(유형 카드·배치 풀·종료 읽기 전용), 스펙. **공유 파일 0** — §9 표 불변.
+- 테스트: 파서(헤더/빈 셀/중복/두 열 중복/따옴표·쉼표 이름/팀 0·1·3개), 풀(유동 인원, A/B 풀, `∩ attendees`, sidePool 이름 폴백, canIntra 경계 11/22), `saveFormationState` 가 `intra` 보존(순수 헬퍼로 추출 후 테스트), 정적 테스트 유지. UI는 빌드 + 정독.
+
