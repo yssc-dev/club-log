@@ -63,6 +63,11 @@ export const PRESETS = {
       description: "일반 축구 규칙",
       values: {},
     },
+    "자체전축구": {
+      description: "자체전(A/B 모두 우리 회원) + 외부전 — 빅마스터FC",
+      // intraSquad: Root 가 IntraSoccerApp 을 고르는 게이트. 다른 프리셋에는 이 키가 없다.
+      values: { intraSquad: true },
+    },
   },
   테니스: {
     "표준테니스": {
@@ -74,6 +79,7 @@ export const PRESETS = {
 
 const PRESET_MAP = {
   "마스터FC": { 풋살: "마스터FC풋살" },
+  "빅마스터FC": { 축구: "자체전축구" },
   _default: { 풋살: "표준풋살", 축구: "표준축구", 테니스: "표준테니스" },
 };
 
