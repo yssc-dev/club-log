@@ -7,10 +7,11 @@ import HomeScreen from './components/home/HomeScreen';
 import TeamDashboard from './components/dashboard/TeamDashboard';
 import HistoryView from './components/history/HistoryView';
 import SettingsScreen from './components/common/SettingsScreen';
-import { loadSettingsFromFirebase, getEffectiveSettings } from './config/settings';
+import { loadSettingsFromFirebase } from './config/settings';
 import App from './App';
 import SoccerApp from './SoccerApp';
 import IntraSoccerApp from './IntraSoccerApp';
+import { isIntraSquadTeam } from './utils/intraSoccer/isIntraSquadTeam';
 import { appTitle } from './utils/appTitle';
 import TennisApp from './TennisApp';
 
@@ -208,7 +209,8 @@ export default function Root() {
   }
 
   // 빅마스터FC: 축구 프리셋 intraSquad(자체전축구)일 때만 IntraSoccerApp. 하버FC 는 플래그가 없어 기존 식 그대로.
-  const isIntra = teamContext?.mode === "축구" && getEffectiveSettings(teamContext.team, "축구").intraSquad === true;
+  // 저장된 설정이 없으면(RTDB 로드 실패·첫 접속) 팀 기본 프리셋으로 폴백 — 헬퍼가 그 규칙의 단일 소스.
+  const isIntra = isIntraSquadTeam(teamContext?.team, teamContext?.mode);
   const GameApp = isIntra ? IntraSoccerApp
     : teamContext?.mode === "축구" ? SoccerApp
     : teamContext?.mode === "테니스" ? TennisApp

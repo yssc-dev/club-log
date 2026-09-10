@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest';
-import { buildIntraRows } from '../buildIntraRows';
+import { buildIntraRows, mergeEventRowsByTimestamp } from '../buildIntraRows';
 import { buildEventLogRows, buildPointLogRows, buildPlayerLogRows } from '../../soccerScoring';
 import { buildRawEventsFromSoccer, buildRawPlayerGamesFromSoccer } from '../../rawLogBuilders';
 import { buildRoundRowsFromSoccer } from '../../matchRowBuilder';
@@ -161,6 +161,24 @@ describe('buildIntraRows — 같은 날 자체전 2경기(팀 재편성)', () =>
   it('로그_매치는 경기당 1행 그대로(집계 대상 아님)', () => {
     expect(out.matchRows).toHaveLength(2);
     expect(out.matchRows.map(r => r.match_id)).toEqual(['1', '2']);
+  });
+});
+
+// F-I2: rowsX[i] ↔ eventsX[i] 짝이 어긋나면(행을 만드는 이벤트 타입 집합이 ROW_EVENT_TYPES 와 달라지면)
+// 행이 엉뚱한 timestamp 자리에 섞여 조용히 잘못 기록된다 → 길이 불일치는 즉시 throw.
+describe('mergeEventRowsByTimestamp — 행/이벤트 수 불일치', () => {
+  const ev = (t) => ({ timestamp: t });
+  it('A 쪽 길이가 어긋나면 throw', () => {
+    expect(() => mergeEventRowsByTimestamp(['r1'], [ev(1), ev(2)], [], []))
+      .toThrow(/이벤트 행\/이벤트 수 불일치/);
+  });
+  it('B 쪽 길이가 어긋나면 throw', () => {
+    expect(() => mergeEventRowsByTimestamp([], [], ['r1', 'r2'], [ev(1)]))
+      .toThrow(/SOCCER_EVENT_MAP 과 ROW_EVENT_TYPES 가 어긋났습니다/);
+  });
+  it('길이가 맞으면 timestamp 순으로 합친다', () => {
+    expect(mergeEventRowsByTimestamp(['a1', 'a2'], [ev(10), ev(30)], ['b1'], [ev(20)]))
+      .toEqual(['a1', 'b1', 'a2']);
   });
 });
 

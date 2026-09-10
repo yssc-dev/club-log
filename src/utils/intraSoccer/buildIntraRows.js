@@ -22,7 +22,12 @@ function sortedRowEvents(events) {
 // 하나의 시간순 시퀀스로 합친다. vA.events/vB.events는 같은 원본 m.events에서 파생된 두 시점이라
 // (sideView) 같은 사건이 서로 다른 type(득점 ↔ 실점)으로 양쪽에 한 행씩 나타난다 — 전역 시간 순서로
 // 합쳐야 골/실점 각각의 부분열이 실제 발생 순서를 따른다(리뷰 테스트: 실점 행은 '파랑,파랑,주황' 순).
-function mergeEventRowsByTimestamp(rowsA, eventsA, rowsB, eventsB) {
+export function mergeEventRowsByTimestamp(rowsA, eventsA, rowsB, eventsB) {
+  // 인덱스 짝(rowsX[i] ↔ eventsX[i])은 buildEventLogRows 가 ROW_EVENT_TYPES 와 같은 집합·같은 정렬로
+  // 행을 만든다는 전제다. 한쪽이 바뀌어 어긋나면 행이 엉뚱한 timestamp 위치로 섞여 조용히 잘못 기록된다.
+  if (rowsA.length !== eventsA.length || rowsB.length !== eventsB.length) {
+    throw new Error('buildIntraRows: 이벤트 행/이벤트 수 불일치 — SOCCER_EVENT_MAP 과 ROW_EVENT_TYPES 가 어긋났습니다');
+  }
   let ia = 0, ib = 0;
   const merged = [];
   while (ia < eventsA.length && ib < eventsB.length) {
