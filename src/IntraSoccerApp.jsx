@@ -226,9 +226,6 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
     if (matchIdx < 0) return;
     dispatch({ type: 'UPDATE_SOCCER_MATCH_FORMATION', matchIdx, patch });
   };
-  const reopenSoccerMatch = (matchIdx) => {
-    dispatch({ type: 'REOPEN_SOCCER_MATCH', matchIdx });
-  };
   const setSoccerMatchOpponent = (matchIdx, opponent) => {
     dispatch({ type: 'SET_SOCCER_MATCH_OPPONENT', matchIdx, opponent });
   };
@@ -550,7 +547,7 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
             onRemoveOpponent={removeOpponent} onRenameOpponent={renameOpponent}
             onCreateMatch={createSoccerMatch} onAddEvent={addSoccerEvent}
             onDeleteEvent={deleteSoccerEvent} onFinishMatch={finishSoccerMatch}
-            onUpdateMatchFormation={updateSoccerMatchFormation} onReopenMatch={reopenSoccerMatch}
+            onUpdateMatchFormation={updateSoccerMatchFormation}
             onCreateRestMatch={createRestMatch}
             onAddOpponent={addOpponent} onGoToSummary={() => set('phase', 'summary')}
             gameSettings={state.settingsSnapshot || gameSettings} styles={s}
