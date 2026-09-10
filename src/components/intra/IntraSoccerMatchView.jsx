@@ -169,7 +169,8 @@ export default function IntraSoccerMatchView({
     if (!teamA || !teamB) return;
     const lineupA = Object.values(resA.assignments), lineupB = Object.values(resB.assignments);
     const newIdx = soccerMatches.length;
-    // A 벤치에서 B 선발을 뺀다 — resA.subs는 A 배치 시점의 "참석자 − A 11명"이라 B 로스터 전원을 포함한다.
+    // A 벤치에서 B 선발을 뺀다 — resA.subs는 "A 풀 − A 11명"(A 풀 = A 팀 명단 ∪ 유동 인원)이고
+    // 유동 인원(팀 열에 없는 참석자)은 B 풀에도 들어가므로, A 벤치에 남은 유동 인원이 B 선발로 뽑힐 수 있다.
     const bStarters = new Set(lineupB);
     onCreateMatch({
       opponent: teamB.name, lineup: lineupA, gk: resA.gk, defenders: defendersFromPositionMap(resA.positionMap),
@@ -392,7 +393,7 @@ export default function IntraSoccerMatchView({
                   {[0, 1].map(k => (
                     <select key={k} value={pair[k]} onChange={e => { const v = Number(e.target.value); const other = pair[1 - k]; if (v !== other) setPair(k === 0 ? [v, other] : [other, v]); }}
                       style={{ ...s.input, flex: 1, minWidth: 0 }}>
-                      {teams.map((t, i) => <option key={t.name} value={i}>{t.name} ({t.players.filter(n => attendees.includes(n)).length}명)</option>)}
+                      {teams.map((t, i) => <option key={t.name} value={i}>{t.name} ({(t.players || []).filter(n => attendees.includes(n)).length}명)</option>)}
                     </select>
                   ))}
                 </div>
