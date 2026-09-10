@@ -33,6 +33,21 @@ const external = {
   ],
 };
 
+// 같은 날 2번째 자체전 — 후반 팀 재편성으로 a11↔b11 이 편을 바꾼다(스펙 §5: 재편성은 새 경기).
+const lineupA2 = [...eleven('a').slice(0, 10), 'b11'];
+const lineupB2 = [...eleven('b').slice(0, 10), 'a11'];
+const intra2 = {
+  ...intra,
+  matchIdx: 1,
+  startedAt: intra.startedAt + 3600000,
+  lineup: lineupA2, assignments: asg(lineupA2), positionMap: pm(lineupA2),
+  sideB: { ...intra.sideB, lineup: lineupB2, assignments: asg(lineupB2), positionMap: pm(lineupB2) },
+  events: intra.events.map(e => ({ ...e, id: `${e.id}_2`, timestamp: e.timestamp + 3600000 })),
+};
+
+// Apps Script _writeRawPlayerGames 가 건너뛰기 판정에 쓰는 키(apps-script/Code.js:1751).
+const pgKey = (r) => [r.team, r.sport, r.mode, r.tournament_id, r.date, r.player].join('|');
+
 // 하버FC SoccerApp.handleFinalize(248-271) 를 그대로 옮긴 기준 구현
 function harborRows(finished) {
   const eventLogRows = buildEventLogRows(finished, D);
@@ -90,16 +105,17 @@ describe('buildIntraRows — 자체전', () => {
     expect(out.rawEvents.filter(e => e.our_team === '주황').length).toBe(11 + 2 + 1);   // 출전11 + 골2 + 실점1
     expect(out.rawEvents.filter(e => e.our_team === '파랑').length).toBe(11 + 1 + 2 + 1); // 출전11 + 골1 + 실점2 + 교체1
   });
-  it('로그_선수경기: 선수당 1행, session_team 편 이름, 클린시트/실점 편별', () => {
+  // session_team 은 편 이름이 아니라 상수 '자체전' — 한 선수가 같은 날 양 편을 뛸 수 있기 때문(F-C1).
+  it('로그_선수경기: 선수당 1행, session_team 자체전, 클린시트/실점 편별', () => {
     const pg = out.rawPlayerGames;
     expect(pg).toHaveLength(23); // a1..a11 + b1..b11 + b12(교체 투입)
     expect(new Set(pg.map(p => p.player)).size).toBe(23);
     expect(pg.every(p => p.mode === '자체전')).toBe(true);
-    expect(pg.find(p => p.player === 'a1')).toMatchObject({ session_team: '주황', keeper_games: 1, conceded: 1, cleansheets: 0 });
-    expect(pg.find(p => p.player === 'b1')).toMatchObject({ session_team: '파랑', keeper_games: 1, conceded: 2, cleansheets: 0 });
+    expect(pg.find(p => p.player === 'a1')).toMatchObject({ session_team: '자체전', keeper_games: 1, conceded: 1, cleansheets: 0 });
+    expect(pg.find(p => p.player === 'b1')).toMatchObject({ session_team: '자체전', keeper_games: 1, conceded: 2, cleansheets: 0 });
     expect(pg.find(p => p.player === 'a9')).toMatchObject({ goals: 1, assists: 0 });
     expect(pg.find(p => p.player === 'b8')).toMatchObject({ goals: 0, assists: 1 });
-    expect(pg.find(p => p.player === 'b12')).toMatchObject({ session_team: '파랑', games: 1 });
+    expect(pg.find(p => p.player === 'b12')).toMatchObject({ session_team: '자체전', games: 1 });
   });
   it('선수별집계는 양팀 합, 포인트 로그는 0행', () => {
     expect(out.playerLogRows).toHaveLength(23);
@@ -111,5 +127,69 @@ describe('buildIntraRows — 자체전', () => {
     expect(mixed.pointLogRows).toEqual(buildPointLogRows([external], D, IT));
     expect(mixed.sessionGameId).toBe(`s_${intra.startedAt}`);
     expect(mixed.matchRows.every(r => r.game_id === mixed.sessionGameId)).toBe(true);
+  });
+});
+
+// F-C1: Apps Script 의 로그_선수경기 dedupe 키는 (team|sport|mode|tournament_id|date|player) 라
+// 경기×편 1행이면 같은 날 2번째 경기의 행이 조용히 버려진다 → 날짜 기준 집계 1행.
+describe('buildIntraRows — 같은 날 자체전 2경기(팀 재편성)', () => {
+  const out = buildIntraRows({ team: T, dateStr: D, inputTime: IT, finished: [intra, intra2] });
+
+  it('로그_선수경기: 선수당 1행(중복 player 없음), 경기수는 합산', () => {
+    const pg = out.rawPlayerGames;
+    expect(pg).toHaveLength(23);                                  // a1..a11 + b1..b12
+    expect(new Set(pg.map(p => p.player)).size).toBe(23);
+    expect(pg.every(p => p.games === 2)).toBe(true);               // 23명 모두 두 경기 출전
+    expect(pg.find(p => p.player === 'a11')).toMatchObject({ games: 2, session_team: '자체전' });
+    expect(pg.find(p => p.player === 'b11')).toMatchObject({ games: 2, session_team: '자체전' });
+    expect(pg.every(p => p.mode === '자체전' && p.session_team === '자체전')).toBe(true);
+  });
+
+  it('로그_선수경기: Apps Script dedupe 키가 행마다 유일', () => {
+    const keys = out.rawPlayerGames.map(pgKey);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('선수별집계: 선수당 1행, 골·키퍼 경기수 합산', () => {
+    expect(out.playerLogRows).toHaveLength(23);
+    expect(new Set(out.playerLogRows.map(p => p.name)).size).toBe(23);
+    expect(out.playerLogRows.find(p => p.name === 'a9').goals).toBe(2);
+    expect(out.playerLogRows.find(p => p.name === 'a1')).toMatchObject({ keeperGames: 2, conceded: 2 });
+    expect(out.playerLogRows.find(p => p.name === 'a11').games).toBe(2);
+  });
+
+  it('로그_매치는 경기당 1행 그대로(집계 대상 아님)', () => {
+    expect(out.matchRows).toHaveLength(2);
+    expect(out.matchRows.map(r => r.match_id)).toEqual(['1', '2']);
+  });
+});
+
+describe('buildIntraRows — 혼합일(외부전 1 + 자체전 1) 집계', () => {
+  const out = buildIntraRows({ team: T, dateStr: D, inputTime: IT, finished: [intra, external] });
+
+  it('로그_선수경기: 외부전 집계는 mode 기본, 자체전 집계는 mode 자체전', () => {
+    const pg = out.rawPlayerGames;
+    const ext = pg.filter(p => p.mode === '기본');
+    const itr = pg.filter(p => p.mode === '자체전');
+    expect(ext).toHaveLength(11);                                  // 외부전 출전 a1..a11
+    expect(itr).toHaveLength(23);
+    expect(pg).toHaveLength(34);
+    expect(ext.every(p => p.session_team === T)).toBe(true);        // 하버FC 경로 그대로
+    expect(itr.every(p => p.session_team === '자체전')).toBe(true);
+    expect(new Set(ext.map(p => p.player)).size).toBe(11);
+    expect(new Set(itr.map(p => p.player)).size).toBe(23);
+  });
+
+  it('로그_선수경기: Apps Script dedupe 키가 행마다 유일', () => {
+    const keys = out.rawPlayerGames.map(pgKey);
+    expect(new Set(keys).size).toBe(keys.length);
+  });
+
+  it('선수별집계: 외부전+자체전 양편을 한 번에 집계, 선수당 1행', () => {
+    expect(out.playerLogRows).toHaveLength(23);
+    expect(new Set(out.playerLogRows.map(p => p.name)).size).toBe(23);
+    expect(out.playerLogRows.find(p => p.name === 'a1')).toMatchObject({ games: 2, keeperGames: 2, conceded: 2 });
+    expect(out.playerLogRows.find(p => p.name === 'a9').goals).toBe(2);
+    expect(out.playerLogRows.find(p => p.name === 'b12').games).toBe(1);
   });
 });

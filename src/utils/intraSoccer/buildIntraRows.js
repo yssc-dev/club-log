@@ -45,6 +45,9 @@ export function buildIntraRows({ team, dateStr, inputTime, finished }) {
 
   // ── 외부전: 하버FC 경로 그대로(mode '기본', 후처리 없음) ──
   const external = list.filter((m) => !isIntra(m));
+  const intraList = list.filter(isIntra);
+  // 자체전 경기 하나 = 편 시점 뷰 두 개. 선수 집계는 이 뷰 전체를 한 번에 돌린다(아래 집계 주석).
+  const intraViews = intraList.flatMap((m) => [sideView(m, 'A'), sideView(m, 'B')]);
   const extEvents = buildEventLogRows(external, dateStr);
   const pointLogRows = buildPointLogRows(external, dateStr, inputTime);   // 자체전은 포인트 로그에 쓰지 않는다(스펙 §7)
   const extPlayers = buildPlayerLogRows(external, dateStr, inputTime);
@@ -55,20 +58,27 @@ export function buildIntraRows({ team, dateStr, inputTime, finished }) {
   const extRaw = buildRawEventsFromSoccer({ team, gameId: sessionGameId, events: extEvents });
   const extPG = buildRawPlayerGamesFromSoccer({ team, inputTime, players: extPlayers });
 
+  // ── 선수 집계는 '날짜당 선수 1행' ──
+  // Apps Script 의 로그_선수경기 dedupe 키는 team|sport|mode|tournament_id|date|player 뿐이라
+  // (apps-script/Code.js:1751, _writeRawPlayerGames) 경기×편 1행이면 같은 날 2번째 자체전의 행이
+  // 조용히 버려진다. calcSoccerPlayerStats 가 이름으로 누적하므로 뷰를 한 번에 넣어 합산한다.
+  // session_team 은 상수 '자체전' — 한 선수가 1경기 A, 2경기 B 일 수 있어 단일 편 이름을 쓸 수 없다
+  // (편 소속은 로그_매치 our_members_json/opponent_members_json 으로 복원, 분석은 session_team 을 읽지 않는다).
+  const playerLogRows = buildPlayerLogRows([...external, ...intraViews], dateStr, inputTime);
+  const intraPG = buildRawPlayerGamesFromSoccer({
+    team, inputTime, players: buildPlayerLogRows(intraViews, dateStr, inputTime),
+  }).map((r) => ({ ...r, mode: '자체전', session_team: '자체전' }));
+  const rawPlayerGames = [...extPG, ...intraPG];
+
   // ── 자체전: 편마다 시점 뷰로 같은 빌더를 돌리고 편 이름·mode 후처리 ──
-  const playerLogRows = [...extPlayers];
   const rawEvents = [...extRaw];
-  const rawPlayerGames = [...extPG];
   const intraMatchRows = [];
-  for (const m of list.filter(isIntra)) {
+  for (const m of intraList) {
     const nameA = fieldsOfA(m).name, nameB = fieldsOfB(m).name;
     const vA = sideView(m, 'A'), vB = sideView(m, 'B');
 
     const evA = buildEventLogRows([vA], dateStr);
     const evB = buildEventLogRows([vB], dateStr);
-    const plA = buildPlayerLogRows([vA], dateStr, inputTime);
-    const plB = buildPlayerLogRows([vB], dateStr, inputTime);
-    playerLogRows.push(...plA, ...plB);
 
     const rawA = buildRawEventsFromSoccer({ team, mode: '자체전', gameId: sessionGameId, events: evA })
       .map((r) => ({ ...r, our_team: nameA }));
@@ -86,11 +96,6 @@ export function buildIntraRows({ team, dateStr, inputTime, finished }) {
       eventRowsB, sortedRowEvents(vB.events),
     );
     rawEvents.push(...lineupRowsA, ...lineupRowsB, ...mergedEventRows);
-
-    rawPlayerGames.push(
-      ...buildRawPlayerGamesFromSoccer({ team, inputTime, players: plA }).map((r) => ({ ...r, mode: '자체전', session_team: nameA })),
-      ...buildRawPlayerGamesFromSoccer({ team, inputTime, players: plB }).map((r) => ({ ...r, mode: '자체전', session_team: nameB })),
-    );
 
     // 로그_매치 1행 = A 시점 행 + B 정보(명단·포메이션·수비수는 객체형 opponent_members_json 안에).
     const rowA = buildRoundRowsFromSoccer({ team, mode: '자체전', tournamentId: '', date: dateStr, stateJSON: { soccerMatches: [plusOne(vA)] }, inputTime })[0];
