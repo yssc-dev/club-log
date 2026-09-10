@@ -6,6 +6,8 @@ import { calcMatchScore } from '../../utils/scoring';
 import { getEffectiveSettings } from '../../config/settings';
 import { countFinishedSoccerMatches } from '../../utils/soccerScoring';
 import SoccerArchiveDetail from './SoccerArchiveDetail';
+import IntraSoccerArchiveDetail from '../intra/IntraSoccerArchiveDetail';
+import { isIntra } from '../../utils/intraSoccer/sideView';
 import TennisResultsModal from '../tennis/TennisResultsModal';
 import { makeStyles } from '../../styles/theme';
 
@@ -167,6 +169,7 @@ export default function HistoryView({ teamContext, onBack }) {
     // futsal 필드로는 0경기·0점이 되므로 전용 렌더(SoccerArchiveDetail)로 분기한다.
     const isSoccer = matchMode === "soccer";
     const soccerMatches = gs?.soccerMatches || [];
+    const hasIntra = isSoccer && soccerMatches.some(isIntra);
     const soccerFinishedCount = countFinishedSoccerMatches(soccerMatches);
     // 테니스: state.sport로 판별, rounds를 TennisResultsModal로 렌더(라운드별 코트 결과).
     const isTennis = gs?.sport === '테니스';
@@ -192,7 +195,9 @@ export default function HistoryView({ teamContext, onBack }) {
           {isTennis ? (
             <TennisResultsModal rounds={tennisRounds} C={C} styles={ds} />
           ) : isSoccer ? (
-            <SoccerArchiveDetail soccerMatches={soccerMatches} es={es} styles={hs} />
+            hasIntra
+              ? <IntraSoccerArchiveDetail soccerMatches={soccerMatches} es={es} styles={hs} />
+              : <SoccerArchiveDetail soccerMatches={soccerMatches} es={es} styles={hs} />
           ) : (
           <>
 

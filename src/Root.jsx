@@ -7,9 +7,10 @@ import HomeScreen from './components/home/HomeScreen';
 import TeamDashboard from './components/dashboard/TeamDashboard';
 import HistoryView from './components/history/HistoryView';
 import SettingsScreen from './components/common/SettingsScreen';
-import { loadSettingsFromFirebase } from './config/settings';
+import { loadSettingsFromFirebase, getEffectiveSettings } from './config/settings';
 import App from './App';
 import SoccerApp from './SoccerApp';
+import IntraSoccerApp from './IntraSoccerApp';
 import { appTitle } from './utils/appTitle';
 import TennisApp from './TennisApp';
 
@@ -206,7 +207,10 @@ export default function Root() {
     return <SettingsScreen teamName={selectedTeamName} teamMode={teamContext?.mode} teamEntries={selectedTeamEntries} isAdmin={teamContext?.role === "관리자"} onBack={() => setScreen("dashboard")} />;
   }
 
-  const GameApp = teamContext?.mode === "축구" ? SoccerApp
+  // 빅마스터FC: 축구 프리셋 intraSquad(자체전축구)일 때만 IntraSoccerApp. 하버FC 는 플래그가 없어 기존 식 그대로.
+  const isIntra = teamContext?.mode === "축구" && getEffectiveSettings(teamContext.team, "축구").intraSquad === true;
+  const GameApp = isIntra ? IntraSoccerApp
+    : teamContext?.mode === "축구" ? SoccerApp
     : teamContext?.mode === "테니스" ? TennisApp
     : App;
   return <GameApp authUser={authUser} teamContext={teamContext} isNewGame={isNewGame} gameMode={gameMode} gameId={activeGameId}
