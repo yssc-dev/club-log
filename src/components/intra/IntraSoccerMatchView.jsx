@@ -13,7 +13,7 @@ import LineupEditView from '../game/LineupEditView';
 import RoundNav from '../game/RoundNav';
 import ConfirmBar from '../game/ConfirmBar';
 import { isIntra, sideView, fieldsOfA, fieldsOfB } from '../../utils/intraSoccer/sideView';
-import { subPool } from '../../utils/intraSoccer/subPool';
+import { resolvePair, setupPoolA, setupPoolB, sidePool, canIntra, mergeFormationState } from '../../utils/intraSoccer/pools';
 import { planAddEvent, planDeleteEvent, sideBSwapPatch, sideBCorrectPatch, pickSidePatch } from '../../utils/intraSoccer/handlers';
 // 빅마스터FC 기록화면 = SoccerMatchView(하버FC) 포크. 외부전 경로는 원본과 동일하고,
 // 자체전(A팀 vs B팀)은 한 경기 객체에 두 편을 저장한 뒤 A/B 탭으로 한 기기에서 기록한다.
@@ -23,7 +23,7 @@ import { planAddEvent, planDeleteEvent, sideBSwapPatch, sideBCorrectPatch, pickS
 export default function IntraSoccerMatchView({
   soccerMatches, currentMatchIdx, attendees, opponents,
   onCreateMatch, onAddEvent, onDeleteEvent, onFinishMatch,
-  onUpdateMatchFormation, onReopenMatch, onCreateRestMatch,
+  onUpdateMatchFormation, onCreateRestMatch,
   onAddOpponent, onRemoveOpponent, onRenameOpponent, onGoToSummary, gameSettings, styles: s,
   savedFormation, onFormationChange,
   onSetMatchOpponent, onCorrectLineup, onSwapLineupPositions, gameFinalized,
@@ -39,11 +39,10 @@ export default function IntraSoccerMatchView({
   const [navLocked, setNavLocked] = useState(false);            // goalFlow 열림 중 ◀▶ 잠금
   const [opponentModalIdx, setOpponentModalIdx] = useState(null); // 상대팀 변경 모달 대상 matchIdx
   const [lineupEdit, setLineupEdit] = useState(null);             // 라인업 편집기 대상 { matchIdx, side }
-  // [자체전] 경기 유형·편 이름·A 배치 임시 저장·기록 탭
-  // 전부 로컬(RTDB 미동기) — 한 기기 한 기록자 전제. 새로고침 시 자체전 배치 단계는 처음부터 다시 한다
-  // (saveFormationState의 저장 모양은 원본과 동일하게 유지 = 외부전 멀티탭 복원 계약 불변).
+  // [자체전] 경기 유형·A 배치 임시 저장·기록 탭
+  // 전부 로컬(RTDB 미동기) — 한 기기 한 기록자 전제. 새로고침 시 자체전 배치 단계는 처음부터 다시 한다.
+  // 편 이름/명단은 로컬이 아니라 시트 → savedFormation.intra(동기 필드)에서 온다(아래 파생값).
   const [matchType, setMatchType] = useState(null);            // '자체전' | '외부전' | null(선택 전)
-  const [sideNames, setSideNames] = useState({ A: 'A팀', B: 'B팀' });
   const [pendingA, setPendingA] = useState(null);              // 자체전 A 배치 결과(FormationSetup onConfirm)
   const [tab, setTab] = useState('A');                         // 기록 탭 'A' | 'B'
 
@@ -54,9 +53,19 @@ export default function IntraSoccerMatchView({
   useEffect(() => { setSelectedOpponent(savedFormation?.selectedOpponent || null); }, [savedFormation?.selectedOpponent]);
   useEffect(() => { setSelectedPlayers(savedFormation?.selectedPlayers || []); }, [savedFormation?.selectedPlayers]);
 
+  // ⚠️ soccerFormation은 whole-replace 동기 필드 — savedFormation을 펼치지 않으면 저장 한 번에
+  // intra(시트 팀 명단)가 RTDB에서 사라진다. 병합은 mergeFormationState 한 군데서만 한다.
   const saveFormationState = (updates) => {
-    onFormationChange?.({ viewState, selectedOpponent, selectedPlayers, ...updates });
+    onFormationChange?.(mergeFormationState(savedFormation, { viewState, selectedOpponent, selectedPlayers }, updates));
   };
+
+  // [증분 2] 팀 명단·선택 쌍은 시트 → soccerFormation.intra (IntraSoccerApp이 채운다). 편 이름은 팀 이름 그대로.
+  const intra = savedFormation?.intra || { teams: [] };
+  const teams = intra.teams || [];
+  const pair = resolvePair(teams, intra.selectedPair);
+  const teamA = teams[pair[0]] || null, teamB = teams[pair[1]] || null;
+  const gate = canIntra({ teams, attendees, pair });
+  const setPair = (p) => saveFormationState({ intra: { ...intra, selectedPair: p } });
 
   // ── 연속체 파생 ──
   const orderedMatches = [...soccerMatches].sort((a, b) => a.matchIdx - b.matchIdx);
@@ -143,14 +152,9 @@ export default function IntraSoccerMatchView({
     saveFormationState({ viewState: "selectOpponent", selectedOpponent: null, selectedPlayers: [] });
   };
 
-  // [자체전] 경기 유형 카드 → A 배치. 이름은 여기서 확정(생성 후 변경 비범위)하므로 미리 정규화한다.
+  // [자체전] 경기 유형 카드 → A 배치. 이름 검증은 없다 — 파서가 "휴식"·중복 팀명을 이미 거른다.
   const startIntra = () => {
-    const a = (sideNames.A || '').trim() || 'A팀';
-    const b = (sideNames.B || '').trim() || 'B팀';
-    // "휴식"은 휴식 라운드 노드(opponent === "휴식")와 구분이 불가능해 편 이름으로 쓸 수 없다.
-    if (a === "휴식" || b === "휴식") { alert('팀 이름으로 "휴식"은 쓸 수 없습니다(휴식 라운드와 구분 불가).'); return; }
-    if (a === b) { alert("A팀과 B팀 이름이 같습니다. 서로 다르게 정해주세요."); return; }
-    setSideNames({ A: a, B: b });
+    if (!gate.ok || !teamA || !teamB) return;
     setMatchType("자체전");
     setViewState("formationA");
   };
@@ -161,19 +165,21 @@ export default function IntraSoccerMatchView({
     // ⚠️ 경기 생성 "전에" 터뜨린다 — onPatchSide가 없으면 sideB 없는 경기(= 유령 팀 상대 외부전)가
     // 남아 세션 전체가 잘못 기록된다. 생성 후에 던지면 이미 만들어진 경기를 되돌릴 수 없다.
     if (typeof onPatchSide !== "function") throw new Error("IntraSoccerMatchView: onPatchSide prop이 필요합니다(자체전 B 편 저장 불가)");
+    // 배치 중 다른 탭이 명단을 재연동해 선택 쌍이 사라질 수 있다 — 이름 없이 생성하면 유령 경기가 된다.
+    if (!teamA || !teamB) return;
     const lineupA = Object.values(resA.assignments), lineupB = Object.values(resB.assignments);
     const newIdx = soccerMatches.length;
     // A 벤치에서 B 선발을 뺀다 — resA.subs는 A 배치 시점의 "참석자 − A 11명"이라 B 로스터 전원을 포함한다.
     const bStarters = new Set(lineupB);
     onCreateMatch({
-      opponent: sideNames.B, lineup: lineupA, gk: resA.gk, defenders: defendersFromPositionMap(resA.positionMap),
+      opponent: teamB.name, lineup: lineupA, gk: resA.gk, defenders: defendersFromPositionMap(resA.positionMap),
       subs: resA.subs.filter(n => !bStarters.has(n)),
       formation: resA.formation, assignments: resA.assignments, positionMap: resA.positionMap,
     });
     // 옵셔널 체이닝 없음 — onCreateMatch/onAddEvent/onFinishMatch와 같은 규약(위 가드 참조).
-    onPatchSide(newIdx, 'A', { name: sideNames.A });
+    onPatchSide(newIdx, 'A', { name: teamA.name });
     onPatchSide(newIdx, 'B', {
-      name: sideNames.B, lineup: lineupB, gk: resB.gk, defenders: defendersFromPositionMap(resB.positionMap),
+      name: teamB.name, lineup: lineupB, gk: resB.gk, defenders: defendersFromPositionMap(resB.positionMap),
       subs: resB.subs, formation: resB.formation, assignments: resB.assignments, positionMap: resB.positionMap,
     });
     // 생성 후 정리는 handleFormationConfirm(외부전)과 동일 — 안 지우면 배치 화면에 갇혀 유령 경기가 생긴다.
@@ -190,18 +196,8 @@ export default function IntraSoccerMatchView({
     else onUpdateMatchFormation?.(currentMatchIdx, updates);
   };
 
-  // 끝난 경기 다시 열기(풀편집). viewState/navIdx는 손대지 않음 — 구조 변경으로 navIdx가 자동 리셋된다.
-  const handleReopenMatch = (matchIdx) => {
-    const m = soccerMatches.find(x => x.matchIdx === matchIdx);
-    if (!m) return;
-    const vA = sideView(m, 'A');   // 자체전은 B 편 이름, 외부전은 m.opponent와 동일
-    if (!confirm(`제${matchIdx + 1}경기 (vs ${vA.opponent}) 기록을 다시 열어 수정하시겠습니까?`)) return;
-    onReopenMatch?.(matchIdx);
-    // 레거시 승격은 A 편만 — B 편은 항상 FormationSetup이 배치를 남긴다.
-    if (!(vA.formation && vA.assignments && vA.positionMap)) {
-      onUpdateMatchFormation?.(matchIdx, reconstructFormation(vA));
-    }
-  };
+  // [증분 2] 종료 = 확정(수정 불가) — 확정취소·출전 수정·상대팀 변경을 제공하지 않는다(외부전 포함, 스펙 §13).
+  // 리듀서 REOPEN_SOCCER_MATCH는 남아 있으나 빅마스터FC 화면에서는 도달 불가(onReopenMatch를 쓰지 않는다).
 
   // 레코더 이벤트 입력. 자체전 "⚽ 상대골"은 저장하지 않고 상대 편 탭으로 가는 단축키가 된다.
   const handleAddEvent = (event, side) => {
@@ -252,18 +248,19 @@ export default function IntraSoccerMatchView({
   // A/B 단계가 트리 같은 자리의 같은 타입이라 key 없이는 B 화면이 A의 배치를 11/11로 물려받는다
   // (→ B 선발이 A와 같은 선수로 생성되는 사고). key가 다르면 단계 전환마다 remount = 빈 배치.
   // 대가: B에서 뒤로 가면 A 배치를 다시 지정해야 한다(FormationSetup은 초기 배치 prop이 없음).
-  if (viewState === "formationA") {
+  // 풀은 그 팀 명단 ∪ 유동 인원(팀 열에 없는 참석자) ∩ 참석자 — 상대 팀 소속은 애초에 고를 수 없다.
+  // teamA/teamB가 null이면(명단 재연동으로 선택 쌍 소멸) 조기 반환을 건너뛰어 유형 카드로 돌아간다.
+  if (viewState === "formationA" && teamA) {
     return (
-      <FormationSetup key="setup-intra-A" selectedPlayers={attendees} title={`${sideNames.A} 선발 11명`}
+      <FormationSetup key="setup-intra-A" selectedPlayers={setupPoolA({ teams, a: pair[0], attendees })} title={`${teamA.name} 선발 11명`}
         onConfirm={(resA) => { setPendingA(resA); setViewState("formationB"); }}
         onBack={() => { setPendingA(null); setMatchType(null); setViewState("selectOpponent"); }} />
     );
   }
-  if (viewState === "formationB" && pendingA) {
-    const aNames = new Set(Object.values(pendingA.assignments));
-    const poolB = attendees.filter(n => !aNames.has(n));
+  if (viewState === "formationB" && pendingA && teamA && teamB) {
+    const poolB = setupPoolB({ teams, b: pair[1], attendees, aAssigned: Object.values(pendingA.assignments) });
     return (
-      <FormationSetup key="setup-intra-B" selectedPlayers={poolB} title={`${sideNames.B} 선발 11명`}
+      <FormationSetup key="setup-intra-B" selectedPlayers={poolB} title={`${teamB.name} 선발 11명`}
         onConfirm={(resB) => handleIntraConfirm(pendingA, resB)}
         onBack={() => { setPendingA(null); setViewState("formationA"); }} />
     );
@@ -277,8 +274,8 @@ export default function IntraSoccerMatchView({
     const fm = reconstructFormation(v);
     // 정정 후보 = 참석자 − 출전자. m.subs(생성 시점 스냅샷) 대신 현재 참석자를 본다 —
     // 나중에 참석 처리된 지각자도 후보가 돼야 하기 때문. 출전자 제외는 CORRECT 중복 방지.
-    // 자체전은 참석자 대신 subPool — 상대 편 피치 위 선수를 이 편으로 끌어오지 못하게 한다.
-    const bench = getNonPlayers(v, subPool(m, side, attendees));
+    // 자체전은 참석자 대신 sidePool — 자기 팀 명단 ∪ 유동 인원으로 좁히고 상대 편 피치 위 선수를 뺀다.
+    const bench = getNonPlayers(v, sidePool(m, side, attendees, teams));
     const sideLabel = isIntra(m) ? (side === 'A' ? fieldsOfA(m).name : fieldsOfB(m).name) : `vs ${v.opponent}`;
     return (
       <LineupEditView
@@ -317,7 +314,6 @@ export default function IntraSoccerMatchView({
   const isRest = !!nodeA && nodeA.opponent === "휴식";
   const isPlayingNode = !!node && node.status === "playing";
   const nodeIntra = isIntra(node);
-  const canIntra = (attendees || []).length >= 22;             // 자체전은 양 편 선발 11+11 필요
 
   const navLabel = atNewNode ? `제${soccerMatches.length + 1}경기` : `제${node.matchIdx + 1}경기`;
   const navStatusText = atNewNode ? "새 경기" : isRest ? "휴식" : isPlayingNode ? "진행중" : "종료됨";
@@ -326,7 +322,8 @@ export default function IntraSoccerMatchView({
   const goPrev = () => { if (safeNavIdx > 0 && !navLocked) setNavIdx(safeNavIdx - 1); };
   const goNext = () => { if (safeNavIdx < totalNodes - 1 && !navLocked) setNavIdx(safeNavIdx + 1); };
 
-  const canChangeOpponent = !!node && !atNewNode && !isRest;
+  // [증분 2] 종료된 경기는 읽기 전용 — 출전 수정·상대팀 변경 버튼을 아예 렌더하지 않는다.
+  const canEditNode = !!node && !atNewNode && !isRest && node.status !== "finished";
   const openOpponentModal = () => {
     if (!node) return;
     if (gameFinalized && !confirm("이미 구글시트로 전송(마감)된 경기입니다.\n상대팀을 바꾸면 최종집계 화면의 '수정 후 재전송'으로 다시 전송해야 시트가 정합됩니다.\n계속하시겠습니까?")) return;
@@ -354,7 +351,7 @@ export default function IntraSoccerMatchView({
         onPrev={goPrev} onNext={goNext}
       />
 
-      {canChangeOpponent && (
+      {canEditNode && (
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 10, flexWrap: "wrap" }}>
           {(nodeIntra ? ["A", "B"] : ["A"]).map(sd => (
             <button key={sd} onClick={() => openLineupEditor(sd)} disabled={navLocked}
@@ -389,14 +386,20 @@ export default function IntraSoccerMatchView({
           ) : (
             <>
               <div style={{ fontSize: 13, fontWeight: 800, color: C.white, marginBottom: 8 }}>경기 유형</div>
-              {/* 편 이름은 경기 생성 시 확정된다(생성 후 변경 비범위) — 자체전 버튼보다 위에 둔다 */}
-              <div style={{ display: "flex", gap: 8, marginBottom: 10 }}>
-                <input style={s.input} value={sideNames.A} onChange={e => setSideNames(n => ({ ...n, A: e.target.value }))} placeholder="A팀 이름" />
-                <input style={s.input} value={sideNames.B} onChange={e => setSideNames(n => ({ ...n, B: e.target.value }))} placeholder="B팀 이름" />
-              </div>
-              <button onClick={() => { if (canIntra) startIntra(); }} disabled={!canIntra}
-                style={{ ...s.btnFull(C.accent, C.bg), marginBottom: 8, opacity: canIntra ? 1 : 0.4, cursor: canIntra ? "pointer" : "not-allowed" }}>
-                {canIntra ? `자체전 (${sideNames.A || "A팀"} vs ${sideNames.B || "B팀"} · 참석 ${attendees.length}명)` : `자체전 — 참석자 22명 이상 필요 (현재 ${attendees.length}명)`}
+              {/* 편 이름·명단은 시트가 정한다(입력 없음). 팀이 3개 이상이면 맞붙을 두 팀을 고른다 — selectedPair는 동기 필드. */}
+              {teams.length >= 3 && (
+                <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
+                  {[0, 1].map(k => (
+                    <select key={k} value={pair[k]} onChange={e => { const v = Number(e.target.value); const other = pair[1 - k]; if (v !== other) setPair(k === 0 ? [v, other] : [other, v]); }}
+                      style={{ ...s.input, flex: 1, minWidth: 0 }}>
+                      {teams.map((t, i) => <option key={t.name} value={i}>{t.name} ({t.players.filter(n => attendees.includes(n)).length}명)</option>)}
+                    </select>
+                  ))}
+                </div>
+              )}
+              <button onClick={startIntra} disabled={!gate.ok}
+                style={{ ...s.btnFull(C.accent, C.bg), marginBottom: 8, opacity: gate.ok ? 1 : 0.4, cursor: gate.ok ? "pointer" : "not-allowed" }}>
+                {gate.ok ? `자체전 (${teamA.name} vs ${teamB.name} · 참석 ${attendees.length}명)` : `자체전 — ${gate.reason}`}
               </button>
               <button onClick={() => { setMatchType("외부전"); setViewState("selectOpponent"); }}
                 style={s.btnFull(C.cardLight, C.white)}>외부전 (상대팀 선택)</button>
@@ -411,14 +414,14 @@ export default function IntraSoccerMatchView({
 
       {/* 진행 중 노드 — FormationRecorder(편집). goalFlow 열림 중 ◀▶·A/B 탭 잠금. */}
       {isPlayingNode && currentMatch && (() => {
-        const intra = isIntra(currentMatch);
-        const side = intra ? tab : 'A';
+        const isIntraMatch = isIntra(currentMatch);
+        const side = isIntraMatch ? tab : 'A';
         const v = sideView(currentMatch, side);          // 기록 탭의 '하버FC 모양' 경기
         const live = reconstructFormation(v);
-        const scoreA = intra ? calcSoccerScore(sideView(currentMatch, 'A').events) : null;
+        const scoreA = isIntraMatch ? calcSoccerScore(sideView(currentMatch, 'A').events) : null;
         return (
           <>
-            {intra && (
+            {isIntraMatch && (
               <div style={{ display: "flex", gap: 6, marginBottom: 8 }}>
                 {["A", "B"].map(sd => {
                   const name = sd === "A" ? fieldsOfA(currentMatch).name : fieldsOfB(currentMatch).name;
@@ -432,13 +435,13 @@ export default function IntraSoccerMatchView({
                 })}
               </div>
             )}
-            {intra && (
+            {isIntraMatch && (
               <div style={{ textAlign: "center", fontSize: 18, fontWeight: 900, color: C.white, marginBottom: 8 }}>
                 {fieldsOfA(currentMatch).name} {scoreA.ourScore} : {scoreA.opponentScore} {fieldsOfB(currentMatch).name}
               </div>
             )}
             {/* 위 헤더는 항상 A:B, 아래 레코더의 점수판은 '현재 편 : 상대 편' — 모순으로 읽히지 않게 기준을 명시한다 */}
-            {intra && (
+            {isIntraMatch && (
               <div style={{ textAlign: "center", fontSize: 11, color: C.gray, marginBottom: 6 }}>
                 아래는 {side === "A" ? fieldsOfA(currentMatch).name : fieldsOfB(currentMatch).name} 시점 점수판
               </div>
@@ -446,7 +449,7 @@ export default function IntraSoccerMatchView({
             <FormationRecorder
               key={`${currentMatch.matchIdx}:${side}`}
               formation={live.formation} assignments={live.assignments} positionMap={live.positionMap}
-              gk={live.gk} attendees={subPool(currentMatch, side, attendees)} opponent={v.opponent}
+              gk={live.gk} attendees={sidePool(currentMatch, side, attendees, teams)} opponent={v.opponent}
               startedAt={currentMatch.startedAt || Date.now()} events={v.events || []}
               onAddEvent={(ev) => handleAddEvent(ev, side)} onDeleteEvent={handleDeleteEvent}
               onFinishMatch={(snap) => handleFinishMatch(snap, side)}
@@ -535,11 +538,7 @@ export default function IntraSoccerMatchView({
             ))}
             <div style={{ height: 72 }} />
             <ConfirmBar>
-              <span style={{ color: C.green, fontWeight: 700, fontSize: 13 }}>제{node.matchIdx + 1}경기 {isRest ? "휴식" : "종료됨"}</span>
-              {!isRest && (
-                <button onClick={() => handleReopenMatch(node.matchIdx)}
-                  style={{ padding: "6px 16px", borderRadius: 8, background: C.orange, color: C.bg, border: "none", fontSize: 13, fontWeight: 700, cursor: "pointer" }}>확정취소</button>
-              )}
+              <span style={{ color: C.green, fontWeight: 700, fontSize: 13 }}>제{node.matchIdx + 1}경기 {isRest ? "휴식" : "종료됨 · 확정(수정 불가)"}</span>
             </ConfirmBar>
           </>
         );
