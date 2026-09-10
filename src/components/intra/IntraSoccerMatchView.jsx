@@ -158,14 +158,21 @@ export default function IntraSoccerMatchView({
   // [자체전] B 배치 확정 → 경기 1개 생성(A = 기존 '우리' 필드) + 편 이름/ B 편 전 필드 patch.
   // newIdx는 CREATE_SOCCER_MATCH가 부여하는 matchIdx(= 현재 길이, append-only 불변식)와 같다.
   const handleIntraConfirm = (resA, resB) => {
+    // ⚠️ 경기 생성 "전에" 터뜨린다 — onPatchSide가 없으면 sideB 없는 경기(= 유령 팀 상대 외부전)가
+    // 남아 세션 전체가 잘못 기록된다. 생성 후에 던지면 이미 만들어진 경기를 되돌릴 수 없다.
+    if (typeof onPatchSide !== "function") throw new Error("IntraSoccerMatchView: onPatchSide prop이 필요합니다(자체전 B 편 저장 불가)");
     const lineupA = Object.values(resA.assignments), lineupB = Object.values(resB.assignments);
     const newIdx = soccerMatches.length;
+    // A 벤치에서 B 선발을 뺀다 — resA.subs는 A 배치 시점의 "참석자 − A 11명"이라 B 로스터 전원을 포함한다.
+    const bStarters = new Set(lineupB);
     onCreateMatch({
       opponent: sideNames.B, lineup: lineupA, gk: resA.gk, defenders: defendersFromPositionMap(resA.positionMap),
-      subs: resA.subs, formation: resA.formation, assignments: resA.assignments, positionMap: resA.positionMap,
+      subs: resA.subs.filter(n => !bStarters.has(n)),
+      formation: resA.formation, assignments: resA.assignments, positionMap: resA.positionMap,
     });
-    onPatchSide?.(newIdx, 'A', { name: sideNames.A });
-    onPatchSide?.(newIdx, 'B', {
+    // 옵셔널 체이닝 없음 — onCreateMatch/onAddEvent/onFinishMatch와 같은 규약(위 가드 참조).
+    onPatchSide(newIdx, 'A', { name: sideNames.A });
+    onPatchSide(newIdx, 'B', {
       name: sideNames.B, lineup: lineupB, gk: resB.gk, defenders: defendersFromPositionMap(resB.positionMap),
       subs: resB.subs, formation: resB.formation, assignments: resB.assignments, positionMap: resB.positionMap,
     });
