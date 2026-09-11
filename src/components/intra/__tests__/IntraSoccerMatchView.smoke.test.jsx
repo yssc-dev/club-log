@@ -54,6 +54,14 @@ async function mount(props = {}) {
   });
 }
 
+// 같은 root 에 새 props 로 다시 렌더 — 원격(다른 기기) 변경이 구독으로 도착한 상황.
+// mount 는 새 root 를 만들어 무조건 재마운트되므로 '재마운트 판정'을 검증할 수 없다.
+async function rerender(props = {}) {
+  await act(async () => {
+    root.render(createElement(ThemeProvider, null, createElement(Harness, { ...BASE_PROPS, ...props })));
+  });
+}
+
 const text = () => container.textContent;
 // 텍스트로 엘리먼트 찾기 — 가장 안쪽(마지막) 일치를 고른다. 상대팀 항목은 button이 아니라 span이라
 // 태그를 박으면 OpponentSelector 마크업이 바뀔 때마다 깨진다.
@@ -192,5 +200,116 @@ describe('IntraSoccerMatchView 실렌더(act) — 증분 2', () => {
     expect(text()).toContain('검정 (1명)');
     expect(text()).toContain('자체전 (주황 vs 파랑 · 참석 23명)');
     expect(byPartialText('button', '자체전').disabled).toBe(false);
+  });
+});
+
+// 증분 3(스펙 §14): 여러 명이 동시에 접속해 누구나 기록한다. FormationRecorder 는 uncontrolled 라
+// (배치를 마운트 시 1회 시드, FormationRecorder.jsx:24-27) 원격 배치 변경은 key 교체로 재마운트해야 보인다.
+// ⚠️ '피치에 보이는가'는 text() 부분일치로 가를 수 없다 — 레코더가 벤치도 "후보: a12, b12" 로 렌더하므로
+// 교체 전에도 text() 에 a12 가 들어있다. byText(이름)은 '이름만 들어있는 노드'(= 피치 이름 칸)를 찾으므로
+// 피치 위/벤치를 실제로 구분한다.
+describe('IntraSoccerMatchView 실시간 전파 — 증분 3', () => {
+  const playingIntra = {
+    matchIdx: 0, status: 'playing', opponent: '검은팀', startedAt: 1,
+    lineup: WHITE, gk: 'a1', defenders: [], subs: ['a12'],
+    formation: '4-4-2',
+    assignments: Object.fromEntries(WHITE.map((n, i) => [i, n])),
+    positionMap: Object.fromEntries(WHITE.map((n, i) => [n, i === 0 ? 'GK' : 'FW'])),
+    events: [],
+    sideA: { name: '흰팀' },
+    sideB: { name: '검은팀', lineup: BLACK, gk: 'b1', defenders: [], subs: ['b12'],
+             formation: '4-4-2',
+             assignments: Object.fromEntries(BLACK.map((n, i) => [i, n])),
+             positionMap: Object.fromEntries(BLACK.map((n, i) => [n, i === 0 ? 'GK' : 'FW'])) },
+  };
+  const withAttendees = { attendees: [...WHITE, ...BLACK, 'a12', 'b12'] };
+  // 다른 기기에서 A 편 a11 → a12 교체: assignments·positionMap·subs 가 바뀐 새 경기 객체가 도착한다.
+  const remoteSub = {
+    ...playingIntra,
+    assignments: { ...playingIntra.assignments, 10: 'a12' },
+    positionMap: { ...playingIntra.positionMap, a12: 'FW' },
+    subs: ['a11'],
+  };
+
+  it('원격 배치 변경(A 편 교체)이 도착하면 피치에 새 선수가 보인다', async () => {
+    await mount({ ...withAttendees, soccerMatches: [playingIntra], currentMatchIdx: 0 });
+    expect(byText('a11'), 'a11 이 피치에 있어야 한다').toBeTruthy();
+    expect(byText('a12'), '교체 전 a12 는 벤치(후보 줄)뿐 — 피치엔 없다').toBeFalsy();
+    await rerender({ ...withAttendees, soccerMatches: [remoteSub], currentMatchIdx: 0 });
+    expect(byText('a12'), '원격 교체가 피치에 반영돼야 한다').toBeTruthy();
+    expect(byText('a11'), '교체로 빠진 a11 은 피치에서 사라져야 한다').toBeFalsy();
+  });
+
+  it('입력 중(교체 모달 열림)에는 보류하고 안내를 띄우며, 닫으면 반영한다', async () => {
+    await mount({ ...withAttendees, soccerMatches: [playingIntra], currentMatchIdx: 0 });
+    await click(byPartialText('button', '교체'));              // 모달 열기 → onBusyChange(true)
+    await rerender({ ...withAttendees, soccerMatches: [remoteSub], currentMatchIdx: 0 });
+    expect(text()).toContain('다른 기기에서 배치가 변경');       // 보류 안내
+    expect(byText('a12'), '입력 중에는 재마운트를 보류 — 피치가 그대로여야 한다').toBeFalsy();
+    expect(byText('a11')).toBeTruthy();
+    // Modal.jsx:64-66 의 닫기 버튼은 아이콘 전용(aria-label="닫기") — textContent 로는 찾을 수 없다.
+    await click(container.querySelector('button[aria-label="닫기"]'));   // onBusyChange(false) → 보류분 적용
+    expect(byText('a12')).toBeTruthy();
+    expect(text()).not.toContain('다른 기기에서 배치가 변경');
+  });
+
+  // 재마운트는 DOM 노드 교체로만 관찰할 수 있다 — 재마운트 직후 배치는 시트(props) 기준이라
+  // 화면 텍스트가 같아질 수 있고, 그래도 레코더의 로컬 상태(열린 상대골 메뉴 등)는 사라진다.
+  const pitchNode = (name) => byText(name);
+  const withBench3 = { attendees: [...WHITE, ...BLACK, 'a12', 'a13', 'b12'] };
+  // 교체 모달을 열어 a11 → a12 로컬 교체. onStateChange 로 나간 patch 를 그대로 돌려주면 '내 변경의 echo'다.
+  async function localSub() {
+    await click(byPartialText('button', '교체'));
+    await click(byPartialText('button', 'a11'));            // 나가는 선수(모달 1단계)
+    await click(byText('a12'));                             // 후보 투입(모달 2단계) → 모달 닫힘
+  }
+
+  it('내 변경의 echo 뒤 무관한 업데이트(원격 골)가 와도 레코더를 재마운트하지 않는다', async () => {
+    const onUpdateMatchFormation = vi.fn();
+    await mount({ ...withBench3, soccerMatches: [playingIntra], currentMatchIdx: 0, onUpdateMatchFormation });
+    await localSub();
+    expect(onUpdateMatchFormation).toHaveBeenCalled();
+    // 리듀서(UPDATE_SOCCER_MATCH_FORMATION)가 화이트리스트로 반영한 뒤 구독으로 돌아온 모양.
+    const echoed = { ...playingIntra, ...onUpdateMatchFormation.mock.calls.at(-1)[1] };
+    await rerender({ ...withBench3, soccerMatches: [echoed], currentMatchIdx: 0 });
+    const before = pitchNode('a12');
+    expect(before, '내 교체가 피치에 남아 있어야 한다').toBeTruthy();
+    // 다른 기기의 골 하나 — 배치는 그대로다(지문에 events 가 없다). 재마운트 이유가 없다.
+    await rerender({
+      ...withBench3, currentMatchIdx: 0,
+      soccerMatches: [{ ...echoed, events: [{ id: 'g1', type: 'goal', player: 'b5', side: 'B', timestamp: 2 }] }],
+    });
+    expect(text()).toContain('상대골');                     // 골은 반영(prop 파생)
+    expect(pitchNode('a12'), '무관한 업데이트에 레코더가 재마운트되면 안 된다').toBe(before);
+  });
+
+  it('원격 변경으로 재마운트된 뒤 늦게 도착한 내 echo 는 화면을 시트와 맞춘다', async () => {
+    const onUpdateMatchFormation = vi.fn();
+    await mount({ ...withBench3, soccerMatches: [playingIntra], currentMatchIdx: 0, onUpdateMatchFormation });
+    await localSub();                                        // 내 변경(아직 시트에 안 도착)
+    // 내 쓰기가 도착하기 전에 다른 기기의 배치 변경(a10 → a13)이 먼저 온다 → 재마운트, 내 로컬 배치는 버려진다
+    // (편 상태는 필드 통짜 쓰기 = 마지막 쓰기가 이긴다, 스펙 §14.5).
+    const remoteOther = {
+      ...playingIntra,
+      assignments: { ...playingIntra.assignments, 9: 'a13' },
+      positionMap: { ...playingIntra.positionMap, a13: 'FW' },
+      subs: ['a12', 'a10'],
+    };
+    await rerender({ ...withBench3, soccerMatches: [remoteOther], currentMatchIdx: 0 });
+    expect(pitchNode('a13'), '원격 변경은 재마운트로 반영된다').toBeTruthy();
+    expect(pitchNode('a12'), '재마운트 시드는 시트 기준 — 내 로컬 교체는 남지 않는다').toBeFalsy();
+    // 이제 내 쓰기가 도착한다(통짜 쓰기라 a13 배치를 덮는다). 화면이 시트를 따라가야 한다 —
+    // 안 따라가면 다음 내 저장이 '화면에 없는 시트 상태'를 기준으로 계산돼 또 남의 변경을 덮는다.
+    const myEcho = { ...playingIntra, ...onUpdateMatchFormation.mock.calls.at(-1)[1] };
+    await rerender({ ...withBench3, soccerMatches: [myEcho], currentMatchIdx: 0 });
+    expect(pitchNode('a12'), '시트가 내 교체를 들고 있으면 화면도 그래야 한다').toBeTruthy();
+    expect(pitchNode('a13'), '덮인 원격 변경은 화면에서도 사라져야 한다').toBeFalsy();
+  });
+
+  it('종료된 경기에는 이벤트 입력 경로가 없다(레코더 미렌더 + 가드)', async () => {
+    const onAddEvent = vi.fn();
+    await mount({ ...withAttendees, soccerMatches: [{ ...playingIntra, status: 'finished' }], currentMatchIdx: 0, onAddEvent });
+    expect(byPartialText('button', '상대골')).toBeFalsy();      // 레코더 없음
+    expect(onAddEvent).not.toHaveBeenCalled();
   });
 });

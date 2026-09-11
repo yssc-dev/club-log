@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { goalLabel } from '../../utils/soccerGoalEvent';
 import { useTheme } from '../../hooks/useTheme';
 import { calcSoccerScore, getCleanSheetPlayers, getSoccerPlayedPlayers, getNonPlayers, soccerResultLabel } from '../../utils/soccerScoring';
@@ -15,6 +15,7 @@ import ConfirmBar from '../game/ConfirmBar';
 import { isIntra, sideView, fieldsOfA, fieldsOfB } from '../../utils/intraSoccer/sideView';
 import { resolvePair, setupPoolA, setupPoolB, sidePool, canIntra, mergeFormationState, teamsOf } from '../../utils/intraSoccer/pools';
 import { planAddEvent, planDeleteEvent, sideBSwapPatch, sideBCorrectPatch, pickSidePatch } from '../../utils/intraSoccer/handlers';
+import { formationFingerprint, decideRemount } from '../../utils/intraSoccer/liveSync';
 // 빅마스터FC 기록화면 = SoccerMatchView(하버FC) 포크. 외부전 경로는 원본과 동일하고,
 // 자체전(A팀 vs B팀)은 한 경기 객체에 두 편을 저장한 뒤 A/B 탭으로 한 기기에서 기록한다.
 // 단일 navIdx 연속체로 [과거 경기…] + [진행중/새 경기]를 오간다(풋살 ScheduleMatchView 패턴).
@@ -89,6 +90,45 @@ export default function IntraSoccerMatchView({
   const safeNavIdx = Math.max(0, Math.min(navIdx, totalNodes - 1));
   const currentMatch = currentMatchIdx >= 0 ? soccerMatches[currentMatchIdx] : null;
 
+  // ── [증분 3] 실시간 전파: 원격 배치 변경이 오면 레코더를 새 props 로 재마운트한다(스펙 §14.3) ──
+  // FormationRecorder 는 uncontrolled(배치를 마운트 시 1회 시드, FormationRecorder.jsx:24-27)라
+  // prop 변경만으로는 화면이 갱신되지 않고, 갱신 없이 내가 다음 교체를 하면 stale 배치를 기준으로
+  // 저장해 남의 변경을 조용히 되돌린다(스펙 §14.2). 이벤트·점수는 이미 prop 파생이라 지문에서 제외한다.
+  // ⚠️ 아래 두 값은 진행중 노드 IIFE 밖(최상위)에서 한 번만 계산한다 — 훅 의존성으로 써야 하고,
+  // 지문과 렌더가 서로 다른 편(side)을 보면 판정이 틀린다. IIFE 안에서 재계산하지 말 것.
+  const liveSide = currentMatch && isIntra(currentMatch) ? tab : 'A';
+  const liveFp = currentMatch ? formationFingerprint(sideView(currentMatch, liveSide)) : '';
+  const [recorderRev, setRecorderRev] = useState(0);   // 레코더 key 의 세대 번호(증가 = 재마운트)
+  const [pendingRemote, setPendingRemote] = useState(false);
+  const [busy, setBusy] = useState(false);             // 레코더가 onBusyChange 로 알려주는 '입력 중'
+  const seedFpRef = useRef('');                        // 지금 마운트된 레코더가 시드로 받은 지문
+  const localFpsRef = useRef(new Set());               // 내가 보냈지만 아직 echo 가 안 온 지문들
+
+  // (A) 경기·편이 바뀌면 새 시드 — liveFp 를 의존성에 넣지 않는다(넣으면 시드가 매 변경을 따라가
+  //     currentFp === seedFp 가 항상 성립해 재마운트가 영영 일어나지 않는다).
+  useEffect(() => {
+    seedFpRef.current = liveFp;
+    localFpsRef.current = new Set();
+    setPendingRemote(false);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentMatch?.matchIdx, liveSide]);
+
+  // (B) 재마운트 판정 — 같은 렌더에서 effect 는 선언 순서대로 실행되므로 (A) 초기화가 항상 먼저다.
+  // 불변식 두 개를 지킨다: seedFpRef = '지금 마운트된 레코더가 화면에 들고 있는 배치',
+  // localFpsRef = '그 마운트 이후 내가 보낸 예상 지문들'. 둘이 어긋나면 오판이 난다 —
+  //   · consume 때 시드를 안 올리면: 시드(옛 상태) ≠ 화면(내 변경)이라, 다음 무관한 업데이트
+  //     (원격 골 하나로도 currentMatch 참조가 바뀐다)에서 내 변경이 원격으로 재판정돼 헛재마운트
+  //     → 열려 있던 상대골 메뉴(onBusyChange 대상이 아니다)가 손 밑에서 닫힌다.
+  //   · 재마운트 때 예상 지문을 안 비우면: 시드는 원격 상태인데 내 옛 예상이 남아, 뒤늦게 도착한
+  //     내 쓰기(통짜 쓰기라 원격 배치를 덮는다)를 echo 로 보고 넘겨 화면이 시트와 영구히 갈린다.
+  useEffect(() => {
+    if (!currentMatch) return;                         // 종료 전파로 currentMatchIdx=-1 → 무의미한 rev 증가 방지
+    const r = decideRemount({ currentFp: liveFp, seedFp: seedFpRef.current, localFps: localFpsRef.current, busy });
+    if (r.consume) { localFpsRef.current.delete(r.consume); seedFpRef.current = liveFp; }
+    if (r.remount) { seedFpRef.current = liveFp; localFpsRef.current = new Set(); setRecorderRev(n => n + 1); }
+    setPendingRemote(r.pending);
+  }, [liveFp, busy, currentMatch]);
+
   // 경기 객체에서 레코더용 포메이션 복원(저장돼 있으면 그대로, 없으면 lineup/gk/defenders로 4-4-2 재구성)
   const reconstructFormation = (m) => {
     if (m.formation && m.assignments && m.positionMap) {
@@ -141,8 +181,21 @@ export default function IntraSoccerMatchView({
     saveFormationState({ viewState: "formation", selectedOpponent: name, selectedPlayers: attendees });
   };
 
+  // [증분 3] 동시 생성 가드(스펙 §14.4) — 다른 기기가 이미 경기를 시작했으면 생성하지 않고
+  // 배치 상태를 정리해 유형 카드로 돌려보낸다. 그냥 만들면 같은 soccerMatches/{idx} 경로를 두 기기가 노린다.
+  // 정직한 범위: '이미 진행 중 경기가 있는' 경우만 막는다(경기 0개에서 완전 동시 생성은 비범위, 스펙 §14.5).
+  const hasRemoteStart = () => {
+    if (!soccerMatches.some(m => m.status === 'playing')) return false;
+    alert('다른 기기에서 이미 경기를 시작했습니다.');
+    setPendingA(null);
+    setMatchType(null);
+    setViewState('selectOpponent');
+    return true;
+  };
+
   // 포메이션 확정 → 경기 생성(status playing). viewState는 유휴로 복귀(노드는 status에서 파생).
   const handleFormationConfirm = ({ formation, assignments, gk, positionMap, subs }) => {
+    if (hasRemoteStart()) return;
     const lineup = Object.values(assignments);
     const defenders = defendersFromPositionMap(positionMap);
     onCreateMatch({ opponent: selectedOpponent, lineup, gk, defenders, subs, formation, assignments, positionMap });
@@ -170,6 +223,8 @@ export default function IntraSoccerMatchView({
     if (typeof onPatchSide !== "function") throw new Error("IntraSoccerMatchView: onPatchSide prop이 필요합니다(자체전 B 편 저장 불가)");
     // 배치 중 다른 탭이 명단을 재연동해 선택 쌍이 사라질 수 있다 — 이름 없이 생성하면 유령 경기가 된다.
     if (!teamA || !teamB) return;
+    // 동시 생성 가드는 onPatchSide 가드 뒤 — 규약 위반(prop 미연결)은 조용히 넘기지 않는다.
+    if (hasRemoteStart()) return;
     const lineupA = Object.values(resA.assignments), lineupB = Object.values(resB.assignments);
     const newIdx = soccerMatches.length;
     // A 벤치에서 B 선발을 뺀다 — resA.subs는 "A 풀 − A 11명"(A 풀 = A 팀 명단 ∪ 유동 인원)이고
@@ -196,6 +251,14 @@ export default function IntraSoccerMatchView({
 
   // 레코더가 내보낸 배치 변경(교체·위치교대·포메이션·퇴장) → 기록 중인 편으로 라우팅.
   const handleFormationStateChange = (updates, side) => {
+    // [증분 3] 내가 보낸 변경의 왕복 echo 를 원격 변경으로 오인해 재마운트하지 않도록 예상 지문을 남긴다.
+    // 저장 경로(리듀서 UPDATE_SOCCER_MATCH_FORMATION · PATCH_SOCCER_SIDE)가 지문 대상 5필드를 모두
+    // 화이트리스트로 반영하므로 {현재 편 뷰 + updates} 가 곧 도착할 상태다.
+    if (currentMatch) {
+      const fps = localFpsRef.current;
+      fps.add(formationFingerprint({ ...sideView(currentMatch, side), ...updates }));
+      while (fps.size > 8) fps.delete(fps.values().next().value);   // Set 은 삽입 순서 보존 — 오래된 것부터
+    }
     if (side === 'B') onPatchSide?.(currentMatchIdx, 'B', pickSidePatch(updates));
     else onUpdateMatchFormation?.(currentMatchIdx, updates);
   };
@@ -203,8 +266,18 @@ export default function IntraSoccerMatchView({
   // [증분 2] 종료 = 확정(수정 불가) — 확정취소·출전 수정·상대팀 변경을 제공하지 않는다(외부전 포함, 스펙 §13).
   // 리듀서 REOPEN_SOCCER_MATCH는 남아 있으나 빅마스터FC 화면에서는 도달 불가(onReopenMatch를 쓰지 않는다).
 
+  // [증분 3] 종료된 경기 입력 차단(스펙 §14.4). 두 핸들러가 같은 문구·같은 조건을 쓰도록 한 군데로 모은다.
+  // 정직한 범위: status 가 전파되면 레코더 자체가 사라지므로(isPlayingNode) 이것은 같은 틱에 진행 중이던
+  // 클릭을 막는 방어 심화다. 전파 이전 0.3~1초 창에 찍힌 입력은 막지 못한다(스펙 §14.5).
+  const isMatchLive = () => {
+    if (currentMatch && currentMatch.status === 'playing') return true;
+    alert('다른 기기에서 이미 종료된 경기입니다. 잠시 후 화면이 갱신됩니다.');
+    return false;
+  };
+
   // 레코더 이벤트 입력. 자체전 "⚽ 상대골"은 저장하지 않고 상대 편 탭으로 가는 단축키가 된다.
   const handleAddEvent = (event, side) => {
+    if (!isMatchLive()) return;
     const ev = { ...event, id: event.id || generateEventId(), timestamp: event.timestamp || Date.now() };
     const plan = planAddEvent(currentMatch, side, ev);
     if (plan.kind === 'redirect') {
@@ -217,6 +290,7 @@ export default function IntraSoccerMatchView({
   };
   // 삭제: 리듀서 DELETE는 A 편 교체만 되돌린다 — B 편 교체 되돌림 patch는 planDeleteEvent가 만든다.
   const handleDeleteEvent = (eventId) => {
+    if (!isMatchLive()) return;
     for (const a of planDeleteEvent(currentMatch, currentMatchIdx, eventId)) {
       if (a.type === 'DELETE_SOCCER_EVENT') onDeleteEvent(a.matchIdx, a.eventId);
       else if (a.type === 'PATCH_SOCCER_SIDE') onPatchSide?.(a.matchIdx, a.side, a.patch);
@@ -420,7 +494,7 @@ export default function IntraSoccerMatchView({
       {/* 진행 중 노드 — FormationRecorder(편집). goalFlow 열림 중 ◀▶·A/B 탭 잠금. */}
       {isPlayingNode && currentMatch && (() => {
         const isIntraMatch = isIntra(currentMatch);
-        const side = isIntraMatch ? tab : 'A';
+        const side = liveSide;                           // 최상위 파생 재사용 — 지문(liveFp)과 같은 편을 보장
         const v = sideView(currentMatch, side);          // 기록 탭의 '하버FC 모양' 경기
         const live = reconstructFormation(v);
         const scoreA = isIntraMatch ? calcSoccerScore(sideView(currentMatch, 'A').events) : null;
@@ -451,14 +525,24 @@ export default function IntraSoccerMatchView({
                 아래는 {side === "A" ? fieldsOfA(currentMatch).name : fieldsOfB(currentMatch).name} 시점 점수판
               </div>
             )}
+            {/* [증분 3] 입력 중(골 플로우·모달) 도착한 원격 배치 변경은 입력을 마칠 때까지 보류한다 —
+                손 밑에서 모달이 닫히지 않게. busy 가 풀리면 effect (B)가 재실행돼 자동 반영된다. */}
+            {pendingRemote && (
+              <div style={{ textAlign: "center", fontSize: 11, color: C.orange, marginBottom: 6 }}>
+                다른 기기에서 배치가 변경됐습니다 · 입력을 마치면 화면에 반영됩니다
+              </div>
+            )}
+            {/* key 에 recorderRev — 원격 배치 변경이 오면 세대를 올려 재마운트해 최신 배치로 재시드한다
+                (uncontrolled 레코더라 prop 변경만으로는 안 보이고, stale 배치 기준 저장이 남의 변경을 덮는다). */}
             <FormationRecorder
-              key={`${currentMatch.matchIdx}:${side}`}
+              key={`${currentMatch.matchIdx}:${side}:${recorderRev}`}
               formation={live.formation} assignments={live.assignments} positionMap={live.positionMap}
               gk={live.gk} attendees={sidePool(currentMatch, side, attendees, teams)} opponent={v.opponent}
               startedAt={currentMatch.startedAt || Date.now()} events={v.events || []}
               onAddEvent={(ev) => handleAddEvent(ev, side)} onDeleteEvent={handleDeleteEvent}
               onFinishMatch={(snap) => handleFinishMatch(snap, side)}
               onStateChange={(updates) => handleFormationStateChange(updates, side)} onFlowActiveChange={setNavLocked}
+              onBusyChange={setBusy}
             />
           </>
         );
