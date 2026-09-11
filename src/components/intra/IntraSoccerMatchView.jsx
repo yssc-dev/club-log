@@ -185,7 +185,8 @@ export default function IntraSoccerMatchView({
   // [증분 3] 동시 생성 가드(스펙 §14.4) — 다른 기기가 이미 경기를 시작했으면 생성하지 않고
   // 배치 상태를 정리해 유형 카드로 돌려보낸다. 그냥 만들면 같은 soccerMatches/{idx} 경로를 두 기기가 노린다.
   // 정직한 범위: '이미 진행 중 경기가 있는' 경우만 막는다(경기 0개에서 완전 동시 생성은 비범위, 스펙 §14.5).
-  const hasRemoteStart = () => {
+  // 이름이 질의가 아니라 명령인 이유: alert + 배치 상태 정리(setState 3)까지 하는 술어다.
+  const blockIfRemoteStarted = () => {
     if (!soccerMatches.some(m => m.status === 'playing')) return false;
     // 문구가 원인을 단정하지 않는다 — 내 확정 버튼 더블탭(두 번째 호출 시점엔 이미 내 경기가 진행 중)도
     // 같은 가드에 걸리므로, "다른 기기에서" 로 단정하면 그 흔한 경우에 거짓말이 된다.
@@ -198,7 +199,7 @@ export default function IntraSoccerMatchView({
 
   // 포메이션 확정 → 경기 생성(status playing). viewState는 유휴로 복귀(노드는 status에서 파생).
   const handleFormationConfirm = ({ formation, assignments, gk, positionMap, subs }) => {
-    if (hasRemoteStart()) return;
+    if (blockIfRemoteStarted()) return;
     const lineup = Object.values(assignments);
     const defenders = defendersFromPositionMap(positionMap);
     onCreateMatch({ opponent: selectedOpponent, lineup, gk, defenders, subs, formation, assignments, positionMap });
@@ -227,7 +228,7 @@ export default function IntraSoccerMatchView({
     // 배치 중 다른 탭이 명단을 재연동해 선택 쌍이 사라질 수 있다 — 이름 없이 생성하면 유령 경기가 된다.
     if (!teamA || !teamB) return;
     // 동시 생성 가드는 onPatchSide 가드 뒤 — 규약 위반(prop 미연결)은 조용히 넘기지 않는다.
-    if (hasRemoteStart()) return;
+    if (blockIfRemoteStarted()) return;
     const lineupA = Object.values(resA.assignments), lineupB = Object.values(resB.assignments);
     const newIdx = soccerMatches.length;
     // A 벤치에서 B 선발을 뺀다 — resA.subs는 "A 풀 − A 11명"(A 풀 = A 팀 명단 ∪ 유동 인원)이고
@@ -272,6 +273,9 @@ export default function IntraSoccerMatchView({
   // [증분 3] 종료된 경기 입력 차단(스펙 §14.4). 두 핸들러가 같은 문구·같은 조건을 쓰도록 한 군데로 모은다.
   // 정직한 범위: status 가 전파되면 레코더 자체가 사라지므로(isPlayingNode) 이것은 같은 틱에 진행 중이던
   // 클릭을 막는 방어 심화다. 전파 이전 0.3~1초 창에 찍힌 입력은 막지 못한다(스펙 §14.5).
+  // ⚠️ 그래서 컴포넌트 테스트가 없다 — status 가 playing 이 아니면 레코더(유일한 호출부)가 렌더되지 않아
+  // UI 로 도달할 경로가 없다. 지우면 조용히 통과하므로, 삭제 전에 이 단락을 먼저 읽을 것.
+  // 생성 가드(blockIfRemoteStarted)는 FormationSetup 전체화면이 early return 이라 도달 가능 = 테스트 있음.
   const isMatchLive = () => {
     if (currentMatch && currentMatch.status === 'playing') return true;
     alert('다른 기기에서 이미 종료된 경기입니다. 잠시 후 화면이 갱신됩니다.');
@@ -539,10 +543,13 @@ export default function IntraSoccerMatchView({
             )}
             {/* [증분 3] 입력 중(골 플로우·모달) 도착한 원격 배치 변경은 입력을 마칠 때까지 보류한다 —
                 손 밑에서 모달이 닫히지 않게. busy 가 풀리면 effect (B)가 재실행돼 자동 반영된다.
+                ⚠️ 문구가 "반영됩니다"를 약속하면 거짓이 된다 — 보류 중 레코더는 여전히 stale 배치를
+                들고 있어서, 내가 그 모달을 완료하면 stale 기준 편 통짜 쓰기가 원격 변경을 덮는다
+                (스펙 §14.5). 덮이는 건 배치뿐이고 이벤트·집계는 무손상이다.
                 ⚠️ 자리를 항상 비워 둔다(minHeight) — 조건부로 줄을 끼우면 보류가 걸리는 순간 피치가
                 아래로 밀리고, 그 순간은 대개 골 입력(어시 선택) 중이라 오탭을 유발한다. */}
             <div style={{ textAlign: "center", fontSize: 11, color: C.orange, marginBottom: 6, minHeight: 16 }}>
-              {pendingRemote ? "다른 기기에서 배치가 변경됐습니다 · 입력을 마치면 화면에 반영됩니다" : ""}
+              {pendingRemote ? "다른 기기에서 배치가 변경됐습니다 · 입력을 마치면 최신 배치를 불러옵니다(내 변경이 더 늦으면 덮어씁니다)" : ""}
             </div>
             {/* key 에 recorderRev — 원격 배치 변경이 오면 세대를 올려 재마운트해 최신 배치로 재시드한다
                 (uncontrolled 레코더라 prop 변경만으로는 안 보이고, stale 배치 기준 저장이 남의 변경을 덮는다). */}

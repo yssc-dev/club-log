@@ -312,4 +312,38 @@ describe('IntraSoccerMatchView 실시간 전파 — 증분 3', () => {
     expect(byPartialText('button', '상대골')).toBeFalsy();      // 레코더 없음
     expect(onAddEvent).not.toHaveBeenCalled();
   });
+
+  // 동시 생성 가드(blockIfRemoteStarted, 스펙 §14.4). 배치 화면(FormationSetup)은 early return 이라
+  // soccerMatches 와 무관하게 렌더된다 — 내가 11명을 배치하는 동안 남이 경기를 시작할 수 있고,
+  // 그대로 확정하면 두 기기가 같은 soccerMatches/{idx} 경로를 노린다. 가드 호출부를 지우면 이 테스트가 깨진다.
+  it('배치 중 다른 기기가 경기를 시작하면 확정이 생성을 만들지 않고 배치 화면을 떠난다', async () => {
+    const onCreateMatch = vi.fn();
+    const alertSpy = vi.fn();                                  // jsdom 의 window.alert 는 미구현(가상콘솔 에러)
+    const realAlert = window.alert;
+    window.alert = alertSpy;
+    try {
+      // savedFormation 은 같은 참조를 계속 넘긴다 — 새 객체를 주면 동기 effect 가 selectedOpponent 를
+      // 다시 세팅(=null 로 초기화)해 배치 화면을 떠나버려 가드와 무관하게 테스트가 통과한다.
+      const saved = { viewState: 'formation', selectedOpponent: '외부팀' };
+      await mount({ ...withAttendees, savedFormation: saved, onCreateMatch });
+      expect(text()).toContain('vs 외부팀');
+      // 후보 칩을 11번 탭 → 순서대로 자동 배치(FormationSetup.jsx:38-43). 배치되면 목록에서 사라지므로
+      // 매번 다시 쿼리한다. 이름만 들어있는 button = 후보 칩(피치 이름 칸은 div).
+      const names = new Set(withAttendees.attendees);
+      for (let i = 0; i < 11; i++) {
+        await click([...container.querySelectorAll('button')].find(b => names.has(b.textContent.trim())));
+      }
+      expect(text()).toContain('11/11');
+      // 여기서 남이 경기를 시작한다(구독으로 도착).
+      await rerender({ ...withAttendees, savedFormation: saved, onCreateMatch, soccerMatches: [playingIntra], currentMatchIdx: 0 });
+      await click(byPartialText('button', '경기 시작'));
+      expect(onCreateMatch, '이미 진행 중 경기가 있으면 생성하지 않는다').not.toHaveBeenCalled();
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('이미 진행 중인 경기가 있습니다'));
+      // 배치 화면에 갇히지 않고 진행 중 노드로 돌아간다(안 떠나면 확정을 또 누르게 된다).
+      expect(byPartialText('button', '경기 시작')).toBeFalsy();
+      expect(text()).toContain('진행중');
+    } finally {
+      window.alert = realAlert;
+    }
+  });
 });
