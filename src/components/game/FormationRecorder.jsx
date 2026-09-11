@@ -18,6 +18,7 @@ export default function FormationRecorder({
   formation: initFormation, assignments: initAssignments, positionMap: initPositionMap,
   gk: initGk, attendees, opponent, startedAt, matchMinutes = 90,
   events: initEvents, onAddEvent, onDeleteEvent, onFinishMatch, onStateChange, onFlowActiveChange,
+  onBusyChange,
 }) {
   const { C } = useTheme();
   const [formation, setFormation] = useState(initFormation || "4-4-2");
@@ -37,6 +38,14 @@ export default function FormationRecorder({
     onFlowActiveChange?.(goalFlow != null);
     return () => onFlowActiveChange?.(false);
   }, [goalFlow, onFlowActiveChange]);
+
+  // 상위가 '사용자 입력 중'을 알아야 하는 경우(빅마스터FC 실시간 재마운트 보류)에만 연결한다.
+  // 하버FC(SoccerMatchView)는 이 prop 을 넘기지 않으므로 ?. 로 no-op — 기존 동작 완전 불변.
+  // onFlowActiveChange(네비 잠금)와 분리한 이유: 잠금 조건을 넓히면 하버FC ◀▶ 동작이 바뀐다.
+  useLayoutEffect(() => {
+    onBusyChange?.(goalFlow != null || showSubModal || showFormationPicker || actionPlayer != null);
+    return () => onBusyChange?.(false);
+  }, [goalFlow, showSubModal, showFormationPicker, actionPlayer, onBusyChange]);
 
   const events = Array.isArray(initEvents) ? initEvents : [];
   // 교체 후보 = 참석자 − 피치위 − 퇴장자. 로컬 state가 아니라 파생 —
