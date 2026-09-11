@@ -39,14 +39,6 @@ export default function FormationRecorder({
     return () => onFlowActiveChange?.(false);
   }, [goalFlow, onFlowActiveChange]);
 
-  // 상위가 '사용자 입력 중'을 알아야 하는 경우(빅마스터FC 실시간 재마운트 보류)에만 연결한다.
-  // 하버FC(SoccerMatchView)는 이 prop 을 넘기지 않으므로 ?. 로 no-op — 기존 동작 완전 불변.
-  // onFlowActiveChange(네비 잠금)와 분리한 이유: 잠금 조건을 넓히면 하버FC ◀▶ 동작이 바뀐다.
-  useLayoutEffect(() => {
-    onBusyChange?.(goalFlow != null || showSubModal || showFormationPicker || actionPlayer != null);
-    return () => onBusyChange?.(false);
-  }, [goalFlow, showSubModal, showFormationPicker, actionPlayer, onBusyChange]);
-
   const events = Array.isArray(initEvents) ? initEvents : [];
   // 교체 후보 = 참석자 − 피치위 − 퇴장자. 로컬 state가 아니라 파생 —
   // useState(prop) 시드는 최초 1회뿐이라 경기 도중 참석 처리된 선수를 영영 못 받는다
@@ -114,6 +106,16 @@ export default function FormationRecorder({
   };
 
   const [showOpponentGoalMenu, setShowOpponentGoalMenu] = useState(false);
+
+  // 상위가 '사용자 입력 중'을 알아야 하는 경우(빅마스터FC 실시간 재마운트 보류)에만 연결한다.
+  // 하버FC(SoccerMatchView)는 이 prop 을 넘기지 않으므로 ?. 로 no-op — 기존 동작 완전 불변.
+  // onFlowActiveChange(네비 잠금)와 분리한 이유: 잠금 조건을 넓히면 하버FC ◀▶ 동작이 바뀐다.
+  // ⚠️ 이 블록은 showOpponentGoalMenu 선언 "아래"에 있어야 한다 — deps 배열은 렌더 중 평가되므로
+  // 위로 올리면 TDZ(Cannot access before initialization)로 마운트가 터진다. 위로 옮기지 말 것.
+  useLayoutEffect(() => {
+    onBusyChange?.(goalFlow != null || showSubModal || showFormationPicker || actionPlayer != null || showOpponentGoalMenu);
+    return () => onBusyChange?.(false);
+  }, [goalFlow, showSubModal, showFormationPicker, actionPlayer, showOpponentGoalMenu, onBusyChange]);
 
   const handleOpponentGoal = (isOwnGoal) => {
     if (isOwnGoal) {

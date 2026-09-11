@@ -50,6 +50,18 @@ describe('FormationRecorder onBusyChange', () => {
     await click(close);
     expect(onBusyChange).toHaveBeenCalledWith(false);
   });
+  // 자체전에서 "⚽ 상대골"은 상대 편 탭으로 가는 단축키지만, 그 리다이렉트는 이 메뉴에서 항목을
+  // 고른 뒤에야 일어난다 — 메뉴가 열린 동안 원격 배치 변경으로 재마운트되면 손 밑에서 닫힌다.
+  it('상대골 메뉴를 열면 true', async () => {
+    const onBusyChange = vi.fn();
+    await mount({ onBusyChange });
+    onBusyChange.mockClear();
+    await click(byPartial('button', '상대골'));
+    expect(onBusyChange).toHaveBeenCalledWith(true);
+    onBusyChange.mockClear();
+    await click(container.querySelector('button[aria-label="닫기"]'));
+    expect(onBusyChange).toHaveBeenCalledWith(false);
+  });
   it('포메이션 피커를 열면 true', async () => {
     const onBusyChange = vi.fn();
     await mount({ onBusyChange });

@@ -300,6 +300,9 @@ export default function IntraSoccerMatchView({
   // 경기 종료. viewState 유휴 유지, navIdx는 구조 변경으로 새 경기 노드로 자동 이동.
   // 최종 배치는 종료를 누른 탭의 편으로 라우팅한다(B 탭 종료가 A 배치를 덮지 않게).
   const handleFinishMatch = (finalSnapshot, side) => {
+    // [증분 3] 이벤트 입력과 같은 가드 — 반드시 최종 배치 전송 "전에". 다른 기기가 이미 종료한 경기에
+    // 늦은 종료 press 가 들어오면 종료된 경기에 배치 스냅샷을 덮어쓴다.
+    if (!isMatchLive()) return;
     if (finalSnapshot && typeof finalSnapshot === "object") handleFormationStateChange(finalSnapshot, side);
     onFinishMatch(currentMatchIdx);
     setNavLocked(false);
