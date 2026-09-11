@@ -116,9 +116,10 @@ export default function IntraSoccerMatchView({
   // (B) 재마운트 판정 — 같은 렌더에서 effect 는 선언 순서대로 실행되므로 (A) 초기화가 항상 먼저다.
   // 불변식 두 개를 지킨다: seedFpRef = '지금 마운트된 레코더가 화면에 들고 있는 배치',
   // localFpsRef = '그 마운트 이후 내가 보낸 예상 지문들'. 둘이 어긋나면 오판이 난다 —
-  //   · consume 때 시드를 안 올리면: 시드(옛 상태) ≠ 화면(내 변경)이라, 다음 무관한 업데이트
-  //     (원격 골 하나로도 currentMatch 참조가 바뀐다)에서 내 변경이 원격으로 재판정돼 헛재마운트
-  //     → 열려 있던 상대골 메뉴(onBusyChange 대상이 아니다)가 손 밑에서 닫힌다.
+  //   · consume 때 시드를 안 올리면: 시드(옛 배치) ≠ 화면(내 변경)인 상태가 남아, 다음 무관한
+  //     업데이트(원격 골 하나로도 currentMatch 참조가 바뀐다)에서 내 변경이 원격 변경으로 오판된다
+  //     → 입력 중이면 거짓 배너("다른 기기에서 배치가 변경"), 아니면 불필요한 재마운트.
+  //     ⚠️ 아래 `if (r.consume)` 안의 `seedFpRef.current = liveFp` 가 이것 때문에 있다 — 지우지 말 것.
   //   · 재마운트 때 예상 지문을 안 비우면: 시드는 원격 상태인데 내 옛 예상이 남아, 뒤늦게 도착한
   //     내 쓰기(통짜 쓰기라 원격 배치를 덮는다)를 echo 로 보고 넘겨 화면이 시트와 영구히 갈린다.
   useEffect(() => {
@@ -186,7 +187,9 @@ export default function IntraSoccerMatchView({
   // 정직한 범위: '이미 진행 중 경기가 있는' 경우만 막는다(경기 0개에서 완전 동시 생성은 비범위, 스펙 §14.5).
   const hasRemoteStart = () => {
     if (!soccerMatches.some(m => m.status === 'playing')) return false;
-    alert('다른 기기에서 이미 경기를 시작했습니다.');
+    // 문구가 원인을 단정하지 않는다 — 내 확정 버튼 더블탭(두 번째 호출 시점엔 이미 내 경기가 진행 중)도
+    // 같은 가드에 걸리므로, "다른 기기에서" 로 단정하면 그 흔한 경우에 거짓말이 된다.
+    alert('이미 진행 중인 경기가 있습니다(다른 기기에서 시작했거나 방금 생성됨).');
     setPendingA(null);
     setMatchType(null);
     setViewState('selectOpponent');
@@ -289,6 +292,12 @@ export default function IntraSoccerMatchView({
     onAddEvent(currentMatchIdx, plan.event);
   };
   // 삭제: 리듀서 DELETE는 A 편 교체만 되돌린다 — B 편 교체 되돌림 patch는 planDeleteEvent가 만든다.
+  // [증분 3] 알려진 비용(수용): 교체 이벤트 삭제는 내 행동인데 예상 지문을 남기지 않는다 —
+  // 리듀서/patch 의 되돌림 결과가 원격 배치 변경처럼 보여, 골 입력 중이면 내 삭제에도
+  // "다른 기기에서 배치가 변경" 배너가 뜨고(입력을 마치면 사라진다) 아니면 재마운트된다.
+  // 정확한 예상 지문을 만들려면 revertSubInFormation 의 되돌림 계산을 여기서 한 번 더 해야 해서
+  // (A 편은 리듀서, B 편은 planDeleteEvent 안) 중복·표류 위험이 더 크다고 보고 그대로 둔다.
+  // 배치 자체는 레코더 로컬 되돌림(revertSubInFormation)과 재마운트 둘 다 같은 결과라 정합하다.
   const handleDeleteEvent = (eventId) => {
     if (!isMatchLive()) return;
     for (const a of planDeleteEvent(currentMatch, currentMatchIdx, eventId)) {
@@ -529,12 +538,12 @@ export default function IntraSoccerMatchView({
               </div>
             )}
             {/* [증분 3] 입력 중(골 플로우·모달) 도착한 원격 배치 변경은 입력을 마칠 때까지 보류한다 —
-                손 밑에서 모달이 닫히지 않게. busy 가 풀리면 effect (B)가 재실행돼 자동 반영된다. */}
-            {pendingRemote && (
-              <div style={{ textAlign: "center", fontSize: 11, color: C.orange, marginBottom: 6 }}>
-                다른 기기에서 배치가 변경됐습니다 · 입력을 마치면 화면에 반영됩니다
-              </div>
-            )}
+                손 밑에서 모달이 닫히지 않게. busy 가 풀리면 effect (B)가 재실행돼 자동 반영된다.
+                ⚠️ 자리를 항상 비워 둔다(minHeight) — 조건부로 줄을 끼우면 보류가 걸리는 순간 피치가
+                아래로 밀리고, 그 순간은 대개 골 입력(어시 선택) 중이라 오탭을 유발한다. */}
+            <div style={{ textAlign: "center", fontSize: 11, color: C.orange, marginBottom: 6, minHeight: 16 }}>
+              {pendingRemote ? "다른 기기에서 배치가 변경됐습니다 · 입력을 마치면 화면에 반영됩니다" : ""}
+            </div>
             {/* key 에 recorderRev — 원격 배치 변경이 오면 세대를 올려 재마운트해 최신 배치로 재시드한다
                 (uncontrolled 레코더라 prop 변경만으로는 안 보이고, stale 배치 기준 저장이 남의 변경을 덮는다). */}
             <FormationRecorder
