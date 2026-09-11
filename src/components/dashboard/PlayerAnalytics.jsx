@@ -16,7 +16,7 @@ const LEGACY_TAB_MAP = {
   trio: 'chem',
 };
 
-export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmin, authUserName }) {
+export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmin, authUserName, skipDashboardSheet = false }) {
   const isSoccer = teamMode === "축구";
   const { C } = useTheme();
   const [loading, setLoading] = useState(true);
@@ -36,7 +36,9 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
     const sport = isSoccer ? '축구' : '풋살';
     setLoading(true);
     Promise.all([
-      fetchSheetData().catch(() => null),
+      // 스펙 §15: 로그 시트만 쓰는 팀은 대시보드 명단을 읽지 않는다 — members=null 은 조회 실패 때와
+      // 같은 기존 경로(명단 = 기록에 나온 선수).
+      skipDashboardSheet ? Promise.resolve(null) : fetchSheetData().catch(() => null),
       SheetCache.get('matchLog', { sport }).catch(() => []),
       SheetCache.get('eventLog', { sport }).catch(() => []),
       SheetCache.get('playerGameLog', { sport }).catch(() => []),
@@ -47,7 +49,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
       setPlayerGameLogs(pgRows || []);
       setLoadedSport(sport);
     }).finally(() => setLoading(false));
-  }, [teamName, isSoccer]);
+  }, [teamName, isSoccer, skipDashboardSheet]);
 
   const settings = useMemo(() => getEffectiveSettings(teamName, isSoccer ? '축구' : '풋살'), [teamName, isSoccer]);
   const showCrovaGoguma = !isSoccer && settings?.useCrovaGoguma === true && teamName === '마스터FC';

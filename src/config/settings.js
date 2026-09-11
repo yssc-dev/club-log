@@ -66,7 +66,9 @@ export const PRESETS = {
     "자체전축구": {
       description: "자체전(A/B 모두 우리 회원) + 외부전 — 빅마스터FC",
       // intraSquad: Root 가 IntraSoccerApp 을 고르는 게이트. 다른 프리셋에는 이 키가 없다.
-      values: { intraSquad: true },
+      // logSheetsOnly: 로그_* 3종 + 참석명단만 사용(대시보드·포인트 로그·선수별집계 미사용, 스펙 §15).
+      //   당장의 운영 결정 — 끄면 하버FC 와 같은 5개 시트 경로로 돌아간다.
+      values: { intraSquad: true, logSheetsOnly: true },
     },
   },
   테니스: {

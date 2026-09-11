@@ -12,6 +12,7 @@ import App from './App';
 import SoccerApp from './SoccerApp';
 import IntraSoccerApp from './IntraSoccerApp';
 import { isIntraSquadTeam } from './utils/intraSoccer/isIntraSquadTeam';
+import { isLogSheetsOnly } from './utils/intraSoccer/logSheetsOnly';
 import { appTitle } from './utils/appTitle';
 import TennisApp from './TennisApp';
 
@@ -195,6 +196,7 @@ export default function Root() {
 
   if (screen === "dashboard") {
     return <TeamDashboard authUser={authUser} teamName={selectedTeamName} teamEntries={selectedTeamEntries}
+      soccerLogSheetsOnly={isLogSheetsOnly(selectedTeamName, '축구')}
       pendingGames={pendingGames} checkingPending={checkingPending}
       onStartGame={handleStartNew} onContinueGame={handleContinue}
       onViewHistory={() => setScreen("history")} onSettings={() => setScreen("settings")} onSwitchTeam={handleSwitchTeam} onLogout={handleLogout} />;

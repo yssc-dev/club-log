@@ -19,7 +19,7 @@ import TournamentListTab from '../tournament/TournamentListTab';
 import TennisTabs from '../tennis/TennisTabs';
 import { buildMainTabs } from './mainTabs';
 
-export default function TeamDashboard({ authUser, teamName, teamEntries, onStartGame, onContinueGame, onViewHistory, onSettings, onSwitchTeam, onLogout, pendingGames = [], checkingPending }) {
+export default function TeamDashboard({ authUser, teamName, teamEntries, onStartGame, onContinueGame, onViewHistory, onSettings, onSwitchTeam, onLogout, pendingGames = [], checkingPending, soccerLogSheetsOnly = false }) {
   const { C, mode, toggle } = useTheme();
   const [activeSport, setActiveSport] = useState(teamEntries[0]?.mode || "풋살");
   const [members, setMembers] = useState([]);
@@ -32,7 +32,9 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   const [rankingHistory, setRankingHistory] = useState(null);
   const [rankingLoading, setRankingLoading] = useState(false);
   // 테니스는 최초 화면이 대시보드(tdash), 그 외 종목은 대시보드=records.
-  const [activeTab, setActiveTab] = useState(() => (teamEntries[0]?.mode === "테니스" ? "tdash" : "records"));
+  // 로그 시트만 쓰는 축구팀(빅마스터FC, 스펙 §15)은 records 가 대시보드·포인트 로그 기반이라 비므로 분석 탭으로 연다.
+  const [activeTab, setActiveTab] = useState(() => (teamEntries[0]?.mode === "테니스" ? "tdash"
+    : (soccerLogSheetsOnly && teamEntries[0]?.mode === "축구") ? "analytics" : "records"));
   const [tournamentActive, setTournamentActive] = useState(false);
   const [tournamentName, setTournamentName] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
@@ -63,6 +65,8 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   const hasSoccerEntry = teamEntries.some(e => e.mode === "축구");
   const isTennis = activeSport === "테니스";
   const isSoccer = activeSport === "축구";
+  // 스펙 §15: 이 팀의 축구는 로그_* 3종만 쓴다 — 대시보드·순위 증감·선수별집계·포인트 로그를 읽지 않는다.
+  const logOnly = soccerLogSheetsOnly && isSoccer;
 
   useEffect(() => {
     // 테니스는 대시보드 시트(풋살/축구 명부)를 읽지 않는다. 호출하면 빈 명단으로 위젯이 0으로 채워진다.
@@ -74,6 +78,8 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
       // 않는다 — 이 catch는 함수가 나중에 throw하게 바뀌어도 대시보드가 죽지 않게 하는 보험.
       try { await loadSettingsFromFirebase(teamName, teamEntries); } catch { /* 보험용 */ }
       if (cancelled) return;
+      // 로그 시트만 쓰는 축구팀: 설정이 비면 기본 탭 이름으로 다른 팀 탭을 읽을 수 있어 아예 읽지 않는다.
+      if (logOnly) { setMembers([]); setMembersLoading(false); return; }
       fetchSheetData()
         .then(data => { if (cancelled) return; setMembers(data.players || []); setKeepers(data.keepers || []); })
         .catch(() => { if (!cancelled) setMembers([]); })
@@ -133,7 +139,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
     load();
     // teamName/hasSoccerEntry/isTennis 변경 시 재조회 — 이전엔 []라 팀 전환에도 최초 데이터가 유지됐음
     return () => { cancelled = true; };
-  }, [teamName, hasSoccerEntry, isTennis]);
+  }, [teamName, hasSoccerEntry, isTennis, logOnly]);
 
   const ds = useMemo(() => ({
     container: { background: "var(--app-bg-grouped)", minHeight: "100vh",
@@ -543,6 +549,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
 
   const loadRankingHistory = async () => {
     if (rankingHistory) return rankingHistory;
+    if (logOnly) return null; // 스펙 §15: 순위 이력은 선수별집계 시트에서 온다 — 미사용
     setRankingLoading(true);
     try {
       const allNames = members.map(m => m.name);
@@ -953,7 +960,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
             {activeTab === "analytics" && (
               <div style={ds.section}>
                 <div style={ds.sectionTitle}>선수 분석</div>
-                <PlayerAnalytics teamName={teamName} teamMode={activeSport} isAdmin={activeEntry?.role === "관리자"} authUserName={authUser?.name} />
+                <PlayerAnalytics teamName={teamName} teamMode={activeSport} isAdmin={activeEntry?.role === "관리자"} authUserName={authUser?.name} skipDashboardSheet={logOnly} />
               </div>
             )}
             {activeTab === "games" && renderGames()}

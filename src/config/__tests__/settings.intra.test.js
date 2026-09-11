@@ -7,11 +7,12 @@ describe('빅마스터FC 자체전 프리셋', () => {
   });
   it('자체전축구 프리셋은 intraSquad=true 를 갖는다', () => {
     expect(getPresetValue('축구', '자체전축구', 'intraSquad')).toBe(true);
-    expect(PRESETS.축구['자체전축구'].values).toEqual({ intraSquad: true });
+    expect(PRESETS.축구['자체전축구'].values).toEqual({ intraSquad: true, logSheetsOnly: true });
   });
   it('하버FC·마스터FC 해석은 바뀌지 않는다', () => {
     expect(resolvePreset('하버FC', '축구')).toBe('표준축구');
     expect(resolvePreset('마스터FC', '풋살')).toBe('마스터FC풋살');
     expect(getPresetValue('축구', '표준축구', 'intraSquad')).toBeUndefined();
+    expect(getPresetValue('축구', '표준축구', 'logSheetsOnly')).toBeUndefined();
   });
 });

@@ -26,7 +26,8 @@ import {
 } from './utils/soccerScoring';
 import { buildIntraRows } from './utils/intraSoccer/buildIntraRows';
 import { isIntra, sideView } from './utils/intraSoccer/sideView';
-import { refreshAfterFinalize } from './utils/refreshAfterFinalize';
+import { refreshAfterFinalize, refreshDatasets } from './utils/refreshAfterFinalize';
+import { isLogSheetsOnly, LOG_SHEET_DATASETS, sendFinalizeWrites } from './utils/intraSoccer/logSheetsOnly';
 import { gameDateFromId } from './utils/gameDate';
 
 // ── 자체전 펼침 헬퍼 ──
@@ -43,6 +44,8 @@ const hasExternalRecord = (ms) => externalOnly(ms).some(m => m.status === 'finis
 
 export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameMode, gameId, onLogout, onBackToMenu }) {
   const gameSettings = useMemo(() => getSettings(teamContext?.team), [teamContext?.team]);
+  // 스펙 §15: 빅마스터FC 는 당장 로그_* 3종 + 참석명단만 쓴다(대시보드·포인트 로그·선수별집계 미사용).
+  const logOnly = useMemo(() => isLogSheetsOnly(teamContext?.team, '축구'), [teamContext?.team]);
   const [state, dispatch] = useGameReducer();
   const [opponentSuggestions, setOpponentSuggestions] = useState([]); // 시트에서 받은 상대팀 후보 (비동기화)
   const [newOpponentSetup, setNewOpponentSetup] = useState("");
@@ -78,7 +81,7 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
 
   const _loadBackgroundData = (team) => {
     Promise.all([
-      fetchSheetData().catch(() => null),
+      logOnly ? Promise.resolve(null) : fetchSheetData().catch(() => null),
       Promise.resolve({ crova: {}, goguma: {} }),
     ]).then(([sheetData, cumBonus]) => {
       const fields = {};
@@ -91,7 +94,7 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
 
   const _loadAllData = (team) => {
     const loadPromises = [
-      fetchSheetData().catch(err => { console.warn("시트 로딩 실패:", err.message); return null; }),
+      logOnly ? Promise.resolve(null) : fetchSheetData().catch(err => { console.warn("시트 로딩 실패:", err.message); return null; }),
       Promise.resolve({ crova: {}, goguma: {} }),
     ];
     if (gameMode === "sheetSync") {
@@ -102,6 +105,8 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
     Promise.all(loadPromises).then(([sheetData, cumBonus, roster]) => {
       const fields = { dataLoading: false };
       if (sheetData) { fields.seasonPlayers = sheetData.players; fields.dataSource = "sheet"; }
+      // logOnly: 대시보드를 읽지 않으므로 '시트 연동'은 참석명단 읽기로 판단(수동 모드는 읽을 시트가 없다).
+      else if (logOnly) { fields.dataSource = (gameMode !== "sheetSync" || roster) ? "sheet" : "fallback"; }
       else { fields.dataSource = "fallback"; }
       if (cumBonus) { fields.seasonCrova = cumBonus.crova || {}; fields.seasonGoguma = cumBonus.goguma || {}; }
       if (isNewGame) {
@@ -284,13 +289,9 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
       buildIntraRows({ team, dateStr, inputTime, finished });
 
     try {
-      const results = await Promise.allSettled([
-        AppSync.writeSoccerPointLog({ events: pointLogRows }, gameSettings.pointLogSheet),
-        AppSync.writeSoccerPlayerLog({ players: playerLogRows }, gameSettings.playerLogSheet),
-        AppSync.writeRawEvents({ rows: rawEvents }),
-        AppSync.writeRawPlayerGames({ rows: rawPlayerGames }),
-        AppSync.writeMatchLog(matchRows),
-      ]);
+      // logOnly(스펙 §15)면 포인트 로그·선수별집계는 보내지 않는다 — 결과 배열 5칸 모양은 같다.
+      const results = await sendFinalizeWrites(AppSync,
+        { pointLogRows, playerLogRows, rawEvents, rawPlayerGames, matchRows }, gameSettings, { logOnly });
       const [r1, r2, r3, r4, r5] = results;
       const legacyOk = r1.status === 'fulfilled' && r2.status === 'fulfilled';
       if (!legacyOk) {
@@ -322,10 +323,13 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
       // allOk 가 아니어도 돈다 — legacyOk 를 통과한 이상 포인트로그·선수별집계에는 이미
       // 행이 들어갔고, refresh 는 시트(진실 소스)를 다시 읽으므로 어떤 상태든 정확히 반영한다.
       // 여기서 돌지 않으면 그 두 시트의 캐시가 최대 12시간(L2 TTL) 낡은 채 남는다.
-      await refreshAfterFinalize({ sport: '축구' });
+      // logOnly 면 포인트 로그·선수별집계를 쓰지도 읽지도 않으므로 로그 3종만 재적재한다.
+      if (logOnly) await refreshDatasets(LOG_SHEET_DATASETS, { sport: '축구' });
+      else await refreshAfterFinalize({ sport: '축구' });
       const r1v = r1.value, r2v = r2.value;
       const ct = (r, unit) => r.status === 'fulfilled' ? `${r.value?.count || 0}${unit}${r.value?.skipped ? ` (skip ${r.value.skipped})` : ''}` : '❌ 실패';
-      const detail = `포인트로그: ${r1v?.count || 0}건\n선수별집계: ${r2v?.count || 0}명\n로그_이벤트: ${ct(r3, '건')}\n로그_선수경기: ${ct(r4, '명')}\n로그_매치: ${ct(r5, '건')}`;
+      const legacyDetail = logOnly ? '' : `포인트로그: ${r1v?.count || 0}건\n선수별집계: ${r2v?.count || 0}명\n`;
+      const detail = `${legacyDetail}로그_이벤트: ${ct(r3, '건')}\n로그_선수경기: ${ct(r4, '명')}\n로그_매치: ${ct(r5, '건')}`;
       if (allOk) {
         // active를 지우지 않고 '전송완료'로 목록에 남김 → 'Archive' 버튼으로 명시적 보관
         alert(`기록 확정 완료!\n\n${detail}\n\n경기가 '전송완료'로 목록에 남았습니다.\n'Archive'를 누르면 목록에서 정리되고 보관됩니다.`);

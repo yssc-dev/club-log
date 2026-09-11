@@ -1,6 +1,6 @@
 # 빅마스터FC 자체 축구전 — 설계
 
-날짜 2026-09-10(§14 구현 2026-09-11). 상태: **§1–14 구현 완료** — §1–12 1차 + §13 증분 2(로컬 main), §14 증분 3(브랜치 feature/bigmaster-s14). 테스트 1787 통과, 빌드 OK. 공유 파일 접촉은 1차의 8개 + FormationRecorder 선택적 prop 1개(추가만, 삭제 0). 머지·배포 대기 — 운영 준비는 §11.
+날짜 2026-09-10(§14 구현 2026-09-11, §15 2026-09-11). 상태: **§1–14 배포 완료**(origin/main=f7c4968), **§15 구현 완료**(브랜치 feature/bigmaster-logsheets-only) — 테스트 1801 통과, 빌드 OK. 공유 파일 접촉은 1차의 8개 + FormationRecorder 선택적 prop 1개 + §15 의 Root·TeamDashboard·PlayerAnalytics 선택적 prop(추가만). 운영 준비는 §11·§15.4.
 
 ## 0. 한 줄 요약
 
@@ -454,3 +454,38 @@ const onDeleteEvent = (id) => {
     2. **입력 중 보류**: '🔄 교체' 버튼을 눌러 교체 모달을 연 뒤(= `onBusyChange(true)`) 같은 원격 변경을 주면 피치가 **그대로**이고 안내 문구가 보인다; 모달을 닫으면 새 배치가 반영된다.
     3. **종료된 경기 입력 차단**: `status:'finished'` 로 바꾼 뒤 `onAddEvent` prop spy 가 호출되지 않음(레코더 미렌더로 입력 경로 자체가 없음을 확인).
   - 정적 테스트(`intraNoScoreRead.test.js`) 유지.
+
+## 15. 로그 시트만 사용 (2026-09-11, 배포 후 운영 결정)
+
+### 15.1 요구
+"빅마스터는 로그_이벤트, 로그_선수경기, 로그_매치, 빅마스터FC 참석명단만 활용하고싶다. 당장은" — 대시보드·포인트 로그·선수별집계 시트는 만들지도, 쓰지도, 읽지도 않는다. 대시보드 화면의 첫 탭은 **분석**(유저 선택 1번).
+
+### 15.2 실측 — 배포본(f7c4968)에서 4개 시트 밖 접점
+| 위치 | 동작 | 문제 |
+|---|---|---|
+| `IntraSoccerApp` 마감 | `writeSoccerPointLog`·`writeSoccerPlayerLog` | 설정이 비면 기본 이름(`포인트로그`/`선수별집계기록로그`) 탭을 Apps Script 쓰기 함수가 **새로 만든다**. 둘 중 하나라도 실패하면 마감 실패(`legacyOk`) |
+| `IntraSoccerApp` 마감 후 | `refreshAfterFinalize`(축구 전 데이터셋) | pointLog·playerLog·latestDeltas 읽기 |
+| `IntraSoccerApp` 로드 | `fetchSheetData`(대시보드) | 읽기. 실패 시 '오프라인' 배지 |
+| `TeamDashboard` | `fetchSheetData`·latestDeltas·playerLog·pointLog·`getRankingHistory` | 읽기. 설정이 비면 기본 이름 탭 — 다른 팀 탭일 수 있다 |
+| `PlayerAnalytics`(분석 탭) | `fetchSheetData`(명단) | 읽기, 같은 문제 |
+- Apps Script 조회 함수(`_getPointLog`/`_getPlayerLog`/`_getPrevRankings`/`_getRankingHistory`)는 탭이 없으면 빈 값 — 읽기로 탭이 생기지는 않는다. 탭 생성은 쓰기 함수뿐.
+- `DualTeamTab`(playerLog)은 축구에서 열 수 없다(팀전 버튼이 `activeSport !== "축구"` 조건) — 도달 불가.
+
+### 15.3 설계
+- **스위치**: `자체전축구` 프리셋 values 에 `logSheetsOnly: true`. 판정 `isLogSheetsOnly(team, mode)`(`src/utils/intraSoccer/logSheetsOnly.js`) — `isIntraSquadTeam` 과 같은 규칙(저장 설정 → 팀 기본 프리셋 폴백)이라 설정 로드 전·첫 접속에서도 다른 시트를 읽지 않는다. 대시보드를 붙일 때는 프리셋 값만 끈다.
+- **`IntraSoccerApp`(빅마스터FC 전용)**: 마감 전송을 `sendFinalizeWrites` 로 — logOnly 면 포인트 로그·선수별집계를 보내지 않고 결과 배열 5칸 모양을 유지(앞 둘 = 성공 count 0)해 `legacyOk`·`rawFailed`·`allOk` 판정 코드는 무변경. 완료 알림에서 두 줄 제거. 재적재는 `LOG_SHEET_DATASETS`(matchLog·eventLog·playerGameLog)만. 대시보드 읽기 생략 — '시트 연동' 배지는 참석명단 읽기 성공으로 판단(수동 모드는 읽을 시트가 없어 연동으로 표시).
+- **외부전도 포인트 로그에 쓰지 않는다** — 외부전 결과는 로그_매치에 남는다.
+- **`TeamDashboard`(공유, 추가만)**: 선택적 prop `soccerLogSheetsOnly`(기본 false). `logOnly = prop && activeSport === '축구'` 이면 로드 effect 가 설정 로드 뒤 조기 반환(명단 []), 순위 이력 조회 생략, 첫 탭 = 분석, `PlayerAnalytics` 에 `skipDashboardSheet`.
+- **`PlayerAnalytics`(공유, 추가만)**: 선택적 prop `skipDashboardSheet`(기본 false) — true 면 `fetchSheetData` 생략. members=null 은 조회 실패 때와 같은 기존 경로(명단 = 기록에 나온 선수).
+- **`Root`(공유, 추가만)**: import 1줄 + prop 1개(`isLogSheetsOnly(selectedTeamName, '축구')`). 판정을 Root 에 둔 이유: `TeamDashboard.render.test.jsx` 가 settings 모듈을 목으로 바꿔 두어, TeamDashboard 가 새 설정 함수를 import 하면 기존 축구 테스트가 깨진다(기존 테스트 무수정 원칙).
+- 하버FC·마스터FC·테니스: 프리셋에 `logSheetsOnly` 가 없어 Root 가 false 를 넘기고, 두 prop 의 기본값이 false 라 모든 기존 경로가 그대로다.
+
+### 15.4 설정·운영
+- 빅마스터FC 설정 화면은 `sheetId`, `attendanceSheet`(= `빅마스터FC 참석명단`) 두 개만 입력하면 된다. 나머지 3키는 쓰이지 않는다.
+- 설정 화면의 '구글시트에서 다시 불러오기'(refreshAll)는 여전히 축구 전 데이터셋을 읽는다 — 읽기만 하고 화면에 쓰이지 않는다(비범위).
+- 빅마스터FC 대시보드의 '대시보드'·'팀/개인 기록' 탭과 대회 탭 참석자 후보는 비어 있다. 채우려면 로그_선수경기 기반 표 — 후속.
+
+### 15.5 테스트
+- `logSheetsOnly.test.js`: `isLogSheetsOnly`(빅마스터FC 폴백 true, 하버FC·마스터FC·테니스 false), `sendFinalizeWrites`(logOnly 면 두 쓰기 0회·5칸 모양, 아니면 기존 인자 그대로, 실패 칸 모양 유지), `LOG_SHEET_DATASETS` 가 sheetCache 키인지, 정적 불변식(IntraSoccerApp 은 두 쓰기를 직접 부르지 않고 대시보드 읽기는 전부 logOnly 가드).
+- `TeamDashboard.logSheetsOnly.render.test.jsx`: prop 켠 축구팀은 fetchSheetData·pointLog·playerLog·latestDeltas 0회 + 첫 탭 분석 + 로그 3종 읽기. 대조군 2개(prop 기본값 / 풋살 종목)는 기존 읽기가 그대로 — 판별력 확인.
+- 기존 테스트: `settings.intra.test.js` 의 프리셋 values 기대값만 갱신(빅마스터FC 전용). 하버FC·마스터FC·테니스 테스트 무수정.
