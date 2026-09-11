@@ -1,6 +1,6 @@
 # 빅마스터FC 자체 축구전 — 설계
 
-날짜 2026-09-10(§14 구현 2026-09-11, §15 2026-09-11). 상태: **§1–14 배포 완료**(origin/main=f7c4968), **§15 구현 완료**(브랜치 feature/bigmaster-logsheets-only) — 테스트 1801 통과, 빌드 OK. 공유 파일 접촉은 1차의 8개 + FormationRecorder 선택적 prop 1개 + §15 의 Root·TeamDashboard·PlayerAnalytics 선택적 prop(추가만). 운영 준비는 §11·§15.4.
+날짜 2026-09-10(§14 구현 2026-09-11, §15 2026-09-11). 상태: **§1–14 배포 완료**(origin/main=f7c4968), **§15 구현 완료**(브랜치 feature/bigmaster-logsheets-only) — 테스트 1804 통과, 빌드 OK. 공유 파일 접촉은 1차의 8개 + FormationRecorder 선택적 prop 1개 + §15 의 Root·TeamDashboard·PlayerAnalytics 선택적 prop·mainTabs 선택적 인자(추가만). 운영 준비는 §11·§15.4.
 
 ## 0. 한 줄 요약
 
@@ -470,6 +470,10 @@ const onDeleteEvent = (id) => {
 | `PlayerAnalytics`(분석 탭) | `fetchSheetData`(명단) | 읽기, 같은 문제 |
 - Apps Script 조회 함수(`_getPointLog`/`_getPlayerLog`/`_getPrevRankings`/`_getRankingHistory`)는 탭이 없으면 빈 값 — 읽기로 탭이 생기지는 않는다. 탭 생성은 쓰기 함수뿐.
 - `DualTeamTab`(playerLog)은 축구에서 열 수 없다(팀전 버튼이 `activeSport !== "축구"` 조건) — 도달 불가.
+- 리뷰(직접 전수 조사)에서 추가로 찾은 것:
+  - **대회 탭**(축구팀이면 자동 표시): 열면 `대회_목록`을 읽고(`_getTournamentList`, 탭이 없으면 빈 목록), **대회를 만들면 `대회_목록`·`대회_{id}_일정/이벤트로그/대시보드` 탭을 새로 만든다**(`_createTournament`).
+  - **경기 삭제**의 `AppSync.clearState` — Apps Script 레거시 경기상태 시트. IntraSoccerApp 은 그 시트에 쓰지 않는다(지울 것도 없다).
+  - 설정 화면 '구글시트에서 다시 불러오기'(`SheetCache.refreshAll`) — 축구 전 데이터셋을 **읽는다**(관리자 클릭 시만, 탭 생성 없음, 화면 미표시).
 
 ### 15.3 설계
 - **스위치**: `자체전축구` 프리셋 values 에 `logSheetsOnly: true`. 판정 `isLogSheetsOnly(team, mode)`(`src/utils/intraSoccer/logSheetsOnly.js`) — `isIntraSquadTeam` 과 같은 규칙(저장 설정 → 팀 기본 프리셋 폴백)이라 설정 로드 전·첫 접속에서도 다른 시트를 읽지 않는다. 대시보드를 붙일 때는 프리셋 값만 끈다.
@@ -478,14 +482,18 @@ const onDeleteEvent = (id) => {
 - **`TeamDashboard`(공유, 추가만)**: 선택적 prop `soccerLogSheetsOnly`(기본 false). `logOnly = prop && activeSport === '축구'` 이면 로드 effect 가 설정 로드 뒤 조기 반환(명단 []), 순위 이력 조회 생략, 첫 탭 = 분석, `PlayerAnalytics` 에 `skipDashboardSheet`.
 - **`PlayerAnalytics`(공유, 추가만)**: 선택적 prop `skipDashboardSheet`(기본 false) — true 면 `fetchSheetData` 생략. members=null 은 조회 실패 때와 같은 기존 경로(명단 = 기록에 나온 선수).
 - **`Root`(공유, 추가만)**: import 1줄 + prop 1개(`isLogSheetsOnly(selectedTeamName, '축구')`). 판정을 Root 에 둔 이유: `TeamDashboard.render.test.jsx` 가 settings 모듈을 목으로 바꿔 두어, TeamDashboard 가 새 설정 함수를 import 하면 기존 축구 테스트가 깨진다(기존 테스트 무수정 원칙).
+- **대회 탭 숨김**: `buildMainTabs` 에 선택적 인자 `hideTournament`(기본 false), TeamDashboard 가 `logOnly` 를 넘긴다.
+- **경기 삭제**: IntraSoccerApp 은 logOnly 면 `AppSync.clearState` 를 부르지 않는다(Firebase 삭제는 그대로).
 - 하버FC·마스터FC·테니스: 프리셋에 `logSheetsOnly` 가 없어 Root 가 false 를 넘기고, 두 prop 의 기본값이 false 라 모든 기존 경로가 그대로다.
 
 ### 15.4 설정·운영
 - 빅마스터FC 설정 화면은 `sheetId`, `attendanceSheet`(= `빅마스터FC 참석명단`) 두 개만 입력하면 된다. 나머지 3키는 쓰이지 않는다.
 - 설정 화면의 '구글시트에서 다시 불러오기'(refreshAll)는 여전히 축구 전 데이터셋을 읽는다 — 읽기만 하고 화면에 쓰이지 않는다(비범위).
-- 빅마스터FC 대시보드의 '대시보드'·'팀/개인 기록' 탭과 대회 탭 참석자 후보는 비어 있다. 채우려면 로그_선수경기 기반 표 — 후속.
+- 빅마스터FC 대시보드의 '대시보드'·'팀/개인 기록' 탭은 비어 있고, 대회 탭은 숨긴다. 채우려면 로그_선수경기 기반 표 — 후속.
+- **남긴 예외**: 설정 화면 '구글시트에서 다시 불러오기'는 축구 전 데이터셋을 읽는다(읽기만, 탭 생성·화면 표시 없음). 막으려면 공유 파일 SettingsScreen 을 더 건드려야 해서 비범위로 둔다.
 
 ### 15.5 테스트
 - `logSheetsOnly.test.js`: `isLogSheetsOnly`(빅마스터FC 폴백 true, 하버FC·마스터FC·테니스 false), `sendFinalizeWrites`(logOnly 면 두 쓰기 0회·5칸 모양, 아니면 기존 인자 그대로, 실패 칸 모양 유지), `LOG_SHEET_DATASETS` 가 sheetCache 키인지, 정적 불변식(IntraSoccerApp 은 두 쓰기를 직접 부르지 않고 대시보드 읽기는 전부 logOnly 가드).
 - `TeamDashboard.logSheetsOnly.render.test.jsx`: prop 켠 축구팀은 fetchSheetData·pointLog·playerLog·latestDeltas 0회 + 첫 탭 분석 + 로그 3종 읽기. 대조군 2개(prop 기본값 / 풋살 종목)는 기존 읽기가 그대로 — 판별력 확인.
+- `mainTabs.test.js` 에 `hideTournament` 케이스 2개 추가(기존 케이스 무수정). 렌더 테스트에 대회 탭 숨김/하버FC 유지 단언, 정적 불변식에 `sendFinalizeWrites(..., { logOnly })` 전달·`clearState` 가드 추가.
 - 기존 테스트: `settings.intra.test.js` 의 프리셋 values 기대값만 갱신(빅마스터FC 전용). 하버FC·마스터FC·테니스 테스트 무수정.

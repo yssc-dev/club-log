@@ -41,3 +41,14 @@ describe('buildMainTabs 비테니스(회귀)', () => {
     expect(t.find(x => x.key === 'roster').label).toBe('팀/개인 기록');
   });
 });
+
+// 스펙 §15: 로그 시트만 쓰는 축구팀(빅마스터FC)은 대회 탭을 숨긴다(대회 생성은 대회_* 탭을 새로 만든다).
+describe('buildMainTabs hideTournament', () => {
+  it('축구 + hideTournament = 대회 없음, 나머지 순서 그대로', () => {
+    const t = buildMainTabs({ activeSport: '축구', role: '관리자', pendingCount: 0, hideTournament: true });
+    expect(keys(t)).toEqual(['records', 'roster', 'analytics', 'games']);
+  });
+  it('기본값(인자 없음)은 기존대로 대회 포함', () => {
+    expect(keys(buildMainTabs({ activeSport: '축구', role: '관리자', pendingCount: 0 }))).toContain('tournament');
+  });
+});

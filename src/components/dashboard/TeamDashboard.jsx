@@ -932,7 +932,7 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
       </div>
 
       {!tournamentActive && <div style={{ display: "flex", background: C.bg, borderBottom: `1px solid ${C.grayDarker}` }}>
-        {buildMainTabs({ activeSport, role: activeEntry?.role, pendingCount: pendingGames.length }).filter(Boolean).map(tab => (
+        {buildMainTabs({ activeSport, role: activeEntry?.role, pendingCount: pendingGames.length, hideTournament: logOnly }).filter(Boolean).map(tab => (
           <button key={tab.key} onClick={() => setActiveTab(tab.key)} style={ds.mainTab(activeTab === tab.key)}>
             <span style={{ display: "inline-flex", alignItems: "center", gap: 4 }}>
               {tab.label}

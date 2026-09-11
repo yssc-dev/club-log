@@ -103,11 +103,18 @@ describe('IntraSoccerApp 정적 불변식(스펙 §15)', () => {
   it('포인트 로그·선수별집계 쓰기를 직접 부르지 않고 sendFinalizeWrites 로만 보낸다', () => {
     expect(src).not.toMatch(/AppSync\.writeSoccerPointLog\(/);
     expect(src).not.toMatch(/AppSync\.writeSoccerPlayerLog\(/);
-    expect(src).toMatch(/sendFinalizeWrites\(/);
+    // 호출 여부만이 아니라 런타임 변수 logOnly 를 넘기는지(하드코딩 { logOnly: false } 회귀 방지).
+    expect(src).toMatch(/sendFinalizeWrites\([\s\S]*?\{\s*logOnly\s*\}\s*\)/);
   });
   it('대시보드 읽기(fetchSheetData)는 전부 logOnly 로 가드된다', () => {
     const calls = src.match(/fetchSheetData\(\)/g) || [];
     const guarded = src.match(/logOnly \? Promise\.resolve\(null\) : fetchSheetData\(\)/g) || [];
+    expect(calls.length).toBeGreaterThan(0);
+    expect(guarded.length).toBe(calls.length);
+  });
+  it('Apps Script 레거시 경기상태 시트(clearState)도 logOnly 면 건드리지 않는다', () => {
+    const calls = src.match(/AppSync\.clearState\(/g) || [];
+    const guarded = src.match(/if \(!logOnly\) await AppSync\.clearState\(/g) || [];
     expect(calls.length).toBeGreaterThan(0);
     expect(guarded.length).toBe(calls.length);
   });

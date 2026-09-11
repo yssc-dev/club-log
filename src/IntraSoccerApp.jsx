@@ -467,7 +467,9 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
       if (!confirm("경기를 삭제하시겠습니까?\n모든 기록이 초기화됩니다.")) return;
       if (!confirm("되돌릴 수 없습니다. 정말 삭제하시겠습니까?")) return;
       await FirebaseSync.clearState(teamContext?.team, gameId);
-      await AppSync.clearState(gameId);
+      // 스펙 §15: 로그 시트만 쓰는 팀은 Apps Script 레거시 경기상태 시트도 건드리지 않는다
+      // (이 앱은 그 시트에 쓰지 않으므로 지울 것도 없다).
+      if (!logOnly) await AppSync.clearState(gameId);
       window.location.reload();
     };
 

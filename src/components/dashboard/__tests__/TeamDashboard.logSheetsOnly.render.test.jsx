@@ -55,6 +55,7 @@ async function mount(props = {}) {
   });
 }
 const datasets = () => getSpy.mock.calls.map(c => c[0]);
+const hasTab = (label) => [...container.querySelectorAll('button')].some(b => b.textContent.trim() === label);
 
 describe('TeamDashboard — 로그 시트만 쓰는 축구팀(스펙 §15)', () => {
   it('대시보드·포인트 로그·선수별집계·순위 증감을 읽지 않고, 분석 탭으로 열어 로그 3종만 읽는다', async () => {
@@ -66,6 +67,8 @@ describe('TeamDashboard — 로그 시트만 쓰는 축구팀(스펙 §15)', () 
     expect(getSpy).toHaveBeenCalledWith('eventLog', { sport: '축구' });
     expect(getSpy).toHaveBeenCalledWith('playerGameLog', { sport: '축구' });
     expect(container.textContent).not.toContain('NaN');
+    expect(hasTab('대회'), '대회 생성은 대회_* 탭을 만든다 — 숨긴다').toBe(false);
+    expect(hasTab('분석')).toBe(true);
   });
 
   it('대조: prop 기본값(하버FC 등)이면 기존대로 대시보드 탭으로 열고 네 시트를 읽는다', async () => {
@@ -73,6 +76,7 @@ describe('TeamDashboard — 로그 시트만 쓰는 축구팀(스펙 §15)', () 
     expect(fetchSheetDataSpy).toHaveBeenCalled();
     for (const d of NON_LOG) expect(datasets()).toContain(d);
     expect(container.textContent).not.toContain('선수 분석');
+    expect(hasTab('대회'), '하버FC 는 대회 탭 그대로').toBe(true);
   });
 
   it('대조: prop 이 켜져 있어도 종목이 축구가 아니면 적용하지 않는다', async () => {
