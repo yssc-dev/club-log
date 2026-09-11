@@ -21,9 +21,12 @@ describe('formationFingerprint', () => {
     expect(formationFingerprint(shuffled)).toBe(formationFingerprint(base));
   });
   it('슬롯 번호는 숫자 순서로 정렬한다(문자열 정렬이면 10 이 2 앞에 온다)', () => {
-    const a = formationFingerprint({ ...base, assignments: { 0: 'a1', 1: 'a2', 10: 'a11' } });
-    const b = formationFingerprint({ ...base, assignments: { 0: 'a1', 10: 'a11', 1: 'a2' } });
+    const asg = { 0: 'a1', 2: 'a3', 10: 'a11' };
+    const a = formationFingerprint({ ...base, assignments: asg });
+    const b = formationFingerprint({ ...base, assignments: { 10: 'a11', 0: 'a1', 2: 'a3' } });
     expect(a).toBe(b);
+    // 문자열 정렬이면 a:0=a1,10=a11,2=a3 이 되어 숫자 정렬 결과와 다르다 — 지문이 그 순서를 반영함을 고정한다
+    expect(a).toContain('0=a1,2=a3,10=a11');
   });
   it('배치 한 곳만 달라도 지문이 다르다', () => {
     expect(formationFingerprint({ ...base, gk: 'a2' })).not.toBe(formationFingerprint(base));
