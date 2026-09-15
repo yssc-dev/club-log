@@ -1,6 +1,6 @@
 # 빅마스터FC 자체 축구전 — 설계
 
-날짜 2026-09-10(§14 구현 2026-09-11, §15 2026-09-11). 상태: **§1–14 배포 완료**(origin/main=f7c4968), **§15 구현 완료**(브랜치 feature/bigmaster-logsheets-only) — 테스트 1804 통과, 빌드 OK. 공유 파일 접촉은 1차의 8개 + FormationRecorder 선택적 prop 1개 + §15 의 Root·TeamDashboard·PlayerAnalytics 선택적 prop·mainTabs 선택적 인자(추가만). 운영 준비는 §11·§15.4.
+날짜 2026-09-10(§14 구현 2026-09-11, §15 2026-09-11 배포, §16 설계 2026-09-16). 상태: **§1–15 배포 완료**(origin/main=cafc594), **§16 설계 승인 — 구현 대기**. 공유 파일 접촉은 1차의 8개 + FormationRecorder/FormationSetup/useGameReducer 의 선택적 prop·인자·신규 case(추가만). 운영 준비는 §11·§15.4.
 
 ## 0. 한 줄 요약
 
@@ -497,3 +497,108 @@ const onDeleteEvent = (id) => {
 - `TeamDashboard.logSheetsOnly.render.test.jsx`: prop 켠 축구팀은 fetchSheetData·pointLog·playerLog·latestDeltas 0회 + 첫 탭 분석 + 로그 3종 읽기. 대조군 2개(prop 기본값 / 풋살 종목)는 기존 읽기가 그대로 — 판별력 확인.
 - `mainTabs.test.js` 에 `hideTournament` 케이스 2개 추가(기존 케이스 무수정). 렌더 테스트에 대회 탭 숨김/하버FC 유지 단언, 정적 불변식에 `sendFinalizeWrites(..., { logOnly })` 전달·`clearState` 가드 추가.
 - 기존 테스트: `settings.intra.test.js` 의 프리셋 values 기대값만 갱신(빅마스터FC 전용). 하버FC·마스터FC·테니스 테스트 무수정.
+
+## 16. 증분 4 — A/B 독립 배치·준비완료 + 외부전 우리 팀 선택 (2026-09-16, 첫 실사용 후 요구 변경)
+
+### 16.1 요구
+- "포메이션 지정경로가 반드시 a팀을 거쳤다가 b팀을 거쳐야하네. a팀,b팀 독립적으로 입력받게 하고싶은데. … 접속한 사람 중 일부가 a 또는 b팀의 포메이션을 수정하고 각팀에 준비완료 처리를 하고 양팀모두 준비완료가 되면 경기가 시작."
+- "외부전은 a팀, b팀중에 한팀과, 기록이 필요없는 외부팀간에 경기이므로 내가 a or b팀중 선택이 필요하고 스타팅멤버는 최초 그팀에 소속된 선수들만 목록화가 되어야한다."
+- 유저 결정(질문 답): 외부전 후보 = **그 팀 소속 참석자만**(유동 인원 제외). 준비완료는 **경기 시작 전까지 취소 가능**.
+
+### 16.2 현재 상태 실측 — 왜 지금 구조로는 안 되는가
+- `IntraSoccerMatchView`: `viewState:'formationA'` → `pendingA`(로컬 `useState`, :47) → `'formationB'` → `handleIntraConfirm`이 경기 생성. **A 결과가 그 기기 메모리에만 있어** 다른 사람이 B를 맡을 수 없다.
+- `soccerFormation`은 WHOLE_REPLACE 동기 필드(`firebaseSyncDiff.js:16`) → A·B 초안을 여기 두면 두 기기가 서로 통째로 덮는다.
+- `soccerMatches`는 CHILD_NODE(`:33`)이고 `diffStateToWrites`가 **경기의 최상위 키마다** `soccerMatches/{idx}/{key}`로 쓴다(`:175`) → A 배치(최상위 키들)와 B 배치(`sideB` 한 키)는 경로가 달라 동시에 써도 충돌하지 않는다. `serializeSoccerMatch`(`:106`)는 필드를 거르지 않고 `normalizeSoccerMatch`(`:325`)는 `...m` 스프레드라 **새 필드·새 status가 그대로 왕복**한다.
+- `PATCH_SOCCER_SIDE`는 side 'A'에 `["name"]`만 허용(`useGameReducer.js:952`) → A 배치·준비 플래그를 저장할 수 없다.
+- `CREATE_SOCCER_MATCH`는 `status:"playing"` 고정·`startedAt: Date.now()`(`:917-919`).
+- 경기 노드 **개별 삭제 액션이 없다**(세션 전체 삭제뿐).
+- `pendingGameProgressLabel`은 `finished`만 센다 → 배치 중 노드가 대시보드 "N경기 완료"를 바꾸지 않는다.
+- `sideView`는 `sideA/sideB`를 제거하고 `fieldsOfA/B`가 키를 고정 선택(`sideView.js:12-28,45`) → `sideA.ready` 같은 새 키가 뷰·빌더로 새지 않는다.
+- 로그 컬럼에 `team`이 따로 있다(`rawLogBuilders.js:7`, `matchRowBuilder.js:15`) → `our_team_name`을 편 이름으로 바꿔도 팀 식별은 유지된다.
+
+### 16.3 설계
+
+#### 16.3.1 상태 모델 — 새 status `'setup'`(배치 중)
+빅마스터FC(IntraSoccerApp)에서만 생성된다. 하버FC·마스터FC 데이터에는 존재하지 않는다.
+```
+soccerMatches[i] = {
+  matchIdx, status: 'setup', startedAt: null,
+  opponent: <B팀 이름>,                       // 자체전 — 생성 시 확정(기존 규칙 유지)
+  sideA: { name, ready?: true, readyBy?: <이름> },
+  sideB: { name, ready?: true, readyBy?: <이름>, lineup, gk, defenders, formation, assignments, positionMap, subs },
+  // A 배치는 최상위 필드: lineup, gk, defenders, formation, assignments, positionMap, subs
+  events: [],
+}
+```
+- `isIntra(m) = !!m.sideB` — 생성 즉시 `sideB.name`이 있으므로 자체전으로 인식된다.
+- **외부전은 setup 단계를 쓰지 않는다**(한 팀뿐이라 준비완료가 의미 없다). 기존처럼 배치 확정 시 `status:'playing'`으로 바로 생성하고, `sideA:{ name: <우리 팀> }`만 추가로 저장한다.
+
+#### 16.3.2 리듀서 — 공유 파일 `useGameReducer.js`, 전부 추가만
+1. `CREATE_SOCCER_MATCH`에 **선택적 인자 2개**. 안 넘기면 지금과 완전히 동일하다(하버FC 무영향).
+   ```js
+   status: action.status || "playing",
+   startedAt: action.startedAt === undefined ? Date.now() : action.startedAt,
+   ```
+2. **새 case `PATCH_SOCCER_SETUP`** `{ matchIdx, side, patch }` — `status === 'setup'`인 경기에만 적용(아니면 state 무변경).
+   - 배치 키 화이트리스트: `lineup, gk, defenders, formation, assignments, positionMap, subs`
+   - 편 메타 화이트리스트: `name, ready, readyBy`
+   - side `'A'`: 배치 키는 **최상위**에 머지, 편 메타는 `sideA`에 머지.
+   - side `'B'`: 배치 키·편 메타 모두 `sideB`에 머지.
+3. **새 case `START_SOCCER_MATCH`** `{ matchIdx, startedAt }` — `status:'setup'` → `'playing'`, `startedAt` 기록, `currentMatchIdx = matchIdx`. 이미 `'playing'`이면 무변경(**멱등** — 두 기기가 동시에 보내도 안전).
+4. **새 case `DELETE_SOCCER_SETUP_MATCH`** `{ matchIdx }` — **배열의 마지막 경기이고 `status:'setup'`일 때만** 제거한다. 중간 경기를 지우면 `matchIdx === index` 불변식이 깨진다(메모리 `project_soccer_match_identity_invariant`). 제거 후 `currentMatchIdx`를 `length - 1`로 보정한다. `currentMatchIdx`는 META 동기 필드(`firebaseSyncDiff.js:8`)라 이 보정도 다른 기기로 전파되고, 사라진 경기 자체는 `diffStateToWrites`가 `soccerMatches/{id} = null`로 지운다(`:163`).
+
+#### 16.3.3 순수 로직 — 신규 `src/utils/intraSoccer/setup.js`
+```js
+export function sideMeta(m, side)          // side==='A' ? (m.sideA||{}) : (m.sideB||{})
+export function sideReady(m, side)         // sideMeta(m, side).ready === true
+export function sideStarters(m, side)      // A: Object.values(m.assignments||{}) / B: Object.values(m.sideB?.assignments||{})
+export function bothReady(m)               // sideReady(m,'A') && sideReady(m,'B')
+export function overlapStarters(m)         // A·B 선발 교집합(이름 배열, 정렬)
+export function setupPool({ teams, teamName, attendees, excludeNames })  // 자체전: (팀 명단 ∪ 유동 인원) ∩ 참석자 − exclude
+export function externalPool({ teams, teamName, attendees })             // 외부전: 팀 명단 ∩ 참석자 (유동 인원 제외 — 유저 결정)
+export function canReady(m, side)          // { ok, reason } — 그 편 선발 11명 && 상대와 중복 0
+export function canStartSetup(m)           // { ok, reason } — 양쪽 11명 · 양쪽 ready · 중복 0
+```
+- 자체전 배치 화면의 후보 = `setupPool({..., excludeNames: sideStarters(m, 상대편)})` — 상대가 이미 초안에 넣은 사람은 목록에서 빠진다(초안이 동기화되므로 실시간).
+- 중복은 두 겹으로 막는다: 후보 목록에서 제외(1차) + `canReady`/`canStartSetup` 검사(2차, 동시 선택 경합 대비).
+
+#### 16.3.4 화면 흐름 — `IntraSoccerMatchView`
+- **노드 파생 확장**: `editablePos = orderedMatches.findIndex(m => m.status === 'playing' || m.status === 'setup')`. 배치 중 노드가 편집 노드가 되고, 그동안 트레일링 '새 경기' 노드는 만들지 않는다(현재 `playingPos`/`hasPlaying` 자리, `:76-79`).
+  - ⚠️ `navLocked` 해제 effect(`:82`)와 `isPlayingNode`(`:409`)는 **`playing`만** 봐야 한다. navLocked 는 골 입력(goalFlow) 중 레코더 언마운트를 막는 장치이고 배치 중 노드에는 레코더가 없다. 파생 이름을 나눠 섞이지 않게 한다: `hasPlaying`(navLocked·레코더용) / `editablePos`(네비용).
+- **생성 가드 확장**: `blockIfRemoteStarted`는 `playing` 또는 `setup`이 하나라도 있으면 막는다(문구: "이미 진행 중이거나 배치 중인 경기가 있습니다").
+- **자체전 시작**(유형 카드): `onCreateMatch({ status:'setup', startedAt:null, opponent:teamB.name, lineup:[], gk:'', defenders:[], subs:[], formation:null, assignments:null, positionMap:null })` → `onPatchSetup(newIdx,'A',{name:teamA.name})`, `onPatchSetup(newIdx,'B',{name:teamB.name})`.
+- **배치 중 노드 화면**: 팀 카드 2개(A/B). 각 카드에
+  - 팀 이름 · `선발 n/11` · 준비 상태(`✅ 준비완료 · <readyBy>` 또는 `배치 중`)
+  - `[배치하기]`(초안 없음) / `[배치 수정]`(초안 있음) → 전체화면 `FormationSetup`
+  - `[준비완료]` / `[준비취소]` — `canReady`가 막으면 사유를 alert
+  - 하단 `[배치 취소]` — 마지막 노드일 때만, 확인 후 `DELETE_SOCCER_SETUP_MATCH`
+- **배치 화면**: `FormationSetup`에 `selectedPlayers`(위 풀), `initialFormation`/`initialAssignments`(저장된 초안), `title={팀이름 + ' 선발 11명'}`. 확정 시 `PATCH_SOCCER_SETUP(side, { formation, assignments, gk, positionMap, subs, lineup: Object.values(assignments), defenders: defendersFromPositionMap(positionMap), ready: false, readyBy: null })`.
+  - **배치를 고치면 그 편의 준비완료가 풀린다**(같은 patch에 `ready:false`를 실어 보낸다). 준비완료를 누른 뒤 배치만 바꿔 치기하면 검토하지 않은 배치로 경기가 시작되기 때문이다. 확정과 준비완료는 별도 버튼이다(유저가 검토 후 누른다).
+- **시작**: 렌더 중 `bothReady(m)`이면 `canStartSetup(m)`을 재검사해
+  - ok → `onStartMatch(matchIdx, Date.now())` (effect에서 1회, 멱등)
+  - 중복 발견 → 시작하지 않고 양쪽 `ready:false`로 되돌린 뒤 사유 alert(같은 사람을 양 팀에 넣은 상태로 시작되는 것을 막는다)
+- **외부전**: 유형 카드 → `[외부전]` → **우리 팀 선택**(팀 버튼 목록, 각 팀 `<이름> (참석 n명)`; 팀이 1개면 자동 선택) → 상대팀 선택(기존 `OpponentSelector`) → `FormationSetup`(후보 = `externalPool`) → `onCreateMatch({...})`(status 기본 'playing') + `onPatchSide(newIdx,'A',{ name: 우리팀 })`(기존 액션, A는 `name` 허용).
+  - 우리 팀 선택은 `savedFormation.intra.selectedOurTeam`(동기 필드)에 저장해 다른 기기도 같은 선택을 본다. 값은 팀 **이름**(인덱스 아님 — 시트 재연동으로 순서가 바뀔 수 있다).
+
+#### 16.3.5 라벨·로그
+- `FormationRecorder`에 **선택적 prop `ourTeamLabel`**(기본 `'우리팀'`). 자체전은 기록 중인 편 이름, 외부전은 `sideA.name`을 넘긴다. 하버FC 호출부(`SoccerMatchView.jsx:272`, `TournamentMatchManager.jsx:200`)는 넘기지 않으므로 표시가 그대로다.
+- `buildIntraRows` 외부전 경로: `m.sideA?.name`이 있으면 로그_이벤트 `our_team`·로그_매치 `our_team_name`을 그 이름으로 덮는다. **없으면 기존 그대로**(하버FC 출력과 deep-equal 유지) — §7의 불변식은 "팀 이름 미지정 외부전은 하버FC와 deep-equal"로 완화된다.
+
+### 16.4 접촉 면
+- 공유(추가만): `hooks/useGameReducer.js`(새 case 3 + 선택 인자 2), `components/game/FormationSetup.jsx`(선택 prop `initialFormation`·`initialAssignments`), `components/game/FormationRecorder.jsx`(선택 prop `ourTeamLabel`).
+- 빅마스터FC 전용: `components/intra/IntraSoccerMatchView.jsx`, `IntraSoccerApp.jsx`(새 핸들러 `patchSoccerSetup`·`startSoccerMatch`·`deleteSetupMatch` 배선), 신규 `utils/intraSoccer/setup.js`, `utils/intraSoccer/buildIntraRows.js`(외부전 팀 이름).
+- 무접촉: `SoccerApp.jsx`, `SoccerMatchView.jsx`, `TournamentMatchManager.jsx`, `App.jsx`, `services/firebaseSyncDiff.js`, `hooks/useFirebaseSync.js`, Apps Script, 시트 스키마, RTDB 규칙.
+
+### 16.5 테스트
+- `setup.js` 단위: `sideStarters`(객체화된 assignments 방어), `overlapStarters`, `bothReady`, `canReady`(11명 미만·중복), `canStartSetup`, `setupPool`(상대 초안 제외·유동 인원 포함), `externalPool`(유동 인원 **제외**·참석자 교집합).
+- 리듀서 단위: `CREATE_SOCCER_MATCH` 인자 미전달 시 기존과 동일(status playing·startedAt 존재) / `status:'setup'` 전달 시 setup·startedAt null, `PATCH_SOCCER_SETUP`(A는 최상위+sideA, B는 sideB, setup 아닌 경기엔 무변경), `START_SOCCER_MATCH`(멱등·startedAt), `DELETE_SOCCER_SETUP_MATCH`(마지막·setup일 때만, 중간 경기·playing은 무변경).
+- `IntraSoccerMatchView` 스모크: 자체전 시작 → 배치 중 노드 2카드 · A 배치 저장 후 `8/11` 같은 카운트 · A만 준비 → 시작 안 함 · B도 준비 → `START_SOCCER_MATCH` 호출(레코더 등장) · 준비취소 · **원격 준비완료(props 변경)가 화면에 반영** · 중복 선수면 준비완료 차단 · 외부전 우리 팀 선택 후 후보가 그 팀 소속만 · 배치 취소.
+- `FormationSetup` 단위: `initialAssignments` 시드(초기 `n/11` 표시), prop 미전달 시 기존과 동일.
+- `buildIntraRows`: 외부전 + `sideA.name` → `our_team`/`our_team_name`이 팀 이름 / `sideA` 없으면 하버FC 출력과 deep-equal(기존 테스트 유지).
+- 회귀: 하버FC·마스터FC 기존 테스트 **무수정 통과**, `SoccerMatchView`/`TournamentMatchManager` 호출부 diff 0, 화이트리스트 grep.
+
+### 16.6 남는 한계
+- **배치 화면을 연 동안 도착한 같은 편 원격 변경은 반영되지 않는다.** 확정 시 내 초안이 이긴다(§14.5와 같은 last-write-wins). 배치 화면 상단에 그 사실을 문구로 고지한다.
+- **경기 0개에서 두 기기가 완전히 동시에 배치 중 노드를 만들면** 같은 `soccerMatches/0` 경로를 노린다(§14.5의 기존 한계와 동일). 가드는 "이미 진행 중이거나 배치 중"인 경우만 막는다.
+- 배치 확정이 그 편 `ready`를 푸는 규칙(16.3.4) 때문에, 준비완료 뒤 배치를 손보면 준비완료를 다시 눌러야 한다. 의도된 동작이며 카드 문구로 알린다.
+- 외부전은 여전히 한 기기에서 배치를 마쳐야 한다(준비완료 흐름 비적용). 필요해지면 자체전과 같은 setup 노드로 확장 가능.
