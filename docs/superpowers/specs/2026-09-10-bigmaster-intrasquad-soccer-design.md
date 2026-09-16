@@ -1,6 +1,6 @@
 # 빅마스터FC 자체 축구전 — 설계
 
-날짜 2026-09-10(§14 구현 2026-09-11, §15 2026-09-11 배포, §16 설계 2026-09-16). 상태: **§1–15 배포 완료**(origin/main=cafc594), **§16 설계 승인 — 구현 대기**. 공유 파일 접촉은 1차의 8개 + FormationRecorder/FormationSetup/useGameReducer 의 선택적 prop·인자·신규 case(추가만). 운영 준비는 §11·§15.4.
+날짜 2026-09-10(§14 구현 2026-09-11, §15 2026-09-11 배포, §16 설계 2026-09-16). 상태: **§1–15 배포 완료**(origin/main=cafc594), **§16 구현 완료**(브랜치 feature/bigmaster-s16, 테스트 1844 통과·빌드 OK·화이트리스트 위반 0). 공유 파일 접촉은 1차의 8개 + FormationRecorder/FormationSetup/useGameReducer 의 선택적 prop·인자·신규 case(추가만). 운영 준비는 §11·§15.4.
 
 ## 0. 한 줄 요약
 
