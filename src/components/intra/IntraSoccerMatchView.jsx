@@ -74,6 +74,11 @@ export default function IntraSoccerMatchView({
   // 읽혔더라도 이 저장 이후에는 정규화된 배열 모양으로 남는다.
   const setPair = (p) => saveFormationState({ intra: { ...intra, teams, selectedPair: p } });
 
+  // [증분 4] 외부전에서 뛰는 우리 팀. 팀이 하나뿐이면 자동 선택. 인덱스가 아니라 이름으로 저장한다
+  // (시트를 다시 읽으면 순서가 바뀔 수 있다).
+  const selectedOurTeam = intra.selectedOurTeam || (teams.length === 1 ? teams[0].name : null);
+  const setOurTeam = (name) => saveFormationState({ intra: { ...intra, teams, selectedOurTeam: name } });
+
   // ── 연속체 파생 ──
   const orderedMatches = [...soccerMatches].sort((a, b) => a.matchIdx - b.matchIdx);
   const playingPos = orderedMatches.findIndex(m => m.status === "playing");
@@ -250,7 +255,10 @@ export default function IntraSoccerMatchView({
     if (blockIfRemoteStarted()) return;
     const lineup = Object.values(assignments);
     const defenders = defendersFromPositionMap(positionMap);
+    const newIdx = soccerMatches.length;
     onCreateMatch({ opponent: selectedOpponent, lineup, gk, defenders, subs, formation, assignments, positionMap });
+    // 외부전에도 우리 팀 이름을 남긴다 — 화면 라벨과 로그(our_team)의 소스(스펙 §16.3.5).
+    if (selectedOurTeam) onPatchSide(newIdx, 'A', { name: selectedOurTeam });
     // 경기 생성 후 selectedOpponent/selectedPlayers 클리어(로컬+RTDB) — 안 지우면 다른 탭이
     // FormationSetup에 갇혀 확정 시 유령 2번째 경기를 만드는 멀티탭 회귀 발생. handleFinishMatch와 동일 정리.
     setSelectedOpponent(null);
@@ -384,8 +392,10 @@ export default function IntraSoccerMatchView({
     // 스냅샷을 쓰면 상대 선택 후 참석명단에 추가된 선수가 배치 화면에 안 보인다
     // (8/18 김래상 사고). 경기 중 교체 후보가 참석자 실시간 파생인 것과 대칭을 맞춘다.
     return (
-      <FormationSetup key="setup-ext" selectedPlayers={attendees} onConfirm={handleFormationConfirm}
-        onBack={() => setViewState("selectOpponent")} title={`vs ${selectedOpponent}`} />
+      <FormationSetup key={`setup-ext-${selectedOurTeam || ''}`}
+        selectedPlayers={selectedOurTeam ? externalPool({ teams, teamName: selectedOurTeam, attendees }) : attendees}
+        onConfirm={handleFormationConfirm} onBack={() => setViewState("selectOpponent")}
+        title={`${selectedOurTeam ? `${selectedOurTeam} 선발 11명 · ` : ''}vs ${selectedOpponent}`} />
     );
   }
   // [증분 4] 편 배치 편집 — 저장된 초안을 시드해서 연다(다른 사람이 짠 배치를 이어서 고칠 수 있다).
@@ -568,8 +578,30 @@ export default function IntraSoccerMatchView({
                 style={{ marginBottom: 8, fontSize: 12, padding: "4px 10px", borderRadius: 8, background: C.grayDark, color: C.white, border: "none", cursor: "pointer" }}>
                 ← 경기 유형
               </button>
-              <OpponentSelector opponents={opponents} onSelect={handleOpponentSelect} onAddOpponent={onAddOpponent}
-                onRemoveOpponent={onRemoveOpponent} onRenameOpponent={onRenameOpponent} styles={s} />
+              {/* [증분 4] 외부전도 우리 팀을 먼저 고른다 — 그 팀 소속만 배치 후보로 좁히는 기준(스펙 §16.3.5). */}
+              {!selectedOurTeam ? (
+                <>
+                  <div style={{ fontSize: 13, fontWeight: 800, color: C.white, marginBottom: 8 }}>우리 팀 선택</div>
+                  {teams.map(t => {
+                    const n = t.players.filter(p => attendees.includes(p)).length;
+                    return (
+                      <button key={t.name} onClick={() => setOurTeam(t.name)}
+                        style={{ ...s.btnFull(C.cardLight, C.white), marginBottom: 6, opacity: n >= 11 ? 1 : 0.6 }}>
+                        {t.name} (참석 {n}명)
+                      </button>
+                    );
+                  })}
+                </>
+              ) : (
+                <>
+                  <button onClick={() => setOurTeam(null)}
+                    style={{ marginBottom: 8, fontSize: 12, padding: "4px 10px", borderRadius: 8, background: C.grayDark, color: C.white, border: "none", cursor: "pointer" }}>
+                    ← 우리 팀 변경 (현재: {selectedOurTeam})
+                  </button>
+                  <OpponentSelector opponents={opponents} onSelect={handleOpponentSelect} onAddOpponent={onAddOpponent}
+                    onRemoveOpponent={onRemoveOpponent} onRenameOpponent={onRenameOpponent} styles={s} />
+                </>
+              )}
             </>
           ) : (
             <>
@@ -656,6 +688,7 @@ export default function IntraSoccerMatchView({
               onFinishMatch={(snap) => handleFinishMatch(snap, side)}
               onStateChange={(updates) => handleFormationStateChange(updates, side)} onFlowActiveChange={setNavLocked}
               onBusyChange={setBusy}
+              ourTeamLabel={isIntraMatch ? (side === 'A' ? fieldsOfA(currentMatch).name : fieldsOfB(currentMatch).name) : (currentMatch.sideA?.name || undefined)}
             />
           </>
         );

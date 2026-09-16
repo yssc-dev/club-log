@@ -71,6 +71,18 @@ describe('buildIntraRows — 외부전 = 하버FC 출력과 동일', () => {
   });
 });
 
+// [증분 4] 외부전 우리 팀 선택(스펙 §16.3.5) — sideA.name 이 있으면 로그에 반영된다.
+describe('buildIntraRows — 외부전 우리 팀 이름', () => {
+  it('외부전에 우리 팀 이름이 있으면 로그_이벤트 our_team·로그_매치 our_team_name 이 그 이름이 된다', () => {
+    const named = { ...external, sideA: { name: '흰팀' } };
+    const out = buildIntraRows({ team: T, dateStr: D, inputTime: IT, finished: [named] });
+    expect(out.rawEvents.length).toBeGreaterThan(0);
+    for (const r of out.rawEvents) expect(r.our_team).toBe('흰팀');
+    expect(out.matchRows[0].our_team_name).toBe('흰팀');
+    expect(out.matchRows[0].team).toBe(T);                          // 팀 열은 그대로
+  });
+});
+
 describe('buildIntraRows — 자체전', () => {
   const out = buildIntraRows({ team: T, dateStr: D, inputTime: IT, finished: [intra] });
   it('로그_매치 1행: 양팀 명단·GK·점수 방향·객체형 B 명단·mode', () => {

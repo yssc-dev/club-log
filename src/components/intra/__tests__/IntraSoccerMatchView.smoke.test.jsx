@@ -128,14 +128,21 @@ describe('IntraSoccerMatchView 실렌더(act) — 증분 2', () => {
   it('saveFormationState가 savedFormation.intra를 보존한다', async () => {
     const teams = [team('흰팀', WHITE), team('검은팀', BLACK)];
     const onFormationChange = vi.fn();
-    await mount({ savedFormation: { intra: { teams, syncedAt: 123 } }, onFormationChange });
+    const saved = { intra: { teams, syncedAt: 123 } };
+    await mount({ savedFormation: saved, onFormationChange });
     await click(byPartialText('button', '외부전'));
+    // [증분 4] 외부전도 우리 팀을 먼저 고른다 — 팀이 2개면 자동 선택되지 않으므로 직접 고른다.
+    await click(byPartialText('button', '흰팀'));
+    const afterTeam = onFormationChange.mock.calls.at(-1)[0];
+    expect(afterTeam.intra).toEqual({ teams, syncedAt: 123, selectedOurTeam: '흰팀' });
+    // 팀 선택 동기화가 도착한 상황을 재현(다른 곳에서 구독으로 되돌아온 savedFormation).
+    await rerender({ savedFormation: { ...saved, intra: afterTeam.intra }, onFormationChange });
     await click(byText('외부팀'));
     expect(onFormationChange).toHaveBeenCalled();
     const last = onFormationChange.mock.calls.at(-1)[0];
     expect(last.selectedOpponent).toBe('외부팀');
     expect(last.viewState).toBe('formation');
-    expect(last.intra).toEqual({ teams, syncedAt: 123 });
+    expect(last.intra).toEqual({ teams, syncedAt: 123, selectedOurTeam: '흰팀' });
   });
 
   // 종료 노드는 초기 포커스가 트레일링 '새 경기'라 ◀ 한 번 눌러야 보인다.
@@ -503,5 +510,41 @@ describe('IntraSoccerMatchView 배치 중 — 시작과 취소', () => {
     expect(aPatch, 'A 벤치 재계산 patch 가 나가야 한다').toBeTruthy();
     expect(aPatch[2].subs).not.toContain('f1');      // 상대 선발이 내 벤치에 남지 않는다
     expect(onStartMatch).toHaveBeenCalledTimes(1);
+  });
+});
+
+// [증분 4] 외부전도 우리 팀을 먼저 고른다(스펙 §16.3.5) — 그 팀 소속 참석자만 배치 후보,
+// 경기 생성 시 sideA.name 에 팀 이름을 남긴다.
+describe('IntraSoccerMatchView 외부전 우리 팀 선택 — 증분 4', () => {
+  const T = [team('흰팀', WHITE), team('검은팀', BLACK)];
+  const base = { attendees: [...WHITE, ...BLACK, 'f1'], savedFormation: { intra: { teams: T } } };
+
+  it('외부전을 고르면 우리 팀을 먼저 고르게 한다', async () => {
+    await mount(base);
+    await click(byPartialText('button', '외부전'));
+    expect(text()).toContain('우리 팀');
+    expect(text()).toContain('흰팀');
+    expect(text()).toContain('검은팀');
+  });
+
+  it('우리 팀을 고르면 후보가 그 팀 소속만 나온다(유동 인원·다른 팀 제외)', async () => {
+    await mount({ ...base,
+      savedFormation: { viewState: 'formation', selectedOpponent: 'aaa', intra: { teams: T, selectedOurTeam: '흰팀' } } });
+    expect(text()).toContain('흰팀 선발 11명');
+    expect(text()).not.toContain('f1');
+    expect(text()).not.toContain(BLACK[0]);
+  });
+
+  it('외부전 경기를 만들 때 우리 팀 이름을 sideA 에 저장한다', async () => {
+    const onCreateMatch = vi.fn(); const onPatchSide = vi.fn();
+    await mount({ ...base, onCreateMatch, onPatchSide,
+      savedFormation: { viewState: 'formation', selectedOpponent: 'aaa', intra: { teams: T, selectedOurTeam: '흰팀' } } });
+    const names = new Set(WHITE);
+    for (let i = 0; i < 11; i++) {
+      await click([...container.querySelectorAll('button')].find(b => names.has(b.textContent.trim())));
+    }
+    await click(byPartialText('button', '경기 시작'));
+    expect(onCreateMatch).toHaveBeenCalledTimes(1);
+    expect(onPatchSide).toHaveBeenCalledWith(0, 'A', { name: '흰팀' });
   });
 });

@@ -4,6 +4,7 @@ import { buildEventLogRows, buildPointLogRows, buildPlayerLogRows } from '../soc
 import { buildRawEventsFromSoccer, buildRawPlayerGamesFromSoccer } from '../rawLogBuilders';
 import { buildRoundRowsFromSoccer } from '../matchRowBuilder';
 import { isIntra, sideView, fieldsOfA, fieldsOfB } from './sideView';
+import { normalizeMatchId } from '../matchIdNormalizer';
 
 const plusOne = (m) => ({ ...m, matchIdx: m.matchIdx + 1 }); // 로그_매치용: buildEventLogRows 는 내부에서 +1, buildRoundRowsFromSoccer 는 그대로 쓴다
 
@@ -54,13 +55,18 @@ export function buildIntraRows({ team, dateStr, inputTime, finished }) {
   // 자체전 경기 하나 = 편 시점 뷰 두 개. 선수 집계는 이 뷰 전체를 한 번에 돌린다(아래 집계 주석).
   const intraViews = intraList.flatMap((m) => [sideView(m, 'A'), sideView(m, 'B')]);
   const extEvents = buildEventLogRows(external, dateStr);
+  // [증분 4] 외부전 우리 팀 이름(스펙 §16.3.5). sideA.name 이 있는 경기만 덮는다 — 없으면 하버FC 출력과 deep-equal 유지.
+  const extNamed = external.filter((m) => m.sideA && m.sideA.name);
+  const nameByRawId = new Map(extNamed.map((m) => [normalizeMatchId(String(m.matchIdx + 1), '축구'), m.sideA.name]));
+  const nameByMatchIdx = new Map(extNamed.map((m) => [m.matchIdx + 1, m.sideA.name]));
   const pointLogRows = buildPointLogRows(external, dateStr, inputTime);   // 자체전은 포인트 로그에 쓰지 않는다(스펙 §7)
   const extPlayers = buildPlayerLogRows(external, dateStr, inputTime);
   const extMatchRows = buildRoundRowsFromSoccer({
     team, mode: '기본', tournamentId: '', date: dateStr,
     stateJSON: { soccerMatches: external.map(plusOne) }, inputTime,
-  });
-  const extRaw = buildRawEventsFromSoccer({ team, gameId: sessionGameId, events: extEvents });
+  }).map((r) => (nameByMatchIdx.has(r.match_idx) ? { ...r, our_team_name: nameByMatchIdx.get(r.match_idx) } : r));
+  const extRaw = buildRawEventsFromSoccer({ team, gameId: sessionGameId, events: extEvents })
+    .map((r) => (nameByRawId.has(r.match_id) ? { ...r, our_team: nameByRawId.get(r.match_id) } : r));
   const extPG = buildRawPlayerGamesFromSoccer({ team, inputTime, players: extPlayers });
 
   // ── 선수 집계는 '날짜당 선수 1행' ──
