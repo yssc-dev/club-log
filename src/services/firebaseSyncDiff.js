@@ -7,6 +7,7 @@ export const META_FIELDS = [
   'earlyFinish', 'gameFinalized', 'lastEditor',
   'currentMatchIdx', 'draftMode',
   'sport', 'gameDate', 'season',
+  'tournamentId', // 컵 세션 식별자(스펙 §4.1) — 빈 문자열이면 정규 세션
 ];
 
 // 통째로 set 하는 배열/객체 필드 (변경 시 전체 교체)
@@ -364,6 +365,9 @@ export function reconstructState(gameId, raw) {
     sport: meta.sport || '',
     gameDate: meta.gameDate || '',
     season: meta.season ?? null,
+    // 컵 세션 식별자. 노드가 없으면(정규 세션·구버전) '' — RESTORE_STATE 의 != null 가드를 통과해야
+    // 다른 탭이 컵→정규로 바뀐 것도 반영된다.
+    tournamentId: meta.tournamentId ?? '',
     teams: normalizeTeamArray(raw.teams, teamCount, () => []),
     teamNames: normalizeTeamArray(raw.teamNames, teamCount, (i) => `팀${i + 1}`),
     teamColorIndices: normalizeTeamArray(raw.teamColorIndices, teamCount, (i) => i),

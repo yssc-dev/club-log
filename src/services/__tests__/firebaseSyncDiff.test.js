@@ -170,6 +170,12 @@ describe('diffStateToWrites', () => {
     expect(writes['meta/currentRoundIdx']).toBe(0);
     expect(writes['gks/0']).toBe('A');
   });
+
+  it('tournamentId 변경은 meta/tournamentId 단일 path (META 분류)', () => {
+    const prev = { tournamentId: '' };
+    const next = { tournamentId: '마스터스컵 2026' };
+    expect(diffStateToWrites(prev, next)).toEqual({ 'meta/tournamentId': '마스터스컵 2026' });
+  });
 });
 
 describe('reconstructState', () => {
@@ -268,6 +274,11 @@ describe('reconstructState', () => {
   it('confirmedRounds 값이 있으면 그대로 복원', () => {
     const s = reconstructState('g_1', { confirmedRounds: { 0: true, 1: true } });
     expect(s.confirmedRounds).toEqual({ 0: true, 1: true });
+  });
+
+  it('meta.tournamentId 가 없으면 빈 문자열, 있으면 그대로 (스펙 §4.1)', () => {
+    expect(reconstructState('g_1', {}).tournamentId).toBe('');
+    expect(reconstructState('g_1', { meta: { tournamentId: '마스터스컵 2026' } }).tournamentId).toBe('마스터스컵 2026');
   });
 });
 

@@ -61,6 +61,9 @@ const initialState = {
   soccerFormation: null, // UI 네비 상태만: { viewState, selectedOpponent, selectedPlayers }. 포메이션 데이터는 경기 객체가 단일 소스.
   // 경기 시작 시 스냅샷된 effective settings — 경기 중 규칙 변경에 영향받지 않음
   settingsSnapshot: null,
+  // 컵 세션 식별자(마스터스컵). 빈 문자열 = 정규 세션. META 동기화(firebaseSyncDiff.META_FIELDS).
+  // 판별은 utils/cup/cupSession.isCupSession 만 쓴다 — 스펙 §4.1.
+  tournamentId: "",
 };
 
 // 같은 배치(라운드 또는 동시 라이브 매치) 내 다른 매치들의 mercs player Set 반환.
@@ -283,6 +286,7 @@ function gameReducer(state, action) {
       if (s.gameCreator != null) updates.gameCreator = s.gameCreator;
       if (s.phase != null) updates.phase = s.phase;
       if (s.settingsSnapshot != null) updates.settingsSnapshot = s.settingsSnapshot;
+      if (s.tournamentId != null) updates.tournamentId = s.tournamentId;
       // ★ 자가복구: ENTER_TEAM_EDIT 도중 종료된 잔재
       // (phase=teamBuild지만 라운드 진행 흔적이 남아있음 → 'match'로 복구)
       // teamEditMode/teamEditSnapshot은 로컬 전용이라 sync되지 않아 발생.
