@@ -3,10 +3,12 @@ import { useTheme } from '../../hooks/useTheme';
 import { FORMATIONS, FORMATION_KEYS } from '../../utils/formations';
 import FormationPitch from './FormationPitch';
 
-export default function FormationSetup({ selectedPlayers, onConfirm, onBack, title }) {
+// initialFormation/initialAssignments/confirmLabel: 빅마스터FC 배치 중 노드가 저장된 초안을 이어서 편집하려고
+// 넘긴다(스펙 §16.3.4). 하버FC 호출부는 넘기지 않으므로 기존과 동일하게 빈 배치로 연다.
+export default function FormationSetup({ selectedPlayers, onConfirm, onBack, title, initialFormation, initialAssignments, confirmLabel }) {
   const { C } = useTheme();
-  const [formation, setFormation] = useState("4-4-2");
-  const [assignments, setAssignments] = useState({});
+  const [formation, setFormation] = useState(initialFormation || "4-4-2");
+  const [assignments, setAssignments] = useState(() => ({ ...(initialAssignments || {}) }));
   const [selectingPos, setSelectingPos] = useState(null);   // 포지션 먼저 선택한 빈 슬롯
 
   const formData = FORMATIONS[formation];
@@ -87,7 +89,7 @@ export default function FormationSetup({ selectedPlayers, onConfirm, onBack, tit
       <button onClick={handleConfirm}
         style={{ width: "100%", padding: "14px 0", borderRadius: 10, border: "none", fontSize: 15, fontWeight: 700, cursor: "pointer", marginTop: 14,
           background: canStart ? C.green : C.grayDark, color: canStart ? C.bg : C.gray, opacity: canStart ? 1 : 0.5 }}>
-        경기 시작
+        {confirmLabel || "경기 시작"}
       </button>
     </div>
   );

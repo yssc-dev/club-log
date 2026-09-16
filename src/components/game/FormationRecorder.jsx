@@ -18,7 +18,7 @@ export default function FormationRecorder({
   formation: initFormation, assignments: initAssignments, positionMap: initPositionMap,
   gk: initGk, attendees, opponent, startedAt, matchMinutes = 90,
   events: initEvents, onAddEvent, onDeleteEvent, onFinishMatch, onStateChange, onFlowActiveChange,
-  onBusyChange,
+  onBusyChange, ourTeamLabel,
 }) {
   const { C } = useTheme();
   const [formation, setFormation] = useState(initFormation || "4-4-2");
@@ -204,7 +204,7 @@ export default function FormationRecorder({
       {/* Scoreboard */}
       <div style={{ display: "flex", justifyContent: "space-around", alignItems: "center", background: C.cardLight, borderRadius: 12, padding: "10px 8px", marginBottom: 8 }}>
         <div style={{ textAlign: "center" }}>
-          <div style={{ fontSize: 10, color: C.gray }}>우리팀</div>
+          <div style={{ fontSize: 10, color: C.gray }}>{ourTeamLabel || "우리팀"}</div>
           <div style={{ fontSize: 40, fontWeight: 900, color: ourScore > opponentScore ? C.green : C.white }}>{ourScore}</div>
         </div>
         <div style={{ textAlign: "center" }}>
