@@ -34,6 +34,9 @@ const BASE_PROPS = {
   onUpdateMatchFormation: noop, onCreateRestMatch: noop, onPatchSide: noop,
   onAddOpponent: noop, onRemoveOpponent: noop, onRenameOpponent: noop,
   savedFormation: null, onFormationChange: noop,
+  // [증분 4] 자동 시작 effect가 준비완료 상태에서 무조건 벤치 재계산 patch를 보낸다 — 그 경로를
+  // 쓰지 않는 테스트가 매번 mock을 넘기지 않아도 되게 기본 noop을 둔다(각 테스트는 필요하면 override).
+  onPatchSetup: noop, onStartMatch: noop, onDeleteSetupMatch: noop,
 };
 
 const finishedIntra = {
@@ -338,7 +341,8 @@ describe('IntraSoccerMatchView 실시간 전파 — 증분 3', () => {
       await rerender({ ...withAttendees, savedFormation: saved, onCreateMatch, soccerMatches: [playingIntra], currentMatchIdx: 0 });
       await click(byPartialText('button', '경기 시작'));
       expect(onCreateMatch, '이미 진행 중 경기가 있으면 생성하지 않는다').not.toHaveBeenCalled();
-      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('이미 진행 중인 경기가 있습니다'));
+      // [증분 4] 생성 가드가 배치 중까지 넓어지며 문구도 "진행 중이거나 배치 중"으로 바뀌었다(task-5-brief).
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('이미 진행 중이거나 배치 중인 경기가 있습니다'));
       // 배치 화면에 갇히지 않고 진행 중 노드로 돌아간다(안 떠나면 확정을 또 누르게 된다).
       expect(byPartialText('button', '경기 시작')).toBeFalsy();
       expect(text()).toContain('진행중');
@@ -402,6 +406,102 @@ describe('IntraSoccerMatchView 배치 중 노드 — 증분 4', () => {
     await mount({ ...props, attendees: [...WHITE, ...BLACK, 'f1'], currentMatchIdx: 0,
       soccerMatches: [setupMatch({ assignments: { 0: 'f1' } })] });
     await click(byPartialText('button', '검은팀 배치'));
+    expect(text()).toContain('검은팀 선발 11명');   // 배치 화면에 실제로 들어왔는지(안 열려도 통과하던 구멍)
     expect(text()).not.toContain('f1');
+  });
+});
+
+// [증분 4] 양 팀 준비완료 시 자동 시작, 중복 선수 차단, 배치 취소, 생성 가드 확장.
+describe('IntraSoccerMatchView 배치 중 — 시작과 취소', () => {
+  const T = [team('흰팀', WHITE), team('검은팀', BLACK)];
+  const base = { attendees: [...WHITE, ...BLACK], savedFormation: { intra: { teams: T } } };
+  const elevenOf = (arr) => Object.fromEntries(arr.map((n, i) => [i, n]));
+  const setupMatch = (over = {}) => ({
+    matchIdx: 0, status: 'setup', startedAt: null, opponent: '검은팀',
+    sideA: { name: '흰팀' }, sideB: { name: '검은팀' }, events: [], ...over,
+  });
+  const filled = (over = {}) => setupMatch({
+    assignments: elevenOf(WHITE),
+    sideB: { name: '검은팀', assignments: elevenOf(BLACK) },
+    ...over,
+  });
+
+  it('한 팀만 준비완료면 경기를 시작하지 않는다', async () => {
+    const onStartMatch = vi.fn();
+    await mount({ ...base, currentMatchIdx: 0, onStartMatch,
+      soccerMatches: [filled({ sideA: { name: '흰팀', ready: true } })] });
+    expect(onStartMatch).not.toHaveBeenCalled();
+  });
+
+  it('양 팀 준비완료가 되면 경기를 시작한다', async () => {
+    const onStartMatch = vi.fn();
+    await mount({ ...base, currentMatchIdx: 0, onStartMatch,
+      soccerMatches: [filled({
+        sideA: { name: '흰팀', ready: true },
+        sideB: { name: '검은팀', ready: true, assignments: elevenOf(BLACK) },
+      })] });
+    expect(onStartMatch).toHaveBeenCalledTimes(1);
+    expect(onStartMatch.mock.calls[0][0]).toBe(0);
+  });
+
+  it('11명 미만이면 준비완료를 막는다', async () => {
+    const onPatchSetup = vi.fn();
+    const alertSpy = vi.fn(); const realAlert = window.alert; window.alert = alertSpy;
+    try {
+      await mount({ ...base, currentMatchIdx: 0, onPatchSetup,
+        soccerMatches: [setupMatch({ assignments: { 0: WHITE[0] } })] });
+      await click([...container.querySelectorAll('button')].find(b => b.textContent.trim() === '준비완료'));
+      expect(onPatchSetup).not.toHaveBeenCalled();
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining('11명'));
+    } finally { window.alert = realAlert; }
+  });
+
+  it('양 팀에 같은 선수가 있으면 시작하지 않고 양쪽 준비를 푼다', async () => {
+    const onStartMatch = vi.fn(); const onPatchSetup = vi.fn();
+    const alertSpy = vi.fn(); const realAlert = window.alert; window.alert = alertSpy;
+    try {
+      const dup = [...BLACK.slice(0, 10), WHITE[0]];          // 흰팀 선발 1명이 검은팀에도 있다
+      await mount({ ...base, currentMatchIdx: 0, onStartMatch, onPatchSetup,
+        soccerMatches: [filled({
+          sideA: { name: '흰팀', ready: true },
+          sideB: { name: '검은팀', ready: true, assignments: elevenOf(dup) },
+        })] });
+      expect(onStartMatch).not.toHaveBeenCalled();
+      expect(onPatchSetup).toHaveBeenCalledWith(0, 'A', { ready: false, readyBy: null });
+      expect(onPatchSetup).toHaveBeenCalledWith(0, 'B', { ready: false, readyBy: null });
+      expect(alertSpy).toHaveBeenCalledWith(expect.stringContaining(WHITE[0]));
+    } finally { window.alert = realAlert; }
+  });
+
+  it('배치 취소는 마지막 배치 중 경기를 지운다', async () => {
+    const onDeleteSetupMatch = vi.fn();
+    const realConfirm = window.confirm; window.confirm = () => true;
+    try {
+      await mount({ ...base, currentMatchIdx: 0, onDeleteSetupMatch, soccerMatches: [setupMatch()] });
+      await click(byPartialText('button', '배치 취소'));
+      expect(onDeleteSetupMatch).toHaveBeenCalledWith(0);
+    } finally { window.confirm = realConfirm; }
+  });
+
+  it('배치 중 경기가 있으면 새 경기 유형 카드를 띄우지 않는다(중복 생성 차단)', async () => {
+    const onCreateMatch = vi.fn();
+    await mount({ ...base, currentMatchIdx: 0, onCreateMatch, soccerMatches: [setupMatch()] });
+    expect(byPartialText('button', '자체전')).toBeFalsy();
+    expect(onCreateMatch).not.toHaveBeenCalled();
+  });
+
+  it('시작할 때 양 편 벤치를 다시 계산해 상대 선발을 뺀다', async () => {
+    const onStartMatch = vi.fn(); const onPatchSetup = vi.fn();
+    // f1(유동 인원)은 A 편집 시점엔 A 풀에 있어 A 벤치에 남았고, 그 뒤 B 가 선발로 썼다.
+    await mount({ ...base, attendees: [...WHITE, ...BLACK, 'f1'], currentMatchIdx: 0, onStartMatch, onPatchSetup,
+      soccerMatches: [filled({
+        subs: ['f1'],
+        sideA: { name: '흰팀', ready: true },
+        sideB: { name: '검은팀', ready: true, assignments: elevenOf([...BLACK.slice(0, 10), 'f1']) },
+      })] });
+    const aPatch = onPatchSetup.mock.calls.find(c => c[1] === 'A' && c[2].subs !== undefined);
+    expect(aPatch, 'A 벤치 재계산 patch 가 나가야 한다').toBeTruthy();
+    expect(aPatch[2].subs).not.toContain('f1');      // 상대 선발이 내 벤치에 남지 않는다
+    expect(onStartMatch).toHaveBeenCalledTimes(1);
   });
 });

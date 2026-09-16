@@ -87,6 +87,42 @@ export default function IntraSoccerMatchView({
   // (hasPlaying 선언 뒤에 위치해야 함 — dep 배열이 렌더 중 즉시 평가되므로 TDZ 회피)
   useEffect(() => { if (!hasPlaying) setNavLocked(false); }, [hasPlaying]);
 
+  // [증분 4] 양 팀 준비완료 감지용 지문 — effect 의존성으로 쓴다(객체 비교 회피).
+  const setupNode = orderedMatches.find(m => m.status === "setup") || null;
+  const readyFp = setupNode
+    ? `${setupNode.matchIdx}:${sideReady(setupNode, 'A')}:${sideReady(setupNode, 'B')}:${overlapStarters(setupNode).join(',')}:${sideStarters(setupNode, 'A').length}:${sideStarters(setupNode, 'B').length}`
+    : '';
+
+  // 양 팀 준비완료 → 경기 시작. 렌더 중 dispatch 금지라 effect 에서 한 번만 보낸다.
+  // 멱등이라 두 기기가 동시에 보내도 리듀서가 두 번째를 무시한다(스펙 §16.3.2).
+  useEffect(() => {
+    if (!setupNode || !bothReady(setupNode)) return;
+    const r = canStartSetup(setupNode);
+    if (!r.ok) {
+      // 동시 선택 경합으로 같은 선수가 양 팀에 들어간 경우 — 시작하지 않고 양쪽 준비를 푼다.
+      onPatchSetup(setupNode.matchIdx, 'A', { ready: false, readyBy: null });
+      onPatchSetup(setupNode.matchIdx, 'B', { ready: false, readyBy: null });
+      alert(`경기를 시작할 수 없습니다 — ${r.reason}`);
+      return;
+    }
+    // [증분 4] 시작 시 양 편 벤치를 재계산한다 — 편집 순서 때문에 한쪽 벤치에 상대 선발이 남을 수 있다.
+    // 벤치 = 그 편 풀 − (내 선발 ∪ 상대 선발). 편집 시점 스냅샷이 아니라 확정 시점 값으로 맞춘다.
+    const startersA = sideStarters(setupNode, 'A');
+    const startersB = sideStarters(setupNode, 'B');
+    const benchOf = (side) => setupPool({
+      teams, teamName: sideMeta(setupNode, side).name, attendees,
+      excludeNames: [...startersA, ...startersB],
+    });
+    onPatchSetup(setupNode.matchIdx, 'A', { subs: benchOf('A') });
+    onPatchSetup(setupNode.matchIdx, 'B', { subs: benchOf('B') });
+    onStartMatch(setupNode.matchIdx, Date.now());
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [readyFp]);
+
+  const setupIdx = setupNode ? setupNode.matchIdx : -1;
+  // 배치 중 노드가 사라지면(원격 시작·취소) 편집 상태를 버린다 — 다음 배치 중 경기에서 유령 편집 화면 방지.
+  useEffect(() => { if (setupEdit && setupIdx < 0) setSetupEdit(null); }, [setupEdit, setupIdx]);
+
   const [navIdx, setNavIdx] = useState(editableIdx);
   // 구조가 바뀌면(생성/종료/확정취소/휴식) 편집 노드로 자동 포커스(풋살 FreeMatchView 가드 패턴).
   const sig = `${orderedMatches.length}:${editablePos}`;
@@ -197,10 +233,12 @@ export default function IntraSoccerMatchView({
   // 정직한 범위: '이미 진행 중 경기가 있는' 경우만 막는다(경기 0개에서 완전 동시 생성은 비범위, 스펙 §14.5).
   // 이름이 질의가 아니라 명령인 이유: alert + 배치 상태 정리(setState 3)까지 하는 술어다.
   const blockIfRemoteStarted = () => {
-    if (!soccerMatches.some(m => m.status === 'playing')) return false;
+    // [증분 4] 배치 중(setup)도 다른 기기가 이미 만든 경기다 — 같은 soccerMatches/{idx} 경로를
+    // 또 만들지 않도록 진행 중과 함께 막는다.
+    if (!soccerMatches.some(m => m.status === 'playing' || m.status === 'setup')) return false;
     // 문구가 원인을 단정하지 않는다 — 내 확정 버튼 더블탭(두 번째 호출 시점엔 이미 내 경기가 진행 중)도
     // 같은 가드에 걸리므로, "다른 기기에서" 로 단정하면 그 흔한 경우에 거짓말이 된다.
-    alert('이미 진행 중인 경기가 있습니다(다른 기기에서 시작했거나 방금 생성됨).');
+    alert('이미 진행 중이거나 배치 중인 경기가 있습니다(다른 기기에서 시작했거나 방금 생성됨).');
     setSetupEdit(null);
     setMatchType(null);
     setViewState('selectOpponent');
@@ -256,6 +294,14 @@ export default function IntraSoccerMatchView({
     const r = canReady(node, side);
     if (!r.ok) { alert(r.reason); return; }
     onPatchSetup(node.matchIdx, side, { ready: true, readyBy: authUserName || '' });
+  };
+
+  // [증분 4] 배치 취소 = 배치 중 경기 삭제. 마지막 경기만 — 중간을 지우면 matchIdx 불변식이 깨진다.
+  const cancelSetup = () => {
+    if (!node || node.status !== "setup") return;
+    if (node.matchIdx !== soccerMatches.length - 1) { alert('마지막 경기만 취소할 수 있습니다.'); return; }
+    if (!confirm('배치 중인 경기를 취소하시겠습니까?')) return;
+    onDeleteSetupMatch(node.matchIdx);
   };
 
   // 레코더가 내보낸 배치 변경(교체·위치교대·포메이션·퇴장) → 기록 중인 편으로 라우팅.
@@ -504,6 +550,10 @@ export default function IntraSoccerMatchView({
               </div>
             );
           })}
+          <button onClick={cancelSetup}
+            style={{ width: "100%", padding: "10px 0", borderRadius: 10, border: `1px dashed ${C.grayDark}`, background: "transparent", fontSize: 12, color: C.gray, cursor: "pointer" }}>
+            배치 취소
+          </button>
         </div>
       )}
 
