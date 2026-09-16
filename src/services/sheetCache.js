@@ -69,6 +69,13 @@ function soccerLikeAdapters(sport) {
       fetch: s => AppSync.getCumulativeBonus(s.playerLogSheet),
     };
   }
+  // 풋살 로그 3종은 컵(마스터스컵) 행을 정규 소비자에게 돌려주지 않는다 — 스펙 §4.6·§5.
+  // 저장(L1/L2)은 전체 행, 반환만 거른다(_applyRowFilter). 축구에는 넣지 않는다:
+  // 하버FC 축구 대회 모드가 같은 열에 mode='대회' 행을 쓰고 축구 분석이 그 행을 그대로 읽는다.
+  if (sport === '풋살') {
+    const isRegularRow = (row) => !row?.tournament_id;
+    for (const k of ['matchLog', 'eventLog', 'playerGameLog']) adapters[k].rowFilter = isRegularRow;
+  }
   return adapters;
 }
 
@@ -127,6 +134,13 @@ async function _fetchValue(adapter, settings) {
   return (await adapter.fetch(settings)) || (adapter.mode === 'raw' ? null : []);
 }
 
+// 어댑터의 뷰 필터를 "반환 값"에만 적용한다. L1/L2 에는 전체 값을 저장한다(원본 노드 공유 —
+// 스펙 §4.6). rows 모드 배열에만 의미가 있고, raw 모드·필터 없음이면 그대로 돌려준다.
+function _applyRowFilter(adapter, value, settings) {
+  if (!adapter.rowFilter || !Array.isArray(value)) return value;
+  return value.filter(row => adapter.rowFilter(row, settings));
+}
+
 // 어댑터가 isEmpty 를 선언하면 그걸로 "저장할 가치가 있는 결과인가"를 판정한다.
 // 기본 판정(shouldStoreValue)은 top-level 키 존재만 보는 얕은 검사라, 실패 시에도
 // 비어있지 않은 모양({crova:{}, goguma:{}} 등)을 돌려주는 어댑터(cumulativeBonus)는
@@ -183,12 +197,12 @@ const SheetCache = {
     const { team, sport: sp, settings } = _ctx(sport);
     const adapter = _adapter(sp, dataset);
     if (!adapter) return [];
-    if (DISABLED) return _fetchValue(adapter, settings);
+    if (DISABLED) return _applyRowFilter(adapter, await _fetchValue(adapter, settings), settings);
 
     const path = _pathFor(adapter, team, sp, dataset);
 
     const hit = _l1.get(path);
-    if (hit && Date.now() - hit.ts < L1_TTL_MS) return hit.value;
+    if (hit && Date.now() - hit.ts < L1_TTL_MS) return _applyRowFilter(adapter, hit.value, settings);
 
     // 같은 노드를 동시에 요청하면(대시보드의 Promise.all) 하나로 합친다.
     const pending = _inflight.get(path);
@@ -236,7 +250,8 @@ const SheetCache = {
       // staleNow() 면 L1 도 채우지 않는다 — refresh 가 이미 넣은 신선한 L1 을
       // 낡은 값으로 되돌리면 안 된다.
       if (!_isEmptyValue(adapter, value) && !staleNow()) _l1.set(path, { value, ts: Date.now() });
-      return value;
+      // in-flight 합류(_inflight.get)는 이 Promise 를 공유하므로 여기서 거르면 합류자도 필터된 값을 받는다.
+      return _applyRowFilter(adapter, value, settings);
     })();
 
     _inflight.set(path, p);
@@ -262,7 +277,7 @@ const SheetCache = {
     try {
       const rows = await _fetchAndStore(adapter, path, settings);
       _l1.set(path, { value: rows, ts: Date.now() });
-      return { ok: true, rows };
+      return { ok: true, rows: _applyRowFilter(adapter, rows, settings) };
     } catch (e) {
       console.warn(`[sheetCache] ${dataset} 재적재 실패, 캐시 강등:`, e.message);
       try {

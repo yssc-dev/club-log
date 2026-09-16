@@ -307,6 +307,8 @@ describe('어댑터 등록 커버리지', () => {
         // isEmpty 는 선택 필드지만, 있으면 함수여야 한다(shouldStoreValue 의 얕은 판정을
         // 대신해 "조회 실패"와 "결과 0건"을 구분하는 용도).
         if (a.isEmpty !== undefined) expect(typeof a.isEmpty, where).toBe('function');
+        // rowFilter 는 선택 필드(반환 시점 뷰 필터). 있으면 함수여야 한다.
+        if (a.rowFilter !== undefined) expect(typeof a.rowFilter, where).toBe('function');
       }
     }
   });
