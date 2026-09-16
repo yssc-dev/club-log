@@ -1,7 +1,7 @@
 # 마스터스컵(풋살 컵대회) 설계
 
 - 작성일: 2026-09-16
-- 상태: 설계 승인(구두) → 적대적 리뷰 5렌즈 반영(2026-09-16) → 스펙 검토 대기
+- 상태: 1단계(격리 게이트) 구현 완료 — 2026-09-16. 2단계 계획 대기
 - 대상 팀: 마스터FC(풋살). 하버FC·빅마스터FC(축구)·몽피스(테니스)에는 어떤 동작 변화도 없어야 한다.
 
 ## 1. 개요
@@ -228,6 +228,8 @@ Apps Script 호출을 늘리지 않기 위해 L2 노드는 지금처럼 **풋살
 | 재적재 | `refreshAfterFinalize({sport:'풋살'})` 전체 | `refreshDatasets(CUP_FINALIZE_DATASETS, {sport:'풋살'})`만 |
 | 완료 알림 | 5줄 | 3줄 |
 
+컵 세션의 로그_선수경기 행 집합은 정규와 동일하다(팀 배정 참석자 전원, 통계 없는 선수 포함). 필터는 세션 순위(sessionRank)로 판정하고 기록되는 rank_score 값만 0이다.
+
 빌더 변경: `buildRawEventsFromFutsal`·`buildRawPlayerGamesFromFutsal`에 `mode='기본'`, `tournamentId=''` 선택 인자를 추가한다(기본값이 현재 동작과 동일). `buildRoundRowsFromFutsal`은 이미 인자를 받는다. 마감 헬퍼 `selectFinalizeWrites(isCup)`(어떤 시트를 보낼지)는 순수 함수로 분리해 단위 테스트한다.
 
 재마감·부분 실패: 기존과 같다. 로그_* 중 하나라도 실패하면 미확정으로 두고 재전송을 유도한다. 재전송 시 로그_매치·로그_선수경기는 dedupe 키로 중복이 막히고, 로그_이벤트 골 행은 기존 규칙대로 dedupe하지 않는다(정규와 동일한 수동 정리 절차).
@@ -316,7 +318,7 @@ calcPlayerSummary({ matchLogs: cupMatchLog, eventLogs: cupEventsNoExtra, playerG
 ### 1단계 — 격리 게이트 (UI 없음)
 
 - `tournamentId` 필드(§4.1 네 지점), `cupSession.js`(`isCupSession`, `logTagsOf`).
-- sheetCache `rowFilter`/`alias`/`resolveAdapter`/`_pathFor`/`get` 세 지점/`refresh` 위임/`datasetsOf` + 풋살 정규 3종 필터(cup 뷰 등록은 3단계).
+- sheetCache `rowFilter` 옵션 + `get()` 세 반환 지점·`refresh()` 반환 필터 + 풋살 정규 3종 필터. (`alias`/`resolveAdapter`/`_pathFor`/`datasetsOf` 제외는 등록 대상이 생기는 3단계에서 cup 뷰와 함께.)
 - `recoverFinalizedFromSheets` 필터, `runFirebasePhaseMigration` 태그 → `logTagsOf`.
 - 빌더 선택 인자, `selectFinalizeWrites`, `handleFinalize` 컵 분기, `_buildSummary` 🏆, `CUP_FINALIZE_DATASETS`.
 - 테스트: 불변식 1·2(정규 필터 부분)·3·4·8·9·10.
@@ -332,7 +334,7 @@ calcPlayerSummary({ matchLogs: cupMatchLog, eventLogs: cupEventsNoExtra, playerG
 
 ### 3단계 — 순위표·득점왕·남은 대진 (2일차 전)
 
-- cup 뷰 데이터셋 3종, `collectPlayedPairs`·`calcRemainingRounds`, App 로드에서 `refresh('cupMatchLog')` + 남은 라운드 적용(§6.2 2·4), `calcCupStandings`, `dropExtraEvents`, `CupTab` 완성(§6.1의 3~6), 컵 마감 재적재 연결.
+- sheetCache `alias`/`resolveAdapter`/`_pathFor`/`datasetsOf` 제외 구현 + cup 뷰 데이터셋 3종, `collectPlayedPairs`·`calcRemainingRounds`, App 로드에서 `refresh('cupMatchLog')` + 남은 라운드 적용(§6.2 2·4), `calcCupStandings`, `dropExtraEvents`, `CupTab` 완성(§6.1의 3~6), 컵 마감 재적재 연결 + 같은 캐시 경로를 공유하는 두 어댑터(alias)의 in-flight 합류 테스트.
 - 테스트: 불변식 2(cup 뷰·alias·refreshAll)·5(남은 라운드)·6.
 - 검증: 1일차 데이터로 순위표·남은 대진이 맞는지, 2일차 시작 시 치른 대진이 빠지는지 확인. 1경기 라운드 렌더 확인.
 
