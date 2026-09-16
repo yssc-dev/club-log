@@ -42,11 +42,12 @@ describe('sideMeta / sideReady / sideStarters', () => {
 });
 
 describe('overlapStarters / bothReady', () => {
-  it('양 팀에 동시에 들어간 이름을 정렬해 돌려준다', () => {
+  it('정렬·중복제거를 실제로 한다(슬롯 순서 ≠ 이름 순서, 한 편에 같은 이름 중복)', () => {
     const m = setupMatch({
-      assignments: { 0: 'f1', 1: 'a1', 2: 'f2' },
-      sideB: { name: '검은팀', assignments: { 0: 'f2', 1: 'b1', 2: 'f1' } },
+      assignments: { 0: 'f2', 1: 'f1', 2: 'f1' },                    // 슬롯 순서로는 f2 가 먼저이고 f1 이 두 번
+      sideB: { name: '검은팀', assignments: { 0: 'f1', 1: 'f2' } },
     });
+    // 정렬을 빼면 ['f2','f1','f1'], uniq 를 빼면 ['f1','f1','f2'] 가 된다 — 둘 다 이 단정에서 실패한다.
     expect(overlapStarters(m)).toEqual(['f1', 'f2']);
     expect(overlapStarters(setupMatch())).toEqual([]);
   });
