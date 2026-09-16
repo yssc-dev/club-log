@@ -347,3 +347,61 @@ describe('IntraSoccerMatchView 실시간 전파 — 증분 3', () => {
     }
   });
 });
+
+// 증분 4(스펙 §16): 자체전은 A·B 를 따로 배치하고 양 팀 준비완료로 시작한다.
+describe('IntraSoccerMatchView 배치 중 노드 — 증분 4', () => {
+  const T = [team('흰팀', WHITE), team('검은팀', BLACK)];
+  const props = { attendees: [...WHITE, ...BLACK], savedFormation: { intra: { teams: T } } };
+  const setupMatch = (over = {}) => ({
+    matchIdx: 0, status: 'setup', startedAt: null, opponent: '검은팀',
+    sideA: { name: '흰팀' }, sideB: { name: '검은팀' }, events: [], ...over,
+  });
+
+  it('자체전 시작이 배치 중 경기를 만들고 양 팀 이름을 저장한다', async () => {
+    const onCreateMatch = vi.fn();
+    const onPatchSetup = vi.fn();
+    await mount({ ...props, onCreateMatch, onPatchSetup });
+    await click(byPartialText('button', '자체전'));
+    expect(onCreateMatch).toHaveBeenCalledTimes(1);
+    expect(onCreateMatch.mock.calls[0][0]).toMatchObject({ status: 'setup', startedAt: null, opponent: '검은팀' });
+    expect(onPatchSetup).toHaveBeenCalledWith(0, 'A', { name: '흰팀' });
+    expect(onPatchSetup).toHaveBeenCalledWith(0, 'B', { name: '검은팀' });
+  });
+
+  it('배치 중 노드는 두 팀 카드와 진행 상태를 보여준다', async () => {
+    await mount({ ...props, currentMatchIdx: 0,
+      soccerMatches: [setupMatch({ assignments: Object.fromEntries(WHITE.map((n, i) => [i, n])) })] });
+    expect(text()).toContain('배치 중');
+    expect(text()).toContain('흰팀');
+    expect(text()).toContain('검은팀');
+    expect(text()).toContain('11/11');      // A 는 다 찼고
+    expect(text()).toContain('0/11');       // B 는 비었다
+  });
+
+  it('편 배치 저장은 그 편만 패치하고 준비완료를 푼다', async () => {
+    const onPatchSetup = vi.fn();
+    await mount({ ...props, currentMatchIdx: 0, onPatchSetup,
+      soccerMatches: [setupMatch({ sideA: { name: '흰팀', ready: true } })] });
+    await click(byPartialText('button', '흰팀 배치'));
+    // FormationSetup 전체화면 — 후보 칩 11개를 눌러 채운다(배치되면 목록에서 사라지므로 매번 다시 쿼리).
+    const names = new Set(WHITE);
+    for (let i = 0; i < 11; i++) {
+      await click([...container.querySelectorAll('button')].find(b => names.has(b.textContent.trim())));
+    }
+    await click(byPartialText('button', '배치 저장'));
+    expect(onPatchSetup).toHaveBeenCalledTimes(1);
+    const [idx, side, patch] = onPatchSetup.mock.calls[0];
+    expect(idx).toBe(0);
+    expect(side).toBe('A');
+    expect(patch.lineup).toHaveLength(11);
+    expect(patch.ready).toBe(false);          // 배치를 고치면 준비완료가 풀린다
+    expect(patch.readyBy).toBe(null);
+  });
+
+  it('B 배치 화면 후보에서 A 가 이미 쓴 유동 인원이 빠진다', async () => {
+    await mount({ ...props, attendees: [...WHITE, ...BLACK, 'f1'], currentMatchIdx: 0,
+      soccerMatches: [setupMatch({ assignments: { 0: 'f1' } })] });
+    await click(byPartialText('button', '검은팀 배치'));
+    expect(text()).not.toContain('f1');
+  });
+});

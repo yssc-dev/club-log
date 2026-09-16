@@ -215,8 +215,8 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
   };
 
   // ── 축구 핸들러 ──
-  const createSoccerMatch = ({ opponent, lineup, gk, defenders, subs, formation, assignments, positionMap }) => {
-    dispatch({ type: 'CREATE_SOCCER_MATCH', opponent, lineup, gk, defenders, subs, formation, assignments, positionMap });
+  const createSoccerMatch = ({ opponent, lineup, gk, defenders, subs, formation, assignments, positionMap, status, startedAt }) => {
+    dispatch({ type: 'CREATE_SOCCER_MATCH', opponent, lineup, gk, defenders, subs, formation, assignments, positionMap, status, startedAt });
   };
   const addSoccerEvent = (matchIdx, event) => {
     dispatch({ type: 'ADD_SOCCER_EVENT', matchIdx, event });
@@ -244,6 +244,19 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
   const patchSoccerSide = (matchIdx, side, patch, remapEvents) => {
     if (matchIdx < 0) return;
     dispatch({ type: 'PATCH_SOCCER_SIDE', matchIdx, side, patch, ...(remapEvents ? { remapEvents } : {}) });
+  };
+  // [증분 4] 배치 중(setup) 경기 — 편별 배치·준비 플래그 저장, 시작, 취소(스펙 §16.3.2).
+  const patchSoccerSetup = (matchIdx, side, patch) => {
+    if (matchIdx < 0) return;
+    dispatch({ type: 'PATCH_SOCCER_SETUP', matchIdx, side, patch });
+  };
+  const startSoccerMatch = (matchIdx, startedAt) => {
+    if (matchIdx < 0) return;
+    dispatch({ type: 'START_SOCCER_MATCH', matchIdx, startedAt });
+  };
+  const deleteSetupMatch = (matchIdx) => {
+    if (matchIdx < 0) return;
+    dispatch({ type: 'DELETE_SOCCER_SETUP_MATCH', matchIdx });
   };
   const createRestMatch = () => {
     dispatch({ type: 'CREATE_AND_FINISH_REST_MATCH' });
@@ -564,6 +577,8 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
             onSwapLineupPositions={swapSoccerLineupPositions}
             gameFinalized={state.gameFinalized}
             onPatchSide={patchSoccerSide}
+            onPatchSetup={patchSoccerSetup} onStartMatch={startSoccerMatch} onDeleteSetupMatch={deleteSetupMatch}
+            authUserName={authUser?.name || ''}
           />
         </div>
       </div>
