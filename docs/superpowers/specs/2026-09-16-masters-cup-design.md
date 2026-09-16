@@ -55,13 +55,14 @@
 |---|---|---|---|---|
 | `tournamentId` | string | `''` | `META_FIELDS` | 컵 세션이면 cupName |
 
-네 지점을 함께 바꾼다(하나라도 빠지면 재접속 시 컵 판별이 사라져 정규 마감으로 흘러간다):
+다섯 지점을 함께 바꾼다(하나라도 빠지면 재접속 시 컵 판별이 사라져 정규 마감으로 흘러간다):
 1. `initialState.tournamentId = ''`
 2. `META_FIELDS`에 `'tournamentId'`
 3. `reconstructState`: `tournamentId: meta.tournamentId ?? ''`
 4. `RESTORE_STATE`: `if (s.tournamentId != null) updates.tournamentId = s.tournamentId`
+5. `App.jsx`의 `gameState` useMemo(동기화·아카이브에 넘기는 화이트리스트 객체)에 `tournamentId: state.tournamentId` + 의존성 배열. 이 객체에 없는 필드는 META에 분류돼 있어도 RTDB에 기록되지 않는다.
 
-왕복 테스트로 고정한다: meta에 `tournamentId`가 있는 RTDB 스냅샷 → `reconstructState` → `RESTORE_STATE` → `isCupSession(state) === true`.
+왕복 테스트로 고정한다: meta에 `tournamentId`가 있는 RTDB 스냅샷 → `reconstructState` → `RESTORE_STATE` → `isCupSession(state) === true`. 정적 가드가 `gameState` 화이트리스트 포함 여부를 고정한다(`logReaders.guard.test.js`).
 
 새 필드는 이 하나뿐이다. 나머지는 기존 필드의 값 조합으로 표현한다: `matchMode='schedule'`, `courtCount=2`, `teamCount=5`, `draftMode='sheet'`(재배치 버튼은 기존 조건 `draftMode==='snake'`에 의해 자동으로 숨겨진다), `settingsSnapshot`=컵 규칙(§4.3).
 
@@ -144,7 +145,7 @@ Apps Script 호출을 늘리지 않기 위해 L2 노드는 지금처럼 **풋살
 - 새 어댑터 옵션 `rowFilter(row, settings) → boolean`, `alias: '<원본 데이터셋 키>'`.
 - alias 어댑터는 `fetch`·`columns`를 갖지 않는다. `_adapter()`가 alias를 만나면 원본 어댑터를 대신 돌려주되 `rowFilter`는 alias 것을 쓴다(`resolveAdapter(sport, dataset) → { adapter: 원본, rowFilter, dataset: 원본키 }`).
 - `_pathFor`는 항상 **원본 데이터셋 키**로 경로를 만든다(`cachePath(team, sport, adapter.alias || dataset)`). alias 전용 RTDB 노드는 생기지 않는다.
-- `get()`은 세 반환 지점 모두에서 `applyRowFilter(rowFilter, value)`를 거친다: (1) L1 히트 `return hit.value` → 필터 적용, (2) 최종 `return value` → 필터 적용(in-flight 합류는 이 Promise를 공유하므로 자동으로 필터된 값을 받는다), (3) `DISABLED` 직행 경로. L1/L2에는 필터 전(전체) 값을 저장한다. `rowFilter`가 없으면 항등 함수.
+- `get()`의 공유 in-flight Promise는 **필터 전(전체) 값**으로 resolve하고, 필터는 호출자별로 반환 직전에 적용한다: (1) L1 히트, (2) in-flight 합류(`await pending` 결과에 자기 어댑터의 rowFilter), (3) L3/L2 경로의 `await p` 결과, (4) `DISABLED` 직행. 같은 캐시 경로를 공유하는 두 어댑터(3단계 alias)가 서로의 필터를 받지 않게 하기 위함이다. L1/L2에는 필터 전 값을 저장한다. `rowFilter`가 없으면 항등 함수.
 - `refresh(alias)`는 원본 데이터셋 경로를 재적재하고 `{ ok, rows: applyRowFilter(alias.rowFilter, sourceRows) }`를 돌려준다.
 - `datasetsOf(sport)`는 alias 데이터셋을 제외한다 → `refreshAll`·정규 마감의 `refreshAfterFinalize`·`status` 비용과 대상이 늘지 않는다.
 - 컵 마감 후 재적재 목록 `CUP_FINALIZE_DATASETS = ['matchLog','eventLog','playerGameLog']`(원본 키). 컵 마감은 `refreshAfterFinalize`(전체)를 **호출하지 않고** `refreshDatasets(CUP_FINALIZE_DATASETS, { sport:'풋살' })`만 호출한다. 포인트로그·선수별집계·누적보너스·latestDeltas는 쓰지 않았으므로 재적재하지 않는다(재적재하면 빈 결과 강등으로 L2가 지워져 다음 정규 마감이 콜드스타트를 맞는다).
@@ -309,7 +310,7 @@ calcPlayerSummary({ matchLogs: cupMatchLog, eventLogs: cupEventsNoExtra, playerG
 8. 로그 3종 직접 호출 화이트리스트 정적 가드(테스트).
 9. `recoverFinalizedFromSheets`는 `tournament_id`가 있는 행을 무시한다(테스트). `runFirebasePhaseMigration`은 세션 태그를 `logTagsOf`로 만든다(테스트 가능한 순수 부분 `rowsForFinalizedSession(h, gs)`로 분리).
 10. `CUP_FINALIZE_DATASETS`는 정확히 `['matchLog','eventLog','playerGameLog']`이다(테스트).
-11. App.jsx는 렌더 하네스가 없다(메모리: 컴포넌트 렌더 검증 공백). 컵 분기는 선언 순서·diff 정독 + 브라우저 스모크(컵 세션 생성 → 골 1개 → 라운드 확정 → 조기 종료 → 마감 → 시트 3종 확인 → 정규 분석탭 불변 확인 → 1경기 라운드 렌더)로 검증한다.
+11. App.jsx는 렌더 하네스가 없다(메모리: 컴포넌트 렌더 검증 공백). 컵 분기는 선언 순서·diff 정독 + 브라우저 스모크(컵 세션 생성 → 골 1개 → 라운드 확정 → 조기 종료 → 마감 → 탭 새로고침 후에도 🏆 컵 세션으로 복원되는지 확인 → 시트 3종 확인 → 정규 분석탭 불변 확인 → 1경기 라운드 렌더)로 검증한다.
 
 ## 11. 구현 순서
 

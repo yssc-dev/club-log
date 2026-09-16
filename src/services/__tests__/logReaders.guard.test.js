@@ -52,4 +52,10 @@ describe('App.jsx 마감 태그 단일화', () => {
   it('컵 마감 전송 목록은 selectFinalizeWrites(true) 에서 온다', () => {
     expect(src).toMatch(/selectFinalizeWrites\(true\)/);
   });
+  it('gameState 동기화 화이트리스트에 tournamentId 가 있다(RTDB meta 기록·아카이브 요약 도달 — 스펙 §4.1 다섯 번째 지점)', () => {
+    const memo = src.match(/const gameState = useMemo\(\(\) => \(\{[\s\S]*?\}\), \[[\s\S]*?\]\);/);
+    expect(memo, 'gameState useMemo 블록을 찾지 못함').not.toBeNull();
+    expect(memo[0]).toMatch(/tournamentId:\s*state\.tournamentId/);
+    expect(memo[0]).toMatch(/\[[^\]]*state\.tournamentId[^\]]*\]\)/);
+  });
 });

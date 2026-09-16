@@ -240,8 +240,9 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     completedMatches, schedule, currentRoundIdx, confirmedRounds, attendees,
     teamCount, courtCount, matchMode, isExtraRound, splitPhase, rotations, earlyFinish, gameFinalized, pushState,
     settingsSnapshot,
+    tournamentId: state.tournamentId, // 컵 세션 식별자(META) — 스펙 §4.1 다섯 번째 지점
     lastEditor: editorTag,
-  }), [state.gameCreator, phase, teams, teamNames, teamColorIndices, gks, gksHistory, liveMercs, absentees, freeCourtMatches, allEvents, completedMatches, schedule, currentRoundIdx, confirmedRounds, attendees, teamCount, courtCount, matchMode, isExtraRound, splitPhase, rotations, earlyFinish, gameFinalized, pushState, settingsSnapshot, authUser, gameId, editorTag]);
+  }), [state.gameCreator, phase, teams, teamNames, teamColorIndices, gks, gksHistory, liveMercs, absentees, freeCourtMatches, allEvents, completedMatches, schedule, currentRoundIdx, confirmedRounds, attendees, teamCount, courtCount, matchMode, isExtraRound, splitPhase, rotations, earlyFinish, gameFinalized, pushState, settingsSnapshot, state.tournamentId, authUser, gameId, editorTag]);
 
   // 자동저장 트리거. gameState의 일부 필드(schedule/teamCount/settingsSnapshot 등)는
   // setup 단계에서만 바뀌거나 phase 전환에 동반되므로 deps에서 의도적으로 제외.
