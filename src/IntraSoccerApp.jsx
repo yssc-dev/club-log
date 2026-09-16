@@ -207,7 +207,7 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
         dispatch({ type: 'SET_FIELDS', fields: { attendees: merged } });
         const prev = state.soccerFormation || { viewState: "selectOpponent", selectedOpponent: null, selectedPlayers: [] };
         dispatch({ type: 'SET_SOCCER_FORMATION', formation: {
-          ...prev, intra: { teams: r.teams, syncedAt: Date.now(), selectedPair: prev.intra?.selectedPair },
+          ...prev, intra: { ...(prev.intra || {}), teams: r.teams, syncedAt: Date.now() },
         } });
       })
       .catch(err => alert("참석명단 연동 실패: " + err.message))

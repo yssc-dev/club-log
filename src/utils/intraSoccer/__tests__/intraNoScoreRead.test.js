@@ -30,4 +30,9 @@ describe('Intra 계열 정적 불변식', () => {
       expect(view).toMatch(new RegExp(`import ${leaf} from '../game/${leaf}'`));
     }
   });
+  it('IntraSoccerApp 의 참석명단 재연동은 intra 를 통째로 다시 만들지 않는다(키 유실 방지)', () => {
+    const src = fs.readFileSync(path.join(ROOT, 'src/IntraSoccerApp.jsx'), 'utf8');
+    // 키를 나열해 재구성하면 새 키(selectedOurTeam 등)가 조용히 사라진다 — 이전 intra 를 펼쳐야 한다.
+    expect(src).toMatch(/intra:\s*\{\s*\.\.\.\(prev\.intra/);
+  });
 });
