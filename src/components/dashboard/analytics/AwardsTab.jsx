@@ -12,6 +12,8 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
   // buildRawPlayerGamesFromSoccer가 축구 PG에 crova:0/goguma:0을 박아 합산에도 안 들어간다.
   // 자책골은 축구에도 있지만 용어가 다르다: 축구는 '자책'(SoccerApp 개인기록 헤더), 풋살은 '역주행'.
   const bonusTerms = isSoccer ? "자책" : "크로바+고구마+역주행";
+  // 월별 랭킹의 표본 단위 — 풋살 PG 1행 = 그날 세션 1회, 축구는 그날 경기 1회.
+  const monthUnit = isSoccer ? "경기" : "세션";
 
   // 기간 토글 (2026-09-04). 'all' = 누적(기본), 'recent' = 최근 한 달.
   //
@@ -429,6 +431,13 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             )}
           </select>
         </div>
+        {/* 진입선 표기 — 세션이 하한보다 적은 달은 계산층이 하한을 세션 수까지 낮춘다.
+            그 값을 그대로 써야 "왜 비었지 / 왜 이 사람이 없지"를 화면에서 답할 수 있다. */}
+        {ranking && (
+          <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
+            {`${effectiveMonth === "ALL" ? "전체" : "이 달"} ${monthUnit} ${ranking.thresholds.sessions}회 · 득점·어시·포인트는 ${ranking.thresholds.statMinGames}${monthUnit} 이상 출전 · 승률은 최소 ${ranking.thresholds.winRateMinGames}경기`}
+          </div>
+        )}
         {ranking ? (
           <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
             <RankingCol title={`🏅 종합포인트 (골+어시+클린+${bonusTerms})`} rows={ranking.totalPoints} suffix="점" />

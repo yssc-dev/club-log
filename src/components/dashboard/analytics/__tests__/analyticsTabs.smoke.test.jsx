@@ -293,6 +293,29 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).toContain('필드 수비:');
   });
 
+
+  it('AwardsTab: 월별 랭킹 — 적용된 진입선(세션 수·하한)을 캡션으로 표기', () => {
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
+    expect(html).toContain('이 달 세션 2회');
+    expect(html).toContain('2세션 이상 출전'); // 2세션 있는 달은 기존 하한 그대로
+  });
+
+  // 2026-09 회귀: 그 달 세션이 1회뿐이면 전원 games=1 이라 하한 2에 전부 걸려
+  // 종합포인트·공격P·득점·어시 4열이 통째로 '표본 부족'이었다(마스터FC 9월).
+  it('AwardsTab: 월별 랭킹 — 세션 1회뿐인 달도 랭킹이 비지 않는다', () => {
+    const oneSession = [
+      { player: 'A', date: '2026-09-03', goals: 3, assists: 1, keeper_games: 0, conceded: 0, cleansheets: 0, owngoals: 0, rank_score: 3 },
+      { player: 'B', date: '2026-09-03', goals: 1, assists: 2, keeper_games: 0, conceded: 0, cleansheets: 0, owngoals: 0, rank_score: 2 },
+    ];
+    const html = wrap(AwardsTab, { playerGameLogs: oneSession, matchLogs: [], eventLogs: [], C });
+    expect(html).toContain('이 달 세션 1회');
+    expect(html).toContain('1세션 이상 출전');
+    // 월별 랭킹 카드 안에 실제 순위 값이 찍힌다 (A: 3골 / 종합 4점)
+    const card = html.slice(html.indexOf('월별 랭킹'));
+    expect(card).toContain('3골');
+    expect(card).toContain('4점');
+  });
+
   it('AwardsTab: 축구 모드 — 라운드 흐름 숨김', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
     expect(html).not.toContain('라운드 흐름');

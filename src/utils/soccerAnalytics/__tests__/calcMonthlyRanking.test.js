@@ -64,6 +64,9 @@ describe('calcMonthlyRanking', () => {
 
   it('returns empty arrays for month with no data', () => {
     const r = calcMonthlyRanking({ yearMonth: '2025-12', playerLogs, matchLogs });
-    expect(r).toEqual({ goals: [], assists: [], attackPoints: [], totalPoints: [], winRate: [] });
+    // thresholds 는 데이터가 없어도 붙는다 — 화면이 진입선을 항상 표기할 수 있어야 한다.
+    const { thresholds, ...lists } = r;
+    expect(lists).toEqual({ goals: [], assists: [], attackPoints: [], totalPoints: [], winRate: [] });
+    expect(thresholds).toEqual({ sessions: 0, statMinGames: 1, winRateMinGames: 5 });
   });
 });

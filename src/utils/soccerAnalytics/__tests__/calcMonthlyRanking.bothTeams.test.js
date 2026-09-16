@@ -106,4 +106,49 @@ describe('calcMonthlyRanking 승률 — 양 팀 집계', () => {
     });
     expect(r.winRate.find(x => x.player === 'A')).toMatchObject({ value: 1, games: 1 });
   });
+
+  // 2026-09-16 회귀: 마스터FC 9월은 세션이 9/3 한 번뿐이라 전원 games=1 → statMinGames(2)
+  // 미달로 득점·어시·공격P·종합P 4열이 통째로 '표본 부족'이 됐다(승률만 라운드 기준이라 생존).
+  // 몰아치기 독식 방지는 "여러 세션 중 한 번만 나온 선수"를 거르는 규칙이라, 세션이 1회뿐인
+  // 달에는 전원이 같은 조건이어서 성립하지 않는다 → 하한을 그 달 세션 수까지만 적용한다.
+  it('세션이 1회뿐인 달은 하한이 세션 수로 완화돼 랭킹이 나온다', () => {
+    const pg = (player, date, goals, assists = 0) => ({ player, date, goals, assists });
+    const playerLogs = [pg('A', '2026-09-03', 3), pg('B', '2026-09-03', 1, 2)];
+    const r = calcMonthlyRanking({ yearMonth: '2026-09', playerLogs, matchLogs: [] });
+    expect(r.goals.map(x => x.player)).toEqual(['A', 'B']);
+    expect(r.assists.map(x => x.player)).toEqual(['B']);
+    expect(r.thresholds).toMatchObject({ sessions: 1, statMinGames: 1, winRateMinGames: 5 });
+  });
+
+  it('세션이 2회 이상인 달은 하한 2가 그대로 유지된다 (몰아치기 제외)', () => {
+    const pg = (player, date, goals) => ({ player, date, goals, assists: 0 });
+    const playerLogs = [
+      pg('몰빵', '2026-06-04', 5),
+      pg('꾸준', '2026-06-04', 2), pg('꾸준', '2026-06-11', 2),
+    ];
+    const r = calcMonthlyRanking({ yearMonth: '2026-06', playerLogs, matchLogs: [] });
+    expect(r.goals.map(x => x.player)).toEqual(['꾸준']);
+    expect(r.thresholds).toMatchObject({ sessions: 2, statMinGames: 2 });
+  });
+
+  it('세션 수는 그 달 것만 센다 — 다른 달 세션이 하한을 끌어올리지 않는다', () => {
+    const pg = (player, date, goals) => ({ player, date, goals, assists: 0 });
+    const playerLogs = [
+      pg('A', '2026-08-06', 1), pg('A', '2026-08-13', 1), pg('A', '2026-08-20', 1),
+      pg('A', '2026-09-03', 4), pg('B', '2026-09-03', 2),
+    ];
+    const r = calcMonthlyRanking({ yearMonth: '2026-09', playerLogs, matchLogs: [] });
+    expect(r.goals.map(x => x.player)).toEqual(['A', 'B']);
+    expect(r.thresholds.sessions).toBe(1);
+  });
+
+  it("yearMonth='ALL'은 전체 세션을 세므로 하한 2가 유지된다", () => {
+    const pg = (player, date, goals) => ({ player, date, goals, assists: 0 });
+    const playerLogs = [
+      pg('A', '2026-05-01', 2), pg('A', '2026-06-04', 3), pg('B', '2026-06-04', 9),
+    ];
+    const r = calcMonthlyRanking({ yearMonth: 'ALL', playerLogs, matchLogs: [] });
+    expect(r.thresholds).toMatchObject({ sessions: 2, statMinGames: 2 });
+    expect(r.goals.map(x => x.player)).toEqual(['A']); // B는 1세션뿐 → 제외 유지
+  });
 });

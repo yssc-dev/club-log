@@ -4,13 +4,22 @@
 // yearMonth='ALL'이면 전체 기간 집계 (시즌 뷰)
 // winRateMinGames: 승률 랭킹에 노출되기 위한 최소 경기 수 (표본 신뢰도)
 // statMinGames: 득점·어시·공격포인트·종합포인트 랭킹의 최소 세션 수 — 1세션 몰아치기가 상위 독식 방지
+//   ★ 단, 그 달 세션 수보다 크면 세션 수까지만 적용한다. 이 규칙은 "여러 세션 중 한 번만
+//     나온 선수"를 거르려는 것이라 세션이 1회뿐인 달(= 매달 첫 세션 직후)에는 성립하지 않고,
+//     보정이 없으면 두 번째 세션 전까지 4개 열이 통째로 '표본 부족'이 된다(2026-09 마스터FC).
+//   thresholds 로 실제 적용된 하한과 세션 수를 돌려준다 — 화면이 진입선을 그대로 표기한다.
 // ★ 휴식 선수는 매치 출전에서 제외 (actualPlayers 사용)
 import { parseActualPlayers } from './parseMembers';
 import { buildRankedTop } from './rankUtils';
 import { owngoalPoints } from './calcDailyMvp';
 
 export function calcMonthlyRanking({ yearMonth, playerLogs, matchLogs, topN = 5, winRateMinGames = 5, statMinGames = 2 }) {
-  if (!yearMonth) return { goals: [], assists: [], attackPoints: [], totalPoints: [], winRate: [] };
+  if (!yearMonth) {
+    return {
+      goals: [], assists: [], attackPoints: [], totalPoints: [], winRate: [],
+      thresholds: { sessions: 0, statMinGames, winRateMinGames },
+    };
+  }
 
   const inMonth = yearMonth === 'ALL'
     ? (d) => typeof d === 'string' && d.length > 0
@@ -18,8 +27,10 @@ export function calcMonthlyRanking({ yearMonth, playerLogs, matchLogs, topN = 5,
 
   // 선수별 기간 누적 + 세션 수 (PG 1행 = 1세션)
   const statMap = {}; // name -> { goals, assists, totalPoints, games }
+  const sessionDates = new Set(); // 그 달(또는 전체)의 서로 다른 세션 날짜
   for (const p of playerLogs || []) {
     if (!inMonth(p.date)) continue;
+    sessionDates.add(p.date);
     if (!statMap[p.player]) statMap[p.player] = { goals: 0, assists: 0, totalPoints: 0, games: 0 };
     statMap[p.player].goals += Number(p.goals) || 0;
     statMap[p.player].assists += Number(p.assists) || 0;
@@ -54,16 +65,22 @@ export function calcMonthlyRanking({ yearMonth, playerLogs, matchLogs, topN = 5,
     parseActualPlayers(m.opponent_members_json).forEach(n => credit(n, 'opp'));
   }
 
-  // 득점·어시·공격포인트: value>0 이고 세션 수 statMinGames 이상만
+  // 실제 적용 하한 — 세션이 하한보다 적은 달은 세션 수까지만 건다(위 헤더 주석 참조).
+  // Math.max(1, ...) 는 세션 0인 달의 하한이 0이 되어 빈 statMap 을 굳이 통과시키는 걸 막는다.
+  const effectiveStatMin = Math.min(statMinGames, Math.max(1, sessionDates.size));
+
+  // 득점·어시·공격포인트: value>0 이고 세션 수 effectiveStatMin 이상만
   const statList = (valueFn) =>
     buildRankedTop(
       Object.entries(statMap)
         .map(([player, v]) => ({ player, value: valueFn(v), games: v.games }))
-        .filter(x => x.value > 0 && x.games >= statMinGames),
+        .filter(x => x.value > 0 && x.games >= effectiveStatMin),
       { limit: topN }
     );
 
   return {
+    // 화면이 "무엇을 넘겨야 이 표에 오르는지"를 그대로 쓰기 위한 값 — 다른 계산층과 같은 관례.
+    thresholds: { sessions: sessionDates.size, statMinGames: effectiveStatMin, winRateMinGames },
     goals: statList(v => v.goals),
     assists: statList(v => v.assists),
     attackPoints: statList(v => v.goals + v.assists),
