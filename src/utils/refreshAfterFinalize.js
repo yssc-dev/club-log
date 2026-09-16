@@ -38,3 +38,8 @@ export async function refreshDatasets(datasets, { sport } = {}) {
 
 // 대회 기록은 로그_이벤트·로그_선수경기에만 쓴다 — 전체가 아니라 2종뿐이라 명시한다.
 export const TOURNAMENT_DATASETS = ['eventLog', 'playerGameLog'];
+
+// 컵 마감(스펙 §4.6·§6.5): 로그 3종만 썼으므로 그 원본 캐시만 재적재한다. refreshAfterFinalize(전체)를
+// 부르면 쓰지 않은 포인트로그·선수별집계·누적보너스·latestDeltas 가 빈 결과 강등으로 L2 에서 지워져
+// 다음 정규 마감이 콜드스타트를 맞는다.
+export const CUP_FINALIZE_DATASETS = ['matchLog', 'eventLog', 'playerGameLog'];

@@ -32,7 +32,7 @@ vi.mock('../../services/sheetCache', () => ({
   },
 }));
 
-import { refreshAfterFinalize, refreshDatasets, TOURNAMENT_DATASETS } from '../refreshAfterFinalize';
+import { refreshAfterFinalize, refreshDatasets, TOURNAMENT_DATASETS, CUP_FINALIZE_DATASETS } from '../refreshAfterFinalize';
 
 beforeEach(() => {
   h.refreshed.length = 0;
@@ -118,5 +118,19 @@ describe('refreshAfterFinalize — 목록을 어댑터 레지스트리에서 가
   it('어댑터가 없는 종목이면 아무것도 하지 않는다', async () => {
     await refreshAfterFinalize({ sport: '테니스' });
     expect(h.refreshed).toEqual([]);
+  });
+});
+
+describe('CUP_FINALIZE_DATASETS (스펙 §4.6 불변식 10)', () => {
+  it('컵 마감 재적재는 원본 로그 3종 키만 — 포인트로그·선수별집계·누적보너스·latestDeltas 제외', () => {
+    expect(CUP_FINALIZE_DATASETS).toEqual(['matchLog', 'eventLog', 'playerGameLog']);
+    for (const k of ['pointLog', 'playerLog', 'latestDeltas', 'cumulativeBonus']) {
+      expect(CUP_FINALIZE_DATASETS).not.toContain(k);
+    }
+  });
+  it('refreshDatasets(CUP_FINALIZE_DATASETS) 는 그 3개만 재적재한다', async () => {
+    await refreshDatasets(CUP_FINALIZE_DATASETS, { sport: '풋살' });
+    expect(h.refreshed.sort()).toEqual(['eventLog', 'matchLog', 'playerGameLog']);
+    expect(new Set(h.sportsSeen)).toEqual(new Set(['풋살']));
   });
 });
