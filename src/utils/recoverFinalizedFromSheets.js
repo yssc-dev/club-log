@@ -36,9 +36,12 @@ export async function recoverFinalizedStateFromSheets({ team, date, settingsSnap
   ]);
   if (!mlRes || !evRes || !pgRes) throw new Error('Apps Script 호출 실패');
 
-  const matches = (mlRes.rows || []).filter(r => String(r.date) === date && r.team === team);
-  const events = (evRes.rows || []).filter(r => String(r.date) === date && r.team === team);
-  const players = (pgRes.rows || []).filter(r => String(r.date) === date && r.team === team);
+  // 컵(tournament_id 있음) 행은 복구 대상이 아니다 — 컵 세션은 saveFinalized 로 아카이브에 이미 있다(스펙 §5).
+  // 이 유틸은 SheetCache 를 거치지 않는 유일한 로그 직접 읽기라 같은 필터를 여기서도 건다.
+  const isRegular = (r) => !r.tournament_id;
+  const matches = (mlRes.rows || []).filter(r => isRegular(r) && String(r.date) === date && r.team === team);
+  const events = (evRes.rows || []).filter(r => isRegular(r) && String(r.date) === date && r.team === team);
+  const players = (pgRes.rows || []).filter(r => isRegular(r) && String(r.date) === date && r.team === team);
 
   if (matches.length === 0) throw new Error(`로그_매치에 ${team} ${date} 데이터 없음`);
 
