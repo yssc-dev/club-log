@@ -1004,15 +1004,71 @@ Expected: FAIL — `onStartMatch` 가 호출되지 않고 `배치 취소` 버튼
   };
 ```
 
+- [ ] **Step 3b: Task 4 리뷰 반영분(같은 파일이라 이 태스크에서 함께 처리한다)**
+
+**(가) 시작 시 양 편 벤치 재계산 — 데이터 정합성.** 편별로 따로 배치하면서 구 흐름의 보정(`resA.subs.filter(n => !bStarters.has(n))`)이 사라졌다. A가 먼저 배치하면 유동 인원이 A 벤치에 남고, 그 뒤 B가 그 사람을 선발로 쓰면 **A 벤치에 B 선발이 남는다**(대칭도 성립). 양 편이 동시에 확정되는 유일한 지점이 시작이므로 거기서 한 번에 바로잡는다. 자동 시작 effect 안, `onStartMatch` **직전**에 넣는다.
+
+```js
+    // [증분 4] 시작 시 양 편 벤치를 재계산한다 — 편집 순서 때문에 한쪽 벤치에 상대 선발이 남을 수 있다.
+    // 벤치 = 그 편 풀 − (내 선발 ∪ 상대 선발). 편집 시점 스냅샷이 아니라 확정 시점 값으로 맞춘다.
+    const startersA = sideStarters(setupNode, 'A');
+    const startersB = sideStarters(setupNode, 'B');
+    const benchOf = (side) => setupPool({
+      teams, teamName: sideMeta(setupNode, side).name, attendees,
+      excludeNames: [...startersA, ...startersB],
+    });
+    onPatchSetup(setupNode.matchIdx, 'A', { subs: benchOf('A') });
+    onPatchSetup(setupNode.matchIdx, 'B', { subs: benchOf('B') });
+    onStartMatch(setupNode.matchIdx, Date.now());
+```
+
+**(나) 편집 화면 상태 정리.** 편집 화면을 연 사이 그 노드가 배치 중을 벗어나면(원격 시작·취소) `setupEdit` 가 non-null 로 남아, 다음 배치 중 경기가 생길 때 누르지도 않은 편집 화면이 열린다. 최상위에 파생과 effect 를 둔다.
+
+```js
+  const setupIdx = setupNode ? setupNode.matchIdx : -1;
+  // 배치 중 노드가 사라지면(원격 시작·취소) 편집 상태를 버린다 — 다음 배치 중 경기에서 유령 편집 화면 방지.
+  useEffect(() => { if (setupEdit && setupIdx < 0) setSetupEdit(null); }, [setupEdit, setupIdx]);
+```
+
+**(다) Task 4 테스트 판별력 한 줄 보강.** Task 4 가 넣은 `B 배치 화면 후보에서 A 가 이미 쓴 유동 인원이 빠진다` 케이스는 배치 화면이 아예 안 열려도 통과한다(카드 화면에도 그 이름이 없다). 그 케이스에 화면 진입 단정을 더한다.
+
+```jsx
+    expect(text()).toContain('검은팀 선발 11명');   // 배치 화면에 실제로 들어왔는지(안 열려도 통과하던 구멍)
+    expect(text()).not.toContain('f1');
+```
+
+**(라) 미사용 import 정리.** Task 4 가 브리프대로 가져온 import 중 `bothReady`·`overlapStarters`·`canStartSetup` 은 이 태스크에서 쓰이고, `externalPool` 은 Task 6 에서 쓴다. 이 태스크를 마치면 `src/components/intra/IntraSoccerMatchView.jsx:19` 의 import 중 **여전히 미사용인 것이 `externalPool` 하나뿐인지** 확인하고, 그 외에 미사용이 남으면 지운다.
+
+**(마) 불변식 확인(코드 변경 아님).** `editablePos` 는 "첫 playing 또는 setup" 을 잡으므로, 배열에서 setup 노드가 playing 노드보다 **앞서면** 진행 중 경기의 레코더가 렌더되지 않는다. 현재는 도달 불가다(배치 중이 있으면 트레일링 '새 경기' 노드가 없어 두 번째 경기를 만들 수 없고, 리듀서는 마지막 setup 만 삭제한다). 이 태스크의 취소·가드 추가가 그 불변식을 깨지 않는지 확인하고, 리포트에 한 줄로 근거를 남긴다.
+
 - [ ] **Step 4: 통과를 확인한다**
 
 Run: `npx vitest run src/components/intra/__tests__/IntraSoccerMatchView.smoke.test.jsx`
 Expected: 전부 PASS
 
+추가로 벤치 재계산 케이스를 위 (가) 에 맞춰 넣는다:
+
+```jsx
+  it('시작할 때 양 편 벤치를 다시 계산해 상대 선발을 뺀다', async () => {
+    const onStartMatch = vi.fn(); const onPatchSetup = vi.fn();
+    // f1(유동 인원)은 A 편집 시점엔 A 풀에 있어 A 벤치에 남았고, 그 뒤 B 가 선발로 썼다.
+    await mount({ ...base, attendees: [...WHITE, ...BLACK, 'f1'], currentMatchIdx: 0, onStartMatch, onPatchSetup,
+      soccerMatches: [filled({
+        subs: ['f1'],
+        sideA: { name: '흰팀', ready: true },
+        sideB: { name: '검은팀', ready: true, assignments: elevenOf([...BLACK.slice(0, 10), 'f1']) },
+      })] });
+    const aPatch = onPatchSetup.mock.calls.find(c => c[1] === 'A' && c[2].subs !== undefined);
+    expect(aPatch, 'A 벤치 재계산 patch 가 나가야 한다').toBeTruthy();
+    expect(aPatch[2].subs).not.toContain('f1');      // 상대 선발이 내 벤치에 남지 않는다
+    expect(onStartMatch).toHaveBeenCalledTimes(1);
+  });
+```
+
 - [ ] **Step 5: 커밋**
 
 `git add src/components/intra/IntraSoccerMatchView.jsx src/components/intra/__tests__/IntraSoccerMatchView.smoke.test.jsx`
-커밋 메시지: `feat: 양 팀 준비완료 시 경기 시작·중복 선수 차단·배치 취소·생성 가드 확장`
+커밋 메시지: `feat: 양 팀 준비완료 시 경기 시작(벤치 재계산 포함)·중복 선수 차단·배치 취소·생성 가드 확장`
 
 ---
 
