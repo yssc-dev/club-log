@@ -8,7 +8,7 @@ import {
 import AppSync from '../../services/appSync';
 import FirebaseSync from '../../services/firebaseSync';
 import SheetCache from '../../services/sheetCache';
-import { buildRoundRowsFromFutsal, buildRoundRowsFromSoccer } from '../../utils/matchRowBuilder';
+import { rowsForFinalizedSession } from '../../utils/finalizedRows';
 import { recoverFinalizedStateFromSheets } from '../../utils/recoverFinalizedFromSheets';
 import { refreshDatasets } from '../../utils/refreshAfterFinalize';
 import { formatSyncStatus, DATASET_LABELS } from './syncStatusText';
@@ -131,14 +131,14 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
     setFbMigrateResult(null);
     try {
       const history = await FirebaseSync.loadFinalizedAll(teamName);
-      const buildFn = sport === '축구' ? buildRoundRowsFromSoccer : buildRoundRowsFromFutsal;
       const datesTouched = new Set();
       const allRows = [];
       for (const h of history) {
         if (!h.stateJson) continue;
         let gs;
         try { gs = JSON.parse(h.stateJson); } catch { continue; }
-        const rows = buildFn({ team: teamName, mode: '기본', tournamentId: '', date: h.gameDate, stateJSON: gs, inputTime: h.savedAt || '' });
+        // 태그는 세션 state 에서(컵 세션은 mode=대회·tournament_id 유지) — 스펙 §5
+        const rows = rowsForFinalizedSession({ team: teamName, sport, gameDate: h.gameDate, savedAt: h.savedAt, state: gs });
         if (rows.length > 0) { datesTouched.add(h.gameDate); allRows.push(...rows); }
       }
       for (const date of datesTouched) {
