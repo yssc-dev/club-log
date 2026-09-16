@@ -6,9 +6,11 @@ import { getPlayerPoint, getPlayerData, teamPower, calcMatchScore } from './util
 import { snakeDraft } from './utils/draft';
 import { generate4Team2Court, generate5Team2Court, generate6Team2Court, generate6TeamSecondHalf, generate7Team2Court, generate8Team2Court, generate8TeamSecondHalf, generate1Court } from './utils/brackets';
 import { generateEventId, formatEventInputTime } from './utils/idGenerator';
-import { refreshAfterFinalize } from './utils/refreshAfterFinalize';
+import { refreshAfterFinalize, refreshDatasets, CUP_FINALIZE_DATASETS } from './utils/refreshAfterFinalize';
 import { buildRawEventsFromFutsal, buildRawPlayerGamesFromFutsal } from './utils/rawLogBuilders';
 import { buildRoundRowsFromFutsal } from './utils/matchRowBuilder';
+import { isCupSession, logTagsOf } from './utils/cup/cupSession';
+import { selectFinalizeWrites } from './utils/cup/finalizeWrites';
 import { gameDateFromId } from './utils/gameDate';
 import { fetchSheetData, fetchAttendanceData } from './services/sheetService';
 import AppSync from './services/appSync';
@@ -661,10 +663,15 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     // 입력시간: 구글시트로 데이터전송 시점
     const inputTime = new Date().toLocaleString("ko-KR");
     const ES = state.settingsSnapshot || gameSettings;
+    // 컵 세션 판별·로그 태그는 단일 헬퍼로만(스펙 §3). gameMode 는 재접속 후 없으므로 쓰지 않는다.
+    const isCup = isCupSession(state);
+    const logTags = logTagsOf(state);
 
     const reconfirmMsg = gameFinalized
       ? `⚠️ 이미 전송된 기록입니다.\n재전송 시 구글시트에 중복 저장될 수 있습니다.\n\n수정된 내용을 재전송하시겠습니까?`
-      : `${gameD.getMonth() + 1}월 ${gameD.getDate()}일 풋살기록을 확정하시겠습니까?\n\n시트에 포인트로그 + 선수별집계를 저장합니다.`;
+      : isCup
+        ? `🏆 ${state.tournamentId}\n${gameD.getMonth() + 1}월 ${gameD.getDate()}일 컵대회 기록을 확정하시겠습니까?\n\n로그_이벤트·로그_선수경기·로그_매치에만 저장합니다.\n(포인트로그·선수별집계에는 기록하지 않습니다)`
+        : `${gameD.getMonth() + 1}월 ${gameD.getDate()}일 풋살기록을 확정하시겠습니까?\n\n시트에 포인트로그 + 선수별집계를 저장합니다.`;
     if (!confirm(reconfirmMsg)) return;
     // 펜딩 자동저장이 마감 직후 stale state를 다시 쓰지 않게 취소
     cancelPendingSave();
@@ -703,7 +710,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     const playerData = attendees.map(p => {
       const pts = calcPlayerPoints(p);
       const playerTeam = getPlayerTeamName(p);
-      const rankScore = teamRankScore[playerTeam] || 0;
+      // 컵은 세션 순위 점수를 쓰지 않는다(스펙 §4.4 rank_score=0). 정규는 기존 값 그대로.
+      const rankScore = isCup ? 0 : (teamRankScore[playerTeam] || 0);
       const ES2 = state.settingsSnapshot || gameSettings;
       if (!ES2.useCrovaGoguma) {
         pts.crova = 0;
@@ -721,9 +729,9 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     }).filter(Boolean);
 
     const team = teamContext?.team || '';
-    const rawEvents = buildRawEventsFromFutsal({ team, gameId: gameState.gameId, events: pointEvents });
+    const rawEvents = buildRawEventsFromFutsal({ team, gameId: gameState.gameId, events: pointEvents, ...logTags });
     const rawPlayerGames = buildRawPlayerGamesFromFutsal({
-      team, inputTime,
+      team, inputTime, ...logTags,
       players: playerData.map(p => ({
         ...p,
         owngoals: p.owngoalCount, fouls: p.foulCount, // PG 시트는 원시 횟수
@@ -732,12 +740,52 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     });
     const matchRows = buildRoundRowsFromFutsal({
       team,
-      mode: '기본',
-      tournamentId: '',
+      ...logTags,
       date: dateStr,
       stateJSON: gameState,
       inputTime,
     });
+
+    // ── 컵 세션 마감(스펙 §6.5): 로그 3종만. 정규 분기(아래 try)는 손대지 않는다.
+    if (isCup) {
+      try {
+        // 전송 목록은 selectFinalizeWrites(true) = ['rawEvents','rawPlayerGames','matchLog'] (finalizeWrites.test 가 고정).
+        const WRITERS = {
+          rawEvents: () => AppSync.writeRawEvents({ rows: rawEvents }),
+          rawPlayerGames: () => AppSync.writeRawPlayerGames({ rows: rawPlayerGames }),
+          matchLog: () => AppSync.writeMatchLog(matchRows),
+        };
+        const LABELS = { rawEvents: '로그_이벤트', rawPlayerGames: '로그_선수경기', matchLog: '로그_매치' };
+        const keys = selectFinalizeWrites(true);
+        const results = await Promise.allSettled(keys.map(k => WRITERS[k]()));
+        const rawFailed = keys.filter((k, i) => results[i].status !== 'fulfilled').map(k => LABELS[k]);
+        const allOk = rawFailed.length === 0;
+        // 아카이브는 정규와 동일(스펙 §1.1) — 요약에 🏆 파트가 붙는다(buildFinalizedSummary).
+        if (allOk) {
+          await FirebaseSync.saveFinalized(teamContext?.team, gameId, gameState);
+        }
+        const finalState = { ...gameState, gameFinalized: allOk };
+        await FirebaseSync.syncDiff(team, gameId || "legacy", lastSyncedStateRef.current, finalState);
+        lastSyncedStateRef.current = finalState;
+        set('gameFinalized', allOk);
+        // 쓴 시트의 원본 캐시만 재적재(스펙 §4.6). refreshAfterFinalize(전체)를 부르면 쓰지 않은
+        // 포인트로그·선수별집계 캐시가 빈 결과 강등으로 지워진다.
+        await refreshDatasets(CUP_FINALIZE_DATASETS, { sport: '풋살' });
+        const UNIT = { rawEvents: '건', rawPlayerGames: '명', matchLog: '건' };
+        const ct = (r, unit) => r.status === 'fulfilled'
+          ? `${r.value?.count || 0}${unit}${r.value?.skipped ? ` (skip ${r.value.skipped})` : ''}`
+          : '❌ 실패';
+        const detail = keys.map((k, i) => `${LABELS[k]}: ${ct(results[i], UNIT[k])}`).join('\n');
+        if (allOk) {
+          alert(`🏆 컵대회 기록 확정 완료!\n\n${detail}\n\n수정이 필요하면 "경기로" 버튼으로 돌아갈 수 있습니다.`);
+        } else {
+          alert(`⚠️ 컵대회 로그 일부 전송 실패: ${rawFailed.join(', ')}\n\n${detail}\n\n"기록확정"을 다시 눌러 재전송하세요.\n(전부 성공 전까지 미확정 상태로 둡니다.)`);
+        }
+      } catch (err) {
+        alert("시트 저장 실패: " + err.message);
+      }
+      return;
+    }
 
     try {
       const results = await Promise.allSettled([
