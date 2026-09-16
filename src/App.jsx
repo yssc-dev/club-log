@@ -710,14 +710,15 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     const playerData = attendees.map(p => {
       const pts = calcPlayerPoints(p);
       const playerTeam = getPlayerTeamName(p);
-      // 컵은 세션 순위 점수를 쓰지 않는다(스펙 §4.4 rank_score=0). 정규는 기존 값 그대로.
-      const rankScore = isCup ? 0 : (teamRankScore[playerTeam] || 0);
+      const sessionRank = teamRankScore[playerTeam] || 0;
+      // 컵은 세션 순위 점수를 쓰지 않는다(스펙 §4.4 rank_score=0). 행 집합(팀 배정 참석자 전원)은 정규와 동일하게 유지 — 필터는 sessionRank 로.
+      const rankScore = isCup ? 0 : sessionRank;
       const ES2 = state.settingsSnapshot || gameSettings;
       if (!ES2.useCrovaGoguma) {
         pts.crova = 0;
         pts.goguma = 0;
       }
-      if (pts.goals === 0 && pts.assists === 0 && pts.owngoals === 0 && (pts.fouls || 0) === 0 && pts.conceded === 0 && pts.cleanSheets === 0 && pts.keeperGames === 0 && pts.crova === 0 && pts.goguma === 0 && rankScore === 0) return null;
+      if (pts.goals === 0 && pts.assists === 0 && pts.owngoals === 0 && (pts.fouls || 0) === 0 && pts.conceded === 0 && pts.cleanSheets === 0 && pts.keeperGames === 0 && pts.crova === 0 && pts.goguma === 0 && sessionRank === 0) return null;
       // owngoals/fouls: 선수별집계 로그(역주행/반칙 컬럼)는 포인트 환산값,
       // 로그_선수경기(PG)는 원시 횟수 — owngoalCount/foulCount로 분리 전달.
       return {
