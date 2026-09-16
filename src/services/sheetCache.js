@@ -204,9 +204,11 @@ const SheetCache = {
     const hit = _l1.get(path);
     if (hit && Date.now() - hit.ts < L1_TTL_MS) return _applyRowFilter(adapter, hit.value, settings);
 
-    // 같은 노드를 동시에 요청하면(대시보드의 Promise.all) 하나로 합친다.
+    // 같은 노드를 동시에 요청하면(대시보드의 Promise.all) 하나로 합친다. 공유 Promise
+    // 자체는 필터 전 값으로 resolve 한다(phase 3 의 별칭 어댑터가 같은 경로를 공유할 때
+    // 그 어댑터의 rowFilter 가 다를 수 있으므로, 합류자는 자기 adapter 로 각자 거른다).
     const pending = _inflight.get(path);
-    if (pending) return pending;
+    if (pending) return _applyRowFilter(adapter, await pending, settings);
 
     const p = (async () => {
       // raw 모드(latestDeltas/cumulativeBonus)에서는 배열이 아니라 맵이 담긴다.
@@ -250,12 +252,13 @@ const SheetCache = {
       // staleNow() 면 L1 도 채우지 않는다 — refresh 가 이미 넣은 신선한 L1 을
       // 낡은 값으로 되돌리면 안 된다.
       if (!_isEmptyValue(adapter, value) && !staleNow()) _l1.set(path, { value, ts: Date.now() });
-      // in-flight 합류(_inflight.get)는 이 Promise 를 공유하므로 여기서 거르면 합류자도 필터된 값을 받는다.
-      return _applyRowFilter(adapter, value, settings);
+      // 이 Promise 는 _inflight 로 공유되므로 필터 전 값으로 resolve 한다 — 필터는
+      // 아래 반환부에서 각자의 adapter 로 적용한다(어댑터 무관 프로미스).
+      return value;
     })();
 
     _inflight.set(path, p);
-    try { return await p; } finally { _inflight.delete(path); }
+    try { return _applyRowFilter(adapter, await p, settings); } finally { _inflight.delete(path); }
   },
 
   // 쓰기 직후 재적재. 그냥 지우면 다음에 들어온 사람이 콜드스타트를 뒤집어쓴다.

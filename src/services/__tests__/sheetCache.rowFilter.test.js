@@ -70,6 +70,20 @@ describe('풋살 정규 데이터셋은 컵 행을 돌려주지 않는다', () =
     expect(h.fetchCounts.matchLog).toBe(1);
   });
 
+  it('L1 저장은 필터 전 전체 행 — 다른 어댑터로 다시 읽으면 L3 를 다시 치지 않고도 전체를 본다', async () => {
+    await SheetCache.get('matchLog', { sport: '풋살' });
+    const adapter = SheetCache._adaptersForTest()['풋살'].matchLog;
+    const original = adapter.rowFilter;
+    adapter.rowFilter = () => true;
+    try {
+      const rows = await SheetCache.get('matchLog', { sport: '풋살' });
+      expect(rows).toHaveLength(2);
+      expect(h.fetchCounts.matchLog).toBe(1);
+    } finally {
+      adapter.rowFilter = original;
+    }
+  });
+
   it('in-flight 합류: 동시 호출 둘 다 필터된 값', async () => {
     const [a, b] = await Promise.all([
       SheetCache.get('eventLog', { sport: '풋살' }),
