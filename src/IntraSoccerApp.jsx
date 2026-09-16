@@ -187,8 +187,10 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
   // 축구 전용 파생: 리듀서(풋살 공용)는 건드리지 않는다.
   const locked = useMemo(() => {
     const s = new Set();
+    // 배치 중(setup) 노드의 lineup 은 아직 '뛴 기록'이 아니다 — 참석 해제를 잠그면 안 된다(최종 리뷰 correctness #6).
+    const played = state.soccerMatches.filter(m => m.status !== 'setup');
     // 자체전은 A·B 양 편을 펼쳐 돌린다 — 원본만 보면 B 선발이 잠기지 않아 '출전했는데 불참'이 뚫린다.
-    for (const m of perSide(state.soccerMatches)) for (const n of getSoccerPlayedPlayers(m)) s.add(n);
+    for (const m of perSide(played)) for (const n of getSoccerPlayedPlayers(m)) s.add(n);
     return s;
   }, [state.soccerMatches]);
 
@@ -291,7 +293,9 @@ export default function IntraSoccerApp({ authUser, teamContext, isNewGame, gameM
 
     const finished = state.soccerMatches.filter(m => m.status === "finished");
     if (finished.length === 0) { alert("종료된 경기가 없습니다."); return; }
-    if (!confirm(`${gameD.getMonth() + 1}월 ${gameD.getDate()}일 축구기록을 확정하시겠습니까?\n\n${finished.length}경기 · 자체전/외부전 로그를 저장합니다.`)) return;
+    const pendingSetup = state.soccerMatches.filter(m => m.status === 'setup').length;
+    const setupNote = pendingSetup ? `\n\n※ 배치 중인 경기 ${pendingSetup}개는 저장되지 않습니다.` : '';
+    if (!confirm(`${gameD.getMonth() + 1}월 ${gameD.getDate()}일 축구기록을 확정하시겠습니까?\n\n${finished.length}경기 · 자체전/외부전 로그를 저장합니다.${setupNote}`)) return;
     // 펜딩 자동저장 취소 — 마감 성공 후 clearState된 노드를 타이머가 되살리는 레이스 방지
     cancelPendingSave();
 

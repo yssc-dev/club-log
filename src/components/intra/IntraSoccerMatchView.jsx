@@ -78,9 +78,13 @@ export default function IntraSoccerMatchView({
   // (시트를 다시 읽으면 순서가 바뀔 수 있다).
   const selectedOurTeam = intra.selectedOurTeam || (teams.length === 1 ? teams[0].name : null);
   const setOurTeam = (name) => saveFormationState({ intra: { ...intra, teams, selectedOurTeam: name } });
+  // 팀 목록이 없으면(시트 실패) 게이트를 걸지 않는다 — 참석자 전체로 기록하던 종전 동작으로 떨어진다.
+  const needOurTeamPick = teams.length > 0 && !selectedOurTeam;
 
   // ── 연속체 파생 ──
-  const orderedMatches = [...soccerMatches].sort((a, b) => a.matchIdx - b.matchIdx);
+  // 유령 노드 방어: 배치 취소와 원격 patch가 겹치면 matchIdx·status 없는 노드가 되살아날 수 있다
+  // (최종 리뷰 correctness — "제NaN경기" 방지). filter가 새 배열을 만들므로 스프레드는 불필요하다.
+  const orderedMatches = soccerMatches.filter(m => Number.isInteger(m?.matchIdx)).sort((a, b) => a.matchIdx - b.matchIdx);
   const playingPos = orderedMatches.findIndex(m => m.status === "playing");
   const hasPlaying = playingPos >= 0;                       // navLocked 해제·레코더 판정 전용(의미 유지)
   // [증분 4] 배치 중 노드도 편집 노드다 — 그동안 트레일링 '새 경기' 노드를 만들지 않는다.
@@ -110,16 +114,9 @@ export default function IntraSoccerMatchView({
       alert(`경기를 시작할 수 없습니다 — ${r.reason}`);
       return;
     }
-    // [증분 4] 시작 시 양 편 벤치를 재계산한다 — 편집 순서 때문에 한쪽 벤치에 상대 선발이 남을 수 있다.
-    // 벤치 = 그 편 풀 − (내 선발 ∪ 상대 선발). 편집 시점 스냅샷이 아니라 확정 시점 값으로 맞춘다.
-    const startersA = sideStarters(setupNode, 'A');
-    const startersB = sideStarters(setupNode, 'B');
-    const benchOf = (side) => setupPool({
-      teams, teamName: sideMeta(setupNode, side).name, attendees,
-      excludeNames: [...startersA, ...startersB],
-    });
-    onPatchSetup(setupNode.matchIdx, 'A', { subs: benchOf('A') });
-    onPatchSetup(setupNode.matchIdx, 'B', { subs: benchOf('B') });
+    // 벤치(m.subs)는 저장하지 않는다 — 이 저장소에서 벤치는 참석자 파생이고(soccerScoring.js:98)
+    // 로그·분석·교체 후보 어디서도 m.subs 를 읽지 않는다. 여기서 양 편에 쓰면 상대 기기가 방금 저장한
+    // sideB 통짜를 stale 값으로 덮는 창만 생긴다(최종 리뷰 correctness #3).
     onStartMatch(setupNode.matchIdx, Date.now());
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [readyFp]);
@@ -283,9 +280,21 @@ export default function IntraSoccerMatchView({
     setMatchType(null);
   };
 
+  // [증분 4] 배치를 고치는 동안에는 그 편 준비완료를 유지하지 않는다 — 안 그러면 내가 고치는 사이
+  // 상대의 준비완료로 경기가 시작돼 편집 화면이 닫히고 저장이 버려진다(최종 리뷰 correctness #2).
+  const openSetupEdit = (side) => {
+    if (!node || node.status !== "setup") return;
+    if (sideReady(node, side)) onPatchSetup(node.matchIdx, side, { ready: false, readyBy: null });
+    setSetupEdit({ side });
+  };
+
   // [증분 4] 편 배치 저장. 배치를 고치면 그 편 준비완료를 푼다(스펙 §16.3.4).
   const handleSetupConfirm = (side, { formation, assignments, gk, positionMap, subs }) => {
-    if (!node || node.status !== "setup") { setSetupEdit(null); return; }
+    if (!node || node.status !== "setup") {
+      alert('이미 경기가 시작돼 배치를 저장하지 못했습니다. 경기 화면에서 출전 수정으로 고쳐 주세요.');
+      setSetupEdit(null);
+      return;
+    }
     onPatchSetup(node.matchIdx, side, {
       formation, assignments, gk, positionMap, subs,
       lineup: Object.values(assignments),
@@ -308,7 +317,7 @@ export default function IntraSoccerMatchView({
   const cancelSetup = () => {
     if (!node || node.status !== "setup") return;
     if (node.matchIdx !== soccerMatches.length - 1) { alert('마지막 경기만 취소할 수 있습니다.'); return; }
-    if (!confirm('배치 중인 경기를 취소하시겠습니까?')) return;
+    if (!confirm('배치 중인 경기를 취소하시겠습니까?\n\n양 팀 배치가 모두 사라집니다(다른 사람이 짠 편 포함).')) return;
     onDeleteSetupMatch(node.matchIdx);
   };
 
@@ -533,7 +542,9 @@ export default function IntraSoccerMatchView({
       {isSetupNode && node && (
         <div style={{ ...s.card }}>
           <div style={{ fontSize: 14, fontWeight: 700, color: C.white, marginBottom: 4 }}>제{node.matchIdx + 1}경기 배치</div>
-          <div style={{ fontSize: 11, color: C.gray, marginBottom: 10 }}>양 팀이 준비완료하면 경기가 시작됩니다</div>
+          <div style={{ fontSize: 11, color: C.gray, marginBottom: 10 }}>
+            양 팀이 준비완료하면 경기가 시작됩니다 · 배치를 고치면 그 팀의 준비완료가 풀립니다
+          </div>
           {['A', 'B'].map(sd => {
             const meta = sideMeta(node, sd);
             const n = sideStarters(node, sd).length;
@@ -548,7 +559,7 @@ export default function IntraSoccerMatchView({
                   </div>
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <button onClick={() => setSetupEdit({ side: sd })}
+                  <button onClick={() => openSetupEdit(sd)}
                     style={{ flex: 1, padding: "10px 0", borderRadius: 8, border: "none", background: C.grayDark, color: C.white, fontSize: 13, fontWeight: 700, cursor: "pointer" }}>
                     {n > 0 ? `${meta.name || sd} 배치 수정` : `${meta.name || sd} 배치하기`}
                   </button>
@@ -579,7 +590,7 @@ export default function IntraSoccerMatchView({
                 ← 경기 유형
               </button>
               {/* [증분 4] 외부전도 우리 팀을 먼저 고른다 — 그 팀 소속만 배치 후보로 좁히는 기준(스펙 §16.3.5). */}
-              {!selectedOurTeam ? (
+              {needOurTeamPick ? (
                 <>
                   <div style={{ fontSize: 13, fontWeight: 800, color: C.white, marginBottom: 8 }}>우리 팀 선택</div>
                   {teams.map(t => {

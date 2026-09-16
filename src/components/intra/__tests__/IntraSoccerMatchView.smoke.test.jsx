@@ -387,6 +387,8 @@ describe('IntraSoccerMatchView 배치 중 노드 — 증분 4', () => {
     expect(text()).toContain('검은팀');
     expect(text()).toContain('11/11');      // A 는 다 찼고
     expect(text()).toContain('0/11');       // B 는 비었다
+    // [최종 리뷰 F4] 스펙 §16.6 이 요구하는 고지 — 배치를 고치면 준비완료가 풀린다는 걸 카드에서 알린다.
+    expect(text()).toContain('배치를 고치면 그 팀의 준비완료가 풀립니다');
   });
 
   it('편 배치 저장은 그 편만 패치하고 준비완료를 푼다', async () => {
@@ -394,14 +396,17 @@ describe('IntraSoccerMatchView 배치 중 노드 — 증분 4', () => {
     await mount({ ...props, currentMatchIdx: 0, onPatchSetup,
       soccerMatches: [setupMatch({ sideA: { name: '흰팀', ready: true } })] });
     await click(byPartialText('button', '흰팀 배치'));
+    // [최종 리뷰 F2] 편집기를 열면 그 편(이미 ready:true)의 준비완료가 먼저 풀린다(편집 중 시작 방지).
+    expect(onPatchSetup).toHaveBeenCalledWith(0, 'A', { ready: false, readyBy: null });
     // FormationSetup 전체화면 — 후보 칩 11개를 눌러 채운다(배치되면 목록에서 사라지므로 매번 다시 쿼리).
     const names = new Set(WHITE);
     for (let i = 0; i < 11; i++) {
       await click([...container.querySelectorAll('button')].find(b => names.has(b.textContent.trim())));
     }
     await click(byPartialText('button', '배치 저장'));
-    expect(onPatchSetup).toHaveBeenCalledTimes(1);
-    const [idx, side, patch] = onPatchSetup.mock.calls[0];
+    const savePatch = onPatchSetup.mock.calls.find(c => c[2] && c[2].lineup !== undefined);
+    expect(savePatch, '배치 저장 patch 가 나가야 한다').toBeTruthy();
+    const [idx, side, patch] = savePatch;
     expect(idx).toBe(0);
     expect(side).toBe('A');
     expect(patch.lineup).toHaveLength(11);
@@ -497,19 +502,44 @@ describe('IntraSoccerMatchView 배치 중 — 시작과 취소', () => {
     expect(onCreateMatch).not.toHaveBeenCalled();
   });
 
-  it('시작할 때 양 편 벤치를 다시 계산해 상대 선발을 뺀다', async () => {
+  // [최종 리뷰 F1] 이전에는 시작 시 양 편 벤치(subs)를 재계산해 patch로 보냈으나, 그 쓰기가
+  // 상대 기기가 방금 저장한 sideB 통짜를 stale 값으로 덮는 창을 만든다는 게 드러났다(correctness #3).
+  // m.subs 는 어디서도 읽지 않으므로(soccerScoring.js:98) 이득 없는 쓰기 — 이제 아예 안 보낸다.
+  it('시작할 때 벤치(subs)를 쓰지 않는다 — 상대 편 통짜 덮어쓰기 창을 만들지 않는다', async () => {
     const onStartMatch = vi.fn(); const onPatchSetup = vi.fn();
-    // f1(유동 인원)은 A 편집 시점엔 A 풀에 있어 A 벤치에 남았고, 그 뒤 B 가 선발로 썼다.
     await mount({ ...base, attendees: [...WHITE, ...BLACK, 'f1'], currentMatchIdx: 0, onStartMatch, onPatchSetup,
       soccerMatches: [filled({
         subs: ['f1'],
         sideA: { name: '흰팀', ready: true },
         sideB: { name: '검은팀', ready: true, assignments: elevenOf([...BLACK.slice(0, 10), 'f1']) },
       })] });
-    const aPatch = onPatchSetup.mock.calls.find(c => c[1] === 'A' && c[2].subs !== undefined);
-    expect(aPatch, 'A 벤치 재계산 patch 가 나가야 한다').toBeTruthy();
-    expect(aPatch[2].subs).not.toContain('f1');      // 상대 선발이 내 벤치에 남지 않는다
+    expect(onPatchSetup.mock.calls.some(c => c[2] && c[2].subs !== undefined), 'subs 패치를 보내면 안 된다').toBe(false);
     expect(onStartMatch).toHaveBeenCalledTimes(1);
+  });
+
+  // [최종 리뷰 F2] 준비완료 상태에서도 '배치 수정'을 열 수 있어서, 그 사이 상대가 준비완료를 누르면
+  // 양쪽 ready 가 참이 되어 자동 시작 effect가 START 를 보내고, 편집 화면이 닫히며 저장이 조용히 버려진다.
+  it('배치 수정을 열면 그 편 준비완료가 풀린다(편집 중 시작으로 작업이 날아가는 것 방지)', async () => {
+    const onPatchSetup = vi.fn();
+    await mount({ ...base, currentMatchIdx: 0, onPatchSetup,
+      soccerMatches: [filled({ sideA: { name: '흰팀', ready: true, readyBy: '홍길동' } })] });
+    await click(byPartialText('button', '흰팀 배치'));
+    expect(onPatchSetup).toHaveBeenCalledWith(0, 'A', { ready: false, readyBy: null });
+  });
+
+  it('편집 중 경기가 시작돼 저장이 무시되면 안내한다', async () => {
+    const alertSpy = vi.fn(); const realAlert = window.alert; window.alert = alertSpy;
+    const onPatchSetup = vi.fn();
+    try {
+      await mount({ ...base, currentMatchIdx: 0, onPatchSetup, soccerMatches: [filled()] });
+      await click(byPartialText('button', '흰팀 배치'));
+      onPatchSetup.mockClear();
+      // 편집 화면을 연 사이 다른 기기가 경기를 시작했다(원격 상태 도착).
+      await rerender({ ...base, currentMatchIdx: 0, onPatchSetup,
+        soccerMatches: [{ ...filled(), status: 'playing', startedAt: 1 }] });
+      // 이 시점엔 편집 화면이 닫혀 있어야 하고(정리 effect), 카드/레코더 화면이다.
+      expect(alertSpy).not.toHaveBeenCalled();
+    } finally { window.alert = realAlert; }
   });
 });
 
@@ -546,5 +576,13 @@ describe('IntraSoccerMatchView 외부전 우리 팀 선택 — 증분 4', () => 
     await click(byPartialText('button', '경기 시작'));
     expect(onCreateMatch).toHaveBeenCalledTimes(1);
     expect(onPatchSide).toHaveBeenCalledWith(0, 'A', { name: '흰팀' });
+  });
+
+  // [최종 리뷰 F3] 팀 목록이 비면(시트 로딩 실패 등) 게이트가 '우리 팀 선택'에서 막다른 길이 되던 회귀.
+  it('팀 목록이 비면 외부전이 막히지 않고 상대팀 선택으로 간다', async () => {
+    await mount({ attendees: [...WHITE], savedFormation: { intra: { teams: [] } } });
+    await click(byPartialText('button', '외부전'));
+    expect(text()).not.toContain('우리 팀 선택');
+    expect(text()).toContain('상대팀');            // OpponentSelector 로 바로 진입
   });
 });
