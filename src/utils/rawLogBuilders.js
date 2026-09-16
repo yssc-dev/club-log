@@ -21,13 +21,13 @@ export const RAW_PLAYER_GAME_COLUMNS = [
 
 /**
  * 풋살 pointEvents → 로그_이벤트 rows
- * @param {{ team:string, gameId?:string, events:Array<object> }} input
+ * @param {{ team:string, gameId?:string, events:Array<object>, mode?:string, tournamentId?:string }} input
  */
-export function buildRawEventsFromFutsal({ team, gameId = '', events }) {
+export function buildRawEventsFromFutsal({ team, gameId = '', events, mode = '기본', tournamentId = '' }) {
   const out = [];
   (events || []).forEach(e => {
     const common = {
-      team, sport: '풋살', mode: '기본', tournament_id: '',
+      team, sport: '풋살', mode, tournament_id: tournamentId,
       date: e.gameDate || '',
       match_id: normalizeMatchId(e.matchId || '', '풋살'),
       our_team: e.myTeam || '', opponent: e.opponentTeam || '',
@@ -47,9 +47,9 @@ export function buildRawEventsFromFutsal({ team, gameId = '', events }) {
   return out;
 }
 
-export function buildRawPlayerGamesFromFutsal({ team, inputTime, players }) {
+export function buildRawPlayerGamesFromFutsal({ team, inputTime, players, mode = '기본', tournamentId = '' }) {
   return (players || []).map(p => ({
-    team, sport: '풋살', mode: '기본', tournament_id: '',
+    team, sport: '풋살', mode, tournament_id: tournamentId,
     date: p.gameDate || '', player: p.name || '', session_team: p.playerTeam || '',
     games: 0, field_games: 0, keeper_games: Number(p.keeperGames) || 0,
     goals: Number(p.goals) || 0,

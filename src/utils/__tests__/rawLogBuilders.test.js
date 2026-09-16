@@ -440,3 +440,19 @@ describe('buildRawEventsFromSoccer event_type 표준화 + game_id', () => {
     expect(rows[1].game_id).toBe('s_1713000000000');
   });
 });
+
+describe('풋살 빌더 컵 태그 (스펙 §4.4)', () => {
+  const ev = { gameDate: '2026-09-20', matchId: 'R1_C0', myTeam: '팀A', opponentTeam: '팀B', scorer: '김철수', assist: '', inputTime: 't' };
+  const pl = { gameDate: '2026-09-20', name: '김철수', playerTeam: '팀A', goals: 1 };
+
+  it('인자 생략 시 mode=기본, tournament_id 빈 문자열(기존 동작)', () => {
+    expect(buildRawEventsFromFutsal({ team: '마스터FC', events: [ev] })[0]).toMatchObject({ mode: '기본', tournament_id: '' });
+    expect(buildRawPlayerGamesFromFutsal({ team: '마스터FC', inputTime: 't', players: [pl] })[0]).toMatchObject({ mode: '기본', tournament_id: '' });
+  });
+
+  it('mode/tournamentId 를 넘기면 두 행 모두에 반영된다', () => {
+    const tags = { mode: '대회', tournamentId: '마스터스컵 2026' };
+    expect(buildRawEventsFromFutsal({ team: '마스터FC', events: [ev], ...tags })[0]).toMatchObject({ mode: '대회', tournament_id: '마스터스컵 2026', sport: '풋살' });
+    expect(buildRawPlayerGamesFromFutsal({ team: '마스터FC', inputTime: 't', players: [pl], ...tags })[0]).toMatchObject({ mode: '대회', tournament_id: '마스터스컵 2026', sport: '풋살' });
+  });
+});
