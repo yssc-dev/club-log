@@ -1,6 +1,6 @@
 import { ref, set, get, remove, onValue, off, serverTimestamp, update } from 'firebase/database';
 import { firebaseDb } from '../config/firebase';
-import { countFinishedSoccerMatches } from '../utils/soccerScoring';
+import { buildFinalizedSummary } from './finalizedSummary';
 import {
   META_FIELDS,
   WHOLE_REPLACE_FIELDS,
@@ -24,24 +24,6 @@ function _kstDateFromGameId(gameId) {
   }
   const now = new Date(Date.now() + 9 * 3600 * 1000);
   return now.toISOString().substring(0, 10);
-}
-
-function _buildSummary(gameId, state) {
-  const creator = state.gameCreator || state.lastEditor || '?';
-  // 테니스: 이벤트/완료경기가 풋살 필드라 0이 되므로 라운드·완료 코트로 요약.
-  if (state.sport === '테니스') {
-    const rounds = state.rounds || [];
-    const done = rounds.reduce((s, r) => s + (r.courts || []).filter(c => c.status === 'done').length, 0);
-    return `${gameId} | ${creator} | ${state.phase || '?'} | ${rounds.length}라운드 | 완료 ${done}경기`;
-  }
-  const soccer = Array.isArray(state.soccerMatches) && state.soccerMatches.length > 0;
-  const evtCount = soccer
-    ? state.soccerMatches.reduce((s, m) => s + ((m.events || []).length), 0)
-    : (state.allEvents || []).length;
-  const matchCount = soccer
-    ? countFinishedSoccerMatches(state.soccerMatches)
-    : (state.completedMatches || []).length;
-  return `${gameId} | ${creator} | ${state.phase || '?'} | 이벤트 ${evtCount}건 | 완료 ${matchCount}경기`;
 }
 
 // ───────────────────────── 노드별 동기화 (실시간 협업) ─────────────────────────
@@ -174,7 +156,7 @@ const FirebaseSync = {
   // 확정 경기 저장. _meta(목록용 요약) + _states(상세 JSON) 분리 — 목록 조회 시 JSON 다운로드 회피.
   async saveFinalized(team, gameId, state) {
     try {
-      const summary = _buildSummary(gameId, state);
+      const summary = buildFinalizedSummary(gameId, state);
       // 실제 경기일(state.gameDate, 과거날짜 입력 반영)을 우선. 없으면 생성시각 기반 폴백(풋살/축구는 gameDate 없음 → 무변경).
       const gameDate = state.gameDate || _kstDateFromGameId(gameId);
       await update(this._finalizedBaseRef(team), {
