@@ -398,6 +398,8 @@ describe('IntraSoccerMatchView 배치 중 노드 — 증분 4', () => {
     await click(byPartialText('button', '흰팀 배치'));
     // [최종 리뷰 F2] 편집기를 열면 그 편(이미 ready:true)의 준비완료가 먼저 풀린다(편집 중 시작 방지).
     expect(onPatchSetup).toHaveBeenCalledWith(0, 'A', { ready: false, readyBy: null });
+    // 제목의 "그 편만" — 상대 편(B)에는 어떤 patch 도 나가지 않는다(F2 로 호출 횟수 단정을 뺀 자리 복원).
+    expect(onPatchSetup.mock.calls.every(c => c[1] === 'A'), 'B 편에는 patch 가 나가면 안 된다').toBe(true);
     // FormationSetup 전체화면 — 후보 칩 11개를 눌러 채운다(배치되면 목록에서 사라지므로 매번 다시 쿼리).
     const names = new Set(WHITE);
     for (let i = 0; i < 11; i++) {
