@@ -681,6 +681,8 @@ import { sideMeta, sideReady, sideStarters, bothReady, overlapStarters, setupPoo
   const [setupEdit, setSetupEdit] = useState(null);   // { side } — 배치 중 노드의 편 배치 편집(전체화면)
 ```
 
+⚠️ `pendingA` 를 지우면 `blockIfRemoteStarted` 안의 `setPendingA(null)` 이 댕글링 참조가 된다(가드가 불리는 순간 ReferenceError). 그 줄을 `setSetupEdit(null)` 로 바꾼다 — 가드의 나머지(배치 중 포함) 확장은 Task 5 에서 한다.
+
 4) 연속체 파생에서 **편집 노드 판정만** 확장한다. `hasPlaying` 은 navLocked·레코더용으로 그대로 둔다(스펙 §16.3.4 경고).
 
 ```js
