@@ -914,9 +914,10 @@ function gameReducer(state, action) {
         assignments: assignments || null,
         positionMap: positionMap || null,
         events: [],
-        startedAt: Date.now(),
+        startedAt: action.startedAt === undefined ? Date.now() : action.startedAt,
         ourScore: 0, opponentScore: 0,
-        status: "playing",
+        // status 기본값 'playing' — 빅마스터FC 자체전만 'setup'(배치 중)으로 만든다(스펙 §16.3.1).
+        status: action.status || "playing",
       };
       return {
         ...state,
@@ -965,6 +966,44 @@ function gameReducer(state, action) {
         return { ...m, [key]: { ...(m[key] || {}), ...allowed }, events };
       });
       return { ...state, soccerMatches: matches };
+    }
+    // [증분 4] 배치 중(setup) 경기의 편 배치·준비 플래그. A 는 최상위 배치 필드 + sideA 메타,
+    // B 는 sideB 한 덩어리 — RTDB 경로가 달라 두 기기가 동시에 편집해도 서로 덮지 않는다(스펙 §16.3.2).
+    case 'PATCH_SOCCER_SETUP': {
+      const { matchIdx, side, patch } = action;
+      const PLACE = ["lineup", "gk", "defenders", "formation", "assignments", "positionMap", "subs"];
+      const META = ["name", "ready", "readyBy"];
+      const pick = (keys) => {
+        const o = {};
+        for (const k of keys) if (patch && patch[k] !== undefined) o[k] = patch[k];
+        return o;
+      };
+      const matches = state.soccerMatches.map(m => {
+        if (m.matchIdx !== matchIdx || m.status !== "setup") return m;
+        if (side === 'A') return { ...m, ...pick(PLACE), sideA: { ...(m.sideA || {}), ...pick(META) } };
+        return { ...m, sideB: { ...(m.sideB || {}), ...pick(PLACE), ...pick(META) } };
+      });
+      return { ...state, soccerMatches: matches };
+    }
+    // 양 팀 준비완료 → 경기 시작. 멱등 — 두 기기가 같이 보내도 두 번째는 state 를 그대로 돌려준다.
+    case 'START_SOCCER_MATCH': {
+      const { matchIdx, startedAt } = action;
+      let changed = false;
+      const matches = state.soccerMatches.map(m => {
+        if (m.matchIdx !== matchIdx || m.status !== "setup") return m;
+        changed = true;
+        return { ...m, status: "playing", startedAt: startedAt || Date.now() };
+      });
+      if (!changed) return state;
+      return { ...state, soccerMatches: matches, currentMatchIdx: matchIdx };
+    }
+    // 배치 취소. 마지막 경기이고 setup 일 때만 — 중간을 지우면 matchIdx === index 불변식이 깨진다.
+    case 'DELETE_SOCCER_SETUP_MATCH': {
+      const { matchIdx } = action;
+      const last = state.soccerMatches[state.soccerMatches.length - 1];
+      if (!last || last.matchIdx !== matchIdx || last.status !== "setup") return state;
+      const matches = state.soccerMatches.slice(0, -1);
+      return { ...state, soccerMatches: matches, currentMatchIdx: Math.min(state.currentMatchIdx, matches.length - 1) };
     }
     // 선발 오기입 정정: out(b, 잘못 기록)→in(a, 실제 뜀). 매치 전체 b→a 치환, b는 벤치로.
     // 교체(sub) 아님 → sub 이벤트 생성 안 함. b의 이벤트는 a로 이관. 논리 matchIdx 매칭.
