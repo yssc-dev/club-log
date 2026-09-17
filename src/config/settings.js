@@ -250,8 +250,8 @@ export function getEffectiveSettings(team, sport) {
 // 규칙 키는 SPORT_DEFAULTS.풋살 로 되돌린다(팀 프리셋·오버라이드 미적용: 자책 -1, 크로바/고구마 꺼짐, 보너스 1배).
 // 새 프리셋·설정 키를 만들지 않는다.
 export function getCupSettings(team) {
-  const eff = getEffectiveSettings(team, "풋살");
-  return { ...eff, ...SPORT_DEFAULTS.풋살, _meta: { preset: null, sport: "풋살", team, cup: true } };
+  const { _meta, ...eff } = getEffectiveSettings(team, "풋살");
+  return { ...eff, ...SPORT_DEFAULTS.풋살 };
 }
 
 export function getSportDefault(sport, key) {

@@ -48,4 +48,9 @@ describe('TeamDashboard.jsx — tournament 탭 종목 분기·컵 버튼', () =>
     expect(src).toMatch(/onStartGame\("cup", \{ cupId/);
     expect(src).toMatch(/<CupPickerModal/);
   });
+  it('activeCups 이펙트가 종목 게이트·active 필터·버튼 노출 조건을 유지한다(M6·M3)', () => {
+    expect(src).toMatch(/activeSport !== "풋살"/);
+    expect(src).toMatch(/meta\.status === 'active'/);
+    expect(src).toMatch(/activeCups\.length > 0/);
+  });
 });

@@ -148,7 +148,11 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   }, [teamName, hasSoccerEntry, isTennis, logOnly]);
 
   useEffect(() => {
-    if (activeSport !== "풋살" || !teamName) { setActiveCups([]); return; }
+    const relevantTab = activeTab === "games" || activeTab === "tournament";
+    if (activeSport !== "풋살" || !relevantTab || !teamName) {
+      setActiveCups(prev => (prev.length ? [] : prev));
+      return;
+    }
     let cancelled = false;
     CupSync.listCups(teamName)
       .then(list => { if (!cancelled) setActiveCups(list.filter(c => c.meta.status === 'active')); })

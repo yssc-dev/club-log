@@ -56,14 +56,19 @@ const CupSync = {
   },
 
   async setStatus(team, cupId, status) {
+    const cup = await CupSync.loadCup(team, cupId);
+    if (!cup) throw new Error(`대회를 찾을 수 없습니다: ${cupId}`);
     const s = status === 'finished' ? 'finished' : 'active';
     await update(ref(firebaseDb, cupPath(team, cupId)), { 'meta/status': s, 'meta/updatedAt': Date.now() });
   },
 
   // 첫 컵 마감 성공 시 App 이 호출. 이미 잠겨 있으면 유지(멱등).
+  // meta 존재 확인을 겸해 lockedAt 을 읽는다(대회가 없으면(=meta.sport 가 '풋살' 이 아니면) 유령 노드를 만들지 않는다).
   async markLocked(team, cupId) {
-    const snap = await get(ref(firebaseDb, `${cupPath(team, cupId)}/meta/lockedAt`));
-    if (snap.exists() && snap.val()) return;
+    const snap = await get(ref(firebaseDb, `${cupPath(team, cupId)}/meta`));
+    const meta = snap.val();
+    if (!meta || meta.sport !== '풋살') throw new Error(`대회를 찾을 수 없습니다: ${cupId}`);
+    if (meta.lockedAt) return;
     await update(ref(firebaseDb, cupPath(team, cupId)), { 'meta/lockedAt': Date.now(), 'meta/updatedAt': Date.now() });
   },
 

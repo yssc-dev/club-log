@@ -308,6 +308,6 @@ describe('getCupSettings (스펙 §4.3)', () => {
     expect(s.ownGoalPoint).toBe(SPORT_DEFAULTS.풋살.ownGoalPoint);
     expect(s.useCrovaGoguma).toBe(false);
     expect(s.bonusMultiplier).toBe(1);
-    expect(s._meta).toEqual({ preset: null, sport: '풋살', team: '마스터FC', cup: true });
+    expect(s._meta).toBeUndefined();
   });
 });

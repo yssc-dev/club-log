@@ -1,7 +1,7 @@
 // src/components/cup/CupListTab.jsx
 // 대시보드 "대회" 탭(풋살) — 스펙 §6.1: 대회 목록·생성·완료 접기 → CupDetail. 통산(개인 누적)은 3단계.
 // tournamentActive/onTournamentView 계열은 쓰지 않는다(탭 바·헤더 유지, 목록↔상세는 내부 state).
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import CupSync from '../../services/cupSync';
 import CupDetail from './CupDetail';
@@ -16,12 +16,28 @@ export default function CupListTab({ teamName, members = [], pendingGames = [], 
   const [newName, setNewName] = useState('');
   const [showFinished, setShowFinished] = useState(false);
 
+  // 세대 카운터: teamName 변경/언마운트 후 늦게 도착한 listCups 응답이 이전 팀 목록을 setState 하지 못하게 막는다.
+  const genRef = useRef(0);
   const reload = useCallback(async () => {
-    try { setError(null); setCups(await CupSync.listCups(teamName)); }
-    catch (e) { setError(e?.message || '대회 목록을 불러오지 못했습니다'); }
-    finally { setLoading(false); }
+    const gen = ++genRef.current;
+    try {
+      setError(null);
+      const list = await CupSync.listCups(teamName);
+      if (gen !== genRef.current) return; // 더 최신 reload 가 시작됐거나 언마운트됨 — 폐기
+      setCups(list);
+    } catch (e) {
+      if (gen !== genRef.current) return;
+      setError(e?.message || '대회 목록을 불러오지 못했습니다');
+    } finally {
+      if (gen === genRef.current) setLoading(false);
+    }
   }, [teamName]);
-  useEffect(() => { let alive = true; setLoading(true); (async () => { if (alive) await reload(); })(); return () => { alive = false; }; }, [reload]);
+  useEffect(() => {
+    setLoading(true);
+    reload();
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- DOM 노드가 아닌 순수 세대 카운터, 최신값을 읽는 게 의도다.
+    return () => { genRef.current++; };
+  }, [reload]);
 
   const handleCreate = async () => {
     try {

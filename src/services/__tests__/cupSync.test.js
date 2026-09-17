@@ -105,6 +105,20 @@ describe('saveTeams / setStatus / markLocked / deleteCup', () => {
   it('deleteCup 은 없는 대회면 아무것도 하지 않는다', async () => {
     await expect(CupSync.deleteCup(TEAM, '없음')).resolves.toBeUndefined();
   });
+  it('markLocked 은 없는 대회에 쓰지 않는다(유령 노드 방지)', async () => {
+    await expect(CupSync.markLocked(TEAM, '없음')).rejects.toThrow('대회를 찾을 수 없습니다');
+    expect(h.db.tournaments?.['마스터FC']?.['없음']).toBeUndefined();
+  });
+  it('setStatus 는 없는 대회에 쓰지 않는다(유령 노드 방지)', async () => {
+    await expect(CupSync.setStatus(TEAM, '없음', 'finished')).rejects.toThrow('대회를 찾을 수 없습니다');
+    expect(h.db.tournaments?.['마스터FC']?.['없음']).toBeUndefined();
+  });
+  it('markLocked 은 잠긴 대회에 다시 호출해도 멱등(유지)', async () => {
+    await CupSync.markLocked(TEAM, '컵');
+    const first = (await CupSync.loadCup(TEAM, '컵')).meta.lockedAt;
+    await CupSync.markLocked(TEAM, '컵');
+    expect((await CupSync.loadCup(TEAM, '컵')).meta.lockedAt).toBe(first);
+  });
   it('saveTeams 는 name 이 없으면 "" 로 쓴다(undefined 는 RTDB 가 거부)', async () => {
     await CupSync.saveTeams(TEAM, '컵', [{ id: 't1', players: ['a'], order: 0 }]);
     expect(h.db.tournaments['마스터FC']['컵'].teams.t1.name).toBe('');

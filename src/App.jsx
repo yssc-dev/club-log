@@ -913,7 +913,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   const { C, mode: themeMode, toggle: toggleTheme } = useTheme();
   const s = makeStyles(C);
   // 컵 세션 배너(스펙 §6.4): 모든 phase 상단. 판별은 isCupSession 만.
-  const cupBanner = isCupSession(state) ? (
+  const isCup = isCupSession(state);
+  const cupBanner = isCup ? (
     <div style={{ margin: "0 20px 10px", padding: "8px 12px", borderRadius: 10, background: "rgba(255,149,0,0.14)", color: "var(--app-orange)", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
       🏆 {state.tournamentId} <span style={{ fontWeight: 400, color: C.gray }}>· 컵대회 세션</span>
     </div>
@@ -1478,7 +1479,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
           <ScheduleModal schedule={schedule} currentRoundIdx={currentRoundIdx} viewingRoundIdx={viewingRoundIdx}
             setViewingRoundIdx={(v) => set('viewingRoundIdx', v)} confirmedRounds={confirmedRounds}
             allEvents={allEvents} teamNames={teamNames} teamColorIndices={teamColorIndices} courtCount={courtCount}
-            splitPhase={splitPhase} teamCount={teamCount} matchMode={matchMode} rotations={rotations}
+            splitPhase={splitPhase} teamCount={teamCount} matchMode={matchMode} rotations={rotations} isCup={isCup}
             completedMatches={completedMatches}
             roundDisplayOffset={roundDisplayOffset}
             onOpenAutoConfig={matchMode === "free" && [4, 5].includes(teamCount)
@@ -1555,16 +1556,20 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             <div style={{ fontSize: 13, color: C.white, lineHeight: 1.7 }}>
               <div style={{ background: C.cardLight, borderRadius: 10, padding: 12, marginBottom: 10 }}>
                 <div style={{ fontWeight: 700, color: C.accent, marginBottom: 6 }}>현재 설정</div>
-                <div>{teamCount}팀 · {courtCount}코트 · {matchMode === "schedule" ? "대진표" : matchMode === "push" ? "밀어내기" : "자유대진"}{matchMode === "schedule" && courtCount === 1 ? ` · ${rotations}회전` : ""}</div>
+                <div>{isCup ? `${teamCount}팀 · ${courtCount}코트 · 풀리그 1회전` : `${teamCount}팀 · ${courtCount}코트 · ${matchMode === "schedule" ? "대진표" : matchMode === "push" ? "밀어내기" : "자유대진"}${matchMode === "schedule" && courtCount === 1 ? ` · ${rotations}회전` : ""}`}</div>
                 <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>
-                  {teamCount === 4 && courtCount === 2 && "동일팀 4번씩 경기 · 12라운드"}
-                  {teamCount === 5 && courtCount === 2 && "동일팀 2번씩 경기 · 10라운드 · 매 라운드 1팀 휴식"}
-                  {teamCount === 6 && courtCount === 2 && "조별리그 → 순위별 재편성 · 12라운드"}
-                  {teamCount === 7 && courtCount === 2 && "전팀 풀리그 · 11라운드 · 매 라운드 3팀 휴식"}
-                  {teamCount === 8 && courtCount === 2 && "조별리그(4팀×2조) → 순위별 재편성 · 12라운드"}
-                  {courtCount === 1 && matchMode === "schedule" && `모든 팀 순서대로 경기 × ${rotations}회전`}
-                  {matchMode === "free" && "매 라운드 직접 대진 선택"}
-                  {matchMode === "push" && "승리팀 잔류, 패배팀 교체 · 2골 이상 승리 시 연장 · 3연승 후 휴식"}
+                  {isCup ? `풀리그 1회전 · ${schedule.length}라운드` : (
+                    <>
+                      {teamCount === 4 && courtCount === 2 && "동일팀 4번씩 경기 · 12라운드"}
+                      {teamCount === 5 && courtCount === 2 && "동일팀 2번씩 경기 · 10라운드 · 매 라운드 1팀 휴식"}
+                      {teamCount === 6 && courtCount === 2 && "조별리그 → 순위별 재편성 · 12라운드"}
+                      {teamCount === 7 && courtCount === 2 && "전팀 풀리그 · 11라운드 · 매 라운드 3팀 휴식"}
+                      {teamCount === 8 && courtCount === 2 && "조별리그(4팀×2조) → 순위별 재편성 · 12라운드"}
+                      {courtCount === 1 && matchMode === "schedule" && `모든 팀 순서대로 경기 × ${rotations}회전`}
+                      {matchMode === "free" && "매 라운드 직접 대진 선택"}
+                      {matchMode === "push" && "승리팀 잔류, 패배팀 교체 · 2골 이상 승리 시 연장 · 3연승 후 휴식"}
+                    </>
+                  )}
                 </div>
               </div>
               <details style={{ marginBottom: 8 }}>

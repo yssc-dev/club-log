@@ -19,6 +19,7 @@ vi.mock('../../../services/cupSync', () => ({
 }));
 
 import CupListTab from '../CupListTab';
+import CupSync from '../../../services/cupSync';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -45,6 +46,11 @@ const BASE = { teamName: '마스터FC', members: ['a1', 'b1', 'c1', 'd1'], pendi
 async function mount(props = {}) {
   await act(async () => {
     root = createRoot(container);
+    root.render(createElement(ThemeProvider, null, createElement(CupListTab, { ...BASE, ...props })));
+  });
+}
+async function rerender(props = {}) {
+  await act(async () => {
     root.render(createElement(ThemeProvider, null, createElement(CupListTab, { ...BASE, ...props })));
   });
 }
@@ -120,5 +126,24 @@ describe('CupListTab 실렌더', () => {
     expect(btn('오늘 컵 경기 시작')).toBeUndefined();
     expect(btn('대회 삭제')).toBeUndefined();
     expect(btn('저장')).toBeUndefined();
+  });
+
+  it('teamName 변경 중 먼저 보낸 이전 팀의 listCups 응답이 늦게 도착해도 화면을 덮어쓰지 않는다(M4)', async () => {
+    const calls = [];
+    const orig = CupSync.listCups;
+    CupSync.listCups = (team) => new Promise(res => { calls.push({ team, res }); });
+    try {
+      await mount({ teamName: '마스터FC' });
+      await rerender({ teamName: '다른팀' }); // 이펙트 재실행 — 새 reload 시작(이전 응답은 아직 안 옴)
+      expect(calls.length).toBe(2);
+      // 새 팀(다른팀) 응답이 먼저 도착
+      await act(async () => { calls[1].res([cup('새팀컵')]); });
+      // 이전 팀(마스터FC) 응답이 그 다음 늦게 도착 — 세대 카운터가 낮아 폐기돼야 한다
+      await act(async () => { calls[0].res([cup('이전팀컵')]); });
+      expect(container.textContent).toContain('새팀컵');
+      expect(container.textContent).not.toContain('이전팀컵');
+    } finally {
+      CupSync.listCups = orig;
+    }
   });
 });
