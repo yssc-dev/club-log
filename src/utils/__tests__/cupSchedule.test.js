@@ -1,7 +1,7 @@
 // src/utils/__tests__/cupSchedule.test.js
 // 스펙 §6.3 불변식 5 — 풀리그 1회전: 모든 팀 수에서 각 쌍 정확히 1회, 라운드 안 팀 중복 없음, 라운드당 경기 ≤ 구장 수.
 import { describe, it, expect } from 'vitest';
-import { generateCupRounds, courtCountFor } from '../cup/cupSchedule';
+import { generateCupRounds, courtCountFor, buildCupDaySchedule } from '../cup/cupSchedule';
 
 function audit(rounds, N, c) {
   const pairs = new Map();
@@ -49,11 +49,49 @@ describe('generateCupRounds', () => {
     expect(generateCupRounds(3, 1).map(r => r.matches.length)).toEqual([1, 1, 1]);
   });
   it('범위 밖 팀 수는 throw', () => {
-    expect(() => generateCupRounds(2, 1)).toThrow('팀은 3~8개여야 합니다');
+    expect(() => generateCupRounds(1, 1)).toThrow('팀은 3~8개여야 합니다');
     expect(() => generateCupRounds(9, 2)).toThrow('팀은 3~8개여야 합니다');
   });
   it('반환 배열은 호출마다 새 객체(호출부가 변형해도 표가 안 바뀜)', () => {
     const a = generateCupRounds(5, 2); a[0].matches.push([9, 9]);
     expect(generateCupRounds(5, 2)[0].matches).toHaveLength(2);
+  });
+});
+
+describe('buildCupDaySchedule (스펙 §6.3 v2.1)', () => {
+  it('rotations=1 은 generateCupRounds 와 같은 라운드(새 객체)', () => {
+    const base = generateCupRounds(4, 2);
+    const day = buildCupDaySchedule(4, 2, 1);
+    expect(day).toEqual(base);
+    expect(day).not.toBe(base);
+    expect(day[0]).not.toBe(base[0]);
+    expect(day[0].matches[0]).not.toBe(base[0].matches[0]);
+  });
+  it('rotations=3 은 canonical 을 3번 이어붙인다(순서·홈/원정 그대로)', () => {
+    const base = generateCupRounds(3, 1);
+    const day = buildCupDaySchedule(3, 1, 3);
+    expect(day).toHaveLength(base.length * 3);
+    expect(day.slice(0, 3)).toEqual(base);
+    expect(day.slice(3, 6)).toEqual(base);
+    expect(day.slice(6, 9)).toEqual(base);
+  });
+  it('rotations 는 1~3 으로 클램프, 비숫자는 1', () => {
+    expect(buildCupDaySchedule(3, 1, 0)).toHaveLength(3);
+    expect(buildCupDaySchedule(3, 1, 9)).toHaveLength(9);
+    expect(buildCupDaySchedule(3, 1, 'x')).toHaveLength(3);
+    expect(buildCupDaySchedule(3, 1, undefined)).toHaveLength(3);
+  });
+  it('M=2 는 1구장 1경기 라운드 하나', () => {
+    expect(courtCountFor(2)).toBe(1);
+    expect(generateCupRounds(2, 1)).toEqual([{ matches: [[0, 1]] }]);
+    expect(buildCupDaySchedule(2, 1, 2)).toEqual([{ matches: [[0, 1]] }, { matches: [[0, 1]] }]);
+  });
+  it('M=5·2구장·2회전 = 10라운드, 각 쌍 정확히 2회', () => {
+    const day = buildCupDaySchedule(5, 2, 2);
+    expect(day).toHaveLength(10);
+    const count = {};
+    for (const r of day) for (const [h, a] of r.matches) { const k = [h, a].sort().join('-'); count[k] = (count[k] || 0) + 1; }
+    expect(Object.keys(count)).toHaveLength(10);
+    expect(Object.values(count).every(v => v === 2)).toBe(true);
   });
 });
