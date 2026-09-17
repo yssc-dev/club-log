@@ -12,7 +12,7 @@ import { buildRoundRowsFromFutsal } from './utils/matchRowBuilder';
 import { isCupSession, logTagsOf } from './utils/cup/cupSession';
 import CupSync from './services/cupSync';
 import { validateTeams } from './utils/cup/cupEntity';
-import { generateCupRounds, courtCountFor } from './utils/cup/cupSchedule';
+import { courtCountFor, buildCupDaySchedule } from './utils/cup/cupSchedule';
 import { selectFinalizeWrites } from './utils/cup/finalizeWrites';
 import { gameDateFromId } from './utils/gameDate';
 import { fetchSheetData, fetchAttendanceData } from './services/sheetService';
@@ -34,6 +34,7 @@ import ScheduleModal from './components/game/ScheduleModal';
 import BalancedScheduleModal from './components/game/BalancedScheduleModal';
 import StandingsModal from './components/game/StandingsModal';
 import PlayerStatsModal from './components/game/PlayerStatsModal';
+import CupAttendeePicker from './components/cup/CupAttendeePicker';
 
 export default function App({ authUser, teamContext, isNewGame, gameMode, gameParams, gameId, onLogout, onBackToMenu }) {
   const gameSettings = useMemo(() => getSettings(teamContext?.team), [teamContext?.team]);
@@ -229,7 +230,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
         });
       }
 
-      // ── 컵 세션(스펙 §6.2): 대회 엔티티의 팀으로 바로 match 진입. 실패는 에러 화면(세션 미생성).
+      // ── 컵 세션(스펙 §6.2 v2.1): 대회 엔티티의 팀을 프리필하고 정규 설정 마법사(setup)로 진입. 실패는 에러 화면(세션 미생성).
       if (gameMode === "cup") {
         const fail = (reason) => setCupLoadError(reason);
         if (!cupRes || !cupRes.ok) { fail(cupRes?.reason || '대회 로드 실패'); return; }
@@ -240,8 +241,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
         const cupTeams = v.teams;
         const N = cupTeams.length;
         const cc = courtCountFor(N);
-        let sched;
-        try { sched = generateCupRounds(N, cc); } catch (e) { fail(e.message); return; }
+        // v2.1: 경기 화면 직행이 아니라 정규 설정 마법사(참석자→팀편성→경기)로 들어간다. 대진은 경기 시작 시 startMatches 의 컵 분기가 만든다.
         dispatch({
           type: 'SET_FIELDS',
           fields: {
@@ -251,20 +251,13 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             courtCount: cc,
             matchMode: "schedule",
             draftMode: "sheet",
+            rotations: 1,
             teams: cupTeams.map(t => [...t.players]),
             teamNames: cupTeams.map(t => t.name),
             teamColorIndices: cupTeams.map((_, i) => i % TEAM_COLORS.length),
             gks: {},
-            schedule: sched,
-            currentRoundIdx: 0,
-            completedMatches: [],
-            allEvents: [],
-            isExtraRound: false,
-            viewingRoundIdx: 0,
-            confirmedRounds: {},
-            matchModal: null,
             settingsSnapshot: getCupSettings(teamContext.team),
-            phase: "match",
+            phase: "setup",
           },
         });
       }
@@ -281,6 +274,16 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
       })
       .catch(err => alert("참석명단 연동 실패: " + err.message))
       .finally(() => set('attendanceLoading', false));
+  };
+
+  // 컵 경기일 당일 추가(스펙 §6.2 v2.1 5항): attendees 와 그 팀에 함께 넣는다. 이미 어느 팀에든 있으면 무시. 세션 한정.
+  const addCupGuest = (teamIdx, name) => {
+    const n = (name || '').trim();
+    if (!n || teams.some(t => (t || []).includes(n)) || attendees.includes(n)) return;
+    dispatch({ type: 'SET_FIELDS', fields: {
+      attendees: [...attendees, n],
+      teams: teams.map((t, j) => (j === teamIdx ? [...(t || []), n] : t)),
+    } });
   };
 
   // Auto-save + 구독 — 풋살/축구 공용 훅 (src/hooks/useFirebaseSync.js)
@@ -619,6 +622,24 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   }, [teamEditMode, teams, attendees, seasonPlayers]);
 
   const startMatches = () => {
+    if (isCupSession(state)) {
+      // 컵 경기일(스펙 §6.2 v2.1 7항): 참석자로 팀을 거르고, 참석자 0명 팀은 오늘 제외. 참석 팀 풀리그 × 회전.
+      const present = teams.map(t => (t || []).filter(p => attendees.includes(p)));
+      const keep = present.map((_, i) => i).filter(i => present[i].length > 0);
+      if (keep.length < 2) { alert("참석자가 있는 팀이 2개 이상이어야 합니다"); return; }
+      const M = keep.length;
+      const cc = M <= 3 ? 1 : courtCount;
+      dispatch({ type: 'SET_FIELDS', fields: {
+        teams: keep.map(i => present[i]),
+        teamNames: keep.map(i => teamNames[i]),
+        teamColorIndices: keep.map(i => teamColorIndices[i] ?? (i % TEAM_COLORS.length)),
+        teamCount: M,
+        courtCount: cc,
+        gks: {},
+      } });
+      dispatch({ type: 'START_MATCHES', schedule: buildCupDaySchedule(M, cc, rotations), pushState: null, splitPhase: null });
+      return;
+    }
     if (teams.some(t => t.length < 1)) { alert("모든 팀에 최소 1명"); return; }
     let sched = null;
     let initPushState = null;
@@ -969,6 +990,13 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
       : teamCount === 8 ? "조별리그 → 순위별 재편성 · 12라운드"
       : ""
     ) : "";
+    // 컵 경기일 안내(스펙 §6.2 v2.1): 참석 팀 수 기준 풀리그 × 회전.
+    const cupPresentTeams = isCup ? teams.filter(t => (t || []).some(p => attendees.includes(p))).length : 0;
+    const cupHint = isCup
+      ? (cupPresentTeams >= 2
+          ? `풀리그 × ${rotations}회전 · 참석 ${cupPresentTeams}팀 · ${buildCupDaySchedule(cupPresentTeams, cupPresentTeams <= 3 ? 1 : courtCount, rotations).length}라운드`
+          : '참석자가 있는 팀이 2개 이상이어야 합니다')
+      : "";
 
     return (
       <div style={{
@@ -1014,8 +1042,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
               <span className="app-row-title">팀 수</span>
               <div style={segBar}>
                 {[3, 4, 5, 6, 7, 8].map(n => (
-                  <button key={n} onClick={() => dispatch({ type: 'SET_FIELDS', fields: { teamCount: n, ...(n === 3 ? { courtCount: 1 } : {}) } })}
-                    style={segBtn(teamCount === n)}>{n}팀</button>
+                  <button key={n} onClick={() => { if (isCup) return; dispatch({ type: 'SET_FIELDS', fields: { teamCount: n, ...(n === 3 ? { courtCount: 1 } : {}) } }); }}
+                    disabled={isCup} style={segBtn(teamCount === n, isCup)}>{n}팀</button>
                 ))}
               </div>
             </div>
@@ -1031,38 +1059,46 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             </div>
             <div className="app-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
               <span className="app-row-title">경기 모드</span>
-              <div style={segBar}>
-                <button onClick={() => set('matchMode', 'schedule')} style={segBtn(matchMode === "schedule")}>
-                  {(teamCount === 6 || teamCount === 8) && courtCount === 2 ? "그룹 스플릿" : "대진표"}
-                </button>
-                <button onClick={() => set('matchMode', 'free')} style={segBtn(matchMode === "free")}>자유대진</button>
-                <button onClick={() => dispatch({ type: 'SET_FIELDS', fields: { matchMode: 'push', courtCount: 1 } })} style={segBtn(matchMode === "push")}>밀어내기</button>
-              </div>
+              {isCup ? (
+                <div style={segBar}><button disabled style={segBtn(true)}>대진표 (풀리그)</button></div>
+              ) : (
+                <div style={segBar}>
+                  <button onClick={() => set('matchMode', 'schedule')} style={segBtn(matchMode === "schedule")}>
+                    {(teamCount === 6 || teamCount === 8) && courtCount === 2 ? "그룹 스플릿" : "대진표"}
+                  </button>
+                  <button onClick={() => set('matchMode', 'free')} style={segBtn(matchMode === "free")}>자유대진</button>
+                  <button onClick={() => dispatch({ type: 'SET_FIELDS', fields: { matchMode: 'push', courtCount: 1 } })} style={segBtn(matchMode === "push")}>밀어내기</button>
+                </div>
+              )}
             </div>
             <div className="app-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
               <span className="app-row-title">팀 편성 방식</span>
-              <div style={segBar}>
-                <button onClick={() => set('draftMode', 'snake')} style={segBtn(draftMode === "snake")}>스네이크</button>
-                <button onClick={() => set('draftMode', 'free')} style={segBtn(draftMode === "free")}>자유편성</button>
-                <button onClick={sheetDraft} disabled={attendanceLoading} style={segBtn(draftMode === "sheet")}>
-                  {attendanceLoading ? "로딩..." : "시트 연동"}
-                </button>
-              </div>
+              {isCup ? (
+                <div style={segBar}><button disabled style={segBtn(true)}>대회 팀</button></div>
+              ) : (
+                <div style={segBar}>
+                  <button onClick={() => set('draftMode', 'snake')} style={segBtn(draftMode === "snake")}>스네이크</button>
+                  <button onClick={() => set('draftMode', 'free')} style={segBtn(draftMode === "free")}>자유편성</button>
+                  <button onClick={sheetDraft} disabled={attendanceLoading} style={segBtn(draftMode === "sheet")}>
+                    {attendanceLoading ? "로딩..." : "시트 연동"}
+                  </button>
+                </div>
+              )}
             </div>
-            {courtCount === 1 && matchMode === "schedule" && (
+            {(isCup || (courtCount === 1 && matchMode === "schedule")) && (
               <div className="app-row" style={{ flexDirection: "column", alignItems: "stretch", gap: 8 }}>
                 <span className="app-row-title">회전 수</span>
                 <div style={segBar}>
-                  {[1, 2, 3, 4, 5].map(n => (
+                  {(isCup ? [1, 2, 3] : [1, 2, 3, 4, 5]).map(n => (
                     <button key={n} onClick={() => set('rotations', n)} style={segBtn(rotations === n)}>{n}회전</button>
                   ))}
                 </div>
               </div>
             )}
           </div>
-          {scheduleHint && (
+          {(isCup ? cupHint : scheduleHint) && (
             <div style={{ fontSize: 13, color: "var(--app-text-tertiary)", padding: "8px 16px 0" }}>
-              {scheduleHint}
+              {isCup ? cupHint : scheduleHint}
             </div>
           )}
         </div>
@@ -1072,6 +1108,17 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             <span>참석자</span>
             <span style={{ fontSize: 12, color: "var(--app-text-tertiary)", textTransform: "none" }}>{attendees.length}명 선택됨</span>
           </div>
+          {isCup ? (
+            <div className="app-grouped">
+              <CupAttendeePicker
+                teams={teams}
+                teamNames={teamNames}
+                attendees={attendees}
+                onToggle={(name) => dispatch({ type: 'TOGGLE_ATTENDEE', name })}
+                onAddToTeam={addCupGuest}
+              />
+            </div>
+          ) : (
           <div className="app-grouped">
             <div className="app-row" style={{ gap: 6, flexWrap: "wrap", padding: "10px 12px" }}>
               <button onClick={syncAttendance} disabled={attendanceLoading} style={{
@@ -1135,6 +1182,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
               </button>
             </div>
           </div>
+          )}
         </div>
 
         <div style={{
@@ -1153,15 +1201,19 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
               draftMode === "free" ? `자유 편성 (${teamCount}팀)` :
               draftMode === "sheet" ? (sheetReady ? `시트 편성 (${teamCount}팀)` : "시트 연동을 먼저 눌러주세요") :
               `팀 편성 (${attendees.length}명 → ${teamCount}팀)`;
+            // 컵 경기일: 참석 팀이 2개 이상이면 통과(대회 팀은 이미 프리필돼 sheet 분기를 그대로 지난다).
+            const cupDisabled = isCup && cupPresentTeams < 2;
+            const finalDisabled = isCup ? cupDisabled : ctaDisabled;
+            const finalLabel = isCup ? `대회 팀 확인 (${cupPresentTeams}팀)` : ctaLabel;
             return (
-              <button onClick={goToTeamBuild} disabled={ctaDisabled} style={{
+              <button onClick={goToTeamBuild} disabled={finalDisabled} style={{
                 width: "100%", padding: "14px 16px", borderRadius: 12,
                 background: "var(--app-blue)", color: "#fff",
                 border: "none", fontSize: 16, fontWeight: 600, cursor: "pointer",
                 fontFamily: "inherit", letterSpacing: "-0.01em",
-                opacity: ctaDisabled ? 0.5 : 1,
+                opacity: finalDisabled ? 0.5 : 1,
               }}>
-                {ctaLabel}
+                {finalLabel}
               </button>
             );
           })()}
@@ -1181,19 +1233,21 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   // TEAM BUILD PHASE
   if (phase === "teamBuild") {
     const sortedTeam = (team) => [...team].sort((a, b) => getPlayerPoint(b, seasonPlayers) - getPlayerPoint(a, seasonPlayers));
+    // 컵 경기일: 회전 수 카드의 경기 수는 참석 팀 기준(오늘 불참 팀은 대진에서 빠진다).
+    const cupPresentTeamsTB = isCup ? teams.filter(t => (t || []).some(p => attendees.includes(p))).length : teamCount;
 
     return (
       <div style={s.app}>
         <div style={s.header}>
           <div style={s.title}>⚽ {teamEditMode ? "팀 명단 수정" : "팀 편성"}</div>
-          <div style={s.subtitle}>{teamEditMode ? "경기 진행 중 · 편집 모드" : `${draftMode === "snake" ? "스네이크 드래프트" : draftMode === "sheet" ? "시트 편성" : "자유 편성"} · ${teamCount}팀 · ${attendees.length}명`}</div>
+          <div style={s.subtitle}>{teamEditMode ? "경기 진행 중 · 편집 모드" : `${isCup ? "대회 팀" : (draftMode === "snake" ? "스네이크 드래프트" : draftMode === "sheet" ? "시트 편성" : "자유 편성")} · ${teamCount}팀 · ${attendees.length}명`}</div>
         </div>
         {!teamEditMode && <PhaseIndicator activeIndex={1} />}
         {cupBanner}
         <div style={s.section}>
           <div style={{ ...s.row, marginBottom: 12 }}>
-            {!teamEditMode && draftMode === "snake" && <button onClick={reshuffleTeams} style={s.btnSm(C.grayDark)}>재배치</button>}
-            {!teamEditMode && draftMode === "free" && <button onClick={() => dispatch({ type: 'SET_FIELDS', fields: { teams: Array.from({ length: teamCount }, () => []), teamNames: Array.from({ length: teamCount }, (_, i) => `팀 ${i + 1}`), gks: {} } })} style={s.btnSm(C.grayDark)}>초기화</button>}
+            {!teamEditMode && draftMode === "snake" && !isCup && <button onClick={reshuffleTeams} style={s.btnSm(C.grayDark)}>재배치</button>}
+            {!teamEditMode && draftMode === "free" && !isCup && <button onClick={() => dispatch({ type: 'SET_FIELDS', fields: { teams: Array.from({ length: teamCount }, () => []), teamNames: Array.from({ length: teamCount }, (_, i) => `팀 ${i + 1}`), gks: {} } })} style={s.btnSm(C.grayDark)}>초기화</button>}
             <span style={{ fontSize: 11, color: C.gray }}>전력: {teams.map(t => teamPower(t, seasonPlayers)).join(" / ")}</span>
           </div>
 
@@ -1280,7 +1334,9 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
               <div key={tIdx} style={{ ...s.teamCard(teamColorIndices[tIdx]), border: canAddHere ? `2px dashed ${color?.bg || C.accent}` : "none" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 8 }}>
                   <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                    {editingTeamName === tIdx ? (
+                    {isCup ? (
+                      <span style={{ fontWeight: 700, fontSize: 14 }}>{teamNames[tIdx]}</span>
+                    ) : editingTeamName === tIdx ? (
                       <input autoFocus style={{ ...s.input, width: 100, padding: "4px 8px", fontSize: 14, fontWeight: 700 }} value={teamNames[tIdx]}
                         onChange={e => { const c = [...teamNames]; c[tIdx] = e.target.value; set('teamNames', c); }}
                         onBlur={() => set('editingTeamName', null)} onKeyDown={e => e.key === "Enter" && set('editingTeamName', null)} />
@@ -1289,6 +1345,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
                         onClick={(e) => { e.stopPropagation(); set('editingTeamName', tIdx); }}>{teamNames[tIdx]}</span>
                     )}
                     <span style={{ fontSize: 11, color: C.gray }}>전력 {teamPower(team, seasonPlayers)}</span>
+                    {isCup && !(team || []).some(p => attendees.includes(p)) && <span style={{ fontSize: 11, color: C.orange, fontWeight: 700 }}>오늘 불참</span>}
                   </div>
                   <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
                     {!teamEditMode && (
@@ -1312,7 +1369,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
                   {sorted.map((player, pIdx) => {
                     const pd = getPlayerData(player, seasonPlayers);
                     return (
-                      <div key={player} style={{ ...s.playerInTeam(color), color: C.white }}>
+                      <div key={player} style={{ ...s.playerInTeam(color), color: C.white, opacity: isCup && !attendees.includes(player) ? 0.4 : 1 }}>
                         {pIdx === 0 && team.length > 0 && <span style={{ fontSize: 10, marginRight: 2 }}>👑</span>}
                         <span>{player}</span>
                         <span style={{ fontSize: 10, opacity: 0.6, marginLeft: 4 }}>{pd.point}p</span>
@@ -1344,12 +1401,12 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             );
           })}
         </div>
-        {courtCount === 1 && matchMode === "schedule" && (
+        {(isCup || (courtCount === 1 && matchMode === "schedule")) && (
           <div style={{ ...s.section, marginTop: 0 }}>
             <div style={{ ...s.card, display: "flex", alignItems: "center", gap: 10 }}>
               <span style={{ fontSize: 12, color: C.gray, fontWeight: 700, whiteSpace: "nowrap" }}>회전 수</span>
-              <div style={s.row}>{[1, 2, 3, 4, 5].map(n => <button key={n} onClick={() => set('rotations', n)} style={s.btn(rotations === n ? C.accent : C.grayDark, rotations === n ? C.bg : C.white)}>{n}회전</button>)}</div>
-              <span style={{ fontSize: 11, color: C.gray, whiteSpace: "nowrap" }}>{teamCount * (teamCount - 1) / 2 * rotations}경기</span>
+              <div style={s.row}>{(isCup ? [1, 2, 3] : [1, 2, 3, 4, 5]).map(n => <button key={n} onClick={() => set('rotations', n)} style={s.btn(rotations === n ? C.accent : C.grayDark, rotations === n ? C.bg : C.white)}>{n}회전</button>)}</div>
+              <span style={{ fontSize: 11, color: C.gray, whiteSpace: "nowrap" }}>{(isCup ? cupPresentTeamsTB : teamCount) * ((isCup ? cupPresentTeamsTB : teamCount) - 1) / 2 * rotations}경기</span>
             </div>
           </div>
         )}
