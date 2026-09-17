@@ -24,6 +24,8 @@ vi.mock('../../../services/sheetCache', () => ({
   default: { get: (...args) => getSpy(...args) },
 }));
 
+vi.mock('../../../services/cupSync', () => ({ default: { listCups: () => Promise.resolve([]) } }));
+
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
   value: (q) => ({ matches: false, media: q, onchange: null, addListener(){}, removeListener(){}, addEventListener(){}, removeEventListener(){}, dispatchEvent(){} }),

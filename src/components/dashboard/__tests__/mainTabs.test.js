@@ -28,13 +28,17 @@ describe('buildMainTabs 비테니스(회귀)', () => {
     expect(t.every(x => !x.beta)).toBe(true);
     expect(t.find(x => x.key === 'games').badge).toBeFalsy();
   });
-  it('풋살 = records·roster·analytics·games (대회 없음)', () => {
+  it('풋살 = records·roster·analytics·games·tournament (스펙 §6.1: 풋살도 대회 탭)', () => {
     const t = buildMainTabs({ activeSport: '풋살', role: '관리자', pendingCount: 0 });
-    expect(keys(t)).toEqual(['records', 'roster', 'analytics', 'games']);
+    expect(keys(t)).toEqual(['records', 'roster', 'analytics', 'games', 'tournament']);
     expect(t.find(x => x.key === 'records').label).toBe('대시보드');
     expect(t.find(x => x.key === 'roster').label).toBe('개인기록');
+    expect(t.find(x => x.key === 'tournament').label).toBe('대회');
     expect(t.every(x => !x.beta)).toBe(true);
     expect(t.find(x => x.key === 'games').badge).toBeFalsy();
+  });
+  it('풋살 + hideTournament 는 무시(축구 전용 플래그) — 대회 탭 유지', () => {
+    expect(keys(buildMainTabs({ activeSport: '풋살', role: '관리자', pendingCount: 0, hideTournament: true }))).toContain('tournament');
   });
   it('축구 roster 라벨=팀/개인 기록', () => {
     const t = buildMainTabs({ activeSport: '축구', role: '관리자', pendingCount: 0 });

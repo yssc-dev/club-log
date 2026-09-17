@@ -16,6 +16,8 @@ export function buildMainTabs({ activeSport, role, pendingCount, hideTournament 
     { key: 'roster', label: activeSport === '축구' ? '팀/개인 기록' : '개인기록' },
     { key: 'analytics', label: '분석' },
     { key: 'games', label: '경기관리', badge },
+    // 축구: 기존 대회 모드(hideTournament 로 숨김 가능). 풋살: 컵대회(스펙 §6.1) — hideTournament 는 축구 전용 플래그라 무관.
     ...(activeSport === '축구' && !hideTournament ? [{ key: 'tournament', label: '대회' }] : []),
+    ...(activeSport === '풋살' ? [{ key: 'tournament', label: '대회' }] : []),
   ];
 }

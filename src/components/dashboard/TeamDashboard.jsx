@@ -16,6 +16,9 @@ import DualTeamTab from './analytics/DualTeamTab';
 import DefenseTopCards from './analytics/DefenseTopCards';
 import RecentFormTop3 from './analytics/RecentFormTop3';
 import TournamentListTab from '../tournament/TournamentListTab';
+import CupListTab from '../cup/CupListTab';
+import CupPickerModal from '../cup/CupPickerModal';
+import CupSync from '../../services/cupSync';
 import TennisTabs from '../tennis/TennisTabs';
 import { buildMainTabs } from './mainTabs';
 
@@ -38,6 +41,9 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
   const [tournamentActive, setTournamentActive] = useState(false);
   const [tournamentName, setTournamentName] = useState(null);
   const [menuOpen, setMenuOpen] = useState(false);
+  // 풋살 컵대회(스펙 §6.1): 경기관리 "🏆 컵대회 경기" 버튼용 진행중 대회 목록. 대회 탭(CupListTab)은 자체 로드한다.
+  const [activeCups, setActiveCups] = useState([]);
+  const [cupPickerOpen, setCupPickerOpen] = useState(false);
   const [favoriteTeam, setFavoriteTeam] = useState(() => AuthUtil.getFavoriteTeam(authUser));
   const menuRef = useRef(null);
 
@@ -140,6 +146,15 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
     // teamName/hasSoccerEntry/isTennis 변경 시 재조회 — 이전엔 []라 팀 전환에도 최초 데이터가 유지됐음
     return () => { cancelled = true; };
   }, [teamName, hasSoccerEntry, isTennis, logOnly]);
+
+  useEffect(() => {
+    if (activeSport !== "풋살" || !teamName) { setActiveCups([]); return; }
+    let cancelled = false;
+    CupSync.listCups(teamName)
+      .then(list => { if (!cancelled) setActiveCups(list.filter(c => c.meta.status === 'active')); })
+      .catch(err => { console.warn('[cup] 대회 목록 로드 실패:', err?.message); if (!cancelled) setActiveCups([]); });
+    return () => { cancelled = true; };
+  }, [activeSport, teamName, activeTab]);
 
   const ds = useMemo(() => ({
     container: { background: "var(--app-bg-grouped)", minHeight: "100vh",
@@ -812,6 +827,24 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
                   </div>
                   <ChevronRight color="var(--app-blue)" width={16} />
                 </button>
+                {activeCups.length > 0 && (
+                  <button onClick={() => {
+                    if (activeCups.length === 1) onStartGame("cup", { cupId: activeCups[0].meta.id });
+                    else setCupPickerOpen(true);
+                  }} style={{
+                    width: "100%", background: "rgba(255,149,0,0.12)", color: "var(--app-orange)",
+                    border: "none", borderRadius: 14, padding: "14px 16px", cursor: "pointer",
+                    display: "flex", alignItems: "center", gap: 12, textAlign: "left",
+                    fontFamily: "inherit",
+                  }}>
+                    <TrophyIcon color="var(--app-orange)" width={22} />
+                    <div style={{ flex: 1 }}>
+                      <div style={{ fontSize: 16, fontWeight: 600 }}>🏆 컵대회 경기</div>
+                      <div style={{ fontSize: 13, color: "var(--app-text-secondary)", marginTop: 2 }}>대회 팀으로 자동 편성 · 남은 대진{activeCups.length > 1 ? ` · 진행중 ${activeCups.length}개` : ` · ${activeCups[0].meta.name}`}</div>
+                    </div>
+                    <ChevronRight color="var(--app-orange)" width={16} />
+                  </button>
+                )}
               </div>
             )}
           </div>
@@ -839,6 +872,10 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
 
   return (
     <div style={ds.container}>
+      {cupPickerOpen && (
+        <CupPickerModal cups={activeCups} onClose={() => setCupPickerOpen(false)}
+          onPick={(cupId) => { setCupPickerOpen(false); onStartGame("cup", { cupId }); }} />
+      )}
       <div style={ds.header}>
         <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 4 }}>
           <h1 style={{ fontSize: 28, fontWeight: 700, letterSpacing: "-0.022em",
@@ -965,19 +1002,25 @@ export default function TeamDashboard({ authUser, teamName, teamEntries, onStart
             )}
             {activeTab === "games" && renderGames()}
             {activeTab === "tournament" && (
-              <TournamentListTab
-                teamName={teamName} ourTeamName={teamName}
-                isAdmin={activeEntry?.role === "관리자"}
-                attendees={members.map(m => m.name)}
-                gameSettings={getSettings(teamName)}
-                onTournamentView={setTournamentActive}
-                onTournamentName={setTournamentName}
-                onGoHome={() => {
-                  if (!confirm("대회 모드에서 홈 화면으로 이동하시겠습니까?")) return;
-                  setTournamentActive(false);
-                  setActiveTab("records");
-                }}
-              />
+              isSoccer ? (
+                <TournamentListTab
+                  teamName={teamName} ourTeamName={teamName}
+                  isAdmin={activeEntry?.role === "관리자"}
+                  attendees={members.map(m => m.name)}
+                  gameSettings={getSettings(teamName)}
+                  onTournamentView={setTournamentActive}
+                  onTournamentName={setTournamentName}
+                  onGoHome={() => {
+                    if (!confirm("대회 모드에서 홈 화면으로 이동하시겠습니까?")) return;
+                    setTournamentActive(false);
+                    setActiveTab("records");
+                  }}
+                />
+              ) : (
+                <CupListTab teamName={teamName} members={members.map(m => m.name)} pendingGames={pendingGames}
+                  isAdmin={activeEntry?.role === "관리자"} authUserName={authUser?.name}
+                  onStartGame={onStartGame} onContinueGame={onContinueGame} />
+              )
             )}
           </>
         )}

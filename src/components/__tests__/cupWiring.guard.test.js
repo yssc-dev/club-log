@@ -35,3 +35,17 @@ describe('App.jsx — 컵 로드 분기·배너·markLocked', () => {
     expect((src.match(/\{cupBanner\}/g) || []).length).toBeGreaterThanOrEqual(4);
   });
 });
+
+describe('TeamDashboard.jsx — tournament 탭 종목 분기·컵 버튼', () => {
+  const src = read('components/dashboard/TeamDashboard.jsx');
+  it('풋살은 CupListTab, 축구는 기존 TournamentListTab', () => {
+    expect(src).toMatch(/import CupListTab from '\.\.\/cup\/CupListTab'/);
+    expect(src).toMatch(/activeTab === "tournament" && \(\s*isSoccer \?/);
+    expect(src).toMatch(/<CupListTab/);
+  });
+  it('경기관리 새 경기 영역에 컵대회 버튼과 선택 모달', () => {
+    expect(src).toMatch(/🏆 컵대회 경기/);
+    expect(src).toMatch(/onStartGame\("cup", \{ cupId/);
+    expect(src).toMatch(/<CupPickerModal/);
+  });
+});
