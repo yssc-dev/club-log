@@ -11,6 +11,8 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
   const { C } = useTheme();
   const [saving, setSaving] = useState(false);
   const [busy, setBusy] = useState(false);
+  // 팀이 하나도 없는 새 대회는 관리자에게 편집기를 바로 연다(요약할 것이 없으므로).
+  const [editing, setEditing] = useState(() => isAdmin && (cup.teams?.length ?? 0) === 0);
   const locked = isLocked(cup);
   const active = cup.meta.status === 'active';
   const validation = validateTeams(cup.teams);
@@ -23,7 +25,12 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
     catch (e) { alert(`저장 실패: ${e?.message || e}`); }
     finally { setBusy(false); }
   };
-  const handleSave = (teams) => run(async () => { setSaving(true); try { await CupSync.saveTeams(teamName, cup.meta.id, teams); } finally { setSaving(false); } });
+  const handleSave = async (teams) => {
+    setBusy(true); setSaving(true);
+    try { await CupSync.saveTeams(teamName, cup.meta.id, teams); await onChanged?.(); setEditing(false); }
+    catch (e) { alert(`저장 실패: ${e?.message || e}`); }
+    finally { setSaving(false); setBusy(false); }
+  };
   const toggleStatus = () => run(() => CupSync.setStatus(teamName, cup.meta.id, active ? 'finished' : 'active'));
   const handleDelete = () => {
     if (!confirm(`"${cup.meta.name}" 대회를 삭제할까요? 팀 구성이 사라집니다.`)) return;
@@ -67,7 +74,26 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
 
       <div style={section}>
         <div style={title}>팀 관리</div>
-        <CupTeamEditor key={`${cup.meta.id}:${cup.meta.updatedAt}`} teams={cup.teams} members={members} locked={locked} disabled={!isAdmin} saving={saving} onSave={handleSave} />
+        {!editing ? (
+          <>
+            <div data-role="team-summary-list">
+              {cup.teams.map(t => {
+                const players = t.players || [];
+                return (
+                  <div key={t.id} data-role="team-summary" data-team={t.id} style={{ ...card, marginBottom: 8 }}>
+                    <div style={{ fontSize: 14, fontWeight: 600, color: C.white }}>{t.name} <span style={{ fontSize: 12, color: C.gray, fontWeight: 400 }}>· {players.length}명</span></div>
+                    <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>{players.length ? players.map(p => (p === t.captain ? `★${p}` : p)).join(', ') : '팀원 없음'}</div>
+                  </div>
+                );
+              })}
+              {cup.teams.length === 0 && <div style={{ fontSize: 12, color: C.gray, padding: 4 }}>아직 팀이 없습니다</div>}
+            </div>
+            {locked && <div style={{ fontSize: 12, color: "var(--app-orange)", marginTop: 4 }}>🔒 첫 경기 마감 후 팀명·팀 수는 고정. 팀원·팀장은 편집 가능</div>}
+            {isAdmin && <button data-role="team-edit" onClick={() => setEditing(true)} style={btn("var(--app-bg-row)", C.white, { marginTop: 8 })}>팀 편집</button>}
+          </>
+        ) : (
+          <CupTeamEditor key={`${cup.meta.id}:${cup.meta.updatedAt}`} teams={cup.teams} members={members} locked={locked} disabled={!isAdmin} saving={saving} onSave={handleSave} onCancel={() => setEditing(false)} />
+        )}
       </div>
 
       {isAdmin && (

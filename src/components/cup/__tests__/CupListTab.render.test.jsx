@@ -40,6 +40,12 @@ const T3 = [
   { id: 't2', name: '팀B', captain: '', players: ['b1'], order: 1 },
   { id: 't3', name: '팀C', captain: '', players: ['c1'], order: 2 },
 ];
+// 팀장(captain) 이 있는 fixture — 요약 ★ 표시 확인용
+const T3_CAP = [
+  { id: 't1', name: '팀A', captain: 'a1', players: ['a1', 'a2', 'a3'], order: 0 },
+  { id: 't2', name: '팀B', captain: '', players: ['b1', 'b2'], order: 1 },
+  { id: 't3', name: '팀C', captain: '', players: ['c1'], order: 2 },
+];
 const cup = (id, extra = {}, teams = T3) => ({ meta: { id, name: id, sport: '풋살', status: 'active', createdAt: 1, createdBy: '', updatedAt: 1, lockedAt: null, ...extra }, teams });
 
 const BASE = { teamName: '마스터FC', members: ['a1', 'b1', 'c1', 'd1'], pendingGames: [], isAdmin: true, authUserName: '홍길동', onStartGame: vi.fn(), onContinueGame: vi.fn() };
@@ -84,6 +90,8 @@ describe('CupListTab 실렌더', () => {
     await click(btn('만들기'));
     expect(h.created).toEqual(['마스터스컵 2026']);
     expect(container.textContent).toContain('팀 관리');
+    // 팀 0개 → 관리자에게 편집기를 바로 연다
+    expect(btn('저장')).toBeDefined();
   });
 
   it('상세: 팀 검증 통과 + active 면 시작 버튼이 onStartGame("cup", { cupId }) 호출', async () => {
@@ -118,7 +126,7 @@ describe('CupListTab 실렌더', () => {
     expect(container.textContent).not.toContain('팀 관리');
   });
 
-  it('비관리자: 새 대회·시작·삭제 없음, 팀 관리는 읽기 전용', async () => {
+  it('비관리자: 새 대회·시작·삭제 없음, 팀 관리는 읽기 전용(요약)', async () => {
     h.cups = [cup('컵2026')];
     await mount({ isAdmin: false });
     expect(btn('+ 새 대회')).toBeUndefined();
@@ -126,6 +134,9 @@ describe('CupListTab 실렌더', () => {
     expect(btn('오늘 컵 경기 시작')).toBeUndefined();
     expect(btn('대회 삭제')).toBeUndefined();
     expect(btn('저장')).toBeUndefined();
+    // 비관리자: 팀 편집 버튼 없음, team-summary 3개 표시
+    expect(btn('팀 편집')).toBeUndefined();
+    expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
   });
 
   it('teamName 변경 중 먼저 보낸 이전 팀의 listCups 응답이 늦게 도착해도 화면을 덮어쓰지 않는다(M4)', async () => {
@@ -145,5 +156,62 @@ describe('CupListTab 실렌더', () => {
     } finally {
       CupSync.listCups = orig;
     }
+  });
+
+  it('관리자 상세(3팀): 기본은 요약 카드, 팀 편집 클릭으로 편집기, 취소로 요약 복귀', async () => {
+    h.cups = [cup('컵2026', {}, T3_CAP)];
+    await mount();
+    await click(btn('컵2026'));
+    // 기본: 요약 카드 3개, 팀명 입력 없음
+    expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
+    expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(0);
+    // t1(팀장 a1 있음): 팀명·★팀장·인원 표시
+    const summaries = [...container.querySelectorAll('[data-role="team-summary"]')];
+    expect(summaries[0].textContent).toContain('팀A');
+    expect(summaries[0].textContent).toContain('★a1');
+    expect(summaries[0].textContent).toContain('3명');
+    // 팀 편집 클릭 → 편집기
+    await click(btn('팀 편집'));
+    expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(3);
+    // 취소 클릭 → 요약으로 복귀
+    await click(btn('취소'));
+    expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(0);
+    expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
+  });
+
+  it('편집 → 저장: 팀명 수정 후 저장하면 요약으로 복귀하고 h.saved 에 payload', async () => {
+    h.cups = [cup('컵2026')];
+    await mount();
+    await click(btn('컵2026'));
+    // 요약 상태 확인
+    expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
+    expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(0);
+    // 팀 편집 진입
+    await click(btn('팀 편집'));
+    expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(3);
+    // 첫 팀명 수정
+    const nameInputs = [...container.querySelectorAll('input[data-role="team-name"]')];
+    await type(nameInputs[0], '팀A수정');
+    // 저장
+    await click(btn('저장'));
+    // h.saved 에 payload
+    expect(h.saved).toHaveLength(1);
+    expect(h.saved[0].teams[0].name).toBe('팀A수정');
+    // 요약으로 복귀, 수정된 팀명 표시
+    expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(0);
+    expect(container.textContent).toContain('팀A수정');
+  });
+
+  it('잠긴 대회: 요약 + 🔒 문구, 팀 편집 → team-name 입력 전부 disabled', async () => {
+    h.cups = [cup('잠긴컵', { lockedAt: 5 })];
+    await mount();
+    await click(btn('잠긴컵'));
+    // 요약 표시
+    expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
+    // 🔒 문구
+    expect(container.textContent).toContain('첫 경기 마감 후 팀명·팀 수는 고정');
+    // 팀 편집 → 편집기, 팀명 입력 전부 disabled
+    await click(btn('팀 편집'));
+    expect([...container.querySelectorAll('input[data-role="team-name"]')].every(i => i.disabled)).toBe(true);
   });
 });

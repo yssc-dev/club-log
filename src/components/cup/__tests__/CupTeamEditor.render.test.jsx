@@ -31,6 +31,8 @@ const type = async (input, value) => {
   });
 };
 const byText = (txt) => [...container.querySelectorAll('button')].find(b => b.textContent.trim() === txt);
+const pickerToggles = () => [...container.querySelectorAll('button[data-role="member-picker-toggle"]')];
+const openPicker = async (i) => click(pickerToggles()[i]);
 
 const TEAMS = [
   { id: 't1', name: '팀A', captain: 'a1', players: ['a1', 'a2'], order: 0 },
@@ -58,10 +60,11 @@ describe('CupTeamEditor 실렌더', () => {
     const nameInputs = [...container.querySelectorAll('input[data-role="team-name"]')];
     expect(nameInputs).toHaveLength(4);
     await type(nameInputs[3], '팀D');
-    // 새 팀에 자유 입력으로 팀원 추가
+    // 새 팀(index 3)의 picker 를 열고 자유 입력으로 팀원 추가
+    await openPicker(3);
     const freeInputs = [...container.querySelectorAll('input[data-role="free-add"]')];
-    await type(freeInputs[3], 'd1');
-    await click([...container.querySelectorAll('button[data-role="free-add-btn"]')][3]);
+    await type(freeInputs[0], 'd1');
+    await click([...container.querySelectorAll('button[data-role="free-add-btn"]')][0]);
     await click(byText('저장'));
     const saved = onSave.mock.calls[0][0];
     expect(saved[3].id).toBe('t4');
@@ -70,13 +73,17 @@ describe('CupTeamEditor 실렌더', () => {
     // 중간 팀(t2, index 1)을 삭제한 뒤 다시 추가하면 t2 번호는 재사용되지 않고 기존 최대(t4)+1 = t5 를 받는다
     const removeButtons = [...container.querySelectorAll('button[data-role="team-remove"]')];
     await click(removeButtons[1]);
+    // t4 picker 닫기(t4는 현재 index 2 — t1,t3,t4)
+    await openPicker(2);
     await click(byText('+ 팀 추가'));
     const nameInputs2 = [...container.querySelectorAll('input[data-role="team-name"]')];
     expect(nameInputs2).toHaveLength(4);
     await type(nameInputs2[3], '팀E');
+    // 새 팀(index 3) picker 열기
+    await openPicker(3);
     const freeInputs2 = [...container.querySelectorAll('input[data-role="free-add"]')];
-    await type(freeInputs2[3], 'e1');
-    await click([...container.querySelectorAll('button[data-role="free-add-btn"]')][3]);
+    await type(freeInputs2[0], 'e1');
+    await click([...container.querySelectorAll('button[data-role="free-add-btn"]')][0]);
     await click(byText('저장'));
     const saved2 = onSave.mock.calls[1][0];
     expect(saved2.map(t => t.id)).toEqual(['t1', 't3', 't4', 't5']);
@@ -87,6 +94,8 @@ describe('CupTeamEditor 실렌더', () => {
   it('검증 실패(같은 선수 두 팀)는 저장하지 않고 에러를 보여준다', async () => {
     const onSave = vi.fn();
     await mount({ teams: TEAMS, members: ['a1', 'z1'], locked: false, disabled: false, saving: false, onSave });
+    // 세 팀 picker 를 모두 열어야 member-add / free-add 가 나타난다
+    await openPicker(0); await openPicker(1); await openPicker(2);
     // 회원 후보에는 이미 배정된 a1 이 나오지 않는다(z1 만) — 자유 입력으로 팀B 에 a1 을 넣어 중복을 만든다
     expect([...container.querySelectorAll('button[data-role="member-add"]')].map(b => b.textContent.trim())).toEqual(['+ z1', '+ z1', '+ z1']);
     const freeInputs = [...container.querySelectorAll('input[data-role="free-add"]')];
@@ -103,6 +112,8 @@ describe('CupTeamEditor 실렌더', () => {
     expect([...container.querySelectorAll('input[data-role="team-name"]')].every(i => i.disabled)).toBe(true);
     expect(byText('+ 팀 추가').disabled).toBe(true);
     expect([...container.querySelectorAll('button[data-role="team-remove"]')].every(b => b.disabled)).toBe(true);
+    // picker 하나를 열어야 member-add 가 나타난다
+    await openPicker(0);
     expect([...container.querySelectorAll('button[data-role="member-add"]')].some(b => !b.disabled)).toBe(true);
   });
 
@@ -126,5 +137,39 @@ describe('CupTeamEditor 실렌더', () => {
     // 대조: 같은 keydown 을 칩(div) 자체에 쏘면 그 칩의 팀장 토글은 정상 동작해야 한다.
     await act(async () => { chipA2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
     expect(chipA2.getAttribute('aria-pressed')).toBe('true');
+  });
+
+  it('기본 접힘: 마운트 후 팀원 추가 영역이 숨겨져 있고, 토글하면 열리고, 다시 누르면 닫힌다', async () => {
+    await mount({ teams: TEAMS, members: ['d1'], locked: false, disabled: false, saving: false, onSave: vi.fn() });
+    // 기본 접힘 — free-add / member-add / 회원 검색 없음
+    expect(container.querySelectorAll('input[data-role="free-add"]')).toHaveLength(0);
+    expect(container.querySelectorAll('button[data-role="member-add"]')).toHaveLength(0);
+    expect(container.querySelector('input[placeholder="회원 검색"]')).toBeNull();
+    // t1 toggle(index 0) 클릭 → t1 섹션만 열림
+    await openPicker(0);
+    expect([...container.querySelectorAll('button[data-role="member-add"]')].every(b => b.dataset.team === 't1')).toBe(true);
+    expect(container.querySelectorAll('input[data-role="free-add"]')).toHaveLength(1);
+    expect(container.querySelector('input[placeholder="회원 검색"]')).not.toBeNull();
+    // 다시 클릭 → 닫힘
+    await openPicker(0);
+    expect(container.querySelectorAll('input[data-role="free-add"]')).toHaveLength(0);
+    expect(container.querySelectorAll('button[data-role="member-add"]')).toHaveLength(0);
+  });
+
+  it('onCancel 을 주면 취소 버튼이 렌더되고 호출, 주지 않으면 취소 버튼 없음', async () => {
+    const onCancel = vi.fn();
+    await mount({ teams: TEAMS, members: [], locked: false, disabled: false, saving: false, onSave: vi.fn(), onCancel });
+    const cancelBtn = byText('취소');
+    expect(cancelBtn).toBeDefined();
+    await click(cancelBtn);
+    expect(onCancel).toHaveBeenCalledTimes(1);
+
+    // onCancel 없으면 취소 버튼 없음
+    await act(async () => {
+      root.unmount();
+      root = createRoot(container);
+      root.render(createElement(ThemeProvider, null, createElement(CupTeamEditor, { teams: TEAMS, members: [], locked: false, disabled: false, saving: false, onSave: vi.fn() })));
+    });
+    expect(byText('취소')).toBeUndefined();
   });
 });
