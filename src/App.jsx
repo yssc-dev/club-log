@@ -279,7 +279,13 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   // 컵 경기일 당일 추가(스펙 §6.2 v2.1 5항): attendees 와 그 팀에 함께 넣는다. 이미 어느 팀에든 있으면 무시. 세션 한정.
   const addCupGuest = (teamIdx, name) => {
     const n = (name || '').trim();
-    if (!n || teams.some(t => (t || []).includes(n)) || attendees.includes(n)) return;
+    if (!n) return;
+    // 이미 어느 팀·참석자에 있으면 추가하지 않는다(스펙 §6.2 v2.1 5항 "무시"). 다만 조용히 사라지면
+    // 불참 처리한 팀원을 다시 넣으려는 흔한 실수에 피드백이 없어, 올바른 조작을 알려 준다.
+    if (teams.some(t => (t || []).includes(n)) || attendees.includes(n)) {
+      alert('이미 명단에 있는 이름입니다. 칩을 눌러 참석 처리하세요.');
+      return;
+    }
     dispatch({ type: 'SET_FIELDS', fields: {
       attendees: [...attendees, n],
       teams: teams.map((t, j) => (j === teamIdx ? [...(t || []), n] : t)),
@@ -309,7 +315,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
     if (phase !== "setup" && phase !== "") {
       autoSync(gameState);
     }
-  }, [autoSync, allEvents, completedMatches, currentRoundIdx, phase, gks, gksHistory, liveMercs, absentees, freeCourtMatches, confirmedRounds, pushState, teams, teamNames, splitPhase, attendees]);
+  }, [autoSync, allEvents, completedMatches, currentRoundIdx, phase, gks, gksHistory, liveMercs, absentees, freeCourtMatches, confirmedRounds, pushState, teams, teamNames, teamColorIndices, rotations, splitPhase, attendees]);
 
   // Derived state
   const sortedPlayers = useMemo(() => {
@@ -540,6 +546,9 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   };
 
   const goToTeamBuild = () => {
+    // 컵 경기일(스펙 §6.2 v2.1): 대회 팀이 이미 프리필돼 있으므로 편성 단계로 넘어가기만 한다.
+    // draftMode 는 원격 복원 기기에서 'snake' 로 드리프트하므로 여기서도 isCupSession 만 본다.
+    if (isCupSession(state)) { set('phase', 'teamBuild'); return; }
     if (draftMode === "snake") {
       if (attendees.length < teamCount * 2) { alert(`최소 ${teamCount * 2}명 선택`); return; }
       const drafted = snakeDraft(attendees, teamCount, seasonPlayers);
@@ -573,7 +582,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
     const newTeams = teams.map(t => [...t]);
     newTeams[targetIdx].push(...players);
     const newNames = [...teamNames];
-    newNames[targetIdx] = makeTeamName(newTeams[targetIdx]);
+    // 컵 세션은 대회 팀명이 고정이다(스펙 §6.2 v2.1): 팀 구성만 갱신하고 이름은 재계산하지 않는다.
+    if (!isCupSession(state)) newNames[targetIdx] = makeTeamName(newTeams[targetIdx]);
     dispatch({ type: 'SET_FIELDS', fields: {
       attendees: newAttendees,
       teams: newTeams,
@@ -595,7 +605,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
     const newTeams = teams.map(t => [...t]);
     newTeams[teamIdx] = newTeams[teamIdx].filter(p => p !== player);
     const newNames = [...teamNames];
-    newNames[teamIdx] = newTeams[teamIdx].length > 0 ? makeTeamName(newTeams[teamIdx]) : `팀 ${teamIdx + 1}`;
+    // 컵 세션은 대회 팀명이 고정이다(스펙 §6.2 v2.1): 팀 구성만 갱신하고 이름은 재계산하지 않는다.
+    if (!isCupSession(state)) newNames[teamIdx] = newTeams[teamIdx].length > 0 ? makeTeamName(newTeams[teamIdx]) : `팀 ${teamIdx + 1}`;
     const newGks = { ...gks };
     if (newGks[teamIdx] === player) delete newGks[teamIdx];
     dispatch({ type: 'SET_FIELDS', fields: { teams: newTeams, teamNames: newNames, gks: newGks } });
@@ -1051,7 +1062,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
               <span className="app-row-title">구장 수</span>
               <div style={segBar}>
                 {[1, 2].map(n => {
-                  const disabled = (matchMode === "push" || teamCount === 3) && n !== 1;
+                  const disabled = (matchMode === "push" || (isCup ? cupPresentTeams <= 3 : teamCount === 3)) && n !== 1;
                   return <button key={n} onClick={() => { if (!disabled) set('courtCount', n); }} disabled={disabled}
                     style={segBtn(courtCount === n, disabled)}>{n}코트</button>;
                 })}
@@ -1615,9 +1626,9 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             <div style={{ fontSize: 13, color: C.white, lineHeight: 1.7 }}>
               <div style={{ background: C.cardLight, borderRadius: 10, padding: 12, marginBottom: 10 }}>
                 <div style={{ fontWeight: 700, color: C.accent, marginBottom: 6 }}>현재 설정</div>
-                <div>{isCup ? `${teamCount}팀 · ${courtCount}코트 · 풀리그 1회전` : `${teamCount}팀 · ${courtCount}코트 · ${matchMode === "schedule" ? "대진표" : matchMode === "push" ? "밀어내기" : "자유대진"}${matchMode === "schedule" && courtCount === 1 ? ` · ${rotations}회전` : ""}`}</div>
+                <div>{isCup ? `${teamCount}팀 · ${courtCount}코트 · 풀리그 × ${rotations}회전` : `${teamCount}팀 · ${courtCount}코트 · ${matchMode === "schedule" ? "대진표" : matchMode === "push" ? "밀어내기" : "자유대진"}${matchMode === "schedule" && courtCount === 1 ? ` · ${rotations}회전` : ""}`}</div>
                 <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>
-                  {isCup ? `풀리그 1회전 · ${schedule.length}라운드` : (
+                  {isCup ? `풀리그 × ${rotations}회전 · ${schedule.length}라운드` : (
                     <>
                       {teamCount === 4 && courtCount === 2 && "동일팀 4번씩 경기 · 12라운드"}
                       {teamCount === 5 && courtCount === 2 && "동일팀 2번씩 경기 · 10라운드 · 매 라운드 1팀 휴식"}

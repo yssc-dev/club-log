@@ -12,7 +12,7 @@ export function courtCountFor(teamCount) {
 export function generateCupRounds(teamCount, courtCount = courtCountFor(teamCount)) {
   const N = Number(teamCount);
   // 하한은 이 함수에서만 2(cupEntity.MIN_TEAMS=3 은 엔티티 검증 규칙이라 그대로 둔다).
-  if (!Number.isInteger(N) || N < 2 || N > MAX_TEAMS) throw new Error('팀은 3~8개여야 합니다');
+  if (!Number.isInteger(N) || N < 2 || N > MAX_TEAMS) throw new Error('팀은 2~8개여야 합니다');
   const c = Math.max(1, Number(courtCount) || 1);
   if (N === 5 && c === 2) return clone(generate5Team2Court().slice(0, 5));
   if (N === 7 && c === 2) return clone(generate7Team2Court());

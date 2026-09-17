@@ -49,7 +49,7 @@ export default function ScheduleModal({ schedule, currentRoundIdx, viewingRoundI
   const is2Court = maxMatchesPerRound >= 2;
 
   const formatDesc = (() => {
-    if (isCup) return `풀리그 1회전 · ${schedule.length}라운드`;
+    if (isCup) return `풀리그 × ${rotations || 1}회전 · ${schedule.length}라운드`;
     if (matchMode === "free" && schedule.length > 0) return `자유대진 + 자동 ${schedule.length}라운드 · ${courtCount}코트`;
     if (teamCount === 4 && courtCount === 2 && matchMode === "schedule") return "4팀·2코트 — 동일팀 4번씩 경기 · 12라운드";
     if (teamCount === 5 && courtCount === 2 && matchMode === "schedule") return "5팀·2코트 — 동일팀 2번씩 · 10라운드 · 매R 1팀 휴식";

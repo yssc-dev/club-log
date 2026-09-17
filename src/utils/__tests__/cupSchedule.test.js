@@ -49,8 +49,8 @@ describe('generateCupRounds', () => {
     expect(generateCupRounds(3, 1).map(r => r.matches.length)).toEqual([1, 1, 1]);
   });
   it('범위 밖 팀 수는 throw', () => {
-    expect(() => generateCupRounds(1, 1)).toThrow('팀은 3~8개여야 합니다');
-    expect(() => generateCupRounds(9, 2)).toThrow('팀은 3~8개여야 합니다');
+    expect(() => generateCupRounds(1, 1)).toThrow('팀은 2~8개여야 합니다');
+    expect(() => generateCupRounds(9, 2)).toThrow('팀은 2~8개여야 합니다');
   });
   it('반환 배열은 호출마다 새 객체(호출부가 변형해도 표가 안 바뀜)', () => {
     const a = generateCupRounds(5, 2); a[0].matches.push([9, 9]);

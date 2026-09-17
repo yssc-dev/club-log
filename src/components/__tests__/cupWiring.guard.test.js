@@ -83,4 +83,24 @@ describe('App.jsx — 컵 경기일 마법사 경유 게이트 (스펙 §6.2 v2.
   it('컵 판별에 draftMode 를 쓰지 않는다', () => {
     expect(src).not.toMatch(/draftMode === ['"]cup['"]/);
   });
+  // 최종 리뷰 C1: draftMode 는 RTDB 를 왕복하지 않아 복원 기기에서 'snake' 로 드리프트한다.
+  // goToTeamBuild 가 draftMode 로만 분기하면 그 기기의 CTA 가 대회 팀을 스네이크 드래프트로 갈아엎는다.
+  it('goToTeamBuild 는 컵에서 선행 반환한다(draftMode 드리프트 방어)', () => {
+    expect(src).toMatch(/const goToTeamBuild = \(\) => \{\s*\n(\s*\/\/[^\n]*\n)*\s*if \(isCupSession\(state\)\)/);
+  });
+  // 최종 리뷰 C2: 경기 중 `팀 수정` 이 컵 팀명을 팀XX 로 재계산하면
+  // EXIT_TEAM_EDIT_SAVE 의 nameMap 이 이미 확정된 allEvents·completedMatches 팀명까지 덮어쓴다.
+  it('경기 중 팀 수정은 컵에서 팀명을 재계산하지 않는다', () => {
+    const fnBody = (name) => {
+      const start = src.indexOf(`const ${name} = (`);
+      expect(start).toBeGreaterThan(-1);
+      const end = src.indexOf('\n  const ', start + 1);
+      return src.slice(start, end === -1 ? src.length : end);
+    };
+    for (const name of ['addPlayersToTeam', 'freeRemovePlayer']) {
+      const body = fnBody(name);
+      expect(body).toMatch(/makeTeamName\(/);
+      expect(body).toMatch(/!isCupSession\(state\)[\s\S]{0,300}makeTeamName\(/);
+    }
+  });
 });
