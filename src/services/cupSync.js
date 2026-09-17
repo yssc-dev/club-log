@@ -42,11 +42,15 @@ const CupSync = {
   },
 
   // teams 노드 통째 교체 — 삭제된 팀은 사라진다. 검증은 호출 전 validateTeams(스펙 §4.5).
+  // update() 는 없는 조상 경로도 만들어버리므로, 대회가 실제로 있는지 먼저 확인한다
+  // (없으면 meta.sport 없는 유령 노드가 생겨 listCups 에는 안 보이면서 createCup 은 영구히 "이미 있습니다"로 막힌다).
   async saveTeams(team, cupId, teams) {
+    const cup = await CupSync.loadCup(team, cupId);
+    if (!cup) throw new Error(`대회를 찾을 수 없습니다: ${cupId}`);
     const obj = {};
     for (const t of teams || []) {
       if (!t || !t.id) throw new Error(`팀 id 가 없습니다: ${t?.name || '(이름 없음)'}`);
-      obj[t.id] = { id: t.id, name: t.name, captain: t.captain || '', players: Array.isArray(t.players) ? t.players : [], order: Number.isFinite(t.order) ? t.order : 0 };
+      obj[t.id] = { id: t.id, name: t.name || '', captain: t.captain || '', players: Array.isArray(t.players) ? t.players : [], order: Number.isFinite(t.order) ? t.order : 0 };
     }
     await update(ref(firebaseDb, cupPath(team, cupId)), { teams: obj, 'meta/updatedAt': Date.now() });
   },
@@ -64,8 +68,9 @@ const CupSync = {
   },
 
   async deleteCup(team, cupId) {
-    const cup = await this.loadCup(team, cupId);
-    if (cup?.meta?.lockedAt) throw new Error('잠긴 대회는 삭제할 수 없습니다(경기 기록이 있습니다)');
+    const cup = await CupSync.loadCup(team, cupId);
+    if (!cup) return; // 이미 없음(중복 삭제) — no-op. 존재하지 않는(비풋살) 노드를 지우지 않는다.
+    if (cup.meta?.lockedAt) throw new Error('잠긴 대회는 삭제할 수 없습니다(경기 기록이 있습니다)');
     await remove(ref(firebaseDb, cupPath(team, cupId)));
   },
 };

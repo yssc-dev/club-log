@@ -98,4 +98,15 @@ describe('saveTeams / setStatus / markLocked / deleteCup', () => {
     h.denyWrite = true;
     await expect(CupSync.saveTeams(TEAM, '컵', [{ id: 't1', name: '팀A', players: ['a'], order: 0 }])).rejects.toThrow('PERMISSION_DENIED');
   });
+  it('saveTeams 는 없는 대회에 쓰지 않는다(유령 노드 방지)', async () => {
+    await expect(CupSync.saveTeams(TEAM, '없음', [{ id: 't1', name: '팀A', players: ['a'], order: 0 }])).rejects.toThrow('대회를 찾을 수 없습니다');
+    expect(h.db.tournaments?.['마스터FC']?.['없음']).toBeUndefined();
+  });
+  it('deleteCup 은 없는 대회면 아무것도 하지 않는다', async () => {
+    await expect(CupSync.deleteCup(TEAM, '없음')).resolves.toBeUndefined();
+  });
+  it('saveTeams 는 name 이 없으면 "" 로 쓴다(undefined 는 RTDB 가 거부)', async () => {
+    await CupSync.saveTeams(TEAM, '컵', [{ id: 't1', players: ['a'], order: 0 }]);
+    expect(h.db.tournaments['마스터FC']['컵'].teams.t1.name).toBe('');
+  });
 });
