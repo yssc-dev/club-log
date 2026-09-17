@@ -1,7 +1,7 @@
 # 마스터스컵(풋살 컵대회) 설계
 
-- 작성일: 2026-09-16 / v2 개정 2026-09-17
-- 상태: 1단계 완료(main 0e015ef). 2단계(대회·팀 관리 + 컵 경기일 진입) 구현 완료 — 2026-09-17. 배포 전제: RTDB tournaments 규칙. 3단계 계획 대기
+- 작성일: 2026-09-16 / v2 개정 2026-09-17 / **v2.1 개정 2026-09-17 저녁(운영 피드백: 경기일 = 참석 팀 풀리그 × 회전, 컵 세션은 정규 설정 마법사 경유, 남은 대진 자동 제외 폐기)**
+- 상태: 1단계 완료(main 0e015ef). 2단계 구현·배포 완료(main b97527b, 팀 관리 요약 UI 포함). **2.5단계(컵 경기일 설정 마법사 경유) 계획 대기.** 3단계(순위표·개인·통산)는 v2.1 모델로 축소
 - 대상 팀: 마스터FC(풋살). 하버FC·빅마스터FC(축구)·몽피스(테니스)에는 어떤 동작 변화도 없어야 한다.
 
 ## 1. 개요
@@ -17,11 +17,11 @@
 | 대회 | 여러 개를 만들 수 있다(예: 해마다). 앱에서 추가. 기간 필드 없음 |
 | 팀 | 대회마다 팀 수 가변. 앱에서 팀 추가/삭제, 팀명 수정, 팀원 수정. 팀원은 **회원 명단에서 선택 + 자유 입력(게스트)** |
 | 잠금 | 그 대회의 경기가 한 번이라도 마감되면 **팀명·팀 수·대회 삭제가 잠긴다.** 팀원 수정은 언제든 가능. 대회명은 생성 후 항상 불변 |
-| 대회 형식 | 풀리그 1회전. 여러 날에 나눠 진행. 컵 경기일에는 컵 경기만 한다(운영 규칙) |
+| 대회 형식 | **v2.1:** 경기일마다 그날 참석한 팀들끼리 풀리그를 회전 수(1~3, 경기일마다 선택)만큼 돈다. 같은 조합이 대회 기간에 여러 번 만날 수 있고 순위는 대회 전체 경기를 합산한다. 여러 날 진행. 컵 경기일에는 컵 경기만 한다(운영 규칙). (v2 의 "풀리그 1회전을 여러 날에 나눠 치르고 치른 조합을 자동 제외"는 폐기) |
 | 정규 기록과의 관계 | **완전 분리.** 컵 골·어시·클린시트는 마스터FC 포인트 로그·마스터FC 선수별집계기록 로그·★ 랭킹·대시보드·분석탭에 반영하지 않는다(1단계 구현 완료) |
 | 기록 저장 | 로그 3종에 `mode='대회'`, `tournament_id=대회ID`로 저장(1단계 구현 완료). 시트 의존은 여기까지 |
-| 기록 화면 | 대회별 기록(순위표·득점왕·결과·남은 대진) + **전 대회 개인 누적**(팀 누적은 팀 구성이 대회마다 달라 무의미) |
-| 진입점 | 경기관리 탭 "새 경기"에서 일반/컵대회 선택 + 대회 상세 화면의 시작 버튼. 컵대회를 고르면 대회의 팀으로 세션이 짜인다 |
+| 기록 화면 | 대회별 기록(순위표·득점왕·결과) + **전 대회 개인 누적**(팀 누적은 팀 구성이 대회마다 달라 무의미). v2.1: "남은 대진" 항목 삭제 |
+| 진입점 | 경기관리 탭 "새 경기"에서 일반/컵대회 선택 + 대회 상세 화면의 시작 버튼. **v2.1:** 컵대회를 고르면 대회의 팀·팀원이 채워진 채 **정규 경기 설정 마법사(참석자 → 팀편성 → 경기)** 로 들어간다. 참석자 단계가 그날의 참석/불참 체크와 당일 용병 추가, 경기 설정이 구장 수·회전 수 선택이다 |
 | 아카이브 | 컵 경기일도 경기 기록 보관소에 포함, 🏆 라벨(1단계 구현 완료) |
 | 하버FC 대회 탭 | 탭 정체성("대회" 탭)만 재사용. 순위표 컴포넌트·저장·기록 모델은 재사용하지 않는다(§2) |
 | Apps Script | 변경 없음. 서버 측 tournamentId 필터는 선택적 후속 강화 |
@@ -31,8 +31,8 @@
 - 팀장은 표시 전용(`Ⓒ` 배지). 권한 없음.
 - 팀 순위 = 승점 3/1/0 → 득실차 → 다득점 → 팀명. 개인 = 득점·어시스트 순위.
 - 컵 세션의 규칙 스냅샷은 표준 풋살 규칙(자책 −1, 크로바/고구마 꺼짐, 보너스 1배). 포인트를 어디에도 쓰지 않으므로 화면 표시에만 영향.
-- 결석·용병·경기 중 명단 수정은 기존 풋살 세션 메커니즘(absentees·liveMercs·teamEditMode) 그대로. 세션 안에서 바꾼 명단은 그 세션의 기록에만 남고 대회 엔티티에는 되돌려 쓰지 않는다.
-- 팀 수 범위 3~8. 3팀은 1구장, 4팀 이상은 2구장.
+- **v2.1:** 경기일의 참석/불참은 마법사 참석자 단계에서 팀별 칩으로 체크(기본 전원 참석), 당일 용병은 팀별 "당일 추가" 입력으로 그 팀에 넣는다(세션 한정). 경기 중 명단 수정·용병은 기존 풋살 세션 메커니즘(liveMercs·teamEditMode) 그대로. 세션 안에서 바꾼 명단은 그 세션의 기록에만 남고 대회 엔티티에는 되돌려 쓰지 않는다.
+- 팀 수 범위 3~8(엔티티). 경기일에는 참석자가 1명 이상인 팀만 대진에 들어가며 2팀 이상이면 진행한다. 구장 수 기본값은 참석 팀 수 기준(3팀 이하 1구장, 4팀 이상 2구장)이고 마법사에서 바꿀 수 있다.
 - 임시 라운드(`is_extra`)의 경기는 팀 순위·개인 순위·치른 대진·개인 누적 **모두**에서 제외한다.
 - 대회·팀 편집은 관리자만. 마지막 저장이 이긴다(동시 편집 보호 없음 — 드문 관리자 작업).
 
@@ -54,9 +54,9 @@
 - **컵 세션**: `state.tournamentId !== ''`인 풋살 세션. 판별은 `isCupSession(state)`만(1단계).
 - **로그 태그**: `logTagsOf(state)` = 컵이면 `{ mode:'대회', tournamentId }`, 아니면 `{ mode:'기본', tournamentId:'' }`(1단계).
 - **팀(엔티티)**: `{ id, name, captain, players[], order }`. `id`는 대회 안에서 불변(`t1`, `t2`, … — 팀 추가 시 기존 id의 최대 번호+1, 중간에 비는 번호는 재사용하지 않는다(현재 최대+1이므로 최대 번호 팀을 지운 뒤 추가하면 그 번호는 다시 쓰일 수 있다 — id는 로그에 기록되지 않아 무해)), `name`이 로그 행의 팀 이름이 된다. `captain`은 `players`에 포함된 이름 하나이거나 `''`(표시 전용).
-- **canonical 대진**: 팀 수 N에 대한 풀리그 1회전 라운드 배열(§6.3).
-- **치른 대진(playedPairs)**: 그 대회의 로그_매치 행(`is_extra` 제외)에서 뽑은 팀 이름 쌍(순서 무관) 집합.
-- **잠금(locked)**: `meta.lockedAt`(첫 컵 마감 성공 시 App이 기록) 이 있거나, 그 대회의 컵 로그_매치 행이 1건 이상 존재(3단계 파생)하면 잠김. `isLocked(cup, playedPairs) = !!cup.meta.lockedAt || playedPairs.size > 0`. 2단계는 `lockedAt`만으로 판정한다.
+- **canonical 대진**: 팀 수 N에 대한 풀리그 1회전 라운드 배열(§6.3). **경기일 대진(v2.1)** = 참석 팀 M 의 canonical 을 회전 수만큼 이어붙인 것(`buildCupDaySchedule(M, courtCount, rotations)`).
+- ~~**치른 대진(playedPairs)**~~ v2.1 에서 폐기. 같은 조합이 여러 번 만나는 것이 정상이므로 "남은 대진"은 정의하지 않는다.
+- **잠금(locked)**: `meta.lockedAt`(첫 컵 마감 성공 시 App이 기록) 이 있거나, 그 대회의 컵 로그_매치 행이 1건 이상 존재(3단계 파생, `hasCupMatches`)하면 잠김. `isLocked(cup, playedPairs) = !!cup.meta.lockedAt || playedPairs.size > 0` 의 두 번째 인자는 3단계에서 "그 대회 로그_매치 행 집합"으로 넘긴다(이름 쌍 집합이 아니어도 `size > 0` 판정만 쓴다). 2단계는 `lockedAt`만으로 판정한다.
 
 ## 4. 데이터 모델
 
@@ -183,23 +183,23 @@ L2 노드는 **풋살 전체 행**을 담고, 데이터셋별 "뷰 필터"를 `g
 
 **경기관리 탭 "새 경기"(풋살 분기).** 기존 두 버튼 아래 `🏆 컵대회 경기`(부제 "대회 팀으로 자동 편성 · 남은 대진"). 진행중(`active`) 대회가 0개면 버튼 없음, 1개면 바로 `onStartGame('cup', { cupId })`, 여러 개면 간단한 선택 모달(`CupPickerModal`). 남은 대진이 0인 대회를 골라도 진입은 되며 §6.2 6항의 에러 화면으로 끝난다(2단계는 남은 대진을 모르므로 의도된 동작; 3단계에서 모달이 완주 대회를 회색 처리). 진행 중 컵 세션은 기존 "진행중인 경기" 목록에 🏆 라벨(`pendingGameLabel`)로 나온다.
 
-### 6.2 컵 경기일 시작 (경기 생성 시 팀 자동 로드)
+### 6.2 컵 경기일 시작 — 정규 설정 마법사 경유 (v2.1)
 
-1. `onStartGame('cup', { cupId })` → Root `handleStartNew(mode, params = null)`(기존 진행중 경기 confirm 포함) → `gameId = g_{ts}`, `gameMode='cup'`, `gameParams={ cupId }`. `GameApp`에 `gameParams` prop을 넘긴다(SoccerApp·IntraSoccerApp·TennisApp도 같은 prop을 받지만 쓰지 않는다). `handleContinue`와 `onBackToMenu` 두 곳 모두 `setGameParams(null)`. **Root의 시그니처·state·`<GameApp>` 전달·App의 prop 수신은 한 커밋으로 바꾼다.**
-2. App `_loadAllData`에 `else if (gameMode === 'cup')` 분기(기존 `sheetSync` 분기 그대로). 병렬: 시즌 선수 데이터(기존과 동일, 포인트 표시용), `CupSync.loadCup(team, gameParams.cupId)`, `SheetCache.refresh('cupMatchLog', { sport:'풋살' })`(3단계부터; 2단계는 호출 없음).
-3. 대회 로드 실패(없음·권한 거부·`validateTeams` 실패·`status!=='active'`) → 에러 화면(원인 문구 + "팀 관리에서 확인" 안내) + "대시보드로". phase는 `setup`에 머물러 자동저장되지 않으므로 RTDB에 흔적이 없다.
-4. `refresh` 결과 `ok:false` → 경고 배너("치른 대진을 확인하지 못해 전체 대진을 표시합니다") 후 canonical 전체. `ok:true`면 `collectPlayedPairs(rows, cupId)`(그 대회·`!is_extra` 행만) → §6.3의 남은 라운드.
-5. `SET_FIELDS` 한 번으로 `phase:'match'`: `tournamentId=cupId, attendees=전 팀원 합집합, teamCount=N, courtCount=(N<=3?1:2), matchMode='schedule', draftMode='sheet', teams=팀별 players, teamNames=팀명(order 순), teamColorIndices=[0..N-1], gks={}, schedule=남은 라운드, currentRoundIdx=0, viewingRoundIdx=0, completedMatches=[], allEvents=[], confirmedRounds={}, isExtraRound=false, settingsSnapshot=getCupSettings(team)`.
-6. 남은 라운드 0 → "모든 대진을 치렀습니다" 에러 화면(세션 미생성).
-7. 재진입은 `handleContinue` → `gameMode=null, gameParams=null`. 컵 로드 분기를 타지 않고 RTDB 복원만. 이후 컵 동작은 `isCupSession(state)`.
+1. `onStartGame('cup', { cupId })` → Root `handleStartNew(mode, params = null)`(기존 진행중 경기 confirm 포함) → `gameId = g_{ts}`, `gameMode='cup'`, `gameParams={ cupId }`. `GameApp`에 `gameParams` prop을 넘긴다(구현 완료).
+2. App `_loadAllData`의 `gameMode === 'cup'` 분기(구현 완료): 병렬로 시즌 선수 데이터(포인트 표시용)와 `CupSync.loadCup(team, gameParams.cupId)`. 컵 뷰 `refresh`는 부르지 않는다(남은 대진 개념 폐기).
+3. 대회 로드 실패(없음·권한 거부·`validateTeams` 실패·`status!=='active'`) → 전용 에러 화면 + "대시보드로"(구현 완료). phase는 `setup`이라 자동저장되지 않으므로 RTDB에 흔적이 없다.
+4. 성공 → `SET_FIELDS` 한 번으로 **`phase:'setup'`**(v2 의 `'match'` 직행을 대체): `tournamentId=cupId, attendees=전 팀원 합집합, teamCount=N, courtCount=courtCountFor(N), matchMode='schedule', draftMode='sheet', rotations=1, teams=팀별 players, teamNames=팀명(order 순), teamColorIndices=[0..N-1], gks={}, settingsSnapshot=getCupSettings(team)`. `schedule`은 넣지 않는다(경기 시작 시 생성). `draftMode='sheet'`는 마법사의 "시트 편성" 분기(팀을 건드리지 않고 다음 단계로 넘어감)를 재사용하기 위한 값일 뿐이며 **컵 판별에는 절대 쓰지 않는다**(원격 복원 기기에서 `draftMode`가 `'snake'`/`'free'`로 드리프트한다 — 모든 컵 게이트는 `isCupSession(state)`).
+5. **참석자 단계(컵 분기, `isCup`일 때만):** 선수 칩을 시즌 명단이 아니라 **대회 팀별로 묶어** 그린다(`teams[i]`의 이름, 팀명 헤더, 기본 전원 선택, 토글은 기존 `TOGGLE_ATTENDEE`). 팀마다 "당일 추가" 입력: 이름을 `attendees`와 그 팀 `teams[i]`에 함께 넣는다(이미 어느 팀에든 있으면 무시). 숨김: `시트 연동`·`활동선수 전체`. 유지: `초기화`, 정렬 토글은 의미 없으므로 숨김. 경기 설정: `팀 수` 세그먼트 비활성(대회 팀 수), `팀 편성 방식`은 "대회 팀" 한 칸(비활성)으로 대체, `경기 모드`는 대진표만(자유대진·밀어내기 비활성), `구장 수` 1/2(기존 규칙: 3팀 이하 1구장 고정), **`회전 수` 1~3은 구장 수와 무관하게 표시**(정규는 1구장일 때만). 안내 문구: `풀리그 × {rotations}회전 · 참석 {M}팀 · {라운드 수}라운드`. 하단 CTA 라벨 `대회 팀 확인 ({M}팀)`, 활성 조건 = 참석자 1명 이상인 팀이 2개 이상.
+6. **팀편성 단계(컵):** `재배치` 숨김, 팀명 읽기 전용(클릭해도 편집 입력이 열리지 않음), 팀 색 선택 유지, ↔ 이동 허용(세션 한정). 참석자 0명인 팀 카드에는 "오늘 불참" 표시. 회전 수 카드는 컵이면 구장 수와 무관하게 표시(1~3).
+7. **경기 시작(`startMatches` 컵 분기):** `present[i] = teams[i].filter(p => attendees.includes(p))`. 참석자 0명인 팀은 제외하고 참석 팀 M(≥2, 아니면 alert)으로 `teams/teamNames/teamColorIndices/teamCount`를 재구성해 `SET_FIELDS`한 뒤 `schedule = buildCupDaySchedule(M, courtCount, rotations)`로 `START_MATCHES`. `splitPhase`·`pushState`는 만들지 않는다. 결석자는 세션 명단에서 빠지므로 라운드 명단 스냅샷·로그_매치 `our_members_json`·로그_선수경기 행에 나오지 않는다.
+8. 재진입은 `handleContinue` → `gameMode=null, gameParams=null`. 컵 로드 분기를 타지 않고 RTDB 복원만(팀편성 단계부터 저장되므로 팀편성에서 멈춘 컵 세션도 "진행중 경기"에 🏆로 뜬다). 이후 컵 동작은 `isCupSession(state)`.
 
-### 6.3 대진과 남은 라운드
+### 6.3 대진 — 경기일 풀리그 × 회전 (v2.1)
 
-- `generateCupRounds(N, courtCount)`: N=5·2구장은 `generate5Team2Court().slice(0,5)`(5라운드 × 2경기), N=7·2구장은 `generate7Team2Court()`(11라운드, 연속 휴식 최소) — 기존 손수 짠 표가 더 좋다. 그 외는 generic: `generateRoundRobin([0..N-1])`(circle method)의 각 라운드를 `courtCount`개씩 잘라 `{ matches:[[h,a],…] }`로. N=3 → 1구장 3라운드 × 1경기, N=4 → 3라운드 × 2경기, N=6 → 2경기+1경기 라운드 10개, N=8 → 14라운드 × 2경기(검증 완료: 모든 N에서 각 쌍 1회, 라운드 내 팀 중복 없음). 1경기 라운드가 생기는 N의 최적화는 4단계 후보.
-- `collectPlayedPairs(rows, cupId)`: `rows.filter(r => r.tournament_id === cupId && !r.is_extra)`의 `{our_team_name, opponent_team_name}`을 정규화(`/^팀 /`→`팀`, trim)·정렬해 `a|b` 키 집합으로. 컵 뷰는 모든 대회 행을 주므로 **cupId 필터는 이 함수 안에서** 한다(동명 팀이 여러 대회에 있어도 섞이지 않는다).
-- `calcRemainingRounds(canonical, teamNames, playedPairs)`: 라운드마다 치른 쌍 제거, 0경기 라운드 삭제, 1경기 라운드 유지(`matches` 길이 1 → ScheduleMatchView가 그대로 그린다). 형식은 기존 `schedule`과 동일.
-- 그날 몇 라운드를 하든 기존 **조기 종료**로 마감한다. 임시 라운드는 `is_extra=true`라 어디에도 반영되지 않는다.
-- 팀 순서(`order`)를 바꿔도 이름 기반이라 치른 대진 판정은 유지된다. 라운드 번호는 그날 기준(1부터).
+- `generateCupRounds(N, courtCount)`(구현 완료): N=5·2구장은 `generate5Team2Court().slice(0,5)`, N=7·2구장은 `generate7Team2Court()`, 그 외 generic circle method 를 `courtCount`개씩 잘라 `{ matches:[[h,a],…] }`. N=2 → 1라운드 × 1경기(v2.1 추가: 경기일 참석 팀이 2개인 경우), N=3 → 3라운드 × 1경기, N=4 → 3라운드 × 2경기, N=6 → 10라운드, N=8 → 14라운드(각 쌍 1회, 라운드 내 팀 중복 없음).
+- `buildCupDaySchedule(M, courtCount, rotations)`(2.5단계 신규, `cupSchedule.js`): `generateCupRounds(M, courtCount)`를 `rotations`(1~3)번 이어붙인다. 각 회전은 canonical 순서 그대로(홈/원정도 그대로). 반환은 새 객체(표 오염 금지).
+- ~~`collectPlayedPairs` / `calcRemainingRounds`~~ 폐기(v2.1). 같은 조합의 재대결은 정상이며 순위는 §7.1 에서 전부 합산한다.
+- 그날 몇 라운드를 하든 기존 **조기 종료**로 마감한다. 임시 라운드는 `is_extra=true`라 어디에도 반영되지 않는다. 라운드 번호는 그날 기준(1부터).
 
 ### 6.4 경기 진행 (변경 없음)
 
@@ -225,7 +225,7 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 
 ### 7.1 대회별 팀 순위 `calcCupStandings(rows, teamNames)`
 
-- 입력: 그 대회의 `cupMatchLog` 행(경기당 1행: `our_team_name`=홈, `opponent_team_name`=원정), `is_extra` 제외. 팀 집합 = 엔티티 팀명 ∪ 행에 등장한 팀(0경기 팀도 표시).
+- 입력: 그 대회의 `cupMatchLog` 행 **전부**(경기당 1행: `our_team_name`=홈, `opponent_team_name`=원정), `is_extra` 제외. v2.1: 같은 두 팀의 경기가 여러 건이어도 모두 합산한다(회전·여러 경기일). 팀 집합 = 엔티티 팀명 ∪ 행에 등장한 팀(0경기 팀도 표시).
 - 승 3·무 1·패 0, 정렬 승점 → 득실차 → 다득점 → 팀명. 출력 `{ name, games, wins, draws, losses, gf, ga, points }`. 화면(`CupStandingsTable`)은 이 결과를 직접 표로 그린다. `TournamentStandings`는 쓰지 않는다(§2).
 
 ### 7.2 대회별 개인 순위
@@ -236,11 +236,11 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 
 입력은 모든 컵 뷰 행(`tournament_id` 있음). 선수별로 `cups`(출전한 `tournament_id` 종류 수 — 로그_선수경기 행 기준), `rounds`(출전 라운드, `calcPlayerSummary`의 rounds), `goals`, `assists`, `wins`(우승 대회 수). 우승 대회 W(완주 대회의 순위표 1위 팀 이름)에 대해 우승 선수 = 그 대회 로그_선수경기 행 중 `session_team === W`인 `player` 집합(로그_선수경기의 `session_team`은 마감 시 그 선수의 팀명이다 — `buildRawPlayerGamesFromFutsal`). `our_members_json`만 보면 원정 경기 선수가 빠지므로 쓰지 않는다. 정렬 골 → 어시 → 이름. `is_extra` 제외 규칙 동일. 테스트 fixture에 우승팀이 원정으로만 뛴 선수 케이스를 포함한다.
 
-### 7.4 진행도·우승·상태
+### 7.4 우승·상태 (v2.1)
 
-- 진행도 = `playedPairs.size / (N·(N−1)/2)`.
-- 완주(`complete`) = 진행도 100%. 우승팀 = 완주 대회의 순위표 1위(동률이면 정렬 규칙대로).
-- `status`는 관리자 토글일 뿐 집계에 영향이 없다. 목록에서 `finished`는 접힌다.
+- ~~진행도·완주~~ 폐기(치른 조합 수가 종료 기준이 아니다).
+- 우승팀 = `status === 'finished'`인 대회의 순위표 1위(동률이면 정렬 규칙대로). 관리자가 "대회 종료"를 누르는 것이 종료 선언이다. 진행중 대회는 "현재 1위"로 표시만 한다.
+- 목록에서 `finished`는 접힌다. 개인 누적(§7.3)의 `wins`는 종료된 대회만 센다.
 
 ## 8. UI 변경 목록
 
@@ -258,6 +258,9 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 | `HistoryView.jsx` | summary 6번째 파트(🏆) 표시(4단계) |
 | `pendingGameLabel.js` | `isCupSession(gs)`면 `🏆 ` 접두 |
 | `App.jsx` 컵 마감 분기 | `allOk` 시 `CupSync.markLocked` 호출(2단계) |
+| `App.jsx` 설정 마법사(2.5단계, v2.1) | 컵 로드 분기 `phase:'setup'`; `startMatches` 컵 분기(참석 팀 재구성 + `buildCupDaySchedule`); setup 화면 컵 게이트(팀 수 비활성, 편성 방식 "대회 팀" 고정, 경기 모드 대진표만, 회전 1~3 상시, 시트 연동·활동선수 전체 숨김, 팀별 참석 칩 + 당일 추가); teamBuild 화면 컵 게이트(재배치 숨김, 팀명 읽기 전용, 회전 카드 상시, 불참 팀 표시). 모든 게이트는 `isCup`(= `isCupSession(state)`)으로만 |
+| `components/cup/CupAttendeePicker.jsx` (신규, 2.5단계) | 팀별 참석 칩 + 당일 추가 입력. props `{ teams, teamNames, attendees, onToggle(name), onAddToTeam(teamIdx, name) }` |
+| `CupDetail.jsx` (2단계 배포 후 개선, 완료 b97527b) | 팀 관리 기본 요약 카드 + 관리자 `팀 편집` 버튼, 편집기 안 팀원 추가 영역 팀별 접기 |
 
 ## 9. 파일별 변경 범위 (2단계 이후)
 
@@ -299,10 +302,18 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 - 원자 커밋 두 묶음: (a) `mainTabs.js` + `TeamDashboard.jsx` 분기, (b) `Root.jsx`(시그니처·state·`<GameApp>`) + `App.jsx`(prop 수신). `mainTabs.test.js` 풋살 케이스 갱신.
 - 테스트: 불변식 5(canonical)·7·11·13(정적 가드). 브라우저 스모크(RTDB 규칙 거부 alert, 하버FC 대회 탭 불변 포함).
 
-### 3단계 — 대회별 기록·남은 대진·통산 (2일차 전)
+### 2.5단계 — 컵 경기일을 정규 설정 마법사로 (v2.1, 운영 피드백)
 
-- sheetCache `ALIASES`/`resolveAdapter`/`_pathFor` + cup 뷰 3종, `collectPlayedPairs(rows, cupId)`·`calcRemainingRounds`, App 로드에서 `refresh('cupMatchLog')` + 남은 라운드, `calcCupStandings`+`CupStandingsTable`·`dropExtraEvents`·`calcCupCareer`, `CupDetail` 순위·TOP·대진·결과·우승·진행도, `CupListTab` 통산·우승팀, `CupPickerModal` 완주 대회 회색 처리, `isLocked`에 로그 파생 OR, 같은 경로 두 어댑터 in-flight 테스트.
-- 테스트: 불변식 5(남은 라운드)·6·12.
+- `cupSchedule.js`: `generateCupRounds` N=2 지원, `buildCupDaySchedule(M, courtCount, rotations)`.
+- `App.jsx`: 컵 로드 분기 `phase:'setup'`(schedule 없음), `startMatches` 컵 분기(참석 팀 재구성·회전 대진·split/push 없음), setup 화면 컵 게이트 + `CupAttendeePicker` 마운트, teamBuild 화면 컵 게이트. 정규 경로 조건식은 `!isCup &&` / `isCup ? … : 기존` 형태로만 덧붙인다(한 글자도 바꾸지 않음). `isCup`은 선언 위치(`App.jsx` `useTheme` 아래) 이후에서만 쓴다.
+- `components/cup/CupAttendeePicker.jsx` + 실렌더 테스트.
+- 정적 가드(`cupWiring.guard.test.js`): 컵 분기 `phase: "setup"`, `startMatches`가 `buildCupDaySchedule`을 씀, 시트 연동 두 버튼·팀 수·팀명 편집·재배치가 `isCup`으로 게이트됨, `draftMode === 'cup'` 같은 판별이 없음. 리듀서 테스트: `START_MATCHES`가 `tournamentId/teams/teamNames/attendees/settingsSnapshot`을 보존.
+- 스모크(배포 후): 🏆 시작 → 참석자 단계(팀별 칩·당일 추가) → 불참 1명 해제 → 구장/회전 변경 → 대회 팀 확인 → 팀편성(팀명 클릭해도 편집 안 됨) → 경기 시작 → 라운드 수 = 참석 팀 풀리그 × 회전 → 결석자가 명단·기록에 없음 → 마감 → 정규 자동설정/커스텀 경기 플로우 불변.
+
+### 3단계 — 대회별 기록·통산 (v2.1 축소)
+
+- sheetCache `ALIASES`/`resolveAdapter`/`_pathFor` + cup 뷰 3종, `calcCupStandings`(전 경기 합산)+`CupStandingsTable`·`dropExtraEvents`·`calcCupCareer`, `CupDetail` 순위·TOP·결과·우승(종료 대회), `CupListTab` 통산·우승팀, `isLocked`에 로그 파생 OR(`hasCupMatches`), 같은 경로 두 어댑터 in-flight 테스트. 남은 대진·진행도·완주 항목은 없음.
+- 테스트: 불변식 6·12.
 
 ### 4단계 — 마무리 (선택)
 
@@ -312,7 +323,7 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 
 사전(1회): Firebase 콘솔 RTDB 규칙에 `tournaments` 최상위 읽기/쓰기 허용 확인(`tournaments/{팀}` 수준 `.read` 포함). 2단계 배포 후 "대회" 탭에서 `+ 새 대회` → 대회명(연도 포함 권장, 이후 변경 불가) → 팀 추가·팀명·팀원(회원 선택/이름 입력)·팀장 → 저장.
 
-경기일: 경기관리 탭 `🏆 컵대회 경기`(또는 대회 상세의 시작 버튼) → 팀·남은 대진이 채워진 경기 화면(🏆 배너 확인) → 결석은 휴식, 게스트는 용병 → 계획한 라운드까지 확정 → 조기 종료 → 기록확정(관리자) → 대회 상세에서 순위·남은 대진 확인.
+경기일(v2.1): 경기관리 탭 `🏆 컵대회 경기`(또는 대회 상세의 시작 버튼) → 참석자 단계(🏆 배너 확인, 팀별 칩에서 불참자 해제, 당일 용병은 팀별 "당일 추가") → 구장 수·회전 수 선택 → 대회 팀 확인 → 팀편성(필요하면 ↔ 이동) → 경기 시작 → 라운드 확정 → 조기 종료 → 기록확정(관리자) → 대회 상세에서 순위 확인(3단계). 대회가 끝나면 상세에서 "대회 종료"(우승 확정).
 
 하지 말 것: 컵 경기를 "자동설정/커스텀" 버튼으로 열지 않는다(정규 마감으로 흘러가 포인트 로그가 오염된다; 앱은 막지 않는다). 컵 경기일에 정규 세션을 열지 않는다(운영 혼선). 잠긴 대회(첫 마감 이후)의 팀명·팀 수 변경과 삭제는 앱이 막는다 — 마감 직후 `markLocked`가 실패한 드문 경우(콘솔 경고)에는 3단계 배포 전까지 수동으로 준수한다. 로그가 있는 대회를 삭제하면 로그 행은 남고 화면에서만 사라진다(삭제는 잠기지 않은 대회에만 허용되는 이유).
 
@@ -338,3 +349,4 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 - 팀 수 가변(3~8), 잠금(첫 마감 후 팀명·팀 수·삭제; 대회명은 항상 불변), 팀원=회원 선택+자유 입력, 통산=개인만: 2026-09-17 사용자 확정.
 - v2 적대적 리뷰 반영(2026-09-17): 2단계 잠금을 `meta.lockedAt`(컵 마감 시 기록)으로 실제화(로그 파생은 3단계 OR); 우승 선수는 로그_선수경기 `session_team`으로(원정 경기 누락 방지); `TournamentStandings` 재사용 철회(0경기 팀·팀명 정렬 불가) → `CupStandingsTable`; alias는 별도 `ALIASES` 레지스트리(기존 커버리지 테스트 보존); `collectPlayedPairs(rows, cupId)` 필터 내장; `getCupSettings`는 `getEffectiveSettings` 경유(하이드레이션); 팀 id 부여 규칙·캡틴 소속 규칙; 원자 커밋 묶음(탭/대시보드, Root/App); `mainTabs.test.js` 갱신; 하버FC 대회 탭 스모크; N=5·7은 손수 짠 표 우선.
 - 적대적 리뷰 반영(2026-09-16, 1단계): 재기록 도구 태그 단일화(`logTagsOf`), `dropExtraEvents`, in-flight 필터 전 값 공유, `gameState` 화이트리스트(다섯 번째 지점), PG 행 집합 유지(sessionRank).
+- **v2.1(2026-09-17 저녁, 2단계 배포 후 운영 피드백):** 컵 세션이 설정 단계 없이 경기 화면으로 직행해 구장 수·회전 선택과 참석/불참 구분이 불가능했다. 사용자 확정: (1) 회전은 **경기일 단위**(같은 조합 재대결 허용), (2) 당일 용병 추가 **필요**, (3) 진행 모델 = **경기일 = 참석 팀 풀리그 × 회전**, 남은 대진 자동 제외 폐기, 순위는 전 경기 합산, (4) 새 화면 대신 **정규 설정 마법사 재사용**(사용자 제안) — 팀 수·편성 방식·팀명·경기 모드는 컵에서 잠그고 구장 수·회전은 기존 컨트롤. 근거 조사: `START_MATCHES`가 컵 식별 필드를 보존하고 setup 은 RTDB 에 쓰이지 않아 구조 변경 없이 가능(잠금 지점 13곳, `isCup` 게이트만 사용; `draftMode` 는 원격 복원 시 드리프트하므로 판별에 쓰지 않는다).
