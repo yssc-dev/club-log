@@ -54,3 +54,33 @@ describe('TeamDashboard.jsx — tournament 탭 종목 분기·컵 버튼', () =>
     expect(src).toMatch(/activeCups\.length > 0/);
   });
 });
+
+describe('App.jsx — 컵 경기일 마법사 경유 게이트 (스펙 §6.2 v2.1)', () => {
+  const src = read('App.jsx');
+  it('컵 로드 분기는 setup 으로 들어가고 로드 시점에 대진을 만들지 않는다', () => {
+    // gameMode === "cup" 은 파일에 2곳(113행 로드 프로미스 구성, 234행 디스패치 분기) —
+    // 'Promise.all(loadPromises)'(122행, 유일)를 앵커로 써서 두 번째(234행) occurrence 부터 찾는다.
+    const start = src.indexOf('gameMode === "cup"', src.indexOf('Promise.all(loadPromises)'));
+    const cupBranch = src.slice(start, src.indexOf('phase: "setup"', start) + 20);
+    expect(cupBranch).toMatch(/phase: "setup"/);
+    expect(cupBranch).not.toMatch(/generateCupRounds\(/);
+    expect(cupBranch).not.toMatch(/schedule:/);
+  });
+  it('startMatches 의 컵 분기가 참석 팀 풀리그×회전 대진을 만든다', () => {
+    expect(src).toMatch(/const startMatches = \(\) => \{\s*\n\s*if \(isCupSession\(state\)\)[\s\S]{0,900}buildCupDaySchedule\(/);
+  });
+  it('시트 연동 두 버튼·활동선수 전체는 컵에서 렌더되지 않는다', () => {
+    expect(src).toMatch(/isCup \? \([\s\S]{0,400}CupAttendeePicker/);
+    expect(src).toMatch(/isCup \? \([\s\S]{0,200}대회 팀<\/button>/);
+  });
+  it('팀 수 세그먼트는 컵에서 비활성', () => {
+    expect(src).toMatch(/segBtn\(teamCount === n, isCup\)/);
+  });
+  it('팀명 편집·재배치는 컵에서 막힌다', () => {
+    expect(src).toMatch(/draftMode === "snake" && !isCup[\s\S]{0,120}재배치/);
+    expect(src).toMatch(/isCup \? \(\s*<span[^>]*>\{teamNames\[tIdx\]\}<\/span>/);
+  });
+  it('컵 판별에 draftMode 를 쓰지 않는다', () => {
+    expect(src).not.toMatch(/draftMode === ['"]cup['"]/);
+  });
+});
