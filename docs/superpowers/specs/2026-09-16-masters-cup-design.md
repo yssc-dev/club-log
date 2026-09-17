@@ -1,7 +1,7 @@
 # 마스터스컵(풋살 컵대회) 설계
 
 - 작성일: 2026-09-16 / v2 개정 2026-09-17
-- 상태: 1단계(격리 게이트) 구현·배포 완료(main 0e015ef). **v2: 2단계 이후를 "앱 내 대회·팀 관리(RTDB)"로 방향 전환** — 사용자 검토 대기
+- 상태: 1단계 완료(main 0e015ef). 2단계(대회·팀 관리 + 컵 경기일 진입) 구현 완료 — 2026-09-17. 배포 전제: RTDB tournaments 규칙. 3단계 계획 대기
 - 대상 팀: 마스터FC(풋살). 하버FC·빅마스터FC(축구)·몽피스(테니스)에는 어떤 동작 변화도 없어야 한다.
 
 ## 1. 개요
@@ -53,7 +53,7 @@
 - **cupId**: 대회 식별자 = `tournament_id` 값이자 로그·배너·목록에 보이는 이름. 생성 시 입력한 대회명을 `cupIdOf(name)` = `rtdbPath.safeKey(name.trim())`(RTDB 금지문자 `. # $ / [ ]` → `_`)로 정규화한 문자열. 예: `마스터스컵 2026`. **불변**(대회명 변경 없음). `|` 포함 시 throw(아카이브 summary 구분자). 같은 팀 안에서 유일해야 한다(연도 포함 권장). `meta.name === cupId`.
 - **컵 세션**: `state.tournamentId !== ''`인 풋살 세션. 판별은 `isCupSession(state)`만(1단계).
 - **로그 태그**: `logTagsOf(state)` = 컵이면 `{ mode:'대회', tournamentId }`, 아니면 `{ mode:'기본', tournamentId:'' }`(1단계).
-- **팀(엔티티)**: `{ id, name, captain, players[], order }`. `id`는 대회 안에서 불변(`t1`, `t2`, … — 팀 추가 시 기존 id의 최대 번호+1, 삭제된 번호는 재사용하지 않는다), `name`이 로그 행의 팀 이름이 된다. `captain`은 `players`에 포함된 이름 하나이거나 `''`(표시 전용).
+- **팀(엔티티)**: `{ id, name, captain, players[], order }`. `id`는 대회 안에서 불변(`t1`, `t2`, … — 팀 추가 시 기존 id의 최대 번호+1, 중간에 비는 번호는 재사용하지 않는다(현재 최대+1이므로 최대 번호 팀을 지운 뒤 추가하면 그 번호는 다시 쓰일 수 있다 — id는 로그에 기록되지 않아 무해)), `name`이 로그 행의 팀 이름이 된다. `captain`은 `players`에 포함된 이름 하나이거나 `''`(표시 전용).
 - **canonical 대진**: 팀 수 N에 대한 풀리그 1회전 라운드 배열(§6.3).
 - **치른 대진(playedPairs)**: 그 대회의 로그_매치 행(`is_extra` 제외)에서 뽑은 팀 이름 쌍(순서 무관) 집합.
 - **잠금(locked)**: `meta.lockedAt`(첫 컵 마감 성공 시 App이 기록) 이 있거나, 그 대회의 컵 로그_매치 행이 1건 이상 존재(3단계 파생)하면 잠김. `isLocked(cup, playedPairs) = !!cup.meta.lockedAt || playedPairs.size > 0`. 2단계는 `lockedAt`만으로 판정한다.
@@ -124,7 +124,7 @@ getCupSettings(team) = {
 ### 4.5 팀 관리 규칙 (앱 내)
 
 - 팀원 후보 = 대시보드 시트 회원 목록(`TeamDashboard`의 `members` 이름, 현재 참석자 선택과 같은 소스) + 자유 입력. 이름은 `stripNameDecorations`+trim으로 정규화한다.
-- 팀 추가 시 `id` 부여: 기존 id 중 최대 번호+1(`t1`,`t2`,…). 삭제된 번호는 재사용하지 않는다(`nextTeamId(teams)` 순수 함수). `saveTeams`는 `id`가 없는 팀이 있으면 throw.
+- 팀 추가 시 `id` 부여: 기존 id 중 최대 번호+1(`t1`,`t2`,…). 중간에 비는 번호는 재사용하지 않는다 — 현재 최대+1(`nextTeamId(teams)` 순수 함수). `saveTeams`는 `id`가 없는 팀이 있으면 throw.
 - 검증 `validateTeams(teams) → { ok, errors[] }`: 팀 수 3~8, 팀명 비어있지 않음·유일·`|` 없음·앞 `팀 ` 공백 정규화(`/^팀 /`→`팀`, RESTORE_STATE와 동일), 한 선수는 한 팀에만(`players` 기준), 각 팀 최소 1명, `captain`은 `''`이거나 그 팀 `players`에 포함. 저장은 `ok`일 때만.
 - 잠금(§3): `isLocked(cup, playedPairs)`. 잠기면 팀명 입력·팀 추가/삭제·대회 삭제는 비활성이고 화면에 "🔒 첫 경기 마감 후 팀명·팀 수는 바꿀 수 없습니다"를 표시. 팀원·팀장은 계속 편집 가능(다음 경기일부터 반영). 2단계는 `lockedAt`만으로, 3단계부터는 로그 파생을 OR로 더한다.
 - 편집 화면은 열릴 때 `loadCup`으로 최신값을 읽고, 저장은 팀 배열 통째 `saveTeams`. 저장 후 다시 읽어 화면을 맞춘다.
@@ -282,7 +282,7 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 5. `generateCupRounds(N, c)`는 N∈[3,8]에서 각 쌍 정확히 1회, 라운드 내 팀 중복 없음, 라운드당 경기 수 ≤ c, N=5→5라운드·N=7→11라운드(테스트). `collectPlayedPairs`는 다른 대회의 같은 팀명 쌍을 세지 않는다(테스트). `calcRemainingRounds`는 치른 쌍·임시 라운드·1경기 라운드·이름 정규화·빈 입력을 다룬다(테스트).
 6. `calcCupStandings` 정렬(팀명 4번째)·0경기 팀 포함(테스트). `dropExtraEvents`(테스트). `calcCupCareer`의 cups/wins 계산(테스트: 두 대회 fixture, 우승팀 원정 전용 선수 포함).
 7. `mainTabs`: 테니스에 `tournament` 탭 없음, 축구·풋살에 있음(테스트). 풋살 `tournament` 탭은 `CupListTab`로 분기(정적 가드 또는 렌더 테스트).
-11. `normalizeCup`: `players` 누락 → `[]`, `teams` 객체 → `order` 순 배열(`id`=키), `lockedAt ?? null`, `sport`가 풋살이 아닌 자식은 목록에서 제외(테스트). `validateTeams` 각 규칙(캡틴 소속 포함)(테스트). `nextTeamId`가 삭제된 번호를 재사용하지 않는다(테스트). `isLocked`: `lockedAt`만으로도, 로그만으로도 잠김(테스트). `cupIdOf`가 `safeKey`에 위임하고 `|`를 거부(테스트).
+11. `normalizeCup`: `players` 누락 → `[]`, `teams` 객체 → `order` 순 배열(`id`=키), `lockedAt ?? null`, `sport`가 풋살이 아닌 자식은 목록에서 제외(테스트). `validateTeams` 각 규칙(캡틴 소속 포함)(테스트). `nextTeamId`가 현재 최대+1을 주고 중간 빈 번호를 재사용하지 않는다(테스트). `isLocked`: `lockedAt`만으로도, 로그만으로도 잠김(테스트). `cupIdOf`가 `safeKey`에 위임하고 `|`를 거부(테스트).
 12. cup 뷰 3종은 `!!row.tournament_id` 행만, 정규 뷰와 합집합이 전체(테스트). alias는 `ALIASES`에만 있고 `ADAPTERS`·`datasetsOf('풋살')`은 불변(기존 커버리지 테스트 그대로 통과), `_pathFor` 원본 경로, `refreshAll` 후 원본 L2 전체 행, 같은 경로를 공유하는 두 어댑터의 in-flight 합류가 각자 필터(테스트).
 13. App.jsx·Root.jsx·TeamDashboard·cup 컴포넌트는 렌더 하네스가 없다 — 정적 가드(Root의 `gameParams` state·`<GameApp gameParams>`, App의 `gameMode==='cup'` 분기에서 `gameParams.cupId` 사용, TeamDashboard의 `isSoccer ? TournamentListTab : CupListTab` 분기) + 브라우저 스모크: 대회 생성 → 팀 3개 구성 → 저장 → 컵 경기 시작 → 골 1개 → 라운드 확정 → 조기 종료 → 마감 → 탭 새로고침 후 🏆 복원 → 대회 상세에서 잠금 표시·(3단계) 순위·남은 대진 확인 → 정규 분석탭 불변 확인 → **하버FC 계정으로 대회 탭이 기존 축구 목록 그대로인지 확인**. RTDB 규칙 거부 시 alert가 뜨는지 확인.
 
