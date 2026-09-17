@@ -110,4 +110,21 @@ describe('CupTeamEditor 실렌더', () => {
     await mount({ teams: TEAMS, members: [], locked: false, disabled: true, saving: false, onSave: vi.fn() });
     expect(byText('저장')).toBeUndefined();
   });
+
+  it('팀원 제외 버튼의 keydown 이 상위 칩으로 새지 않아 팀장 토글이 실행되지 않는다', async () => {
+    const onSave = vi.fn();
+    await mount({ teams: TEAMS, members: [], locked: false, disabled: false, saving: false, onSave });
+    const chips = [...container.querySelectorAll('div[data-role="member-chip"]')];
+    const chipA1 = chips.find(d => d.textContent.includes('a1')); // 팀장(t1.captain)
+    const chipA2 = chips.find(d => d.textContent.includes('a2')); // 비팀장
+    const removeBtnA2 = chipA2.querySelector('button[data-role="member-remove"]');
+    // a2 의 "제외" 버튼에서 Enter 를 누르면(포커스가 버튼에 있는 상황) 이벤트가 상위 칩 div 로
+    // 버블링되어 팀장 토글이 실행되면 안 된다 — a1 이 계속 팀장이어야 한다.
+    await act(async () => { removeBtnA2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(chipA1.getAttribute('aria-pressed')).toBe('true');
+    expect(chipA2.getAttribute('aria-pressed')).toBe('false');
+    // 대조: 같은 keydown 을 칩(div) 자체에 쏘면 그 칩의 팀장 토글은 정상 동작해야 한다.
+    await act(async () => { chipA2.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter', bubbles: true })); });
+    expect(chipA2.getAttribute('aria-pressed')).toBe('true');
+  });
 });

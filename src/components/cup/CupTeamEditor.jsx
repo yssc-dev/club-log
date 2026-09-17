@@ -69,7 +69,7 @@ export default function CupTeamEditor({ teams, members = [], locked = false, dis
               const toggleCaptain = () => patchTeam(t.id, { captain: isCaptain ? '' : p });
               if (!canEditMembers) {
                 return (
-                  <span key={p} data-role="member-chip" aria-pressed={isCaptain} style={chip(isCaptain)}>
+                  <span key={p} data-role="member-chip" style={chip(isCaptain)}>
                     {isCaptain ? 'Ⓒ ' : ''}{p}
                   </span>
                 );
@@ -80,8 +80,10 @@ export default function CupTeamEditor({ teams, members = [], locked = false, dis
                   onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCaptain(); } }}
                   style={chip(isCaptain)}>
                   {isCaptain ? 'Ⓒ ' : ''}{p}
+                  {/* 이 버튼의 keydown이 위 div로 버블링되면 Enter가 팀장 토글로 새어나간다 — 반드시 전파를 끊는다 */}
                   <button type="button" data-role="member-remove" aria-label={`${p} 제외`}
                     onClick={(e) => { e.stopPropagation(); removePlayer(t.id, p); }}
+                    onKeyDown={(e) => { e.stopPropagation(); }}
                     style={{ marginLeft: 4, background: "transparent", border: "none", color: C.gray, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>✕</button>
                 </div>
               );
