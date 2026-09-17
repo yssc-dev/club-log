@@ -25,7 +25,10 @@ export default function CupTeamEditor({ teams, members = [], locked = false, dis
 
   const patchTeam = (id, patch) => setDraft(d => d.map(t => (t.id === id ? { ...t, ...patch } : t)));
   const addTeam = () => setDraft(d => [...d, { id: nextTeamId(d), name: '', captain: '', players: [], order: d.length }]);
-  const removeTeam = (id) => setDraft(d => d.filter(t => t.id !== id).map((t, i) => ({ ...t, order: i })));
+  const removeTeam = (id) => {
+    setDraft(d => d.filter(t => t.id !== id).map((t, i) => ({ ...t, order: i })));
+    setPickerOpen(s => { const n = new Set(s); n.delete(id); return n; });
+  };
   const addPlayer = (id, name) => {
     const n = cleanPlayerName(name);
     if (!n) return;
@@ -100,7 +103,7 @@ export default function CupTeamEditor({ teams, members = [], locked = false, dis
               {t.players.length === 0 && <span style={{ fontSize: 12, color: C.gray, padding: 4 }}>팀원 없음</span>}
             </div>
             {canEditMembers && (
-              <button data-role="member-picker-toggle" data-team={t.id} onClick={togglePicker(t.id)}
+              <button data-role="member-picker-toggle" data-team={t.id} aria-expanded={isOpen} onClick={togglePicker(t.id)}
                 style={smallBtn("var(--app-bg-row)", C.white)}>{isOpen ? '접기' : '+ 팀원 추가'}</button>
             )}
             {canEditMembers && isOpen && (

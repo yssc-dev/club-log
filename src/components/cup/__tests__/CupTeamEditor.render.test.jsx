@@ -147,7 +147,9 @@ describe('CupTeamEditor 실렌더', () => {
     expect(container.querySelector('input[placeholder="회원 검색"]')).toBeNull();
     // t1 toggle(index 0) 클릭 → t1 섹션만 열림
     await openPicker(0);
-    expect([...container.querySelectorAll('button[data-role="member-add"]')].every(b => b.dataset.team === 't1')).toBe(true);
+    const memberAddBtns = [...container.querySelectorAll('button[data-role="member-add"]')];
+    expect(memberAddBtns.length).toBeGreaterThan(0);
+    expect(memberAddBtns.every(b => b.dataset.team === 't1')).toBe(true);
     expect(container.querySelectorAll('input[data-role="free-add"]')).toHaveLength(1);
     expect(container.querySelector('input[placeholder="회원 검색"]')).not.toBeNull();
     // 다시 클릭 → 닫힘
