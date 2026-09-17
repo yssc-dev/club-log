@@ -186,6 +186,18 @@ describe('Case 3: resolveSheetGid', () => {
     expect(h.getSheetListFn).toHaveBeenCalledTimes(1);
   });
 
+  it('메모리 캐시만 초기화 후 두 번째 호출 → localStorage 에서 읽어 getSheetList 미호출', async () => {
+    h.getSheetListFn.mockResolvedValueOnce([{ name: SHEET_NAME, gid: SHEET_GID }]);
+    // 1st call: 메모리+localStorage 양쪽에 기록됨
+    await resolveSheetGid(SHEET_ID, SHEET_NAME);
+    // 메모리 Map만 초기화 (localStorage 는 유지)
+    _resetSheetGidCacheForTests();
+    // 2nd call: 메모리 미스 → localStorage 히트 → getSheetList 재호출 없어야 함
+    const gid = await resolveSheetGid(SHEET_ID, SHEET_NAME);
+    expect(gid).toBe(SHEET_GID);
+    expect(h.getSheetListFn).toHaveBeenCalledTimes(1);
+  });
+
   it('invalidateSheetGid 후 → getSheetList 재호출', async () => {
     h.getSheetListFn.mockResolvedValue([{ name: SHEET_NAME, gid: SHEET_GID }]);
     await resolveSheetGid(SHEET_ID, SHEET_NAME);
@@ -337,6 +349,6 @@ describe('Case 5: fetchAttendanceData end-to-end', () => {
     const data = await fetchAttendanceData();
     expect(data.attendees).toEqual(['김철수', '박영희', '이민준']);
     expect(data.teamCount).toBe(0);
-    expect(data.source).toBeDefined();
+    expect(data.source).toBe('gviz');
   });
 });

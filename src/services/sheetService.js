@@ -81,7 +81,7 @@ export async function fetchAttendanceCsv(s) {
       const resp = await fetch(exportUrl);
       if (resp.ok) {
         const text = await resp.text();
-        if (text && text.length > 0 && !text.startsWith('<')) {
+        if (text && !text.startsWith('<')) {
           return { text, source: 'export' };
         }
       }
@@ -92,7 +92,7 @@ export async function fetchAttendanceCsv(s) {
         const resp2 = await fetch(SHEET_CONFIG.csvUrlByGid(s.sheetId, newGid));
         if (resp2.ok) {
           const text2 = await resp2.text();
-          if (text2 && text2.length > 0 && !text2.startsWith('<')) {
+          if (text2 && !text2.startsWith('<')) {
             return { text: text2, source: 'export' };
           }
         }
