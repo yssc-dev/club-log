@@ -56,21 +56,36 @@ export default function CupTeamEditor({ teams, members = [], locked = false, dis
       {draft.map(t => (
         <div key={t.id} style={card}>
           <div style={{ display: "flex", gap: 8, alignItems: "center", marginBottom: 8 }}>
-            {/* input value 는 DOM textContent 에 나타나지 않아 화면 확인용 라벨을 별도로 둔다 */}
-            <span style={{ fontSize: 13, fontWeight: 700, color: C.white }}>{t.name}</span>
-            <input data-role="team-name" value={t.name} disabled={!canEditStructure} placeholder="팀명"
+            {/* input 은 시각 라벨이 없으므로 htmlFor 로 연결한 label 을 둔다(화면표시 겸 접근성) */}
+            <label htmlFor={`cup-team-name-${t.id}`} style={{ fontSize: 12, color: C.gray, minWidth: 44 }}>{t.name || '팀명'}</label>
+            <input id={`cup-team-name-${t.id}`} data-role="team-name" value={t.name} disabled={!canEditStructure} placeholder="팀명"
               onChange={e => patchTeam(t.id, { name: e.target.value })} style={input} />
             <button data-role="team-remove" disabled={!canEditStructure} onClick={() => removeTeam(t.id)}
               style={{ ...smallBtn("rgba(255,59,48,0.12)", "var(--app-red)"), opacity: canEditStructure ? 1 : 0.4 }}>삭제</button>
           </div>
           <div style={{ display: "flex", flexWrap: "wrap", marginBottom: 6 }}>
-            {t.players.map(p => (
-              <button key={p} data-role="member-chip" disabled={!canEditMembers} title="탭: 팀장 지정 / ✕: 제외"
-                onClick={() => patchTeam(t.id, { captain: t.captain === p ? '' : p })} style={chip(t.captain === p)}>
-                {t.captain === p ? 'Ⓒ ' : ''}{p}
-                {canEditMembers && <span data-role="member-remove" onClick={(e) => { e.stopPropagation(); removePlayer(t.id, p); }} style={{ marginLeft: 4, color: C.gray }}>✕</span>}
-              </button>
-            ))}
+            {t.players.map(p => {
+              const isCaptain = t.captain === p;
+              const toggleCaptain = () => patchTeam(t.id, { captain: isCaptain ? '' : p });
+              if (!canEditMembers) {
+                return (
+                  <span key={p} data-role="member-chip" aria-pressed={isCaptain} style={chip(isCaptain)}>
+                    {isCaptain ? 'Ⓒ ' : ''}{p}
+                  </span>
+                );
+              }
+              return (
+                <div key={p} role="button" tabIndex={0} data-role="member-chip" aria-pressed={isCaptain}
+                  title="탭: 팀장 지정 / ✕: 제외" onClick={toggleCaptain}
+                  onKeyDown={e => { if (e.key === 'Enter' || e.key === ' ') { e.preventDefault(); toggleCaptain(); } }}
+                  style={chip(isCaptain)}>
+                  {isCaptain ? 'Ⓒ ' : ''}{p}
+                  <button type="button" data-role="member-remove" aria-label={`${p} 제외`}
+                    onClick={(e) => { e.stopPropagation(); removePlayer(t.id, p); }}
+                    style={{ marginLeft: 4, background: "transparent", border: "none", color: C.gray, cursor: "pointer", fontFamily: "inherit", padding: 0 }}>✕</button>
+                </div>
+              );
+            })}
             {t.players.length === 0 && <span style={{ fontSize: 12, color: C.gray, padding: 4 }}>팀원 없음</span>}
           </div>
           {canEditMembers && (

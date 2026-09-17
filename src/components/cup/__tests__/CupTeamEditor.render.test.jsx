@@ -51,7 +51,7 @@ describe('CupTeamEditor 실렌더', () => {
     expect(saved[0].captain).toBe('a1');
   });
 
-  it('팀 추가 → 새 id 는 t4, 팀 삭제 후 추가해도 번호 재사용 없음', async () => {
+  it('팀 추가 → 새 id 는 기존 최대+1; 중간 팀을 삭제한 뒤 추가해도 빈 번호는 재사용하지 않는다', async () => {
     const onSave = vi.fn();
     await mount({ teams: TEAMS, members: [], locked: false, disabled: false, saving: false, onSave });
     await click(byText('+ 팀 추가'));
@@ -66,6 +66,22 @@ describe('CupTeamEditor 실렌더', () => {
     const saved = onSave.mock.calls[0][0];
     expect(saved[3].id).toBe('t4');
     expect(saved[3].players).toEqual(['d1']);
+
+    // 중간 팀(t2, index 1)을 삭제한 뒤 다시 추가하면 t2 번호는 재사용되지 않고 기존 최대(t4)+1 = t5 를 받는다
+    const removeButtons = [...container.querySelectorAll('button[data-role="team-remove"]')];
+    await click(removeButtons[1]);
+    await click(byText('+ 팀 추가'));
+    const nameInputs2 = [...container.querySelectorAll('input[data-role="team-name"]')];
+    expect(nameInputs2).toHaveLength(4);
+    await type(nameInputs2[3], '팀E');
+    const freeInputs2 = [...container.querySelectorAll('input[data-role="free-add"]')];
+    await type(freeInputs2[3], 'e1');
+    await click([...container.querySelectorAll('button[data-role="free-add-btn"]')][3]);
+    await click(byText('저장'));
+    const saved2 = onSave.mock.calls[1][0];
+    expect(saved2.map(t => t.id)).toEqual(['t1', 't3', 't4', 't5']);
+    expect(saved2.some(t => t.id === 't2')).toBe(false);
+    expect(saved2[3].players).toEqual(['e1']);
   });
 
   it('검증 실패(같은 선수 두 팀)는 저장하지 않고 에러를 보여준다', async () => {
