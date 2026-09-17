@@ -9,7 +9,7 @@ vi.mock('../firebase', () => ({
   firebaseDb: {},
 }));
 
-import { SPORT_DEFAULTS, PRESETS, resolvePreset } from '../settings.js';
+import { getCupSettings, SPORT_DEFAULTS, PRESETS, resolvePreset } from '../settings.js';
 import { getEffectiveSettings, _setCacheForTest } from '../settings.js';
 
 describe('SPORT_DEFAULTS', () => {
@@ -293,5 +293,21 @@ describe('saveSettings', () => {
 
     const stored = JSON.parse(localStorage.getItem("masterfc_settings_팀B"));
     expect(stored["축구"].overrides).toEqual({ cleanSheetPoint: 3 });
+  });
+});
+
+describe('getCupSettings (스펙 §4.3)', () => {
+  it('팀 프리셋·오버라이드(자책 -2, 크로바/고구마)는 무시하고 표준 규칙 + shared 시트 설정만 남긴다', () => {
+    _setCacheForTest({ '마스터FC': {
+      shared: { sheetId: 'SID', attendanceSheet: '참석명단', dashboardSheet: '대시보드', pointLogSheet: '마스터FC 포인트 로그', playerLogSheet: '마스터FC 선수별집계기록 로그' },
+      풋살: { preset: '마스터FC풋살', overrides: { ownGoalPoint: -2, useCrovaGoguma: true, bonusMultiplier: 2 } },
+    } });
+    const s = getCupSettings('마스터FC');
+    expect(s.sheetId).toBe('SID');
+    expect(s.pointLogSheet).toBe('마스터FC 포인트 로그');
+    expect(s.ownGoalPoint).toBe(SPORT_DEFAULTS.풋살.ownGoalPoint);
+    expect(s.useCrovaGoguma).toBe(false);
+    expect(s.bonusMultiplier).toBe(1);
+    expect(s._meta).toEqual({ preset: null, sport: '풋살', team: '마스터FC', cup: true });
   });
 });

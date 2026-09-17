@@ -246,6 +246,14 @@ export function getEffectiveSettings(team, sport) {
   };
 }
 
+// 컵 세션 규칙 스냅샷(스펙 §4.3): getEffectiveSettings 를 거쳐 캐시 하이드레이션·shared(sheetId·시트명)를 받고,
+// 규칙 키는 SPORT_DEFAULTS.풋살 로 되돌린다(팀 프리셋·오버라이드 미적용: 자책 -1, 크로바/고구마 꺼짐, 보너스 1배).
+// 새 프리셋·설정 키를 만들지 않는다.
+export function getCupSettings(team) {
+  const eff = getEffectiveSettings(team, "풋살");
+  return { ...eff, ...SPORT_DEFAULTS.풋살, _meta: { preset: null, sport: "풋살", team, cup: true } };
+}
+
 export function getSportDefault(sport, key) {
   return SPORT_DEFAULTS[sport]?.[key];
 }

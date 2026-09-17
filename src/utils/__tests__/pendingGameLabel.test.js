@@ -66,3 +66,11 @@ describe('pendingGameProgressLabel', () => {
     expect(pendingGameProgressLabel({})).toBe('0매치 완료');
   });
 });
+
+describe('컵 세션 라벨 (스펙 §6.1)', () => {
+  it('tournamentId 가 있으면 🏆 접두, 나머지 동일', () => {
+    const gs = { matchMode: 'schedule', schedule: [{}, {}, {}], currentRoundIdx: 1, tournamentId: '마스터스컵 2026' };
+    expect(pendingGameProgressLabel(gs)).toBe('🏆 2/3 라운드');
+    expect(pendingGameProgressLabel({ ...gs, tournamentId: '' })).toBe('2/3 라운드');
+  });
+});
