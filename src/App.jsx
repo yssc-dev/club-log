@@ -277,6 +277,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
     fetchAttendanceData()
       .then(data => {
         dispatch({ type: 'SET_FIELDS', fields: { attendees: data.attendees, ...(data.teamCount ? { teamCount: data.teamCount } : {}) } });
+        if (data.gapCols > 0) alert(`참석명단의 팀 열 사이에 빈 열이 ${data.gapCols}개 있어 팀이 누락됐을 수 있습니다. 시트를 확인해 주세요.`);
       })
       .catch(err => alert("참석명단 연동 실패: " + err.message))
       .finally(() => set('attendanceLoading', false));
@@ -529,6 +530,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             gks: {},
           },
         });
+        if (data.gapCols > 0) alert(`참석명단의 팀 열 사이에 빈 열이 ${data.gapCols}개 있어 팀이 누락됐을 수 있습니다. 시트를 확인해 주세요.`);
       })
       .catch(err => alert("시트 연동 실패: " + err.message))
       .finally(() => set('attendanceLoading', false));

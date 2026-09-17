@@ -1,7 +1,112 @@
 import { SHEET_CONFIG } from '../config/constants';
 import { getSettings } from '../config/settings';
 import AuthUtil from './authUtil';
-import { stripNameDecorations } from './appSync';
+import AppSync, { stripNameDecorations } from './appSync';
+
+// --- 참석명단 gid 캐시 (module-level) ---
+// sheetId+sheetName → gid 문자열 또는 null(미확인 기억)
+const _sheetGidCache = new Map();
+
+/** 테스트용 캐시 초기화 — 프로덕션 코드에서는 호출 금지 */
+export function _resetSheetGidCacheForTests() {
+  _sheetGidCache.clear();
+}
+
+/**
+ * 시트 이름으로 GID를 조회해 캐시에 유지한다.
+ * - 메모리 Map + localStorage 이중 캐시
+ * - sheetId가 SHEET_CONFIG.sheetId와 다르면 즉시 null 반환 (다른 스프레드시트는 gid 미지원)
+ * - 실패(목록 없음 / 이름 불일치 / 예외)는 메모리 Map에만 null로 기록해 재시도를 막는다
+ * @param {string} sheetId
+ * @param {string} sheetName
+ * @param {{ force?: boolean }} [opts]
+ * @returns {Promise<string|null>}
+ */
+export async function resolveSheetGid(sheetId, sheetName, { force = false } = {}) {
+  if (sheetId !== SHEET_CONFIG.sheetId) return null;
+
+  const cacheKey = `sheetGid:${sheetId}:${sheetName}`;
+
+  if (!force) {
+    if (_sheetGidCache.has(cacheKey)) return _sheetGidCache.get(cacheKey);
+    try {
+      const stored = localStorage.getItem(cacheKey);
+      if (stored !== null) {
+        _sheetGidCache.set(cacheKey, stored);
+        return stored;
+      }
+    } catch { /* private mode or disabled storage */ }
+  }
+
+  try {
+    const list = await AppSync.getSheetList();
+    const found = list.find(x => x.name === sheetName);
+    if (found) {
+      const gid = String(found.gid);
+      _sheetGidCache.set(cacheKey, gid);
+      try { localStorage.setItem(cacheKey, gid); } catch { /* ignore */ }
+      return gid;
+    }
+    // 목록에 없음 — 메모리에 miss 기록, 재호출 방지
+    _sheetGidCache.set(cacheKey, null);
+    return null;
+  } catch {
+    // 예외 — 메모리에 miss 기록
+    _sheetGidCache.set(cacheKey, null);
+    return null;
+  }
+}
+
+/**
+ * 특정 시트의 gid 캐시를 무효화한다 (메모리 + localStorage 양쪽).
+ */
+export function invalidateSheetGid(sheetId, sheetName) {
+  const cacheKey = `sheetGid:${sheetId}:${sheetName}`;
+  _sheetGidCache.delete(cacheKey);
+  try { localStorage.removeItem(cacheKey); } catch { /* ignore */ }
+}
+
+/**
+ * 참석명단 CSV를 export URL(gid) 우선으로 가져온다.
+ * gid 미확인이거나 export 실패 시 gviz로 폴백한다.
+ * @param {{ sheetId: string, attendanceSheet: string }} s
+ * @returns {Promise<{ text: string, source: 'export' | 'gviz' }>}
+ */
+export async function fetchAttendanceCsv(s) {
+  // Step 1-3: gid 조회 → export 시도
+  try {
+    const gid = await resolveSheetGid(s.sheetId, s.attendanceSheet);
+    if (gid !== null) {
+      const exportUrl = SHEET_CONFIG.csvUrlByGid(s.sheetId, gid);
+      const resp = await fetch(exportUrl);
+      if (resp.ok) {
+        const text = await resp.text();
+        if (text && text.length > 0 && !text.startsWith('<')) {
+          return { text, source: 'export' };
+        }
+      }
+      // 수락 실패 → 무효화 후 한 번 재시도
+      invalidateSheetGid(s.sheetId, s.attendanceSheet);
+      const newGid = await resolveSheetGid(s.sheetId, s.attendanceSheet, { force: true });
+      if (newGid !== null && newGid !== gid) {
+        const resp2 = await fetch(SHEET_CONFIG.csvUrlByGid(s.sheetId, newGid));
+        if (resp2.ok) {
+          const text2 = await resp2.text();
+          if (text2 && text2.length > 0 && !text2.startsWith('<')) {
+            return { text: text2, source: 'export' };
+          }
+        }
+      }
+    }
+  } catch (e) {
+    console.warn('참석명단 export 실패, gviz 폴백:', e.message);
+  }
+
+  // Step 4: gviz 폴백
+  const resp = await fetch(SHEET_CONFIG.csvUrlBySheet(s.sheetId, s.attendanceSheet));
+  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
+  return { text: await resp.text(), source: 'gviz' };
+}
 
 // 시트가 붙이는 이름 장식(100포인트 ★ 등)은 읽는 시점에 제거한다.
 // 장식 붙은 이름이 앱에 들어오면 로그 기반 이름과 별개 선수로 갈라진다
@@ -172,9 +277,7 @@ export async function fetchAttendanceData() {
   const mode2 = auth2?.mode;
   const s2 = getSettings(team2);
   if (!s2.attendanceSheet) throw new Error("참석명단 시트 미설정");
-  const resp = await fetch(SHEET_CONFIG.csvUrlBySheet(s2.sheetId, s2.attendanceSheet));
-  if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
-  const text = await resp.text();
+  const { text, source } = await fetchAttendanceCsv(s2);
 
   // 축구: 이름 컬럼(B)에서 선수명만 추출
   if (mode2 === "축구") {
@@ -191,9 +294,9 @@ export async function fetchAttendanceData() {
       if (!name || !/^[가-힣]{2,5}$/.test(name)) break; // 빈 행 만나면 중단
       attendees.push(name);
     }
-    return { attendees, teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [] };
+    return { attendees, teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [], source };
   }
-  return parseAttendanceGrid(text);
+  return { ...parseAttendanceGrid(text), source };
 }
 
 // 참석명단 시트(풋살)의 시드 그리드 파싱. 테스트를 위해 분리 export.
@@ -255,7 +358,7 @@ export function parseAttendanceGrid(text) {
     }
   }
 
-  if (seedStartRow < 0) return { attendees: [], teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [] };
+  if (seedStartRow < 0) return { attendees: [], teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [], gapCols: 0 };
 
   // Step 2: 팀 칼럼 범위 = 시드 라벨 칼럼 + 1 부터 최대 6칼럼
   const teamColStart = seedLabelCol + 1;
@@ -264,11 +367,17 @@ export function parseAttendanceGrid(text) {
   // Step 3: 팀 컬럼 + 팀명 파싱
   // ★ gviz CSV 특성: 시트 1행(팀명)과 2행(1번시드)이 "팀승훈 조승훈" 형태로 합쳐질 수 있음
   const teamCols = [];
+  const _acceptedCols = [];
+  const _rejectedCols = [];
   const firstDataFields = parseCSVLine(lines[seedStartRow]);
 
   for (let col = teamColStart; col <= teamColEnd; col++) {
     const raw = cleanName(firstDataFields[col]);
-    if (!raw || raw.length < 2) continue;
+    if (!raw || raw.length < 2) {
+      _rejectedCols.push(col);
+      continue;
+    }
+    _acceptedCols.push(col);
 
     let teamName = '';
     let captain = '';
@@ -288,7 +397,13 @@ export function parseAttendanceGrid(text) {
     teamCols.push({ col, teamName, captain });
   }
 
-  if (teamCols.length === 0) return { attendees: [], teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [] };
+  // gapCols: 거부된 열 중 양쪽에 수락된 열이 있는 것 (팀 열 사이에 빈 열)
+  let gapCols = 0;
+  for (const rc of _rejectedCols) {
+    if (_acceptedCols.some(ac => ac < rc) && _acceptedCols.some(ac => ac > rc)) gapCols++;
+  }
+
+  if (teamCols.length === 0) return { attendees: [], teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [], gapCols };
 
   // Step 4: 각 팀 선수 구성
   for (const tc of teamCols) {
@@ -322,5 +437,6 @@ export function parseAttendanceGrid(text) {
     teamCount: prebuiltTeams.length,
     prebuiltTeams,
     prebuiltTeamNames,
+    gapCols,
   };
 }
