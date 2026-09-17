@@ -49,6 +49,8 @@ export default function Root() {
   const [checkingPending, setCheckingPending] = useState(false);
   const [isNewGame, setIsNewGame] = useState(false);
   const [gameMode, setGameMode] = useState(null);
+  // 세션 진입 파라미터(컵: { cupId }). 신규 세션 진입 시점에만 의미 있고 저장되지 않는다(스펙 §6.2).
+  const [gameParams, setGameParams] = useState(null);
   const [activeGameId, setActiveGameId] = useState(null);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회만 실행 (저장된 팀이 있으면 pending 체크)
@@ -140,7 +142,7 @@ export default function Root() {
     setActiveGameId(null);
   };
 
-  const handleStartNew = async (mode) => {
+  const handleStartNew = async (mode, params = null) => {
     // 진행중 경기가 있으면 알림
     if (pendingGames.length > 0) {
       const creators = pendingGames.map(g => g.state?.gameCreator || g.state?.lastEditor || "알 수 없음");
@@ -151,6 +153,7 @@ export default function Root() {
     const newGameId = `g_${Date.now()}`;
     setIsNewGame(true);
     setGameMode(mode);
+    setGameParams(params);
     setActiveGameId(newGameId);
     setScreen("app");
   };
@@ -158,6 +161,7 @@ export default function Root() {
   const handleContinue = (gameId) => {
     setIsNewGame(false);
     setGameMode(null);
+    setGameParams(null);
     setActiveGameId(gameId);
     setScreen("app");
   };
@@ -217,6 +221,6 @@ export default function Root() {
     : teamContext?.mode === "축구" ? SoccerApp
     : teamContext?.mode === "테니스" ? TennisApp
     : App;
-  return <GameApp authUser={authUser} teamContext={teamContext} isNewGame={isNewGame} gameMode={gameMode} gameId={activeGameId}
-    onLogout={handleLogout} onBackToMenu={() => { setIsNewGame(false); setGameMode(null); setActiveGameId(null); setScreen("dashboard"); setTimeout(() => { if (selectedTeamName) checkPendingGames(selectedTeamName, teamContext?.mode); else setPendingGames([]); }, 1500); }} />;
+  return <GameApp authUser={authUser} teamContext={teamContext} isNewGame={isNewGame} gameMode={gameMode} gameParams={gameParams} gameId={activeGameId}
+    onLogout={handleLogout} onBackToMenu={() => { setIsNewGame(false); setGameMode(null); setGameParams(null); setActiveGameId(null); setScreen("dashboard"); setTimeout(() => { if (selectedTeamName) checkPendingGames(selectedTeamName, teamContext?.mode); else setPendingGames([]); }, 1500); }} />;
 }

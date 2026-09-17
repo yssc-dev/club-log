@@ -10,6 +10,9 @@ import { refreshAfterFinalize, refreshDatasets, CUP_FINALIZE_DATASETS } from './
 import { buildRawEventsFromFutsal, buildRawPlayerGamesFromFutsal } from './utils/rawLogBuilders';
 import { buildRoundRowsFromFutsal } from './utils/matchRowBuilder';
 import { isCupSession, logTagsOf } from './utils/cup/cupSession';
+import CupSync from './services/cupSync';
+import { validateTeams } from './utils/cup/cupEntity';
+import { generateCupRounds, courtCountFor } from './utils/cup/cupSchedule';
 import { selectFinalizeWrites } from './utils/cup/finalizeWrites';
 import { gameDateFromId } from './utils/gameDate';
 import { fetchSheetData, fetchAttendanceData } from './services/sheetService';
@@ -18,7 +21,7 @@ import SheetCache from './services/sheetCache';
 import FirebaseSync from './services/firebaseSync';
 import { useGameReducer } from './hooks/useGameReducer';
 import { useFirebaseSync } from './hooks/useFirebaseSync';
-import { getSettings, getEffectiveSettings } from './config/settings';
+import { getSettings, getEffectiveSettings, getCupSettings } from './config/settings';
 import { makeStyles } from './styles/theme';
 import PhaseIndicator from './components/common/PhaseIndicator';
 import Modal from './components/common/Modal';
@@ -32,9 +35,11 @@ import BalancedScheduleModal from './components/game/BalancedScheduleModal';
 import StandingsModal from './components/game/StandingsModal';
 import PlayerStatsModal from './components/game/PlayerStatsModal';
 
-export default function App({ authUser, teamContext, isNewGame, gameMode, gameId, onLogout, onBackToMenu }) {
+export default function App({ authUser, teamContext, isNewGame, gameMode, gameParams, gameId, onLogout, onBackToMenu }) {
   const gameSettings = useMemo(() => getSettings(teamContext?.team), [teamContext?.team]);
   const [state, dispatch] = useGameReducer();
+  // 컵 세션 로드 실패 사유(스펙 §6.2 3·6항). phase 는 setup 에 머물러 자동저장되지 않는다.
+  const [cupLoadError, setCupLoadError] = useState(null);
   const {
     phase, dataLoading, dataSource, seasonPlayers, seasonCrova, seasonGoguma,
     syncStatus, attendanceLoading, attendees, newPlayer, teamCount, courtCount,
@@ -104,7 +109,16 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
         fetchAttendanceData().catch(err => { console.warn("참석명단 로딩 실패:", err.message); return null; })
       );
     }
-    Promise.all(loadPromises).then(([sheetData, cumBonus, attendanceData]) => {
+    if (gameMode === "cup") {
+      // 3번째 자리는 참석명단(sheetSync 전용) — 컵은 비워 두고 4번째에 대회를 싣는다.
+      loadPromises.push(Promise.resolve(null));
+      loadPromises.push(
+        CupSync.loadCup(teamContext.team, gameParams?.cupId)
+          .then(cup => (cup ? { ok: true, cup } : { ok: false, reason: '대회를 찾을 수 없습니다' }))
+          .catch(err => ({ ok: false, reason: err?.message || '대회 로드 실패' }))
+      );
+    }
+    Promise.all(loadPromises).then(([sheetData, cumBonus, attendanceData, cupRes]) => {
       const fields = { dataLoading: false };
       let players = null;
       if (sheetData) {
@@ -211,6 +225,46 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
             matchModal: null,
             phase: "match",
             ...(sheetTeamCount === 6 || sheetTeamCount === 8 ? { splitPhase: "first" } : {}),
+          },
+        });
+      }
+
+      // ── 컵 세션(스펙 §6.2): 대회 엔티티의 팀으로 바로 match 진입. 실패는 에러 화면(세션 미생성).
+      if (gameMode === "cup") {
+        const fail = (reason) => setCupLoadError(reason);
+        if (!cupRes || !cupRes.ok) { fail(cupRes?.reason || '대회 로드 실패'); return; }
+        const cup = cupRes.cup;
+        if (cup.meta.status !== 'active') { fail('종료된 대회입니다. 대회 탭에서 "다시 열기" 후 시작하세요.'); return; }
+        const v = validateTeams(cup.teams);
+        if (!v.ok) { fail(`팀 구성이 완전하지 않습니다 — 대회 탭의 팀 관리에서 확인하세요.\n${v.errors.join('\n')}`); return; }
+        const cupTeams = v.teams;
+        const N = cupTeams.length;
+        const cc = courtCountFor(N);
+        let sched;
+        try { sched = generateCupRounds(N, cc); } catch (e) { fail(e.message); return; }
+        dispatch({
+          type: 'SET_FIELDS',
+          fields: {
+            tournamentId: cup.meta.id,
+            attendees: [...new Set(cupTeams.flatMap(t => t.players))],
+            teamCount: N,
+            courtCount: cc,
+            matchMode: "schedule",
+            draftMode: "sheet",
+            teams: cupTeams.map(t => [...t.players]),
+            teamNames: cupTeams.map(t => t.name),
+            teamColorIndices: cupTeams.map((_, i) => i % TEAM_COLORS.length),
+            gks: {},
+            schedule: sched,
+            currentRoundIdx: 0,
+            completedMatches: [],
+            allEvents: [],
+            isExtraRound: false,
+            viewingRoundIdx: 0,
+            confirmedRounds: {},
+            matchModal: null,
+            settingsSnapshot: getCupSettings(teamContext.team),
+            phase: "match",
           },
         });
       }
@@ -770,6 +824,12 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
         await FirebaseSync.syncDiff(team, gameId || "legacy", lastSyncedStateRef.current, finalState);
         lastSyncedStateRef.current = finalState;
         set('gameFinalized', allOk);
+        // 첫 마감 성공 → 대회 잠금(스펙 §6.5). 실패해도 마감 결과는 유지하고 알림에만 덧붙인다(3단계 로그 파생 잠금이 보완).
+        let lockWarn = '';
+        if (allOk) {
+          try { await CupSync.markLocked(team, state.tournamentId); }
+          catch (e) { console.warn('[cup] markLocked 실패:', e?.message); lockWarn = `\n\n⚠️ 대회 잠금 기록 실패(${e?.message || '알 수 없음'}). 대회 탭에서 팀명·팀 수를 바꾸지 마세요.`; }
+        }
         // 쓴 시트의 원본 캐시만 재적재(스펙 §4.6). refreshAfterFinalize(전체)를 부르면 쓰지 않은
         // 포인트로그·선수별집계 캐시가 빈 결과 강등으로 지워진다.
         await refreshDatasets(CUP_FINALIZE_DATASETS, { sport: '풋살' });
@@ -779,7 +839,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
           : '❌ 실패';
         const detail = keys.map((k, i) => `${LABELS[k]}: ${ct(results[i], UNIT[k])}`).join('\n');
         if (allOk) {
-          alert(`🏆 컵대회 기록 확정 완료!\n\n${detail}\n\n수정이 필요하면 "경기로" 버튼으로 돌아갈 수 있습니다.`);
+          alert(`🏆 컵대회 기록 확정 완료!\n\n${detail}\n\n수정이 필요하면 "경기로" 버튼으로 돌아갈 수 있습니다.${lockWarn}`);
         } else {
           alert(`⚠️ 컵대회 로그 일부 전송 실패: ${rawFailed.join(', ')}\n\n${detail}\n\n"기록확정"을 다시 눌러 재전송하세요.\n(전부 성공 전까지 미확정 상태로 둡니다.)`);
         }
@@ -852,6 +912,12 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
 
   const { C, mode: themeMode, toggle: toggleTheme } = useTheme();
   const s = makeStyles(C);
+  // 컵 세션 배너(스펙 §6.4): 모든 phase 상단. 판별은 isCupSession 만.
+  const cupBanner = isCupSession(state) ? (
+    <div style={{ margin: "0 20px 10px", padding: "8px 12px", borderRadius: 10, background: "rgba(255,149,0,0.14)", color: "var(--app-orange)", fontSize: 13, fontWeight: 700, display: "flex", alignItems: "center", gap: 6 }}>
+      🏆 {state.tournamentId} <span style={{ fontWeight: 400, color: C.gray }}>· 컵대회 세션</span>
+    </div>
+  ) : null;
   const viewRoundConfirmed = confirmedRounds[viewingRoundIdx] || false;
 
   // LOADING
@@ -861,6 +927,18 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
         <div style={{ fontSize: 32, marginBottom: 16 }}>⚽</div>
         <div style={{ color: C.white, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>{teamContext?.team || "풋살"} 경기기록</div>
         <div style={{ color: C.gray, fontSize: 13 }}>선수 데이터 불러오는 중...</div>
+      </div>
+    );
+  }
+
+  // 컵 세션 로드 실패(스펙 §6.2) — 세션을 만들지 않고 대시보드로 돌려보낸다.
+  if (cupLoadError) {
+    return (
+      <div style={{ ...s.app, display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", minHeight: "100vh", padding: 24, textAlign: "center" }}>
+        <div style={{ fontSize: 32, marginBottom: 16 }}>🏆</div>
+        <div style={{ color: C.white, fontSize: 16, fontWeight: 600, marginBottom: 8 }}>컵 경기를 시작할 수 없습니다</div>
+        <div style={{ color: C.gray, fontSize: 13, whiteSpace: "pre-wrap", marginBottom: 20 }}>{cupLoadError}</div>
+        <button onClick={onBackToMenu} style={s.btn(C.accent, C.bg)}>대시보드로</button>
       </div>
     );
   }
@@ -924,6 +1002,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
         </div>
 
         <PhaseIndicator activeIndex={0} />
+        {cupBanner}
 
         <div style={{ padding: "0 16px", marginBottom: 20 }}>
           <div className="app-section-label">경기 설정</div>
@@ -1107,6 +1186,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
           <div style={s.subtitle}>{teamEditMode ? "경기 진행 중 · 편집 모드" : `${draftMode === "snake" ? "스네이크 드래프트" : draftMode === "sheet" ? "시트 편성" : "자유 편성"} · ${teamCount}팀 · ${attendees.length}명`}</div>
         </div>
         {!teamEditMode && <PhaseIndicator activeIndex={1} />}
+        {cupBanner}
         <div style={s.section}>
           <div style={{ ...s.row, marginBottom: 12 }}>
             {!teamEditMode && draftMode === "snake" && <button onClick={reshuffleTeams} style={s.btnSm(C.grayDark)}>재배치</button>}
@@ -1310,6 +1390,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
     };
     return (
       <div style={s.app}>
+        {cupBanner}
         <div style={{
           padding: "20px 16px 12px", background: "var(--app-bg-grouped)",
           position: "sticky", top: 0, zIndex: 100,
@@ -1597,6 +1678,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gameId
           <div style={s.subtitle}>{gameDate.toLocaleDateString("ko-KR")} · {completedMatches.length}매치</div>
         </div>
         <PhaseIndicator activeIndex={3} />
+        {cupBanner}
         <div style={s.section}>
           <div style={s.sectionTitle}>🏆 팀 순위</div>
           <div style={s.card}>
