@@ -392,7 +392,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           🧤 키퍼 (수문장)
         </div>
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-          PG 누적 · 실점률 = 경기당 실점 · {isSoccer
+          누적 기준(기간 선택 미적용) · 실점률 = 경기당 실점 · {isSoccer
             ? '키퍼 4경기 이상'
             : `실점률은 최다 키퍼경기의 30%(현재 ${awards.thresholds?.minKeeperGames ?? 0}경기) 이상`}
         </div>
@@ -409,9 +409,18 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
                 rows={awards.keepers.stingiest.map(k => ({
                   player: k.player, value: k.concededRate, sub: `${k.keeperGames}경기`,
                 }))}
-                formatValue={v => v.toFixed(1)} lowerIsBetter color={C.accent} C={C} emptyText="-"
+                formatValue={v => v.toFixed(2)} lowerIsBetter color={C.accent} C={C} emptyText="-"
               />
             </div>
+            {awards.keepers.leakiest?.length > 0 && (
+              <div>
+                <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>🕳 실점률 나쁜 순 (경기당)</div>
+                <RankBarList
+                  rows={awards.keepers.leakiest.map(k => ({ player: k.player, value: k.concededRate, sub: `${k.keeperGames}경기` }))}
+                  formatValue={v => v.toFixed(2)} color={C.red || 'var(--app-red)'} C={C} emptyText="-"
+                />
+              </div>
+            )}
           </div>
         )}
       </div>

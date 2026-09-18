@@ -18,6 +18,9 @@ describe('calcAwards', () => {
     { player: 'H', date: '2026-01-01', goals: 0, assists: 0, keeper_games: 4, conceded: 0, cleansheets: 1, owngoals: 0 },
     // 키퍼 L: keeper_games 2 (min 미달), conceded 0, cleansheets 1 → 클린시트엔 포함, 실점률엔 제외
     { player: 'L', date: '2026-01-01', goals: 0, assists: 0, keeper_games: 2, conceded: 0, cleansheets: 1, owngoals: 0 },
+    // 키퍼 M: keeper_games 5, conceded 4, cleansheets 0 → 실점률 0.8 (최고로 나쁨)
+    // leakiest 검증용으로 추가; cleansheets 0이라 cleanSheetKings에는 안 들어감
+    { player: 'M', date: '2026-01-01', goals: 0, assists: 0, keeper_games: 5, conceded: 4, cleansheets: 0, owngoals: 0 },
   ];
 
   it('fireStarter(세션 3골)는 제거됨 — 반환 키 자체가 없음', () => {
@@ -37,8 +40,9 @@ describe('calcAwards', () => {
 
   it('keepers.stingiest: 경기당 실점 오름차순, 최소 키퍼경기 미달 제외', () => {
     const r = calcAwards({ playerLogs: logs, minKeeperGames: 4 });
-    // 자격: G(8경기, 0.125), H(4경기, 0). L(2경기)은 제외
-    expect(r.keepers.stingiest.map(x => x.player)).toEqual(['H', 'G']);
+    // 자격: G(8경기, 0.125), H(4경기, 0), M(5경기, 0.8). L(2경기)은 제외.
+    // M 추가로 ['H','G'] → ['H','G','M'] 으로 갱신
+    expect(r.keepers.stingiest.map(x => x.player)).toEqual(['H', 'G', 'M']);
     expect(r.keepers.stingiest.find(x => x.player === 'H').concededRate).toBe(0);
     expect(r.keepers.stingiest.find(x => x.player === 'L')).toBeUndefined();
   });
@@ -109,6 +113,27 @@ describe('calcAwards', () => {
     expect(r.keepers.cleanSheetKings).toHaveLength(1);
     expect(r.keepers.stingiest).toHaveLength(1);
     expect(r.owngoalKings).toHaveLength(1);
+  });
+
+  it('keepers.leakiest: 경기당 실점 내림차순, 같은 최소 키퍼경기 컷, 동률은 표본 많은 순', () => {
+    const r = calcAwards({ playerLogs: logs, minKeeperGames: 4 });
+    expect(r.keepers.leakiest.map(x => x.player)).toEqual(['M', 'G', 'H']);
+    expect(r.keepers.leakiest[0].concededRate).toBeCloseTo(0.8, 5);
+    expect(r.keepers.leakiest.find(x => x.player === 'L')).toBeUndefined();
+  });
+
+  it('keepers.leakiest 동률(같은 실점률)은 keeperGames 많은 쪽이 앞', () => {
+    const tie = [
+      { player: 'P', date: '2026-02-01', goals: 0, assists: 0, keeper_games: 4, conceded: 2, cleansheets: 0, owngoals: 0 },
+      { player: 'Q', date: '2026-02-01', goals: 0, assists: 0, keeper_games: 8, conceded: 4, cleansheets: 0, owngoals: 0 },
+    ];
+    const r = calcAwards({ playerLogs: tie, minKeeperGames: 4 });
+    expect(r.keepers.leakiest.map(x => x.player)).toEqual(['Q', 'P']);
+  });
+
+  it('keepers.leakiest 는 topN.leakiest 로 잘린다', () => {
+    const r = calcAwards({ playerLogs: logs, minKeeperGames: 4, topN: { leakiest: 1 } });
+    expect(r.keepers.leakiest).toHaveLength(1);
   });
 });
 
