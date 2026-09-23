@@ -66,6 +66,23 @@ describe('buildRoundRowsFromFutsal', () => {
     expect(JSON.parse(r.our_defenders_json)).toEqual([]);
   });
 
+  it('컵 세션 행은 mode=대회 · tournament_id 를 단다(정규 집계 혼입 방지의 마지막 관문)', () => {
+    const rows = buildRoundRowsFromFutsal({
+      team: '마스터FC', mode: '대회', tournamentId: '마스터스컵 2026',
+      date: '2026-09-24', stateJSON: baseState, inputTime: '2026-09-24T12:00:00Z',
+    });
+    expect(rows).toHaveLength(1);
+    expect(rows[0].mode).toBe('대회');
+    expect(rows[0].tournament_id).toBe('마스터스컵 2026');
+    expect(rows[0].sport).toBe('풋살');
+  });
+
+  it('정규 세션 행의 tournament_id 는 빈 문자열(기본값)', () => {
+    const rows = buildRoundRowsFromFutsal({ team: '마스터FC', date: '2026-09-24', stateJSON: baseState, inputTime: '' });
+    expect(rows[0].mode).toBe('기본');
+    expect(rows[0].tournament_id).toBe('');
+  });
+
   it('match_id 파싱으로 round_idx / court_id 추출', () => {
     const state = {
       ...baseState,

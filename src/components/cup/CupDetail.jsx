@@ -99,8 +99,12 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
       {isAdmin && (
         <div style={{ ...section, display: "flex", gap: 8 }}>
           <button disabled={busy} onClick={toggleStatus} style={btn("var(--app-bg-row)", C.white)}>{active ? '대회 종료' : '다시 열기'}</button>
-          <button disabled={busy || locked} onClick={handleDelete} title={locked ? '경기 기록이 있는 대회는 삭제할 수 없습니다' : ''}
-            style={btn("rgba(255,59,48,0.12)", "var(--app-red)", { opacity: locked ? 0.45 : 1 })}>대회 삭제</button>
+          {/* 진행 중인 세션이 있으면 삭제를 막는다. 삭제되면 그 세션의 마감은 로그 3종에 tournament_id 를
+              그대로 쓰지만 markLocked 는 "대회를 찾을 수 없습니다"로 실패하고(경고만 남는다) 대회 엔티티가
+              사라져, 시트에 주인 없는 행만 남는다. CupSync.deleteCup 은 lockedAt 만 보므로 여기서 막는다. */}
+          <button disabled={busy || locked || !!pendingCup} onClick={handleDelete}
+            title={locked ? '경기 기록이 있는 대회는 삭제할 수 없습니다' : (pendingCup ? '진행 중인 컵 세션이 있습니다. 마감 후 삭제하세요' : '')}
+            style={btn("rgba(255,59,48,0.12)", "var(--app-red)", { opacity: (locked || pendingCup) ? 0.45 : 1 })}>대회 삭제</button>
         </div>
       )}
     </div>

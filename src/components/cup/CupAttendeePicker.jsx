@@ -8,10 +8,12 @@ export default function CupAttendeePicker({ teams = [], teamNames = [], attendee
   const { C } = useTheme();
   const [drafts, setDrafts] = useState({}); // teamIdx → 입력 값
 
+  // onAddToTeam 이 false 를 돌려주면 거부된 것(이미 명단에 있는 이름)이므로 입력을 남겨 둔다.
+  // 지워 버리면 운영자가 경고를 확인한 뒤 같은 이름을 다시 타이핑해야 한다.
   const submit = (i) => {
     const name = (drafts[i] || '').trim();
     if (!name) return;
-    onAddToTeam?.(i, name);
+    if (onAddToTeam?.(i, name) === false) return;
     setDrafts(d => ({ ...d, [i]: '' }));
   };
 

@@ -83,4 +83,14 @@ describe('CupAttendeePicker 실렌더', () => {
     expect(q('[data-role="cup-team"]')).toHaveLength(2);
     expect(container.textContent).toContain('0/0명 참석');
   });
+
+  it('추가가 거부되면(false 반환) 입력을 지우지 않는다 — 다시 타이핑하지 않게', async () => {
+    const onAddToTeam = vi.fn(() => false);   // 이미 명단에 있는 이름 → App 의 addCupGuest 가 false
+    await mount({ teams: TEAMS, teamNames: NAMES, attendees: ['a1'], onToggle: vi.fn(), onAddToTeam });
+    const input = q('input[data-role="cup-guest-input"]').find(i => i.dataset.team === '1');
+    await type(input, 'a1');
+    await click(q('button[data-role="cup-guest-add"]').find(b => b.dataset.team === '1'));
+    expect(onAddToTeam).toHaveBeenCalledWith(1, 'a1');
+    expect(input.value).toBe('a1');
+  });
 });

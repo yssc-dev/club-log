@@ -126,6 +126,24 @@ describe('CupListTab 실렌더', () => {
     expect(container.textContent).not.toContain('팀 관리');
   });
 
+  it('상세: 진행 중인 컵 세션이 있으면 삭제 버튼 비활성(기록 중 대회가 사라지는 것 방지)', async () => {
+    h.cups = [cup('컵2026')];
+    await mount({ pendingGames: [{ gameId: 'g_1', state: { tournamentId: '컵2026', phase: 'match', schedule: [{}], currentRoundIdx: 0, attendees: ['a1'] } }] });
+    await click(btn('컵2026'));
+    expect(btn('대회 삭제').disabled).toBe(true);
+    await click(btn('대회 삭제'));
+    expect(h.deleted).toEqual([]);
+  });
+
+  it('상세: 다른 대회의 진행 중 세션은 이 대회 삭제를 막지 않는다', async () => {
+    h.cups = [cup('컵2026')];
+    await mount({ pendingGames: [{ gameId: 'g_1', state: { tournamentId: '다른컵', phase: 'match', schedule: [{}], currentRoundIdx: 0, attendees: ['a1'] } }] });
+    await click(btn('컵2026'));
+    expect(btn('대회 삭제').disabled).toBe(false);
+    await click(btn('대회 삭제'));
+    expect(h.deleted).toEqual(['컵2026']);
+  });
+
   it('비관리자: 새 대회·시작·삭제 없음, 팀 관리는 읽기 전용(요약)', async () => {
     h.cups = [cup('컵2026')];
     await mount({ isAdmin: false });

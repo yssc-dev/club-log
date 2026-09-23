@@ -277,19 +277,21 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   };
 
   // 컵 경기일 당일 추가(스펙 §6.2 v2.1 5항): attendees 와 그 팀에 함께 넣는다. 이미 어느 팀에든 있으면 무시. 세션 한정.
+  // 반환값: 추가했으면 true, 거부했으면 false(CupAttendeePicker 가 입력을 지울지 판단한다).
   const addCupGuest = (teamIdx, name) => {
     const n = (name || '').trim();
-    if (!n) return;
+    if (!n) return false;
     // 이미 어느 팀·참석자에 있으면 추가하지 않는다(스펙 §6.2 v2.1 5항 "무시"). 다만 조용히 사라지면
     // 불참 처리한 팀원을 다시 넣으려는 흔한 실수에 피드백이 없어, 올바른 조작을 알려 준다.
     if (teams.some(t => (t || []).includes(n)) || attendees.includes(n)) {
       alert('이미 명단에 있는 이름입니다. 칩을 눌러 참석 처리하세요.');
-      return;
+      return false;
     }
     dispatch({ type: 'SET_FIELDS', fields: {
       attendees: [...attendees, n],
       teams: teams.map((t, j) => (j === teamIdx ? [...(t || []), n] : t)),
     } });
+    return true;
   };
 
   // Auto-save + 구독 — 풋살/축구 공용 훅 (src/hooks/useFirebaseSync.js)

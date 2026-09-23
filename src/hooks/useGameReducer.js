@@ -288,18 +288,23 @@ function gameReducer(state, action) {
       if (s.settingsSnapshot != null) updates.settingsSnapshot = s.settingsSnapshot;
       if (s.tournamentId != null) updates.tournamentId = s.tournamentId;
       // ★ 자가복구: ENTER_TEAM_EDIT 도중 종료된 잔재
-      // (phase=teamBuild지만 라운드 진행 흔적이 남아있음 → 'match'로 복구)
-      // teamEditMode/teamEditSnapshot은 로컬 전용이라 sync되지 않아 발생.
+      // (phase=teamBuild지만 경기가 이미 시작된 흔적이 있음 → 'match'로 복구)
+      // teamEditMode/teamEditSnapshot은 로컬 전용이라 sync되지 않아 발생한다. 복구하지 않으면
+      // 받는 기기가 팀편성 화면에 착지하고, 그 화면의 "경기 시작"이 schedule·allEvents·
+      // completedMatches·confirmedRounds·gks를 전부 지운다(=세션 파괴).
+      // 네 조건은 OR다. schedule은 START_MATCHES만이 채우고 그 액션이 같은 자리에서 phase를
+      // 'match'로 바꾸므로, "teamBuild인데 대진이 있다" 자체가 경기 중 편집 잔재의 충분조건이다.
+      // AND로 묶으면 첫 라운드를 확정하기 전 구간(완료 0·확정 0·currentRoundIdx 0)이 빠져나간다.
+      // 정상 팀편성 단계는 schedule이 비어 있어 여기 걸리지 않는다.
       if (updates.phase === 'teamBuild') {
         const sched = updates.schedule ?? state.schedule ?? [];
         const completed = updates.completedMatches ?? state.completedMatches ?? [];
         const confirmed = updates.confirmedRounds ?? state.confirmedRounds ?? {};
         const curIdx = updates.currentRoundIdx ?? state.currentRoundIdx ?? 0;
-        const hasProgress = (sched && sched.length > 0) && (
+        const hasProgress = (sched && sched.length > 0) ||
           completed.length > 0 ||
           Object.values(confirmed).some(v => !!v) ||
-          curIdx > 0
-        );
+          curIdx > 0;
         if (hasProgress) updates.phase = 'match';
       }
       return { ...state, ...updates };
