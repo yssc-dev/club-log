@@ -103,4 +103,19 @@ describe('App.jsx — 컵 경기일 마법사 경유 게이트 (스펙 §6.2 v2.
       expect(body).toMatch(/!isCupSession\(state\)[\s\S]{0,300}makeTeamName\(/);
     }
   });
+
+  // 당일 추가가 거부되면 CupAttendeePicker 가 입력 초안을 남긴다 — 그 판단은 addCupGuest 의 반환값에
+  // 전적으로 의존한다. App.jsx 는 렌더 테스트가 없어 이 계약이 깨져도 어떤 테스트도 울지 않으므로 고정한다.
+  it('addCupGuest 는 거부/성공을 boolean 으로 돌려주고 CupAttendeePicker 가 그걸 본다', () => {
+    const app = read('App.jsx');
+    const start = app.indexOf('const addCupGuest = (');
+    expect(start).toBeGreaterThan(-1);
+    const body = app.slice(start, app.indexOf('\n  const ', start + 1));
+    expect(body).toMatch(/return false;/);
+    expect(body).toMatch(/return true;/);
+    expect(body).not.toMatch(/^\s*return;\s*$/m);   // 값 없는 return 이 남아 있으면 계약이 깨진다
+
+    const picker = read('components/cup/CupAttendeePicker.jsx');
+    expect(picker).toMatch(/onAddToTeam\?\.\(i, name\) === false/);
+  });
 });

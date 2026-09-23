@@ -296,7 +296,10 @@ function gameReducer(state, action) {
       // 'match'로 바꾸므로, "teamBuild인데 대진이 있다" 자체가 경기 중 편집 잔재의 충분조건이다.
       // AND로 묶으면 첫 라운드를 확정하기 전 구간(완료 0·확정 0·currentRoundIdx 0)이 빠져나간다.
       // 정상 팀편성 단계는 schedule이 비어 있어 여기 걸리지 않는다.
-      if (updates.phase === 'teamBuild') {
+      // teamEditMode(로컬 전용)가 켜져 있으면 이 기기가 바로 그 편집의 주인이다. 편집 중에도
+      // 상대가 골을 넣을 때마다 RESTORE_STATE가 오는데, 여기서 match로 튕기면 편집 화면이
+      // 예고 없이 닫힌다(App.jsx의 팀편성 화면은 phase==='teamBuild' 하나로만 열린다).
+      if (updates.phase === 'teamBuild' && !state.teamEditMode) {
         const sched = updates.schedule ?? state.schedule ?? [];
         const completed = updates.completedMatches ?? state.completedMatches ?? [];
         const confirmed = updates.confirmedRounds ?? state.confirmedRounds ?? {};

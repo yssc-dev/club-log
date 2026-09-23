@@ -94,6 +94,23 @@ describe('saveTeams / setStatus / markLocked / deleteCup', () => {
     await CupSync.deleteCup(TEAM, '컵');
     expect(await CupSync.loadCup(TEAM, '컵')).toBeNull();
   });
+  // 화면 가드(CupDetail)는 pendingGames prop 에 의존하고 그 목록은 화면 전환 때만 갱신된다.
+  // 다른 기기에서 방금 시작한 세션은 그 목록에 없으므로 서버 쪽에서도 막아야 한다.
+  it('진행 중인 컵 세션이 있으면 삭제를 거부한다', async () => {
+    setAt(h.db, 'games/마스터FC/active/g_1', { meta: { tournamentId: '컵', phase: 'match' } });
+    await expect(CupSync.deleteCup(TEAM, '컵')).rejects.toThrow('진행 중인 컵 세션');
+    expect(await CupSync.loadCup(TEAM, '컵')).not.toBeNull();
+  });
+  it('다른 대회·정규 세션이 진행 중인 것은 삭제를 막지 않는다', async () => {
+    setAt(h.db, 'games/마스터FC/active/g_1', { meta: { tournamentId: '다른컵', phase: 'match' } });
+    setAt(h.db, 'games/마스터FC/active/g_2', { meta: { tournamentId: '', phase: 'match' } });
+    await CupSync.deleteCup(TEAM, '컵');
+    expect(await CupSync.loadCup(TEAM, '컵')).toBeNull();
+  });
+  it('active 노드가 아예 없어도 삭제된다', async () => {
+    await CupSync.deleteCup(TEAM, '컵');
+    expect(await CupSync.loadCup(TEAM, '컵')).toBeNull();
+  });
   it('권한 거부는 그대로 throw(조용히 삼키지 않는다)', async () => {
     h.denyWrite = true;
     await expect(CupSync.saveTeams(TEAM, '컵', [{ id: 't1', name: '팀A', players: ['a'], order: 0 }])).rejects.toThrow('PERMISSION_DENIED');

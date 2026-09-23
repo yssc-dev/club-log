@@ -56,6 +56,27 @@ describe('RESTORE_STATE 자가복구 — 경기 중 팀 수정 잔재', () => {
     expect(after.phase).toBe('match');
   });
 
+  // 자가복구는 "편집 중인 사실을 모르는 기기"를 구해 주는 장치다. 정작 편집 중인 본인(teamEditMode=true)은
+  // 상대가 골 하나만 넣어도 RESTORE_STATE 를 받는데, 여기서 match 로 튕기면 편집 화면이 예고 없이 닫힌다.
+  it('편집 중인 본인(teamEditMode=true)은 튕기지 않는다', () => {
+    const editing = { ...initialState, phase: 'teamBuild', teamEditMode: true, schedule: SCHED };
+    const after = gameReducer(editing, {
+      type: 'RESTORE_STATE',
+      state: { phase: 'teamBuild', schedule: SCHED, completedMatches: [], confirmedRounds: {}, currentRoundIdx: 0 },
+    });
+    expect(after.phase).toBe('teamBuild');
+    expect(after.teamEditMode).toBe(true);
+  });
+
+  it('편집 중인 본인은 확정 라운드가 쌓인 뒤에도 튕기지 않는다', () => {
+    const editing = { ...initialState, phase: 'teamBuild', teamEditMode: true, schedule: SCHED, confirmedRounds: { 0: true }, currentRoundIdx: 1 };
+    const after = gameReducer(editing, {
+      type: 'RESTORE_STATE',
+      state: { phase: 'teamBuild', schedule: SCHED, confirmedRounds: { 0: true }, currentRoundIdx: 1 },
+    });
+    expect(after.phase).toBe('teamBuild');
+  });
+
   it('setup·match 등 다른 phase 는 건드리지 않는다', () => {
     const setup = gameReducer(initialState, { type: 'RESTORE_STATE', state: { phase: 'setup', schedule: SCHED } });
     expect(setup.phase).toBe('setup');

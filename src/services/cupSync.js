@@ -76,6 +76,14 @@ const CupSync = {
     const cup = await CupSync.loadCup(team, cupId);
     if (!cup) return; // 이미 없음(중복 삭제) — no-op. 존재하지 않는(비풋살) 노드를 지우지 않는다.
     if (cup.meta?.lockedAt) throw new Error('잠긴 대회는 삭제할 수 없습니다(경기 기록이 있습니다)');
+    // 진행 중인 세션이 있으면 막는다. 화면(CupDetail)도 같은 조건으로 버튼을 잠그지만 그쪽은
+    // pendingGames prop 에 의존하고 그 목록은 화면 전환 때만 갱신된다 — 다른 기기에서 방금 시작한
+    // 세션은 보이지 않는다. 지워지면 그 세션의 마감이 로그 3종에 tournament_id 를 쓰고도
+    // markLocked 가 실패해(경고만 남는다) 시트에 주인 없는 행만 남으므로 서버 쪽에서도 확인한다.
+    // (삭제는 관리자가 드물게 하는 조작이라 active 노드를 통째로 한 번 읽는 비용은 감수한다.)
+    const active = await get(ref(firebaseDb, `games/${safeTeam(team)}/active`));
+    const running = Object.values(active.val() || {}).some(g => g?.meta?.tournamentId === cupId);
+    if (running) throw new Error('진행 중인 컵 세션이 있습니다. 마감 후 삭제하세요');
     await remove(ref(firebaseDb, cupPath(team, cupId)));
   },
 };
