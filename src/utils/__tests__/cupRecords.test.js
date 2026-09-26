@@ -2,7 +2,7 @@
 // 마스터스컵 3단계 스펙 §3 — 순수 계산 규칙 고정. fixture 열 이름은 로그_매치·로그_이벤트 실제 열.
 import { describe, it, expect } from 'vitest';
 import {
-  isExtraRow, matchKeyOf, selectCupRows, collectPlayedPairs,
+  isExtraRow, matchKeyOf, selectCupRows, collectPlayedPairs, calcCupStandings,
 } from '../cup/cupRecords';
 
 const A5 = ['a1', 'a2', 'a3', 'a4', 'a5'];
@@ -83,3 +83,146 @@ describe('collectPlayedPairs', () => {
     expect(collectPlayedPairs(undefined, 'CUP').size).toBe(0);
   });
 });
+
+const A7 = ['a1', 'a2', 'a3', 'a4', 'a5', 'a6', 'a7'];
+const B6 = ['b1', 'b2', 'b3', 'b4', 'b5', 'b6'];
+export const CUP = {
+  meta: { id: 'CUP', name: 'CUP', sport: '풋살', status: 'active', createdAt: 1, createdBy: '', updatedAt: 1, lockedAt: null },
+  teams: [
+    { id: 't1', name: '팀A', captain: '', players: A7, order: 0 },
+    { id: 't2', name: '팀B', captain: '', players: B6, order: 1 },
+    { id: 't3', name: '팀C', captain: '', players: ['c1'], order: 2 },
+  ],
+};
+const row = (standings, name) => standings.find(s => s.name === name);
+const stand = (rows) => calcCupStandings({ matchRows: selectCupRows({ matchRows: rows, eventRows: [], cupId: 'CUP' }).matchRows, cup: CUP });
+
+describe('calcCupStandings — 경기 단위 승점·가점', () => {
+  it('0:0 → 양 팀 무 1점 + 무실점 1점', () => {
+    const { standings } = stand([M({ our_score: 0, opponent_score: 0 })]);
+    expect(row(standings, '팀A')).toMatchObject({ games: 1, draws: 1, points: 1, bonusClean: 1, bonusMargin: 0, bonusAttend: 0, total: 2 });
+    expect(row(standings, '팀B')).toMatchObject({ games: 1, draws: 1, points: 1, bonusClean: 1, total: 2 });
+  });
+  it('2:0 → 이긴 팀 3 + 무실점 1, 진 팀 0', () => {
+    const { standings } = stand([M({ our_score: 2, opponent_score: 0 })]);
+    expect(row(standings, '팀A')).toMatchObject({ wins: 1, points: 3, bonusMargin: 0, bonusClean: 1, total: 4, gf: 2, ga: 0, gd: 2 });
+    expect(row(standings, '팀B')).toMatchObject({ losses: 1, points: 0, bonusClean: 0, total: 0, gd: -2 });
+  });
+  it('0:1 → 원정 승 3 + 무실점 1', () => {
+    const { standings } = stand([M({ our_score: 0, opponent_score: 1 })]);
+    expect(row(standings, '팀B')).toMatchObject({ wins: 1, points: 3, bonusClean: 1, total: 4 });
+    expect(row(standings, '팀A')).toMatchObject({ losses: 1, total: 0 });
+  });
+  it('3:0 → 다득점 1 + 무실점 1 (합계 5)', () => {
+    const { standings } = stand([M({ our_score: 3, opponent_score: 0 })]);
+    expect(row(standings, '팀A')).toMatchObject({ points: 3, bonusMargin: 1, bonusClean: 1, bonus: 2, total: 5 });
+  });
+  it('4:1 → 다득점만(합계 4), 3:1 → 가점 없음(합계 3)', () => {
+    expect(row(stand([M({ our_score: 4, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 1, bonusClean: 0, total: 4 });
+    expect(row(stand([M({ our_score: 3, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 0, bonusClean: 0, total: 3 });
+  });
+  it('스코어가 문자열로 와도 숫자로 센다', () => {
+    const { standings } = stand([M({ our_score: '3', opponent_score: '0' })]);
+    expect(row(standings, '팀A')).toMatchObject({ gf: 3, total: 5 });
+  });
+});
+
+describe('calcCupStandings — 경기일 단위 참석 가점', () => {
+  it('등록 팀원 6명 참석은 0, 7명은 +1', () => {
+    const six = stand([M({ our_members_json: JSON.stringify(A7.slice(0, 6)) })]);
+    expect(row(six.standings, '팀A').bonusAttend).toBe(0);
+    const seven = stand([M({ our_members_json: JSON.stringify(A7) })]);
+    expect(row(seven.standings, '팀A').bonusAttend).toBe(1);
+    expect(seven.days[0].teams['팀A']).toMatchObject({ registered: true, present: 7, bonusAttend: 1, guests: [] });
+  });
+  it('같은 날짜에 세션(game_id)이 둘이어도 경기일당 1, 다른 날짜면 날짜마다', () => {
+    const sameDay = stand([
+      M({ our_members_json: JSON.stringify(A7) }),
+      M({ game_id: 'g2', match_id: 'R1_C0', our_members_json: JSON.stringify(A7) }),
+    ]);
+    expect(row(sameDay.standings, '팀A').bonusAttend).toBe(1);
+    expect(sameDay.days).toHaveLength(1);
+    const twoDays = stand([
+      M({ our_members_json: JSON.stringify(A7) }),
+      M({ date: '2026-10-08', game_id: 'g2', our_members_json: JSON.stringify(A7) }),
+    ]);
+    expect(row(twoDays.standings, '팀A').bonusAttend).toBe(2);
+    expect(twoDays.days.map(d => d.date)).toEqual(['2026-10-01', '2026-10-08']);
+  });
+  it('용병 이동: A 등록 팀원이 B 명단으로 뛰면 A 참석에 들어가고 B 참석에는 안 들어간다(서라현 예시)', () => {
+    // A 명단 6명(a1~a6), B 명단 = 등록 6명 + a7. a7 은 A 등록 팀원.
+    const { standings, days } = stand([M({
+      our_members_json: JSON.stringify(A7.slice(0, 6)),
+      opponent_members_json: JSON.stringify([...B6, 'a7']),
+    })]);
+    expect(row(standings, '팀A').bonusAttend).toBe(1);   // 등록 7명이 그날 왔다
+    expect(row(standings, '팀B').bonusAttend).toBe(0);   // 등록 팀원은 6명뿐
+    expect(days[0].teams['팀A']).toMatchObject({ present: 7, guests: [] });
+    expect(days[0].teams['팀B']).toMatchObject({ present: 6, guests: ['a7'] });
+  });
+  it('휴식 라운드 선수도 참석으로 센다({players, absent} 형식)', () => {
+    const { standings } = stand([M({ our_members_json: JSON.stringify({ players: A7, absent: ['a7'] }) })]);
+    expect(row(standings, '팀A').bonusAttend).toBe(1);
+  });
+  it('이름 장식(★)·공백은 등록 팀원과 같은 사람으로 본다', () => {
+    const { standings } = stand([M({ our_members_json: JSON.stringify(['a1 ★', ' a2', 'a3', 'a4', 'a5', 'a6', 'a7']) })]);
+    expect(row(standings, '팀A').bonusAttend).toBe(1);
+  });
+  it('미등록 팀명은 registered:false 이고 7명이 와도 참석 가점이 없다', () => {
+    const { standings, days } = stand([M({ our_team_name: '팀X', our_members_json: JSON.stringify(['x1', 'x2', 'x3', 'x4', 'x5', 'x6', 'x7']) })]);
+    expect(row(standings, '팀X')).toMatchObject({ registered: false, bonusAttend: 0, games: 1 });
+    expect(days[0].teams['팀X']).toMatchObject({ registered: false, present: 0, guests: [] });
+  });
+  it('그날 경기가 없는 등록 팀도 days.teams 에 나오고 참석 0', () => {
+    const { days } = stand([M()]);
+    expect(days[0].teams['팀C']).toMatchObject({ registered: true, present: 0, bonusAttend: 0, points: 0 });
+  });
+});
+
+describe('calcCupStandings — 합산·정렬·출력 모양', () => {
+  it('두 경기일·같은 조합 재대결을 모두 합산한다', () => {
+    const { standings } = stand([
+      M({ our_score: 1, opponent_score: 0 }),
+      M({ match_id: 'R2_C0', match_idx: 2, our_score: 0, opponent_score: 2 }),
+      M({ date: '2026-10-08', game_id: 'g2', our_score: 1, opponent_score: 1 }),
+    ]);
+    expect(row(standings, '팀A')).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1, gf: 2, ga: 3, gd: -1, points: 4, bonusClean: 1, total: 5 });
+    expect(row(standings, '팀B')).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1, gf: 3, ga: 2, gd: 1, points: 4, bonusClean: 1, total: 5 });
+  });
+  it('정렬: 합계 → 골득실 → 다득점 → 팀명', () => {
+    // A 1:0 B (A 4점, gd+1, gf1) / C 2:0 B (C 4점, gd+2) → C, A
+    const s1 = stand([M({ our_score: 1, opponent_score: 0 }), M({ our_team_name: '팀C', our_members_json: '["c1"]', match_id: 'R1_C1', match_idx: 2, our_score: 2, opponent_score: 0 })]).standings;
+    expect(s1.map(s => s.name)).toEqual(['팀C', '팀A', '팀B']);
+    // A 3:2 B (3점, gd+1, gf3) / C 2:1 B (3점, gd+1, gf2) → A, C
+    const s2 = stand([M({ our_score: 3, opponent_score: 2 }), M({ our_team_name: '팀C', our_members_json: '["c1"]', match_id: 'R1_C1', match_idx: 2, our_score: 2, opponent_score: 1 })]).standings;
+    expect(s2.map(s => s.name)).toEqual(['팀A', '팀C', '팀B']);
+    // A 1:0 B / C 1:0 B → 완전 동률 → 팀명 순 A, C
+    const s3 = stand([M({ our_score: 1, opponent_score: 0 }), M({ our_team_name: '팀C', our_members_json: '["c1"]', match_id: 'R1_C1', match_idx: 2, our_score: 1, opponent_score: 0 })]).standings;
+    expect(s3.map(s => s.name)).toEqual(['팀A', '팀C', '팀B']);
+  });
+  it('0경기 등록 팀은 전부 0으로 마지막에', () => {
+    const { standings } = stand([M({ our_score: 1, opponent_score: 0 })]);
+    expect(standings[standings.length - 1]).toMatchObject({ name: '팀C', registered: true, games: 0, total: 0, gd: 0 });
+  });
+  it('경기가 없으면 등록 팀만 0으로, days 는 빈 배열', () => {
+    const { standings, days } = calcCupStandings({ matchRows: [], cup: CUP });
+    expect(standings.map(s => s.name)).toEqual(['팀A', '팀B', '팀C']);
+    expect(days).toEqual([]);
+  });
+  it('days.matches 는 match_idx 오름차순이고 경기 가점을 양쪽에 단다', () => {
+    const { days } = stand([
+      M({ match_idx: 2, match_id: 'R2_C0', our_score: 0, opponent_score: 0 }),
+      M({ match_idx: 1, match_id: 'R1_C0', our_score: 3, opponent_score: 0 }),
+    ]);
+    expect(days[0].matches.map(m => m.matchId)).toEqual(['R1_C0', 'R2_C0']);
+    expect(days[0].matches[0]).toMatchObject({ home: '팀A', away: '팀B', homeScore: 3, awayScore: 0, homeBonus: { margin: 1, clean: 1 }, awayBonus: { margin: 0, clean: 0 }, key: '2026-10-01|g1|R1_C0' });
+    expect(days[0].matches[1]).toMatchObject({ homeBonus: { margin: 0, clean: 1 }, awayBonus: { margin: 0, clean: 1 } });
+    expect(days[0].teams['팀A']).toMatchObject({ points: 4, bonusMargin: 1, bonusClean: 2 });
+  });
+  it('cup 이 teams 없이 와도(RTDB 빈 배열 누락) 행의 팀만으로 계산한다', () => {
+    const { standings } = calcCupStandings({ matchRows: [M({ our_score: 1, opponent_score: 0 })], cup: { meta: { id: 'CUP' } } });
+    expect(standings.map(s => s.name)).toEqual(['팀A', '팀B']);
+    expect(standings[0]).toMatchObject({ registered: false, total: 4 });
+  });
+});
+

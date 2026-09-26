@@ -74,4 +74,94 @@ export function collectPlayedPairs(matchRows, cupId) {
   return out;
 }
 
+function newTeamStat(name, registered) {
+  return { name, registered, games: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, points: 0, bonusAttend: 0, bonusMargin: 0, bonusClean: 0, bonus: 0, total: 0 };
+}
+function newDayTeam(registered) {
+  return { registered, present: 0, guests: [], bonusAttend: 0, points: 0, bonusMargin: 0, bonusClean: 0 };
+}
+
+/**
+ * 대회 누적 순위표 + 경기일별 내역. matchRows 는 selectCupRows 를 거친(그 대회·임시 라운드 제외) 행.
+ * 승점 3/1/0 + 가점(경기일 참석 등록 팀원 7명↑ / 3점차↑ 승리 / 무실점) → 합계 → 골득실 → 다득점 → 팀명.
+ * 참석은 "등록 팀원이 그날 어느 명단에든 있는가"로 원소속 팀에 센다(용병 이동 시 옮겨간 팀에는 안 센다).
+ */
+export function calcCupStandings({ matchRows = [], cup }) {
+  const roster = rosterOf(cup);
+  const stats = new Map();
+  const ensure = (name) => {
+    if (!stats.has(name)) stats.set(name, newTeamStat(name, roster.has(name)));
+    return stats.get(name);
+  };
+  for (const name of roster.keys()) ensure(name);
+
+  // 경기일 버킷: date → { date, matches, attendees:Set(그날 온 전원), lists:Map(팀→Set(그 팀 명단으로 뛴 사람)), teams:Map }
+  const dayMap = new Map();
+  const dayOf = (date) => {
+    if (!dayMap.has(date)) dayMap.set(date, { date, matches: [], attendees: new Set(), lists: new Map(), teams: new Map() });
+    return dayMap.get(date);
+  };
+  const dayTeam = (day, name) => {
+    if (!day.teams.has(name)) day.teams.set(name, newDayTeam(roster.has(name)));
+    return day.teams.get(name);
+  };
+  const dayList = (day, name) => {
+    if (!day.lists.has(name)) day.lists.set(name, new Set());
+    return day.lists.get(name);
+  };
+
+  const ordered = [...(matchRows || [])].filter(Boolean)
+    .sort((a, b) => byKo(a.date, b.date) || num(a.match_idx) - num(b.match_idx));
+
+  for (const r of ordered) {
+    const home = teamOf(r.our_team_name), away = teamOf(r.opponent_team_name);
+    if (!home || !away) continue;
+    const hs = num(r.our_score), as = num(r.opponent_score);
+    const h = ensure(home), a = ensure(away);
+    const day = dayOf(String(r.date ?? ''));
+    const dh = dayTeam(day, home), da = dayTeam(day, away);
+
+    h.games++; a.games++;
+    h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
+    const homeBonus = { margin: 0, clean: as === 0 ? 1 : 0 };
+    const awayBonus = { margin: 0, clean: hs === 0 ? 1 : 0 };
+    let hp = 0, ap = 0;
+    if (hs > as) { h.wins++; a.losses++; hp = 3; if (hs - as >= MARGIN_BONUS_MIN) homeBonus.margin = 1; }
+    else if (hs < as) { a.wins++; h.losses++; ap = 3; if (as - hs >= MARGIN_BONUS_MIN) awayBonus.margin = 1; }
+    else { h.draws++; a.draws++; hp = 1; ap = 1; }
+    h.points += hp; a.points += ap;
+    h.bonusMargin += homeBonus.margin; h.bonusClean += homeBonus.clean;
+    a.bonusMargin += awayBonus.margin; a.bonusClean += awayBonus.clean;
+    dh.points += hp; dh.bonusMargin += homeBonus.margin; dh.bonusClean += homeBonus.clean;
+    da.points += ap; da.bonusMargin += awayBonus.margin; da.bonusClean += awayBonus.clean;
+
+    day.matches.push({ key: matchKeyOf(r), matchId: String(r.match_id ?? ''), home, away, homeScore: hs, awayScore: as, homeBonus, awayBonus });
+    for (const p of membersOf(r.our_members_json)) { day.attendees.add(p); dayList(day, home).add(p); }
+    for (const p of membersOf(r.opponent_members_json)) { day.attendees.add(p); dayList(day, away).add(p); }
+  }
+
+  // 경기일 단위 참석 가점 — 등록 팀마다, 그날 온 등록 팀원 수로.
+  const days = [...dayMap.values()].sort((x, y) => byKo(x.date, y.date)).map(day => {
+    for (const [name, players] of roster) {
+      const dt = dayTeam(day, name);
+      let present = 0;
+      for (const p of players) if (day.attendees.has(p)) present++;
+      dt.present = present;
+      dt.guests = [...(day.lists.get(name) || [])].filter(p => !players.has(p)).sort(byKo);
+      if (present >= ATTEND_BONUS_MIN) { dt.bonusAttend = 1; ensure(name).bonusAttend++; }
+    }
+    const teams = {};
+    for (const [name, dt] of day.teams) teams[name] = dt;
+    return { date: day.date, matches: day.matches, teams };
+  });
+
+  const standings = [...stats.values()].map(s => {
+    const gd = s.gf - s.ga;
+    const bonus = s.bonusAttend + s.bonusMargin + s.bonusClean;
+    return { ...s, gd, bonus, total: s.points + bonus };
+  }).sort((x, y) => y.total - x.total || y.games - x.games || y.gd - x.gd || y.gf - x.gf || byKo(x.name, y.name));
+
+  return { standings, days };
+}
+
 export const _internal = { num, teamOf, nameOf, byKo, membersOf, rosterOf, sameCup };
