@@ -60,7 +60,7 @@ export default function CupTeamEditor({ teams, members = [], locked = false, dis
     <div>
       {locked && (
         <div style={{ ...card, background: "rgba(255,149,0,0.10)", color: "var(--app-orange)", fontSize: 12 }}>
-          🔒 첫 경기 마감 후 팀명·팀 수는 바꿀 수 없습니다. 팀원·팀장은 수정할 수 있습니다.
+          🔒 첫 경기 마감 후 팀명·팀 수는 바꿀 수 없습니다. 팀원·팀장은 수정할 수 있습니다. 팀원을 빼면 지난 경기일 참석 가점이 바뀔 수 있습니다.
         </div>
       )}
       {draft.map(t => {

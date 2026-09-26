@@ -1,11 +1,17 @@
 // src/components/cup/CupDetail.jsx
-// 대회 상세 — 스펙 §6.1: 시작·이어서·팀 관리·상태·삭제. 순위·TOP·대진·결과·잠금 로그 파생은 3단계.
-import { useState } from 'react';
+// 대회 상세 — 스펙 §6.1: 시작·이어서·팀 관리·상태·삭제. 3단계(2026-09-26 스펙 §4.2·§5): 컵 뷰 2종을 읽어
+// 누적 순위표·개인기록·경기일별 결과를 그리고, 잠금은 lockedAt OR 로그 파생(collectPlayedPairs).
+import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import CupSync from '../../services/cupSync';
+import SheetCache from '../../services/sheetCache';
 import { validateTeams, isLocked } from '../../utils/cup/cupEntity';
 import { isCupSession } from '../../utils/cup/cupSession';
+import { selectCupRows, calcCupStandings, calcCupPlayerRecords, collectPlayedPairs } from '../../utils/cup/cupRecords';
 import CupTeamEditor from './CupTeamEditor';
+import CupStandingsTable from './CupStandingsTable';
+import CupPlayerRecordsTable from './CupPlayerRecordsTable';
+import CupDayResults from './CupDayResults';
 
 export default function CupDetail({ teamName, cup, members, pendingGames = [], isAdmin, onStartGame, onContinueGame, onBack, onChanged }) {
   const { C } = useTheme();
@@ -13,7 +19,37 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
   const [busy, setBusy] = useState(false);
   // 팀이 하나도 없는 새 대회는 관리자에게 편집기를 바로 연다(요약할 것이 없으므로).
   const [editing, setEditing] = useState(() => isAdmin && (cup.teams?.length ?? 0) === 0);
-  const locked = isLocked(cup);
+  const cupId = cup.meta.id;
+  // 컵 뷰 읽기. sport 를 명시한다 — AuthUtil.mode 는 대시보드 종목 토글을 따라오지 않는다(겸직팀 함정).
+  // alive 플래그로 대회 전환·언마운트 뒤 늦게 도착한 응답을 폐기한다. retry 는 "다시 시도" 카운터.
+  const [records, setRecords] = useState({ status: 'loading', matchRows: [], eventRows: [] });
+  const [retry, setRetry] = useState(0);
+  useEffect(() => {
+    if (!cupId) return undefined;
+    let alive = true;
+    setRecords(r => ({ ...r, status: 'loading' }));
+    Promise.all([
+      SheetCache.get('cupMatchLog', { sport: '풋살' }),
+      SheetCache.get('cupEventLog', { sport: '풋살' }),
+    ]).then(([matchRows, eventRows]) => {
+      if (alive) setRecords({ status: 'ok', matchRows: matchRows || [], eventRows: eventRows || [] });
+    }).catch(() => {
+      if (alive) setRecords({ status: 'error', matchRows: [], eventRows: [] });
+    });
+    return () => { alive = false; };
+  }, [cupId, retry]);
+
+  const computed = useMemo(() => {
+    const sel = selectCupRows({ matchRows: records.matchRows, eventRows: records.eventRows, cupId });
+    const { standings, days } = calcCupStandings({ matchRows: sel.matchRows, cup });
+    return {
+      hasMatches: sel.matchRows.length > 0,
+      standings, days,
+      players: calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup }),
+      playedPairs: collectPlayedPairs(records.matchRows, cupId),
+    };
+  }, [records.matchRows, records.eventRows, cupId, cup]);
+  const locked = isLocked(cup, computed.playedPairs);
   const active = cup.meta.status === 'active';
   const validation = validateTeams(cup.teams);
   const canStart = isAdmin && active && validation.ok;
@@ -51,7 +87,7 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
           <span style={{ fontSize: 11, padding: "2px 8px", borderRadius: 999, background: active ? "rgba(52,199,89,0.15)" : "var(--app-bg-row)", color: active ? "var(--app-green)" : C.gray }}>{active ? '진행중' : '완료'}</span>
           {locked && <span style={{ fontSize: 11, color: "var(--app-orange)" }}>🔒 잠김</span>}
         </div>
-        <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>{cup.teams.length}팀 · 풀리그 1회전</div>
+        <div style={{ fontSize: 12, color: C.gray, marginTop: 4 }}>{cup.teams.length}팀 · 경기일별 풀리그</div>
       </div>
 
       {pendingCup && (
@@ -70,6 +106,33 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
           {!active && <div style={{ fontSize: 12, color: C.gray, marginTop: 6 }}>완료된 대회입니다. "다시 열기" 후 시작할 수 있습니다.</div>}
           {active && !validation.ok && <div style={{ fontSize: 12, color: "var(--app-red)", marginTop: 6 }}>{validation.errors.join(' · ')}</div>}
         </div>
+      )}
+
+      <div style={section}>
+        <div style={title}>순위표 (누적)</div>
+        {records.status === 'loading' && <div data-role="cup-records-loading" style={{ color: C.gray, fontSize: 13, padding: 8 }}>기록 불러오는 중…</div>}
+        {records.status === 'error' && (
+          <div data-role="cup-records-error" style={{ ...card, color: "var(--app-red)", fontSize: 13, display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
+            <span>기록을 불러오지 못했습니다</span>
+            <button data-role="cup-records-retry" onClick={() => setRetry(n => n + 1)} style={btn("var(--app-bg-row)", C.white, { width: "auto", padding: "6px 10px", fontSize: 12 })}>다시 시도</button>
+          </div>
+        )}
+        {records.status === 'ok' && (computed.hasMatches
+          ? <div style={card}><CupStandingsTable standings={computed.standings} finished={!active} /></div>
+          : <div data-role="cup-records-empty" style={{ color: C.gray, fontSize: 13, padding: 8 }}>아직 마감된 경기가 없습니다</div>)}
+      </div>
+
+      {records.status === 'ok' && computed.hasMatches && (
+        <>
+          <div style={section}>
+            <div style={title}>개인기록</div>
+            <div style={card}><CupPlayerRecordsTable records={computed.players} /></div>
+          </div>
+          <div style={section}>
+            <div style={title}>경기일별 결과</div>
+            <CupDayResults days={computed.days} />
+          </div>
+        </>
       )}
 
       <div style={section}>

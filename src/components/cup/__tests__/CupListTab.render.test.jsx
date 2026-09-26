@@ -17,6 +17,8 @@ vi.mock('../../../services/cupSync', () => ({
     markLocked: () => Promise.resolve(),
   },
 }));
+// CupDetail 이 3단계부터 SheetCache 를 읽는다 — 이 테스트는 목록·상세 배선만 보므로 빈 컵 뷰로 고정.
+vi.mock('../../../services/sheetCache', () => ({ default: { get: () => Promise.resolve([]) } }));
 
 import CupListTab from '../CupListTab';
 import CupSync from '../../../services/cupSync';

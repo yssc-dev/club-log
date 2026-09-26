@@ -119,3 +119,18 @@ describe('App.jsx — 컵 경기일 마법사 경유 게이트 (스펙 §6.2 v2.
     expect(picker).toMatch(/onAddToTeam\?\.\(i, name\) === false/);
   });
 });
+
+describe('CupDetail.jsx — 컵 뷰 읽기는 종목을 명시한다 (3단계 스펙 §4.2)', () => {
+  const src = read('components/cup/CupDetail.jsx');
+  it('SheetCache.get 호출은 전부 cup 뷰 + sport 풋살', () => {
+    const calls = src.match(/SheetCache\.get\([^)]*\)/g) || [];
+    expect(calls.length).toBe(2);
+    for (const c of calls) expect(c).toMatch(/sport:\s*'풋살'/);
+    expect(src).toMatch(/SheetCache\.get\('cupMatchLog'/);
+    expect(src).toMatch(/SheetCache\.get\('cupEventLog'/);
+  });
+  it('잠금은 로그 파생 집합을 isLocked 에 넘긴다', () => {
+    expect(src).toMatch(/isLocked\(cup, computed\.playedPairs\)/);
+    expect(src).not.toMatch(/isLocked\(cup\)/);
+  });
+});
