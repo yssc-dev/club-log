@@ -91,6 +91,30 @@ const ADAPTERS = {
   '축구': soccerLikeAdapters('축구'),
 };
 
+// 풋살 컵 뷰(마스터스컵 3단계 스펙 §4.1): 원본 로그 노드를 공유하고 반환만 컵 행(tournament_id 있음)으로
+// 거른다. ADAPTERS 에 넣지 않는다 — datasetsOf/refreshAll/status/마감 재적재가 ADAPTERS 만 순회하므로
+// alias 가 재적재·상태 표시 대상으로 늘어나지 않고, 기존 커버리지 테스트(풋살 7종)도 그대로다.
+const isCupRow = (row) => !!row?.tournament_id;
+const ALIASES = {
+  '풋살': {
+    cupMatchLog: { alias: 'matchLog', rowFilter: isCupRow },
+    cupEventLog: { alias: 'eventLog', rowFilter: isCupRow },
+  },
+};
+
+// dataset → { adapter, sourceDataset } | null. alias 면 원본 어댑터에 alias 의 rowFilter 를 덮어 쓴 **사본**과
+// 원본 데이터셋 키를 돌려준다(원본 객체는 건드리지 않는다). 경로는 반드시 sourceDataset 으로 만들어야
+// alias 전용 RTDB 노드가 생기지 않는다.
+function _resolve(sport, dataset) {
+  const alias = ALIASES[sport]?.[dataset];
+  if (alias) {
+    const src = ADAPTERS[sport]?.[alias.alias];
+    return src ? { adapter: { ...src, rowFilter: alias.rowFilter }, sourceDataset: alias.alias } : null;
+  }
+  const src = ADAPTERS[sport]?.[dataset];
+  return src ? { adapter: src, sourceDataset: dataset } : null;
+}
+
 const _l1 = new Map();       // path → { value, ts }
 const _inflight = new Map(); // path → Promise
 // path → 세대 번호. refresh() 가 fetch 전에 올리고, get() 은 자기 L3 fetch 전후를
@@ -115,10 +139,6 @@ function _ctx(sportOverride) {
   const team = a?.team || '';
   const sport = sportOverride || a?.mode || '';
   return { team, sport, settings: getEffectiveSettings(team, sport) || {} };
-}
-
-function _adapter(sport, dataset) {
-  return ADAPTERS[sport]?.[dataset] || null;
 }
 
 // 캐시 노드 경로의 단일 소스 — get/refresh/status 가 전부 이걸 써야 한다.
@@ -195,11 +215,12 @@ const SheetCache = {
 
   async get(dataset, { sport } = {}) {
     const { team, sport: sp, settings } = _ctx(sport);
-    const adapter = _adapter(sp, dataset);
-    if (!adapter) return [];
+    const resolved = _resolve(sp, dataset);
+    if (!resolved) return [];
+    const { adapter, sourceDataset } = resolved;
     if (DISABLED) return _applyRowFilter(adapter, await _fetchValue(adapter, settings), settings);
 
-    const path = _pathFor(adapter, team, sp, dataset);
+    const path = _pathFor(adapter, team, sp, sourceDataset);
 
     const hit = _l1.get(path);
     if (hit && Date.now() - hit.ts < L1_TTL_MS) return _applyRowFilter(adapter, hit.value, settings);
@@ -268,12 +289,13 @@ const SheetCache = {
   // 반환값 { ok, rows } 로 호출부(refreshAll)가 성공 여부를 구분할 수 있게 한다.
   async refresh(dataset, { sport } = {}) {
     const { team, sport: sp, settings } = _ctx(sport);
-    const adapter = _adapter(sp, dataset);
-    if (!adapter) return { ok: true, rows: [] };
+    const resolved = _resolve(sp, dataset);
+    if (!resolved) return { ok: true, rows: [] };
+    const { adapter, sourceDataset } = resolved;
     // 롤백 스위치(§14): true 면 캐시(L2/L1) 자체를 건드리지 않는다 — get() 이
     // 이미 매번 L3 직행이라 여기서 재적재할 대상이 없다.
     if (DISABLED) return { ok: true, rows: [] };
-    const path = _pathFor(adapter, team, sp, dataset);
+    const path = _pathFor(adapter, team, sp, sourceDataset);
     _l1.delete(path);
     // 세대를 올려 이미 L3 에 내려가 있는 get() 들이 자기 응답을 낡은 것으로 판정하게 한다.
     _gen.set(path, (_gen.get(path) || 0) + 1);
@@ -312,7 +334,7 @@ const SheetCache = {
     const { team, sport: sp } = _ctx(sport);
     const out = [];
     for (const dataset of this.datasetsOf(sp)) {
-      const path = _pathFor(_adapter(sp, dataset), team, sp, dataset);
+      const path = _pathFor(_resolve(sp, dataset).adapter, team, sp, dataset);
       try {
         const [v, c] = await Promise.all([
           get(ref(firebaseDb, `${path}/version`)),
@@ -338,6 +360,11 @@ const SheetCache = {
   // 수 있게 한다. 프로덕션 코드에서는 쓰지 않는다.
   _adaptersForTest() {
     return ADAPTERS;
+  },
+
+  // 테스트 전용 — alias 레지스트리 원본. 프로덕션 코드에서는 쓰지 않는다.
+  _aliasesForTest() {
+    return ALIASES;
   },
 };
 
