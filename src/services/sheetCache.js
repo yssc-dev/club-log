@@ -334,7 +334,8 @@ const SheetCache = {
     const { team, sport: sp } = _ctx(sport);
     const out = [];
     for (const dataset of this.datasetsOf(sp)) {
-      const path = _pathFor(_resolve(sp, dataset).adapter, team, sp, dataset);
+      const { adapter, sourceDataset } = _resolve(sp, dataset);
+      const path = _pathFor(adapter, team, sp, sourceDataset);
       try {
         const [v, c] = await Promise.all([
           get(ref(firebaseDb, `${path}/version`)),

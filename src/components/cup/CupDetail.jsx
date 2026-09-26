@@ -118,7 +118,7 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
           </div>
         )}
         {records.status === 'ok' && (computed.hasMatches
-          ? <div style={card}><CupStandingsTable standings={computed.standings} finished={!active} /></div>
+          ? <div style={card}><CupStandingsTable standings={computed.standings} finished={cup.meta.status === 'finished'} /></div>
           : <div data-role="cup-records-empty" style={{ color: C.gray, fontSize: 13, padding: 8 }}>아직 마감된 경기가 없습니다</div>)}
       </div>
 

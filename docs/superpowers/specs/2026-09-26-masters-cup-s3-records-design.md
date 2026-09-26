@@ -79,7 +79,7 @@
   days: [{                                                                  // date 오름차순
     date,
     matches: [{ key, matchId, home, away, homeScore, awayScore,
-                homeBonus: { margin: 0|1, clean: 0|1 }, awayBonus: { margin, clean } }],  // match_idx 오름
+                homeBonus: { margin: 0|1, clean: 0|1 }, awayBonus: { margin, clean } }],  // game_id → match_idx 오름(같은 날짜 두 세션은 세션별로 묶임)
     teams: { [teamName]: { registered, present, guests: string[], bonusAttend: 0|1, points, bonusMargin, bonusClean } }
            // 키 = 등록 팀 ∪ 그날 행에 등장한 팀. 미등록 팀은 present 0·guests [] 로 둔다
   }]

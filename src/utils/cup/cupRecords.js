@@ -111,7 +111,7 @@ export function calcCupStandings({ matchRows = [], cup }) {
   };
 
   const ordered = [...(matchRows || [])].filter(Boolean)
-    .sort((a, b) => byKo(a.date, b.date) || num(a.match_idx) - num(b.match_idx));
+    .sort((a, b) => byKo(a.date, b.date) || byKo(a.game_id, b.game_id) || num(a.match_idx) - num(b.match_idx));
 
   for (const r of ordered) {
     const home = teamOf(r.our_team_name), away = teamOf(r.opponent_team_name);
@@ -150,9 +150,9 @@ export function calcCupStandings({ matchRows = [], cup }) {
       dt.guests = [...(day.lists.get(name) || [])].filter(p => !players.has(p)).sort(byKo);
       if (present >= ATTEND_BONUS_MIN) { dt.bonusAttend = 1; ensure(name).bonusAttend++; }
     }
-    const teams = {};
-    for (const [name, dt] of day.teams) teams[name] = dt;
-    return { date: day.date, matches: day.matches, teams };
+    // 팀명이 객체 키가 된다. 대괄호 대입은 '__proto__' 같은 이름에서 [[Set]] 이 프로토타입을 바꿔 항목이
+    // 사라지므로(적대적 리뷰 D-1) own property 로 정의하는 Object.fromEntries 를 쓴다.
+    return { date: day.date, matches: day.matches, teams: Object.fromEntries(day.teams) };
   });
 
   const standings = [...stats.values()].map(s => {
@@ -209,5 +209,3 @@ export function calcCupPlayerRecords({ matchRows = [], eventRows = [], cup }) {
     .map(({ dates, ...rec }) => ({ ...rec, days: dates.size }))
     .sort((x, y) => y.goals - x.goals || y.assists - x.assists || y.cleanSheets - x.cleanSheets || byKo(x.name, y.name));
 }
-
-export const _internal = { num, teamOf, nameOf, byKo, membersOf, rosterOf, sameCup };

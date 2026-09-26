@@ -237,6 +237,25 @@ describe('calcCupStandings — 합산·정렬·출력 모양', () => {
     expect(standings.map(s => s.name)).toEqual(['팀A', '팀B']);
     expect(standings[0]).toMatchObject({ registered: false, total: 4 });
   });
+  it("팀명이 '__proto__' 여도 days.teams 에 그대로 나온다(객체 키 함정)", () => {
+    const cup = { meta: { id: 'CUP' }, teams: [
+      { id: 't1', name: '__proto__', captain: '', players: ['p1'], order: 0 },
+      { id: 't2', name: '팀B', captain: '', players: B6, order: 1 },
+    ] };
+    const { standings, days } = calcCupStandings({ matchRows: [M({ our_team_name: '__proto__', our_members_json: '["p1"]', our_score: 1, opponent_score: 0 })], cup });
+    expect(standings.map(s => s.name)).toEqual(['__proto__', '팀B']);
+    expect(Object.keys(days[0].teams).sort()).toEqual(['__proto__', '팀B']);
+    expect(days[0].teams['__proto__']).toMatchObject({ registered: true, present: 1, points: 3 });
+    expect(Object.getPrototypeOf(days[0].teams)).toBe(Object.prototype);
+  });
+  it('같은 날짜에 세션이 둘이면 세션(game_id)별로 묶인 뒤 match_idx 순', () => {
+    const { days } = stand([
+      M({ game_id: 'g2', match_idx: 1, match_id: 'R1_C1' }),
+      M({ game_id: 'g1', match_idx: 2, match_id: 'R2_C0' }),
+      M({ game_id: 'g1', match_idx: 1, match_id: 'R1_C0' }),
+    ]);
+    expect(days[0].matches.map(m => m.key)).toEqual(['2026-10-01|g1|R1_C0', '2026-10-01|g1|R2_C0', '2026-10-01|g2|R1_C1']);
+  });
 });
 
 
