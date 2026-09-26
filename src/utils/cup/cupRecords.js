@@ -164,4 +164,50 @@ export function calcCupStandings({ matchRows = [], cup }) {
   return { standings, days };
 }
 
+/**
+ * 대회 개인기록. 골·어시·자책골은 로그_이벤트, 클린시트는 로그_매치 GK 열(경기 단위, 당일 세션 화면과 같은 정의),
+ * 참석횟수는 어느 팀 명단에든(휴식 포함) 등장한 날짜 수. 등록 팀원 전원 ∪ 로그에 등장한 이름.
+ */
+export function calcCupPlayerRecords({ matchRows = [], eventRows = [], cup }) {
+  const roster = rosterOf(cup);
+  const teamByPlayer = new Map();
+  for (const [team, players] of roster) for (const p of players) if (!teamByPlayer.has(p)) teamByPlayer.set(p, team);
+
+  const recs = new Map();
+  const ensure = (name) => {
+    if (!recs.has(name)) {
+      recs.set(name, { name, team: teamByPlayer.get(name) || '', guest: !teamByPlayer.has(name), goals: 0, assists: 0, cleanSheets: 0, ownGoals: 0, dates: new Set() });
+    }
+    return recs.get(name);
+  };
+  for (const p of teamByPlayer.keys()) ensure(p);
+
+  for (const r of matchRows || []) {
+    if (!r) continue;
+    const date = String(r.date ?? '');
+    const hs = num(r.our_score), as = num(r.opponent_score);
+    for (const p of membersOf(r.our_members_json)) ensure(p).dates.add(date);
+    for (const p of membersOf(r.opponent_members_json)) ensure(p).dates.add(date);
+    const hg = nameOf(r.our_gk), ag = nameOf(r.opponent_gk);
+    if (hg && as === 0) ensure(hg).cleanSheets++;
+    if (ag && hs === 0) ensure(ag).cleanSheets++;
+  }
+  for (const e of eventRows || []) {
+    if (!e) continue;
+    const type = String(e.event_type ?? '');
+    const p = nameOf(e.player);
+    if (type === 'goal') {
+      if (p) ensure(p).goals++;
+      const a = nameOf(e.related_player);
+      if (a) ensure(a).assists++;
+    } else if (type === 'owngoal') {
+      if (p) ensure(p).ownGoals++;
+    }
+  }
+
+  return [...recs.values()]
+    .map(({ dates, ...rec }) => ({ ...rec, days: dates.size }))
+    .sort((x, y) => y.goals - x.goals || y.assists - x.assists || y.cleanSheets - x.cleanSheets || byKo(x.name, y.name));
+}
+
 export const _internal = { num, teamOf, nameOf, byKo, membersOf, rosterOf, sameCup };

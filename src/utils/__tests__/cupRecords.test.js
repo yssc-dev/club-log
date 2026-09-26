@@ -2,7 +2,7 @@
 // 마스터스컵 3단계 스펙 §3 — 순수 계산 규칙 고정. fixture 열 이름은 로그_매치·로그_이벤트 실제 열.
 import { describe, it, expect } from 'vitest';
 import {
-  isExtraRow, matchKeyOf, selectCupRows, collectPlayedPairs, calcCupStandings,
+  isExtraRow, matchKeyOf, selectCupRows, collectPlayedPairs, calcCupStandings, calcCupPlayerRecords,
 } from '../cup/cupRecords';
 
 const A5 = ['a1', 'a2', 'a3', 'a4', 'a5'];
@@ -239,3 +239,70 @@ describe('calcCupStandings — 합산·정렬·출력 모양', () => {
   });
 });
 
+
+const recs = (rows, events) => {
+  const sel = selectCupRows({ matchRows: rows, eventRows: events, cupId: 'CUP' });
+  return calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup: CUP });
+};
+const rec = (list, name) => list.find(r => r.name === name);
+
+describe('calcCupPlayerRecords', () => {
+  it('골·어시·자책골은 로그_이벤트에서', () => {
+    const list = recs([M()], [
+      E({ player: 'a2', related_player: 'a3' }), E({ player: 'a2' }), E({ event_type: 'owngoal', player: 'b1', related_player: '' }),
+    ]);
+    expect(rec(list, 'a2')).toMatchObject({ goals: 2, assists: 0, ownGoals: 0 });
+    expect(rec(list, 'a3')).toMatchObject({ goals: 0, assists: 1 });
+    expect(rec(list, 'b1')).toMatchObject({ ownGoals: 1, goals: 0 });
+  });
+  it('클린시트는 로그_매치 GK 열·경기 단위: 2:0 은 홈 GK 만, 0:0 은 양쪽', () => {
+    const list = recs([
+      M({ our_score: 2, opponent_score: 0 }),
+      M({ match_id: 'R2_C0', match_idx: 2, our_score: 0, opponent_score: 0 }),
+    ], []);
+    expect(rec(list, 'a1').cleanSheets).toBe(2);
+    expect(rec(list, 'b1').cleanSheets).toBe(1);
+  });
+  it('GK 열이 비어 있으면 클린시트를 아무에게도 주지 않는다', () => {
+    const list = recs([M({ our_gk: '', opponent_gk: '', our_score: 0, opponent_score: 0 })], []);
+    expect(list.every(r => r.cleanSheets === 0)).toBe(true);
+  });
+  it('원정 명단·원정 GK 로만 뛴 선수도 참석·클린시트가 잡힌다', () => {
+    const list = recs([M({ our_score: 0, opponent_score: 1, opponent_gk: 'b6', opponent_members_json: JSON.stringify(B6) })], []);
+    expect(rec(list, 'b6')).toMatchObject({ cleanSheets: 1, days: 1, team: '팀B', guest: false });
+  });
+  it('참석횟수는 라운드 수가 아니라 날짜 수', () => {
+    const list = recs([
+      M(), M({ match_id: 'R2_C0', match_idx: 2 }), M({ date: '2026-10-08', game_id: 'g2' }),
+    ], []);
+    expect(rec(list, 'a1').days).toBe(2);
+  });
+  it('휴식 라운드에 있던 선수도 그날 참석', () => {
+    const list = recs([M({ our_members_json: JSON.stringify({ players: A5, absent: ['a5'] }) })], []);
+    expect(rec(list, 'a5').days).toBe(1);
+  });
+  it('등록 팀원 전원이 0 기록으로도 나온다, 등록 안 된 이름은 용병', () => {
+    const list = recs([M({ opponent_members_json: JSON.stringify([...B5, 'z1']) })], []);
+    expect(rec(list, 'c1')).toMatchObject({ team: '팀C', guest: false, goals: 0, days: 0 });
+    expect(rec(list, 'z1')).toMatchObject({ team: '', guest: true, days: 1 });
+  });
+  it('이름 장식·공백은 같은 사람', () => {
+    const list = recs([M({ our_members_json: JSON.stringify(['a1 ★', 'a2']) })], [E({ player: ' a2 ' })]);
+    expect(rec(list, 'a1').days).toBe(1);
+    expect(rec(list, 'a2')).toMatchObject({ goals: 1, days: 1 });
+    expect(list.filter(r => r.name.includes('★'))).toHaveLength(0);
+  });
+  it('임시 라운드의 골은 selectCupRows 를 거치면 빠진다', () => {
+    const list = recs([M(), M({ match_id: 'R2_C0', is_extra: true })], [E(), E({ match_id: 'R2_C0' })]);
+    expect(rec(list, 'a2').goals).toBe(1);
+  });
+  it('정렬: 골 → 어시 → 클린시트 → 이름', () => {
+    const list = recs([M({ our_score: 1, opponent_score: 0 })], [
+      E({ player: 'b2', related_player: 'b3' }), E({ player: 'a4', related_player: 'a3' }), E({ player: 'a3' }),
+    ]);
+    // a3: 1골 1어시 / a4·b2: 1골 0어시 → 이름 순 a4, b2 / a1: 0골 CS1 / b3: 0골 1어시
+    expect(list.slice(0, 3).map(r => r.name)).toEqual(['a3', 'a4', 'b2']);
+    expect(list[3].name).toBe('b3');
+    expect(list[4].name).toBe('a1');
+  });
+});
