@@ -1,7 +1,7 @@
 # 마스터스컵 3단계 — 대회 순위표·개인기록 설계
 
 - 작성일: 2026-09-26
-- 상태: 구현 완료(feat/cup-s3-records, 2026-09-26). 배포·스모크는 §12 절차.
+- 상태: 구현 완료(feat/cup-s3-records, 2026-09-26). 배포·스모크는 상위 문서 §12 절차.
 - 상위 문서: `2026-09-16-masters-cup-design.md`(v2.1). 이 문서는 그 §7(계산 규칙)·§4.6(alias 뷰)·§11 3단계를 **대체**한다. 나머지(엔티티·마법사·마감·격리)는 상위 문서 그대로.
 - 대상 팀: 마스터FC(풋살). 하버FC·빅마스터FC(축구)·몽피스(테니스)에는 어떤 동작 변화도 없어야 한다.
 
@@ -126,7 +126,7 @@ const ALIASES = {
 
 ### 4.2 대회 상세 읽기
 
-`CupDetail`이 `cup.meta.id`가 바뀔 때마다 `SheetCache.get('cupMatchLog', { sport: '풋살' })`·`SheetCache.get('cupEventLog', { sport: '풋살' })`를 `Promise.all`로 읽는다. `sport`는 반드시 명시(`AuthUtil.mode`는 화면 종목 토글을 따라오지 않는다). 세대 카운터로 늦은 응답을 폐기(`CupListTab.reload`와 같은 패턴). 상태 `{ status: 'loading'|'ok'|'error', matchRows, eventRows }`.
+`CupDetail`이 `cup.meta.id`가 바뀔 때마다 `SheetCache.get('cupMatchLog', { sport: '풋살' })`·`SheetCache.get('cupEventLog', { sport: '풋살' })`를 `Promise.all`로 읽는다. `sport`는 반드시 명시(`AuthUtil.mode`는 화면 종목 토글을 따라오지 않는다). 이펙트 cleanup 의 alive 플래그로 늦은 응답을 폐기(`CupListTab.reload`의 세대 카운터와 같은 목적). 상태 `{ status: 'loading'|'ok'|'error', matchRows, eventRows }`.
 
 컵 마감은 이미 원본 3종(`CUP_FINALIZE_DATASETS`)을 재적재하므로 마감 직후 대회 탭을 열면 최신 행이 보인다. 대회 상세는 별도 재적재를 하지 않는다.
 
@@ -204,3 +204,4 @@ const ALIASES = {
 | 이름 표기 불일치(장식·공백) | 등록 팀원이 참석에 안 잡힘 | 양쪽 `cleanPlayerName` 정규화. 경기일별 카드의 `guests`에 이름이 보이므로 운영자가 알아챌 수 있다 |
 | `is_extra` 문자열 `'TRUE'` | 임시 라운드가 집계에 섞임 | `isExtraRow` 이중 판정 + 테스트 |
 | 캐시 L1 TTL 안의 낡은 값 | 마감 직후 다른 기기에서 옛 순위 | 컵 마감 재적재는 원본 노드(L2)를 갱신하고, 다른 기기의 L1은 TTL 후 갱신. "다시 시도"는 `get`만 다시 부른다(강제 재적재 아님, 기존 동작과 동일) |
+| Apps Script/L2 읽기 실패가 빈 배열로 resolve(기존 캐시 계약: `AppSync.getMatchLog` 등이 실패를 `null` → 어댑터가 `[]`) | 대회 상세의 "기록을 불러오지 못했습니다"·다시 시도 상태가 실제로는 도달 불가하고, 콜드스타트 시 "아직 마감된 경기가 없습니다"로 보이며 로그 파생 잠금도 빠짐 | 이 단계 범위 밖(전 대시보드 탭 공유 계약). 후속: 풋살 로그 어댑터가 전송 실패(`null`)와 0행(`{rows:[]}`)을 구분해 reject 하도록 바꾸되 정규 호출부 전수 감사 후. `[]`는 L1 에 캐시되지 않아 재진입 시 재시도되고, 컵 마감 재적재가 L2 를 채우므로 첫 경기일 운영 영향은 낮음 |

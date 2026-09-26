@@ -74,7 +74,7 @@ describe('collectPlayedPairs', () => {
     const pairs = collectPlayedPairs([
       M(), M({ our_team_name: '팀B', opponent_team_name: '팀A', match_id: 'R2_C0' }),
       M({ our_team_name: '팀 A', opponent_team_name: '팀C', match_id: 'R3_C0' }),
-      M({ opponent_team_name: '팀C', is_extra: true, match_id: 'R4_C0' }),
+      M({ our_team_name: '팀B', opponent_team_name: '팀C', is_extra: true, match_id: 'R4_C0' }),
       M({ tournament_id: 'OTHER', our_team_name: '팀X', opponent_team_name: '팀Y' }),
     ], 'CUP');
     expect([...pairs].sort()).toEqual(['팀A|팀B', '팀A|팀C']);
