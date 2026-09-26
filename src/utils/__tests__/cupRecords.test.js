@@ -200,9 +200,22 @@ describe('calcCupStandings — 합산·정렬·출력 모양', () => {
     const s3 = stand([M({ our_score: 1, opponent_score: 0 }), M({ our_team_name: '팀C', our_members_json: '["c1"]', match_id: 'R1_C1', match_idx: 2, our_score: 1, opponent_score: 0 })]).standings;
     expect(s3.map(s => s.name)).toEqual(['팀A', '팀C', '팀B']);
   });
-  it('0경기 등록 팀은 전부 0으로 마지막에', () => {
+  it('0경기 등록 팀도 전부 0으로 나온다 — 골득실 0이라 골득실 음수인 팀 앞에 선다', () => {
+    // A 1:0 B → A(4, +1), C(0경기, 0, gd 0), B(0, gd −1) → A, C, B
     const { standings } = stand([M({ our_score: 1, opponent_score: 0 })]);
-    expect(standings[standings.length - 1]).toMatchObject({ name: '팀C', registered: true, games: 0, total: 0, gd: 0 });
+    expect(standings.map(s => s.name)).toEqual(['팀A', '팀C', '팀B']);
+    expect(standings[1]).toMatchObject({ name: '팀C', registered: true, games: 0, total: 0, gd: 0 });
+  });
+  it('합계 동률이면 경기 수와 무관하게 골득실로 가른다(경기 수는 정렬 기준이 아니다)', () => {
+    // A: 1경기 2:0 → 3+무실점1 = 4, gd +2 / C: 2경기 1:0 승·0:1 패 → 4, gd 0 / B: 3경기 0:2 패·0:1 패·1:0 승 → 4, gd −2
+    const { standings } = stand([
+      M({ our_score: 2, opponent_score: 0 }),
+      M({ our_team_name: '팀C', our_members_json: '["c1"]', match_id: 'R1_C1', match_idx: 2, our_score: 1, opponent_score: 0 }),
+      M({ our_team_name: '팀B', opponent_team_name: '팀C', our_members_json: JSON.stringify(B5), opponent_members_json: '["c1"]', match_id: 'R2_C0', match_idx: 3, our_score: 1, opponent_score: 0 }),
+    ]);
+    expect(standings.map(s => ({ n: s.name, g: s.games, t: s.total, gd: s.gd }))).toEqual([
+      { n: '팀A', g: 1, t: 4, gd: 2 }, { n: '팀C', g: 2, t: 4, gd: 0 }, { n: '팀B', g: 3, t: 4, gd: -2 },
+    ]);
   });
   it('경기가 없으면 등록 팀만 0으로, days 는 빈 배열', () => {
     const { standings, days } = calcCupStandings({ matchRows: [], cup: CUP });

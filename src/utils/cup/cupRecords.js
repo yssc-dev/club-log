@@ -159,7 +159,7 @@ export function calcCupStandings({ matchRows = [], cup }) {
     const gd = s.gf - s.ga;
     const bonus = s.bonusAttend + s.bonusMargin + s.bonusClean;
     return { ...s, gd, bonus, total: s.points + bonus };
-  }).sort((x, y) => y.total - x.total || y.games - x.games || y.gd - x.gd || y.gf - x.gf || byKo(x.name, y.name));
+  }).sort((x, y) => y.total - x.total || y.gd - x.gd || y.gf - x.gf || byKo(x.name, y.name));
 
   return { standings, days };
 }
