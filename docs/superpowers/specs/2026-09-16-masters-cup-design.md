@@ -1,7 +1,7 @@
 # 마스터스컵(풋살 컵대회) 설계
 
 - 작성일: 2026-09-16 / v2 개정 2026-09-17 / **v2.1 개정 2026-09-17 저녁(운영 피드백: 경기일 = 참석 팀 풀리그 × 회전, 컵 세션은 정규 설정 마법사 경유, 남은 대진 자동 제외 폐기)**
-- 상태: 1단계 완료(main 0e015ef). 2단계 구현·배포 완료(main b97527b, 팀 관리 요약 UI 포함). 2.5단계(컵 경기일 설정 마법사 경유) 구현 완료 — 2026-09-17. 3단계(순위표·개인·통산)는 v2.1 모델로 축소
+- 상태: 1단계 완료(main 0e015ef). 2단계 구현·배포 완료(main b97527b, 팀 관리 요약 UI 포함). 2.5단계(컵 경기일 설정 마법사 경유) 구현 완료 — 2026-09-17. **3단계(순위표·개인기록·경기일별 결과)는 `2026-09-26-masters-cup-s3-records-design.md`로 설계 확정(2026-09-26) — 이 문서의 §7·§4.6 alias·§11 3단계를 대체한다. 통산(§7.3)은 보류**
 - 대상 팀: 마스터FC(풋살). 하버FC·빅마스터FC(축구)·몽피스(테니스)에는 어떤 동작 변화도 없어야 한다.
 
 ## 1. 개요
@@ -29,7 +29,7 @@
 ### 1.2 기본 가정(설계에 포함)
 
 - 팀장은 표시 전용(`Ⓒ` 배지). 권한 없음.
-- 팀 순위 = 승점 3/1/0 → 득실차 → 다득점 → 팀명. 개인 = 득점·어시스트 순위.
+- 팀 순위 = **승점 3/1/0 + 가점(경기일 참석 등록 팀원 7명↑ +1, 3점차↑ 승리 +1, 무실점 +1)** → 골득실 → 다득점 → 팀명. 개인 = 골·어시·클린시트·자책골·참석횟수(포인트 환산 없음). 상세는 3단계 문서 §3.
 - 컵 세션의 규칙 스냅샷은 표준 풋살 규칙(자책 −1, 크로바/고구마 꺼짐, 보너스 1배). 포인트를 어디에도 쓰지 않으므로 화면 표시에만 영향.
 - **v2.1:** 경기일의 참석/불참은 마법사 참석자 단계에서 팀별 칩으로 체크(기본 전원 참석), 당일 용병은 팀별 "당일 추가" 입력으로 그 팀에 넣는다(세션 한정). 경기 중 명단 수정·용병은 기존 풋살 세션 메커니즘(liveMercs·teamEditMode) 그대로. 세션 안에서 바꾼 명단은 그 세션의 기록에만 남고 대회 엔티티에는 되돌려 쓰지 않는다.
 - 팀 수 범위 3~8(엔티티). 경기일에는 참석자가 1명 이상인 팀만 대진에 들어가며 2팀 이상이면 진행한다. 구장 수 기본값은 참석 팀 수 기준(3팀 이하 1구장, 4팀 이상 2구장)이고 마법사에서 바꿀 수 있다.
@@ -137,7 +137,7 @@ L2 노드는 **풋살 전체 행**을 담고, 데이터셋별 "뷰 필터"를 `g
 | 데이터셋 | 원본 노드 | rowFilter | 비고 |
 |---|---|---|---|
 | `matchLog` / `eventLog` / `playerGameLog` (풋살) | 자기 자신 | `!row.tournament_id` | 구현 완료 |
-| `cupMatchLog` / `cupEventLog` / `cupPlayerGameLog` (풋살, 3단계) | `alias`로 위 세 노드 공유 | `!!row.tournament_id` | **모든 대회**의 행. 대회별 분리는 화면에서 `tournament_id === cupId`로. 정규 뷰와 정확히 분할(합집합=전체) |
+| `cupMatchLog` / `cupEventLog` (풋살, 3단계) | `alias`로 위 두 노드 공유 | `!!row.tournament_id` | **모든 대회**의 행. 대회별 분리는 화면에서 `tournament_id === cupId`로. 정규 뷰와 정확히 분할(합집합=전체). `cupPlayerGameLog`는 만들지 않는다(3단계 문서 §1.2·§4.1) |
 | 축구 어댑터 | 변경 없음 | 없음 | 하버FC 축구 대회 행은 그대로 |
 
 어댑터 계약(3단계 구현 지시):
@@ -223,24 +223,12 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 
 ## 7. 계산 규칙
 
-### 7.1 대회별 팀 순위 `calcCupStandings(rows, teamNames)`
+**2026-09-26 개정: 이 절은 `2026-09-26-masters-cup-s3-records-design.md` §3으로 대체됐다.** 요약만 남긴다.
 
-- 입력: 그 대회의 `cupMatchLog` 행 **전부**(경기당 1행: `our_team_name`=홈, `opponent_team_name`=원정), `is_extra` 제외. v2.1: 같은 두 팀의 경기가 여러 건이어도 모두 합산한다(회전·여러 경기일). 팀 집합 = 엔티티 팀명 ∪ 행에 등장한 팀(0경기 팀도 표시).
-- 승 3·무 1·패 0, 정렬 승점 → 득실차 → 다득점 → 팀명. 출력 `{ name, games, wins, draws, losses, gf, ga, points }`. 화면(`CupStandingsTable`)은 이 결과를 직접 표로 그린다. `TournamentStandings`는 쓰지 않는다(§2).
-
-### 7.2 대회별 개인 순위
-
-`dropExtraEvents(matchRows, eventRows)`로 임시 라운드 이벤트를 걷어낸 뒤 `analyticsV2/calcPlayerSummary({ matchLogs, eventLogs, playerGameLogs })`(그 대회 행만)로 `goals`·`assists` TOP5. analyticsV2는 수정하지 않는다.
-
-### 7.3 대회 통산(개인 누적) `calcCupCareer(allCupRows)`
-
-입력은 모든 컵 뷰 행(`tournament_id` 있음). 선수별로 `cups`(출전한 `tournament_id` 종류 수 — 로그_선수경기 행 기준), `rounds`(출전 라운드, `calcPlayerSummary`의 rounds), `goals`, `assists`, `wins`(우승 대회 수). 우승 대회 W(완주 대회의 순위표 1위 팀 이름)에 대해 우승 선수 = 그 대회 로그_선수경기 행 중 `session_team === W`인 `player` 집합(로그_선수경기의 `session_team`은 마감 시 그 선수의 팀명이다 — `buildRawPlayerGamesFromFutsal`). `our_members_json`만 보면 원정 경기 선수가 빠지므로 쓰지 않는다. 정렬 골 → 어시 → 이름. `is_extra` 제외 규칙 동일. 테스트 fixture에 우승팀이 원정으로만 뛴 선수 케이스를 포함한다.
-
-### 7.4 우승·상태 (v2.1)
-
-- ~~진행도·완주~~ 폐기(치른 조합 수가 종료 기준이 아니다).
-- 우승팀 = `status === 'finished'`인 대회의 순위표 1위(동률이면 정렬 규칙대로). 관리자가 "대회 종료"를 누르는 것이 종료 선언이다. 진행중 대회는 "현재 1위"로 표시만 한다.
-- 목록에서 `finished`는 접힌다. 개인 누적(§7.3)의 `wins`는 종료된 대회만 센다.
+- 팀 순위 `calcCupStandings({ matchRows, cup })`: 승점 3/1/0 + 가점(경기일당 등록 팀원 참석 7명↑ +1 · 3점차↑ 승리 +1 · 무실점 +1, 0:0은 양 팀) → 합계 → 골득실 → 다득점 → 팀명. 참석 인원은 등록 팀원만 세고, 다른 팀 명단으로 뛴 등록 팀원은 원소속 팀에 센다. 경기일별 내역(`days`)을 함께 돌려준다.
+- 개인기록 `calcCupPlayerRecords({ matchRows, eventRows, cup })`: 골·어시·자책골(로그_이벤트)·클린시트(로그_매치 GK 열, 경기 단위)·참석횟수(날짜 수). 전원 표시, 골 → 어시 → 클린시트 → 이름.
+- 임시 라운드 제외는 `selectCupRows`가 경기 키(`date|game_id|match_id`)로 경기·이벤트를 함께 걷어낸다(옛 `dropExtraEvents`는 구현된 적 없음).
+- ~~7.3 대회 통산 `calcCupCareer`~~ 보류(3단계 범위 밖). 우승팀 = `status === 'finished'`인 대회의 순위표 1위(§7.4 유지). analyticsV2 `calcPlayerSummary`는 쓰지 않는다.
 
 ## 8. UI 변경 목록
 
@@ -310,10 +298,9 @@ GK 지정, CourtRecorder 골/어시/자책/파울, 라운드 확정, 결석·용
 - 정적 가드(`cupWiring.guard.test.js`): 컵 분기 `phase: "setup"`, `startMatches`가 `buildCupDaySchedule`을 씀, 시트 연동 두 버튼·팀 수·팀명 편집·재배치가 `isCup`으로 게이트됨, `draftMode === 'cup'` 같은 판별이 없음. 리듀서 테스트: `START_MATCHES`가 `tournamentId/teams/teamNames/attendees/settingsSnapshot`을 보존.
 - 스모크(배포 후): 🏆 시작 → 참석자 단계(팀별 칩·당일 추가) → 불참 1명 해제 → 구장/회전 변경 → 대회 팀 확인 → 팀편성(팀명 클릭해도 편집 안 됨) → 경기 시작 → 라운드 수 = 참석 팀 풀리그 × 회전 → 결석자가 명단·기록에 없음 → 마감 → 정규 자동설정/커스텀 경기 플로우 불변.
 
-### 3단계 — 대회별 기록·통산 (v2.1 축소)
+### 3단계 — 대회 순위표·개인기록·경기일별 결과 (2026-09-26 설계 확정)
 
-- sheetCache `ALIASES`/`resolveAdapter`/`_pathFor` + cup 뷰 3종, `calcCupStandings`(전 경기 합산)+`CupStandingsTable`·`dropExtraEvents`·`calcCupCareer`, `CupDetail` 순위·TOP·결과·우승(종료 대회), `CupListTab` 통산·우승팀, `isLocked`에 로그 파생 OR(`hasCupMatches`), 같은 경로 두 어댑터 in-flight 테스트. 남은 대진·진행도·완주 항목은 없음.
-- 테스트: 불변식 6·12.
+- 설계·파일·테스트 목록은 `2026-09-26-masters-cup-s3-records-design.md`. 요지: sheetCache `ALIASES`(cup 뷰 2종) + `src/utils/cup/cupRecords.js`(순수 계산) + `CupDetail` 세 섹션(순위표·개인기록·경기일별 결과) + `isLocked`에 `collectPlayedPairs` OR. 통산·`CupListTab` 우승팀 노출·남은 대진·진행도는 없음.
 
 ### 4단계 — 마무리 (선택)
 
