@@ -33,7 +33,7 @@ export default function CupStandingsTable({ standings = [], finished = false }) 
                 <td style={td()}>{s.points}</td>
                 <td style={td()}>
                   {s.bonus}
-                  <div style={{ fontSize: 10, color: C.gray, whiteSpace: "nowrap" }}>참석 {s.bonusAttend} · 다득점 {s.bonusMargin} · 무실점 {s.bonusClean}</div>
+                  <div style={{ fontSize: 10, color: C.gray, whiteSpace: "nowrap" }}>참석 {s.bonusAttend} · 다득점 {s.bonusMargin}</div>
                 </td>
                 <td style={td(true)}>{s.total}</td>
               </tr>

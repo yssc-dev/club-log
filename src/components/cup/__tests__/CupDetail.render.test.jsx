@@ -77,9 +77,10 @@ describe('CupDetail 기록 섹션', () => {
     h.eventRows = [E(), E({ related_player: '' }), E({ player: 'a4', related_player: '' })];
     await mount();
     const rows = [...container.querySelectorAll('tr[data-role="cup-standing-row"]')];
-    // A: 3:0 승 3 + 다득점 1 + 무실점 1 + 등록 7명 참석 1 = 6 / C: 0경기(gd 0) / B: 0점 gd −3 → A, C, B
+    // A: 3:0 승 3 + 다득점 1 + 등록 7명 참석 1 = 5 / C: 0경기(gd 0) / B: 0점 gd −3 → A, C, B
     expect(rows.map(r => r.dataset.team)).toEqual(['팀A', '팀C', '팀B']);
-    expect(rows[0].textContent).toContain('참석 1 · 다득점 1 · 무실점 1');
+    expect(rows[0].textContent).toContain('참석 1 · 다득점 1');
+    expect(rows[0].textContent).not.toContain('무실점');
     const players = [...container.querySelectorAll('tr[data-role="cup-player-row"]')];
     expect(players[0].dataset.player).toBe('a2');
     expect(players[0].textContent).toContain('2');

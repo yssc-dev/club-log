@@ -98,32 +98,33 @@ const row = (standings, name) => standings.find(s => s.name === name);
 const stand = (rows) => calcCupStandings({ matchRows: selectCupRows({ matchRows: rows, eventRows: [], cupId: 'CUP' }).matchRows, cup: CUP });
 
 describe('calcCupStandings — 경기 단위 승점·가점', () => {
-  it('0:0 → 양 팀 무 1점 + 무실점 1점', () => {
+  it('0:0 → 양 팀 무 1점, 무실점 팀 가점은 없다(클린시트는 개인기록만)', () => {
     const { standings } = stand([M({ our_score: 0, opponent_score: 0 })]);
-    expect(row(standings, '팀A')).toMatchObject({ games: 1, draws: 1, points: 1, bonusClean: 1, bonusMargin: 0, bonusAttend: 0, total: 2 });
-    expect(row(standings, '팀B')).toMatchObject({ games: 1, draws: 1, points: 1, bonusClean: 1, total: 2 });
+    expect(row(standings, '팀A')).toMatchObject({ games: 1, draws: 1, points: 1, bonusMargin: 0, bonusAttend: 0, bonus: 0, total: 1 });
+    expect(row(standings, '팀B')).toMatchObject({ games: 1, draws: 1, points: 1, bonus: 0, total: 1 });
+    expect(row(standings, '팀A')).not.toHaveProperty('bonusClean');
   });
-  it('2:0 → 이긴 팀 3 + 무실점 1, 진 팀 0', () => {
+  it('2:0 → 이긴 팀 3(무실점 가점 없음), 진 팀 0', () => {
     const { standings } = stand([M({ our_score: 2, opponent_score: 0 })]);
-    expect(row(standings, '팀A')).toMatchObject({ wins: 1, points: 3, bonusMargin: 0, bonusClean: 1, total: 4, gf: 2, ga: 0, gd: 2 });
-    expect(row(standings, '팀B')).toMatchObject({ losses: 1, points: 0, bonusClean: 0, total: 0, gd: -2 });
+    expect(row(standings, '팀A')).toMatchObject({ wins: 1, points: 3, bonusMargin: 0, bonus: 0, total: 3, gf: 2, ga: 0, gd: 2 });
+    expect(row(standings, '팀B')).toMatchObject({ losses: 1, points: 0, total: 0, gd: -2 });
   });
-  it('0:1 → 원정 승 3 + 무실점 1', () => {
+  it('0:1 → 원정 승 3', () => {
     const { standings } = stand([M({ our_score: 0, opponent_score: 1 })]);
-    expect(row(standings, '팀B')).toMatchObject({ wins: 1, points: 3, bonusClean: 1, total: 4 });
+    expect(row(standings, '팀B')).toMatchObject({ wins: 1, points: 3, bonus: 0, total: 3 });
     expect(row(standings, '팀A')).toMatchObject({ losses: 1, total: 0 });
   });
-  it('3:0 → 다득점 1 + 무실점 1 (합계 5)', () => {
+  it('3:0 → 다득점 1 (합계 4)', () => {
     const { standings } = stand([M({ our_score: 3, opponent_score: 0 })]);
-    expect(row(standings, '팀A')).toMatchObject({ points: 3, bonusMargin: 1, bonusClean: 1, bonus: 2, total: 5 });
+    expect(row(standings, '팀A')).toMatchObject({ points: 3, bonusMargin: 1, bonus: 1, total: 4 });
   });
   it('4:1 → 다득점만(합계 4), 3:1 → 가점 없음(합계 3)', () => {
-    expect(row(stand([M({ our_score: 4, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 1, bonusClean: 0, total: 4 });
-    expect(row(stand([M({ our_score: 3, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 0, bonusClean: 0, total: 3 });
+    expect(row(stand([M({ our_score: 4, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 1, total: 4 });
+    expect(row(stand([M({ our_score: 3, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 0, total: 3 });
   });
   it('스코어가 문자열로 와도 숫자로 센다', () => {
     const { standings } = stand([M({ our_score: '3', opponent_score: '0' })]);
-    expect(row(standings, '팀A')).toMatchObject({ gf: 3, total: 5 });
+    expect(row(standings, '팀A')).toMatchObject({ gf: 3, total: 4 });
   });
 });
 
@@ -142,9 +143,9 @@ describe('calcCupStandings — 경기일 단위 참석 가점', () => {
     const nine = standWith([M({ our_members_json: JSON.stringify(A10.slice(0, 9)) })]);
     expect(row(nine.standings, '팀A').bonusAttend).toBe(1);
     expect(nine.days[0].teams['팀A']).toMatchObject({ present: 9, bonusAttend: 1 });
-    // 0:0 → 승점 1 + 무실점 1 + 참석 3 = 5
+    // 0:0 → 승점 1 + 참석 3 = 4
     const ten = standWith([M({ our_members_json: JSON.stringify(A10) })]);
-    expect(row(ten.standings, '팀A')).toMatchObject({ bonusAttend: 3, bonus: 4, total: 5 });
+    expect(row(ten.standings, '팀A')).toMatchObject({ bonusAttend: 3, bonus: 3, total: 4 });
     expect(ten.days[0].teams['팀A']).toMatchObject({ present: 10, bonusAttend: 3 });
     const mixed = standWith([
       M({ our_members_json: JSON.stringify(A10) }),
@@ -204,8 +205,8 @@ describe('calcCupStandings — 합산·정렬·출력 모양', () => {
       M({ match_id: 'R2_C0', match_idx: 2, our_score: 0, opponent_score: 2 }),
       M({ date: '2026-10-08', game_id: 'g2', our_score: 1, opponent_score: 1 }),
     ]);
-    expect(row(standings, '팀A')).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1, gf: 2, ga: 3, gd: -1, points: 4, bonusClean: 1, total: 5 });
-    expect(row(standings, '팀B')).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1, gf: 3, ga: 2, gd: 1, points: 4, bonusClean: 1, total: 5 });
+    expect(row(standings, '팀A')).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1, gf: 2, ga: 3, gd: -1, points: 4, bonus: 0, total: 4 });
+    expect(row(standings, '팀B')).toMatchObject({ games: 3, wins: 1, draws: 1, losses: 1, gf: 3, ga: 2, gd: 1, points: 4, bonus: 0, total: 4 });
   });
   it('정렬: 합계 → 골득실 → 다득점 → 팀명', () => {
     // A 1:0 B (A 4점, gd+1, gf1) / C 2:0 B (C 4점, gd+2) → C, A
@@ -225,14 +226,14 @@ describe('calcCupStandings — 합산·정렬·출력 모양', () => {
     expect(standings[1]).toMatchObject({ name: '팀C', registered: true, games: 0, total: 0, gd: 0 });
   });
   it('합계 동률이면 경기 수와 무관하게 골득실로 가른다(경기 수는 정렬 기준이 아니다)', () => {
-    // A: 1경기 2:0 → 3+무실점1 = 4, gd +2 / C: 2경기 1:0 승·0:1 패 → 4, gd 0 / B: 3경기 0:2 패·0:1 패·1:0 승 → 4, gd −2
+    // A: 1경기 2:0 → 3, gd +2 / C: 2경기 1:0 승·0:1 패 → 3, gd 0 / B: 3경기 0:2 패·0:1 패·1:0 승 → 3, gd −2
     const { standings } = stand([
       M({ our_score: 2, opponent_score: 0 }),
       M({ our_team_name: '팀C', our_members_json: '["c1"]', match_id: 'R1_C1', match_idx: 2, our_score: 1, opponent_score: 0 }),
       M({ our_team_name: '팀B', opponent_team_name: '팀C', our_members_json: JSON.stringify(B5), opponent_members_json: '["c1"]', match_id: 'R2_C0', match_idx: 3, our_score: 1, opponent_score: 0 }),
     ]);
     expect(standings.map(s => ({ n: s.name, g: s.games, t: s.total, gd: s.gd }))).toEqual([
-      { n: '팀A', g: 1, t: 4, gd: 2 }, { n: '팀C', g: 2, t: 4, gd: 0 }, { n: '팀B', g: 3, t: 4, gd: -2 },
+      { n: '팀A', g: 1, t: 3, gd: 2 }, { n: '팀C', g: 2, t: 3, gd: 0 }, { n: '팀B', g: 3, t: 3, gd: -2 },
     ]);
   });
   it('경기가 없으면 등록 팀만 0으로, days 는 빈 배열', () => {
@@ -246,14 +247,17 @@ describe('calcCupStandings — 합산·정렬·출력 모양', () => {
       M({ match_idx: 1, match_id: 'R1_C0', our_score: 3, opponent_score: 0 }),
     ]);
     expect(days[0].matches.map(m => m.matchId)).toEqual(['R1_C0', 'R2_C0']);
-    expect(days[0].matches[0]).toMatchObject({ home: '팀A', away: '팀B', homeScore: 3, awayScore: 0, homeBonus: { margin: 1, clean: 1 }, awayBonus: { margin: 0, clean: 0 }, key: '2026-10-01|g1|R1_C0' });
-    expect(days[0].matches[1]).toMatchObject({ homeBonus: { margin: 0, clean: 1 }, awayBonus: { margin: 0, clean: 1 } });
-    expect(days[0].teams['팀A']).toMatchObject({ points: 4, bonusMargin: 1, bonusClean: 2 });
+    expect(days[0].matches[0]).toMatchObject({ home: '팀A', away: '팀B', homeScore: 3, awayScore: 0, key: '2026-10-01|g1|R1_C0' });
+    expect(days[0].matches[0].homeBonus).toEqual({ margin: 1 });
+    expect(days[0].matches[0].awayBonus).toEqual({ margin: 0 });
+    expect(days[0].matches[1].homeBonus).toEqual({ margin: 0 });
+    expect(days[0].teams['팀A']).toMatchObject({ points: 4, bonusMargin: 1 });
+    expect(days[0].teams['팀A']).not.toHaveProperty('bonusClean');
   });
   it('cup 이 teams 없이 와도(RTDB 빈 배열 누락) 행의 팀만으로 계산한다', () => {
     const { standings } = calcCupStandings({ matchRows: [M({ our_score: 1, opponent_score: 0 })], cup: { meta: { id: 'CUP' } } });
     expect(standings.map(s => s.name)).toEqual(['팀A', '팀B']);
-    expect(standings[0]).toMatchObject({ registered: false, total: 4 });
+    expect(standings[0]).toMatchObject({ registered: false, total: 3 });
   });
   it("팀명이 '__proto__' 여도 days.teams 에 그대로 나온다(객체 키 함정)", () => {
     const cup = { meta: { id: 'CUP' }, teams: [

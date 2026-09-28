@@ -81,15 +81,16 @@ export function collectPlayedPairs(matchRows, cupId) {
 }
 
 function newTeamStat(name, registered) {
-  return { name, registered, games: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, points: 0, bonusAttend: 0, bonusMargin: 0, bonusClean: 0, bonus: 0, total: 0 };
+  return { name, registered, games: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, points: 0, bonusAttend: 0, bonusMargin: 0, bonus: 0, total: 0 };
 }
 function newDayTeam(registered) {
-  return { registered, present: 0, guests: [], bonusAttend: 0, points: 0, bonusMargin: 0, bonusClean: 0 };
+  return { registered, present: 0, guests: [], bonusAttend: 0, points: 0, bonusMargin: 0 };
 }
 
 /**
  * 대회 누적 순위표 + 경기일별 내역. matchRows 는 selectCupRows 를 거친(그 대회·임시 라운드 제외) 행.
- * 승점 3/1/0 + 가점(경기일 참석 등록 팀원 7~9명 +1·10명↑ +3 / 3점차↑ 승리 / 무실점) → 합계 → 골득실 → 다득점 → 팀명.
+ * 승점 3/1/0 + 가점(경기일 참석 등록 팀원 7~9명 +1·10명↑ +3 / 3점차↑ 승리) → 합계 → 골득실 → 다득점 → 팀명.
+ * 무실점 팀 가점은 없다(2026-09-28 폐지) — 키퍼 클린시트는 calcCupPlayerRecords 개인기록에만.
  * 참석은 "등록 팀원이 그날 어느 명단에든 있는가"로 원소속 팀에 센다(용병 이동 시 옮겨간 팀에는 안 센다).
  */
 export function calcCupStandings({ matchRows = [], cup }) {
@@ -129,17 +130,17 @@ export function calcCupStandings({ matchRows = [], cup }) {
 
     h.games++; a.games++;
     h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
-    const homeBonus = { margin: 0, clean: as === 0 ? 1 : 0 };
-    const awayBonus = { margin: 0, clean: hs === 0 ? 1 : 0 };
+    const homeBonus = { margin: 0 };
+    const awayBonus = { margin: 0 };
     let hp = 0, ap = 0;
     if (hs > as) { h.wins++; a.losses++; hp = 3; if (hs - as >= MARGIN_BONUS_MIN) homeBonus.margin = 1; }
     else if (hs < as) { a.wins++; h.losses++; ap = 3; if (as - hs >= MARGIN_BONUS_MIN) awayBonus.margin = 1; }
     else { h.draws++; a.draws++; hp = 1; ap = 1; }
     h.points += hp; a.points += ap;
-    h.bonusMargin += homeBonus.margin; h.bonusClean += homeBonus.clean;
-    a.bonusMargin += awayBonus.margin; a.bonusClean += awayBonus.clean;
-    dh.points += hp; dh.bonusMargin += homeBonus.margin; dh.bonusClean += homeBonus.clean;
-    da.points += ap; da.bonusMargin += awayBonus.margin; da.bonusClean += awayBonus.clean;
+    h.bonusMargin += homeBonus.margin;
+    a.bonusMargin += awayBonus.margin;
+    dh.points += hp; dh.bonusMargin += homeBonus.margin;
+    da.points += ap; da.bonusMargin += awayBonus.margin;
 
     day.matches.push({ key: matchKeyOf(r), matchId: String(r.match_id ?? ''), home, away, homeScore: hs, awayScore: as, homeBonus, awayBonus });
     for (const p of membersOf(r.our_members_json)) { day.attendees.add(p); dayList(day, home).add(p); }
@@ -164,7 +165,7 @@ export function calcCupStandings({ matchRows = [], cup }) {
 
   const standings = [...stats.values()].map(s => {
     const gd = s.gf - s.ga;
-    const bonus = s.bonusAttend + s.bonusMargin + s.bonusClean;
+    const bonus = s.bonusAttend + s.bonusMargin;
     return { ...s, gd, bonus, total: s.points + bonus };
   }).sort((x, y) => y.total - x.total || y.gd - x.gd || y.gf - x.gf || byKo(x.name, y.name));
 

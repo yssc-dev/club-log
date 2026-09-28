@@ -8,7 +8,6 @@ import { useTheme } from '../../hooks/useTheme';
 function Badges({ bonus }) {
   const items = [];
   if (bonus?.margin) items.push('+1 다득점');
-  if (bonus?.clean) items.push('+1 무실점');
   if (items.length === 0) return null;
   return <span style={{ fontSize: 10, color: "var(--app-green)", marginLeft: 4 }}>{items.join(' ')}</span>;
 }

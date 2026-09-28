@@ -22,16 +22,17 @@ async function mount(el) {
 }
 const click = async (el) => { await act(async () => { el.click(); }); };
 
-const S = (over = {}) => ({ name: '팀A', registered: true, games: 2, wins: 1, draws: 1, losses: 0, gf: 4, ga: 1, gd: 3, points: 4, bonusAttend: 1, bonusMargin: 1, bonusClean: 1, bonus: 3, total: 7, ...over });
+const S = (over = {}) => ({ name: '팀A', registered: true, games: 2, wins: 1, draws: 1, losses: 0, gf: 4, ga: 1, gd: 3, points: 4, bonusAttend: 1, bonusMargin: 1, bonus: 2, total: 6, ...over });
 
 describe('CupStandingsTable', () => {
   it('열 순서·행 순서·가점 내역·1위 강조 문구', async () => {
-    await mount(createElement(CupStandingsTable, { standings: [S(), S({ name: '팀B', registered: false, total: 1, points: 1, bonus: 0, bonusAttend: 0, bonusMargin: 0, bonusClean: 0, gd: -3 })], finished: false }));
+    await mount(createElement(CupStandingsTable, { standings: [S(), S({ name: '팀B', registered: false, total: 1, points: 1, bonus: 0, bonusAttend: 0, bonusMargin: 0, gd: -3 })], finished: false }));
     const ths = [...container.querySelectorAll('thead th')].map(t => t.textContent);
     expect(ths).toEqual(['순위', '팀', '경기', '승', '무', '패', '득실', '승점', '가점', '합계']);
     const rows = [...container.querySelectorAll('tr[data-role="cup-standing-row"]')];
     expect(rows.map(r => r.dataset.team)).toEqual(['팀A', '팀B']);
-    expect(rows[0].textContent).toContain('참석 1 · 다득점 1 · 무실점 1');
+    expect(rows[0].textContent).toContain('참석 1 · 다득점 1');
+    expect(rows[0].textContent).not.toContain('무실점');
     expect(rows[0].textContent).toContain('+3');
     expect(rows[1].textContent).toContain('(미등록)');
     expect(container.textContent).not.toContain('우승');
@@ -59,10 +60,10 @@ describe('CupPlayerRecordsTable', () => {
 
 describe('CupDayResults', () => {
   const days = [
-    { date: '2026-10-01', matches: [{ key: 'k1', matchId: 'R1_C0', home: '팀A', away: '팀B', homeScore: 3, awayScore: 0, homeBonus: { margin: 1, clean: 1 }, awayBonus: { margin: 0, clean: 0 } }],
-      teams: { '팀A': { registered: true, present: 7, guests: [], bonusAttend: 1, points: 3, bonusMargin: 1, bonusClean: 1 }, '팀B': { registered: true, present: 6, guests: ['a7'], bonusAttend: 0, points: 0, bonusMargin: 0, bonusClean: 0 } } },
-    { date: '2026-10-08', matches: [{ key: 'k2', matchId: 'R1_C0', home: '팀B', away: '팀A', homeScore: 0, awayScore: 0, homeBonus: { margin: 0, clean: 1 }, awayBonus: { margin: 0, clean: 1 } }],
-      teams: { '팀A': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1, bonusMargin: 0, bonusClean: 1 }, '팀B': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1, bonusMargin: 0, bonusClean: 1 } } },
+    { date: '2026-10-01', matches: [{ key: 'k1', matchId: 'R1_C0', home: '팀A', away: '팀B', homeScore: 3, awayScore: 0, homeBonus: { margin: 1 }, awayBonus: { margin: 0 } }],
+      teams: { '팀A': { registered: true, present: 7, guests: [], bonusAttend: 1, points: 3, bonusMargin: 1 }, '팀B': { registered: true, present: 6, guests: ['a7'], bonusAttend: 0, points: 0, bonusMargin: 0 } } },
+    { date: '2026-10-08', matches: [{ key: 'k2', matchId: 'R1_C0', home: '팀B', away: '팀A', homeScore: 0, awayScore: 0, homeBonus: { margin: 0 }, awayBonus: { margin: 0 } }],
+      teams: { '팀A': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1, bonusMargin: 0 }, '팀B': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1, bonusMargin: 0 } } },
   ];
   it('최신 날짜가 위에 펼쳐지고 나머지는 접힘; 토글로 열린다', async () => {
     await mount(createElement(CupDayResults, { days }));
@@ -81,7 +82,7 @@ describe('CupDayResults', () => {
     expect(match.textContent).toContain('팀A');
     expect(match.textContent).toContain('3 : 0');
     expect(match.textContent).toContain('+1 다득점');
-    expect(match.textContent).toContain('+1 무실점');
+    expect(match.textContent).not.toContain('무실점');
     const teamA = container.querySelector('div[data-role="cup-day-team"][data-team="팀A"]');
     const teamB = container.querySelector('div[data-role="cup-day-team"][data-team="팀B"]');
     expect(teamA.textContent).toContain('등록 7명 참석');
