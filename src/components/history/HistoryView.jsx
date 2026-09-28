@@ -1,4 +1,5 @@
 import { useState, useEffect, useMemo } from 'react';
+import { useBackNavigation } from '../../hooks/useBackNavigation';
 import FirebaseSync from '../../services/firebaseSync';
 import { useTheme } from '../../hooks/useTheme';
 import { TEAM_COLORS } from '../../config/constants';
@@ -85,6 +86,8 @@ export default function HistoryView({ teamContext, onBack }) {
   const [view, setView] = useState("active"); // "active" | "trash"
   const [selectedGame, setSelectedGame] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // 브라우저 뒤로가기: 상세가 열려 있으면 상세만 닫는다(목록 → 대시보드는 Root 가 담당).
+  useBackNavigation(!!selectedGame, () => setSelectedGame(null));
 
   const team = teamContext?.team;
 

@@ -1,4 +1,5 @@
 import { useState, useEffect, useRef } from 'react';
+import { useBackNavigation } from './hooks/useBackNavigation';
 import AuthUtil from './services/authUtil';
 import AppSync from './services/appSync';
 import FirebaseSync from './services/firebaseSync';
@@ -52,6 +53,17 @@ export default function Root() {
   // 세션 진입 파라미터(컵: { cupId }). 신규 세션 진입 시점에만 의미 있고 저장되지 않는다(스펙 §6.2).
   const [gameParams, setGameParams] = useState(null);
   const [activeGameId, setActiveGameId] = useState(null);
+
+  // 대시보드로 돌아가는 핸들러 — 앱의 "← 뒤로" 와 브라우저 뒤로가기(useBackNavigation)가 같은 함수를 쓴다.
+  const backToDashboard = () => setScreen("dashboard");
+  const backToMenu = () => {
+    setIsNewGame(false); setGameMode(null); setGameParams(null); setActiveGameId(null); setScreen("dashboard");
+    setTimeout(() => { if (selectedTeamName) checkPendingGames(selectedTeamName, teamContext?.mode); else setPendingGames([]); }, 1500);
+  };
+  // 브라우저 뒤로가기 1단계: 화면 단위(대시보드 ↔ 기록 보관소/설정/경기 화면). 아래 조기 return 들보다 위에 둔다(훅 순서 고정).
+  useBackNavigation(screen === "history", backToDashboard);
+  useBackNavigation(screen === "settings", backToDashboard);
+  useBackNavigation(screen === "app", backToMenu);
 
   // eslint-disable-next-line react-hooks/exhaustive-deps -- 마운트 시 1회만 실행 (저장된 팀이 있으면 pending 체크)
   useEffect(() => {
@@ -207,11 +219,11 @@ export default function Root() {
   }
 
   if (screen === "history") {
-    return <HistoryView teamContext={teamContext} onBack={() => setScreen("dashboard")} />;
+    return <HistoryView teamContext={teamContext} onBack={backToDashboard} />;
   }
 
   if (screen === "settings") {
-    return <SettingsScreen teamName={selectedTeamName} teamMode={teamContext?.mode} teamEntries={selectedTeamEntries} isAdmin={teamContext?.role === "관리자"} onBack={() => setScreen("dashboard")} />;
+    return <SettingsScreen teamName={selectedTeamName} teamMode={teamContext?.mode} teamEntries={selectedTeamEntries} isAdmin={teamContext?.role === "관리자"} onBack={backToDashboard} />;
   }
 
   // 빅마스터FC: 축구 프리셋 intraSquad(자체전축구)일 때만 IntraSoccerApp. 하버FC 는 플래그가 없어 기존 식 그대로.
@@ -222,5 +234,5 @@ export default function Root() {
     : teamContext?.mode === "테니스" ? TennisApp
     : App;
   return <GameApp authUser={authUser} teamContext={teamContext} isNewGame={isNewGame} gameMode={gameMode} gameParams={gameParams} gameId={activeGameId}
-    onLogout={handleLogout} onBackToMenu={() => { setIsNewGame(false); setGameMode(null); setGameParams(null); setActiveGameId(null); setScreen("dashboard"); setTimeout(() => { if (selectedTeamName) checkPendingGames(selectedTeamName, teamContext?.mode); else setPendingGames([]); }, 1500); }} />;
+    onLogout={handleLogout} onBackToMenu={backToMenu} />;
 }
