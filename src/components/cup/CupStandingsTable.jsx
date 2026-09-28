@@ -2,7 +2,8 @@
 // 대회 누적 순위표(3단계 스펙 §5). calcCupStandings().standings 를 그대로 받아 그린다 — 계산하지 않는다.
 import { useTheme } from '../../hooks/useTheme';
 
-const COLS = ['순위', '팀', '경기', '승', '무', '패', '득실', '승점', '가점', '합계'];
+// 가점은 종류별(참석·다득점) 열로 따로 보여준다 — 합쳐서 '가점 n' 으로 표시하지 않는다(2026-09-29 사용자 요청).
+const COLS = ['순위', '팀', '경기', '승', '무', '패', '득실', '승점', '참석', '다득점', '합계'];
 
 export default function CupStandingsTable({ standings = [], finished = false }) {
   const { C } = useTheme();
@@ -31,10 +32,8 @@ export default function CupStandingsTable({ standings = [], finished = false }) 
                 <td style={td()}>{s.losses}</td>
                 <td style={td()}>{gdText(s.gd)}</td>
                 <td style={td()}>{s.points}</td>
-                <td style={td()}>
-                  {s.bonus}
-                  <div style={{ fontSize: 10, color: C.gray, whiteSpace: "nowrap" }}>참석 {s.bonusAttend} · 다득점 {s.bonusMargin}</div>
-                </td>
+                <td style={td()}>{s.bonusAttend}</td>
+                <td style={td()}>{s.bonusMargin}</td>
                 <td style={td(true)}>{s.total}</td>
               </tr>
             );

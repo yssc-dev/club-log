@@ -25,15 +25,16 @@ const click = async (el) => { await act(async () => { el.click(); }); };
 const S = (over = {}) => ({ name: '팀A', registered: true, games: 2, wins: 1, draws: 1, losses: 0, gf: 4, ga: 1, gd: 3, points: 4, bonusAttend: 1, bonusMargin: 1, bonus: 2, total: 6, ...over });
 
 describe('CupStandingsTable', () => {
-  it('열 순서·행 순서·가점 내역·1위 강조 문구', async () => {
+  it('열 순서(참석·다득점 별도 열)·행 순서·1위 강조 문구', async () => {
     await mount(createElement(CupStandingsTable, { standings: [S(), S({ name: '팀B', registered: false, total: 1, points: 1, bonus: 0, bonusAttend: 0, bonusMargin: 0, gd: -3 })], finished: false }));
     const ths = [...container.querySelectorAll('thead th')].map(t => t.textContent);
-    expect(ths).toEqual(['순위', '팀', '경기', '승', '무', '패', '득실', '승점', '가점', '합계']);
+    expect(ths).toEqual(['순위', '팀', '경기', '승', '무', '패', '득실', '승점', '참석', '다득점', '합계']);
     const rows = [...container.querySelectorAll('tr[data-role="cup-standing-row"]')];
     expect(rows.map(r => r.dataset.team)).toEqual(['팀A', '팀B']);
-    expect(rows[0].textContent).toContain('참석 1 · 다득점 1');
+    const cells = [...rows[0].querySelectorAll('td')].map(td => td.textContent.trim());
+    expect(cells).toEqual(['1', '팀A', '2', '1', '1', '0', '+3', '4', '1', '1', '6']);
+    expect(rows[0].textContent).not.toContain('가점');
     expect(rows[0].textContent).not.toContain('무실점');
-    expect(rows[0].textContent).toContain('+3');
     expect(rows[1].textContent).toContain('(미등록)');
     expect(container.textContent).not.toContain('우승');
   });
