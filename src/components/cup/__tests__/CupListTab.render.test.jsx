@@ -21,6 +21,7 @@ vi.mock('../../../services/cupSync', () => ({
 vi.mock('../../../services/sheetCache', () => ({ default: { get: () => Promise.resolve([]) } }));
 
 import CupListTab from '../CupListTab';
+import { _resetBackNavigationForTest } from '../../../hooks/useBackNavigation';
 import CupSync from '../../../services/cupSync';
 
 Object.defineProperty(window, 'matchMedia', {
@@ -31,6 +32,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let container, root;
 beforeEach(() => {
+  _resetBackNavigationForTest();
   h.cups = []; h.created = []; h.saved = []; h.deleted = []; h.status = [];
   container = document.createElement('div'); document.body.appendChild(container);
   window.confirm = () => true;
@@ -96,6 +98,15 @@ describe('CupListTab 실렌더', () => {
     expect(btn('저장')).toBeDefined();
   });
 
+  it('상세에서 브라우저 뒤로가기(popstate)를 누르면 목록으로 돌아간다', async () => {
+    h.cups = [cup('컵2026')];
+    await mount();
+    await click(btn('컵2026'));
+    expect(container.textContent).toContain('팀 관리');
+    await act(async () => { window.dispatchEvent(new PopStateEvent('popstate', { state: null })); });
+    expect(container.textContent).not.toContain('팀 관리');
+    expect(container.textContent).toContain('진행중 대회');
+  });
   it('상세: 팀 검증 통과 + active 면 시작 버튼이 onStartGame("cup", { cupId }) 호출', async () => {
     const onStartGame = vi.fn();
     h.cups = [cup('컵2026')];

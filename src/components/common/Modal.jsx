@@ -1,9 +1,12 @@
 import { useEffect } from 'react';
 import { useTheme } from '../../hooks/useTheme';
+import { useBackNavigation } from '../../hooks/useBackNavigation';
 import { XIcon } from './icons';
 
 export default function Modal({ onClose, children, title, maxWidth = 460 }) {
   const { C } = useTheme();
+  // 열려 있는 동안 브라우저 뒤로가기가 이 모달을 닫는다(ESC 와 같은 동작). 모든 Modal 사용처에 한 번에 적용.
+  useBackNavigation(true, onClose);
 
   useEffect(() => {
     const onKey = (e) => { if (e.key === "Escape") onClose?.(); };

@@ -30,3 +30,23 @@ describe('HistoryView.jsx — 목록 ↔ 상세 뒤로가기', () => {
     expect(src).toMatch(/useBackNavigation\(!!selectedGame, \(\) => setSelectedGame\(null\)\)/);
   });
 });
+
+describe('2단계 — 대시보드 서브 화면·공용 Modal', () => {
+  it('공용 Modal 은 열려 있는 동안 항목을 쌓고 뒤로가기로 onClose 를 부른다', () => {
+    const src = read('components/common/Modal.jsx');
+    expect(src).toMatch(/import \{ useBackNavigation \} from '\.\.\/\.\.\/hooks\/useBackNavigation'/);
+    expect(src).toMatch(/useBackNavigation\(true, onClose\)/);
+  });
+  it('풋살 대회 목록 ↔ 상세', () => {
+    const src = read('components/cup/CupListTab.jsx');
+    expect(src).toMatch(/useBackNavigation\(!!selectedId, \(\) => setSelectedId\(null\)\)/);
+  });
+  it('축구 대회 목록 ↔ 상세(TournamentListTab)는 기존 onBack 과 같은 동작', () => {
+    const src = read('components/tournament/TournamentListTab.jsx');
+    expect(src).toMatch(/useBackNavigation\(!!selectedTournament, \(\) => \{ setSelectedTournament\(null\); loadList\(\); \}\)/);
+  });
+  it('테니스 마감 화면(보고 있을 때만, done 제외)', () => {
+    const src = read('TennisApp.jsx');
+    expect(src).toMatch(/useBackNavigation\(closed && showSummary && state\.phase !== 'done', \(\) => setShowSummary\(false\)\)/);
+  });
+});

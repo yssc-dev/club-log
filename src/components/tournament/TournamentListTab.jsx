@@ -1,5 +1,6 @@
 import { useState, useEffect } from 'react';
 import { useTheme } from '../../hooks/useTheme';
+import { useBackNavigation } from '../../hooks/useBackNavigation';
 import AppSync from '../../services/appSync';
 import CreateTournament from './CreateTournament';
 import TournamentDashboard from './TournamentDashboard';
@@ -17,6 +18,8 @@ export default function TournamentListTab({ teamName, ourTeamName, isAdmin, atte
     if (onTournamentView) onTournamentView(!!selectedTournament);
     if (onTournamentName) onTournamentName(selectedTournament?.name || null);
   }, [selectedTournament]);
+  // 브라우저 뒤로가기: 대회 상세가 열려 있으면 목록으로(TournamentDashboard 의 onBack 과 같은 동작).
+  useBackNavigation(!!selectedTournament, () => { setSelectedTournament(null); loadList(); });
 
   const handleCreate = async (data) => {
     const result = await AppSync.createTournament(data);

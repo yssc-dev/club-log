@@ -1,6 +1,7 @@
 import { useEffect, useState, useMemo, useRef } from 'react';
 import { useTennisReducer } from './hooks/useTennisReducer';
 import { useTheme } from './hooks/useTheme';
+import { useBackNavigation } from './hooks/useBackNavigation';
 import { makeStyles } from './styles/theme';
 import { getEffectiveSettings } from './config/settings';
 import FirebaseSync from './services/firebaseSync';
@@ -92,6 +93,8 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const viewingConfirmed = !!(state.confirmedRounds || {})[state.viewingRoundIdx];
   // 마감 상태 — 라운드 추가는 확정취소로 마감을 푼 뒤에만(리듀서가 UNCONFIRM_ROUND에서 자동 해제).
   const closed = state.phase === 'summary';
+  // 브라우저 뒤로가기: 마감 화면을 보고 있을 때만 화면을 내린다("← 경기로 돌아가기" 와 동일). done 은 닫을 수 없는 화면.
+  useBackNavigation(closed && showSummary && state.phase !== 'done', () => setShowSummary(false));
   const canAddRound = !closed && isLastRoundConfirmed(state.rounds, state.confirmedRounds);
   const canFinish = allRoundsConfirmed(state.rounds, state.confirmedRounds);
 

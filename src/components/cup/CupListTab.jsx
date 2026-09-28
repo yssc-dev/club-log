@@ -3,6 +3,7 @@
 // tournamentActive/onTournamentView 계열은 쓰지 않는다(탭 바·헤더 유지, 목록↔상세는 내부 state).
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useTheme } from '../../hooks/useTheme';
+import { useBackNavigation } from '../../hooks/useBackNavigation';
 import CupSync from '../../services/cupSync';
 import CupDetail from './CupDetail';
 
@@ -15,6 +16,8 @@ export default function CupListTab({ teamName, members = [], pendingGames = [], 
   const [creating, setCreating] = useState(false);
   const [newName, setNewName] = useState('');
   const [showFinished, setShowFinished] = useState(false);
+  // 브라우저 뒤로가기: 상세가 열려 있으면 목록으로(앱의 "← 대회 목록" 과 같은 동작).
+  useBackNavigation(!!selectedId, () => setSelectedId(null));
 
   // 세대 카운터: teamName 변경/언마운트 후 늦게 도착한 listCups 응답이 이전 팀 목록을 setState 하지 못하게 막는다.
   const genRef = useRef(0);
