@@ -90,6 +90,12 @@ describe('CupDayResults', () => {
     expect(teamB.textContent).toContain('용병 1명(a7)');
     expect(teamB.textContent).toContain('✗');
   });
+  it('참석 가점이 3이면 팀 줄에 ✓ +3', async () => {
+    const d = { ...days[0], teams: { '팀A': { ...days[0].teams['팀A'], present: 10, bonusAttend: 3 } } };
+    await mount(createElement(CupDayResults, { days: [d] }));
+    expect(container.querySelector('div[data-role="cup-day-team"][data-team="팀A"]').textContent).toContain('등록 10명 참석');
+    expect(container.querySelector('div[data-role="cup-day-team"][data-team="팀A"]').textContent).toContain('✓ +3');
+  });
   it('days 가 비면 아무것도 그리지 않는다', async () => {
     await mount(createElement(CupDayResults, { days: [] }));
     expect(container.querySelectorAll('div[data-role="cup-day"]')).toHaveLength(0);

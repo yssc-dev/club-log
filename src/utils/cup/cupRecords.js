@@ -8,7 +8,13 @@ import { parseMembersWithAbsent } from '../analyticsV2/parseMembers';
 import { cleanPlayerName, normalizeTeamName } from './cupEntity';
 
 // 경기일당 등록 팀원 참석이 이 수 이상이면 참석 가점 +1
-export const ATTEND_BONUS_MIN = 7;
+// 경기일당 등록 팀원 참석 수 → 참석 가점(구간제, 누적 아님). 위 구간부터 검사: 10명↑ +3, 7~9명 +1, 그 외 0.
+// 전원 참석 기준이 팀당 10명이라 10에 +3 — 2026-09-28 사용자 확정.
+export const ATTEND_BONUS_TIERS = [{ min: 10, bonus: 3 }, { min: 7, bonus: 1 }];
+export function attendBonusOf(present) {
+  const tier = ATTEND_BONUS_TIERS.find(t => present >= t.min);
+  return tier ? tier.bonus : 0;
+}
 // 이긴 팀의 득점−실점이 이 수 이상이면 다득점 가점 +1
 export const MARGIN_BONUS_MIN = 3;
 
@@ -83,7 +89,7 @@ function newDayTeam(registered) {
 
 /**
  * 대회 누적 순위표 + 경기일별 내역. matchRows 는 selectCupRows 를 거친(그 대회·임시 라운드 제외) 행.
- * 승점 3/1/0 + 가점(경기일 참석 등록 팀원 7명↑ / 3점차↑ 승리 / 무실점) → 합계 → 골득실 → 다득점 → 팀명.
+ * 승점 3/1/0 + 가점(경기일 참석 등록 팀원 7~9명 +1·10명↑ +3 / 3점차↑ 승리 / 무실점) → 합계 → 골득실 → 다득점 → 팀명.
  * 참석은 "등록 팀원이 그날 어느 명단에든 있는가"로 원소속 팀에 센다(용병 이동 시 옮겨간 팀에는 안 센다).
  */
 export function calcCupStandings({ matchRows = [], cup }) {
@@ -148,7 +154,8 @@ export function calcCupStandings({ matchRows = [], cup }) {
       for (const p of players) if (day.attendees.has(p)) present++;
       dt.present = present;
       dt.guests = [...(day.lists.get(name) || [])].filter(p => !players.has(p)).sort(byKo);
-      if (present >= ATTEND_BONUS_MIN) { dt.bonusAttend = 1; ensure(name).bonusAttend++; }
+      const bonus = attendBonusOf(present);
+      if (bonus > 0) { dt.bonusAttend = bonus; ensure(name).bonusAttend += bonus; }
     }
     // 팀명이 객체 키가 된다. 대괄호 대입은 '__proto__' 같은 이름에서 [[Set]] 이 프로토타입을 바꿔 항목이
     // 사라지므로(적대적 리뷰 D-1) own property 로 정의하는 Object.fromEntries 를 쓴다.

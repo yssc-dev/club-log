@@ -47,7 +47,7 @@ export default function CupDayResults({ days = [] }) {
                       {t.name}{' '}
                       {t.registered ? `등록 ${t.present}명 참석` : '미등록 팀'}
                       {t.guests.length > 0 && ` + 용병 ${t.guests.length}명(${t.guests.join(', ')})`}
-                      {t.registered && (t.bonusAttend ? <span style={{ color: "var(--app-green)", marginLeft: 4 }}>✓ +1</span> : <span style={{ marginLeft: 4 }}>✗</span>)}
+                      {t.registered && (t.bonusAttend ? <span style={{ color: "var(--app-green)", marginLeft: 4 }}>✓ +{t.bonusAttend}</span> : <span style={{ marginLeft: 4 }}>✗</span>)}
                     </div>
                   ))}
                 </div>

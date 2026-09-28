@@ -135,6 +135,24 @@ describe('calcCupStandings — 경기일 단위 참석 가점', () => {
     expect(row(seven.standings, '팀A').bonusAttend).toBe(1);
     expect(seven.days[0].teams['팀A']).toMatchObject({ registered: true, present: 7, bonusAttend: 1, guests: [] });
   });
+  it('구간제: 9명은 +1, 10명은 +3(누적 아님), 두 경기일 합산(10명 + 7명 = 4)', () => {
+    const A10 = [...A7, 'a8', 'a9', 'a10'];
+    const CUP10 = { ...CUP, teams: [{ ...CUP.teams[0], players: A10 }, CUP.teams[1], CUP.teams[2]] };
+    const standWith = (rows) => calcCupStandings({ matchRows: selectCupRows({ matchRows: rows, eventRows: [], cupId: 'CUP' }).matchRows, cup: CUP10 });
+    const nine = standWith([M({ our_members_json: JSON.stringify(A10.slice(0, 9)) })]);
+    expect(row(nine.standings, '팀A').bonusAttend).toBe(1);
+    expect(nine.days[0].teams['팀A']).toMatchObject({ present: 9, bonusAttend: 1 });
+    // 0:0 → 승점 1 + 무실점 1 + 참석 3 = 5
+    const ten = standWith([M({ our_members_json: JSON.stringify(A10) })]);
+    expect(row(ten.standings, '팀A')).toMatchObject({ bonusAttend: 3, bonus: 4, total: 5 });
+    expect(ten.days[0].teams['팀A']).toMatchObject({ present: 10, bonusAttend: 3 });
+    const mixed = standWith([
+      M({ our_members_json: JSON.stringify(A10) }),
+      M({ date: '2026-10-08', game_id: 'g2', our_members_json: JSON.stringify(A10.slice(0, 7)) }),
+    ]);
+    expect(row(mixed.standings, '팀A').bonusAttend).toBe(4);
+    expect(mixed.days.map(d => d.teams['팀A'].bonusAttend)).toEqual([3, 1]);
+  });
   it('같은 날짜에 세션(game_id)이 둘이어도 경기일당 1, 다른 날짜면 날짜마다', () => {
     const sameDay = stand([
       M({ our_members_json: JSON.stringify(A7) }),
