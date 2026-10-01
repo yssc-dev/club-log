@@ -3,8 +3,12 @@
 // 참석자를 적어 두면 참석자 단계의 "시트 연동" 버튼 한 번으로 칩이 켜지고 꺼진다.
 // 규칙: 대회 명단(세션 팀)에 있는 이름은 어느 열에 있든 참석(원소속 팀 유지). 명단 밖 이름은 열 머리글이
 // 대회 팀명과 같을 때만 그 팀에 당일 추가하고, 아니면 "배치 못 함"으로 보고한다. 시트에 없는 팀원은 불참.
+// 1행에 대회 팀명이 하나도 없으면(팀 구분 없이 이름만 적은 시트) 1행도 이름으로 읽는다.
 // React·firebase 의존 없음.
 import { cleanPlayerName, normalizeTeamName } from './cupEntity';
+
+// 머리글 없는 시트에서 1행에 흔히 적는 라벨 — 이름으로 세지 않는다.
+const GENERIC_LABELS = new Set(['참석', '참석자', '이름', '명단', '선수', '참가자', '출석', '참석명단']);
 
 /**
  * @param {{ teams: string[][], teamNames: string[], columns: Array<{ header: string, names: string[] }> }} input
@@ -29,11 +33,15 @@ export function applyCupSheetAttendance({ teams = [], teamNames = [], columns = 
   const newTeams = baseTeams.map(t => [...t]);
   let anyName = false;
 
+  // 머리글 모드: 1행에 대회 팀명이 하나라도 있을 때만. 없으면 팀 구분 없이 이름만 적은 시트로 보고 1행도 이름으로 읽는다.
+  const headerMode = columns.some(c => teamIdxOf(c?.header) >= 0);
   for (const col of columns) {
-    const idx = teamIdxOf(col?.header);
     const header = String(col?.header ?? '').trim();
-    if (idx === -1 && header) unknownHeaders.push(header);
-    for (const raw of col?.names || []) {
+    const idx = headerMode ? teamIdxOf(header) : -1;
+    if (headerMode && idx === -1 && header) unknownHeaders.push(header);
+    const names = headerMode ? (col?.names || [])
+      : [...(header && !GENERIC_LABELS.has(header.replace(/\s/g, '')) ? [header] : []), ...(col?.names || [])];
+    for (const raw of names) {
       const n = cleanPlayerName(raw);
       if (!n) continue;
       anyName = true;
@@ -71,7 +79,7 @@ export function formatCupSheetSummary(result, sheetName) {
   const s = result?.summary || {};
   const lines = [`시트 '${sheetName}' 반영`, `참석 ${s.present || 0}명 · 불참 ${(s.absent || []).length}명`];
   if ((s.guestsAdded || []).length > 0) lines.push(`당일 추가 ${s.guestsAdded.length}명: ${s.guestsAdded.map(g => `${g.name}(${g.team})`).join(', ')}`);
-  if ((s.unplaced || []).length > 0) lines.push(`배치 못 함 ${s.unplaced.length}명: ${s.unplaced.join(', ')} — 열 머리글이 대회 팀명이 아니라 어느 팀인지 알 수 없음`);
+  if ((s.unplaced || []).length > 0) lines.push(`배치 못 함 ${s.unplaced.length}명: ${s.unplaced.join(', ')} — 명단에 없는 이름은 1행이 대회 팀명인 열 아래에 적어야 그 팀 당일 추가로 들어갑니다`);
   if ((s.unknownHeaders || []).length > 0) lines.push(`대회 팀명이 아닌 열: ${s.unknownHeaders.map(h => `'${h}'`).join(', ')}`);
   return lines.join('\n');
 }

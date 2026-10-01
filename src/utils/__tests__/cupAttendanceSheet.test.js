@@ -27,12 +27,12 @@ describe('applyCupSheetAttendance', () => {
     expect(r.attendees).toEqual(['b1', '용병1']);
     expect(r.summary.guestsAdded).toEqual([{ name: '용병1', team: '팀리즈' }]);
   });
-  it('머리글이 팀명이 아니면 명단 이름만 참석, 명단 밖 이름은 배치 못 함으로 보고', () => {
+  it('"참석" 같은 일반 라벨만 있는 1행은 이름으로 세지 않고, 명단 밖 이름은 배치 못 함으로 보고', () => {
     const r = apply([{ header: '참석', names: ['a2', '모르는사람'] }]);
     expect(r.attendees).toEqual(['a2']);
     expect(r.teams).toEqual(teams);
     expect(r.summary.unplaced).toEqual(['모르는사람']);
-    expect(r.summary.unknownHeaders).toEqual(['참석']);
+    expect(r.summary.unknownHeaders).toEqual([]);
   });
   it('머리글·이름의 공백과 ★ 장식을 정규화해 맞춘다("팀 광땡", "a1 ★")', () => {
     const r = apply([{ header: '팀 광땡', names: ['a1 ★', ' a2'] }]);
@@ -52,6 +52,24 @@ describe('applyCupSheetAttendance', () => {
     expect(r.teams).toEqual(t);
     expect(r.attendees).toEqual(['기존용병']);
     expect(r.summary.guestsAdded).toEqual([]);
+  });
+  it('팀 구분 없이 이름만 적은 시트(1행에 팀명 없음)는 1행도 이름으로 읽는다', () => {
+    // 1행 "a1,b1" 이 머리글이 아니라 참석자. 열 위치는 무관.
+    const r = apply([{ header: 'a1', names: ['a3', 'c1'] }, { header: 'b1', names: ['b2'] }]);
+    expect(r.attendees).toEqual(['a1', 'a3', 'b1', 'b2', 'c1']);
+    expect(r.teams).toEqual(teams);
+    expect(r.summary).toMatchObject({ present: 5, absent: ['a2'], unknownHeaders: [], unplaced: [] });
+  });
+  it('팀 구분 없는 시트의 명단 밖 이름은 배치 못 함으로 보고(팀을 알 수 없음)', () => {
+    const r = apply([{ header: '용병1', names: ['a1'] }]);
+    expect(r.attendees).toEqual(['a1']);
+    expect(r.summary.unplaced).toEqual(['용병1']);
+    expect(r.summary.unknownHeaders).toEqual([]);
+  });
+  it('1행에 팀명이 하나라도 있으면 머리글 모드(팀명이 아닌 머리글은 이름으로 세지 않는다)', () => {
+    const r = apply([{ header: '팀광땡', names: ['a1'] }, { header: '참석', names: ['b1'] }]);
+    expect(r.attendees).toEqual(['a1', 'b1']);
+    expect(r.summary.unknownHeaders).toEqual(['참석']);
   });
   it('시트에 이름이 하나도 없으면 empty', () => {
     const r = apply([{ header: '팀광땡', names: [] }, { header: '', names: [] }]);
