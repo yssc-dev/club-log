@@ -1,16 +1,9 @@
 // src/components/cup/CupDayResults.jsx
-// 경기일별 결과·가점 내역(3단계 스펙 §5). calcCupStandings().days(date 오름차순)를 받아 최신 날짜가 위에
+// 경기일별 결과·참석 가점 내역(3단계 스펙 §5; 경기 단위 가점 배지는 폐지). calcCupStandings().days(date 오름차순)를 받아 최신 날짜가 위에
 // 오도록 뒤집어 접이식 카드로 그린다. 첫(최신) 카드만 기본 펼침. 펼침 상태는 "기본값과 반대로 토글된 날짜"
 // 집합으로 들고 있어 days 가 바뀌어도(재조회) 상태를 재설정할 필요가 없다.
 import { useState } from 'react';
 import { useTheme } from '../../hooks/useTheme';
-
-function Badges({ bonus }) {
-  const items = [];
-  if (bonus?.margin) items.push('+1 다득점');
-  if (items.length === 0) return null;
-  return <span style={{ fontSize: 10, color: "var(--app-green)", marginLeft: 4 }}>{items.join(' ')}</span>;
-}
 
 export default function CupDayResults({ days = [] }) {
   const { C } = useTheme();
@@ -35,9 +28,9 @@ export default function CupDayResults({ days = [] }) {
               <div style={{ marginTop: 8 }}>
                 {day.matches.map(m => (
                   <div key={m.key} data-role="cup-day-match" style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8, padding: "4px 0", fontSize: 13, color: C.white, borderTop: `1px solid ${C.borderColor}` }}>
-                    <span style={{ flex: 1, textAlign: "right" }}>{m.home}<Badges bonus={m.homeBonus} /></span>
+                    <span style={{ flex: 1, textAlign: "right" }}>{m.home}</span>
                     <span style={{ fontWeight: 700, minWidth: 48, textAlign: "center" }}>{m.homeScore} : {m.awayScore}</span>
-                    <span style={{ flex: 1, textAlign: "left" }}><Badges bonus={m.awayBonus} />{m.away}</span>
+                    <span style={{ flex: 1, textAlign: "left" }}>{m.away}</span>
                   </div>
                 ))}
                 <div style={{ marginTop: 8, fontSize: 12, color: C.gray }}>

@@ -22,18 +22,19 @@ async function mount(el) {
 }
 const click = async (el) => { await act(async () => { el.click(); }); };
 
-const S = (over = {}) => ({ name: '팀A', registered: true, games: 2, wins: 1, draws: 1, losses: 0, gf: 4, ga: 1, gd: 3, points: 4, bonusAttend: 1, bonusMargin: 1, bonus: 2, total: 6, ...over });
+const S = (over = {}) => ({ name: '팀A', registered: true, games: 2, wins: 1, draws: 1, losses: 0, gf: 4, ga: 1, gd: 3, points: 4, bonusAttend: 1, bonus: 1, total: 5, ...over });
 
 describe('CupStandingsTable', () => {
-  it('열 순서(참석·다득점 별도 열)·행 순서·1위 강조 문구', async () => {
-    await mount(createElement(CupStandingsTable, { standings: [S(), S({ name: '팀B', registered: false, total: 1, points: 1, bonus: 0, bonusAttend: 0, bonusMargin: 0, gd: -3 })], finished: false }));
+  it('열 순서(참석 열, 다득점·무실점 열 없음)·행 순서·1위 강조 문구', async () => {
+    await mount(createElement(CupStandingsTable, { standings: [S(), S({ name: '팀B', registered: false, total: 1, points: 1, bonus: 0, bonusAttend: 0, gd: -3 })], finished: false }));
     const ths = [...container.querySelectorAll('thead th')].map(t => t.textContent);
-    expect(ths).toEqual(['순위', '팀', '경기', '승', '무', '패', '득실', '승점', '참석', '다득점', '합계']);
+    expect(ths).toEqual(['순위', '팀', '경기', '승', '무', '패', '득실', '승점', '참석', '합계']);
     const rows = [...container.querySelectorAll('tr[data-role="cup-standing-row"]')];
     expect(rows.map(r => r.dataset.team)).toEqual(['팀A', '팀B']);
     const cells = [...rows[0].querySelectorAll('td')].map(td => td.textContent.trim());
-    expect(cells).toEqual(['1', '팀A', '2', '1', '1', '0', '+3', '4', '1', '1', '6']);
+    expect(cells).toEqual(['1', '팀A', '2', '1', '1', '0', '+3', '4', '1', '5']);
     expect(rows[0].textContent).not.toContain('가점');
+    expect(container.textContent).not.toContain('다득점');
     expect(rows[0].textContent).not.toContain('무실점');
     expect(rows[1].textContent).toContain('(미등록)');
     expect(container.textContent).not.toContain('우승');
@@ -61,10 +62,10 @@ describe('CupPlayerRecordsTable', () => {
 
 describe('CupDayResults', () => {
   const days = [
-    { date: '2026-10-01', matches: [{ key: 'k1', matchId: 'R1_C0', home: '팀A', away: '팀B', homeScore: 3, awayScore: 0, homeBonus: { margin: 1 }, awayBonus: { margin: 0 } }],
-      teams: { '팀A': { registered: true, present: 7, guests: [], bonusAttend: 1, points: 3, bonusMargin: 1 }, '팀B': { registered: true, present: 6, guests: ['a7'], bonusAttend: 0, points: 0, bonusMargin: 0 } } },
-    { date: '2026-10-08', matches: [{ key: 'k2', matchId: 'R1_C0', home: '팀B', away: '팀A', homeScore: 0, awayScore: 0, homeBonus: { margin: 0 }, awayBonus: { margin: 0 } }],
-      teams: { '팀A': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1, bonusMargin: 0 }, '팀B': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1, bonusMargin: 0 } } },
+    { date: '2026-10-01', matches: [{ key: 'k1', matchId: 'R1_C0', home: '팀A', away: '팀B', homeScore: 3, awayScore: 0 }],
+      teams: { '팀A': { registered: true, present: 7, guests: [], bonusAttend: 1, points: 3 }, '팀B': { registered: true, present: 6, guests: ['a7'], bonusAttend: 0, points: 0 } } },
+    { date: '2026-10-08', matches: [{ key: 'k2', matchId: 'R1_C0', home: '팀B', away: '팀A', homeScore: 0, awayScore: 0 }],
+      teams: { '팀A': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1 }, '팀B': { registered: true, present: 5, guests: [], bonusAttend: 0, points: 1 } } },
   ];
   it('최신 날짜가 위에 펼쳐지고 나머지는 접힘; 토글로 열린다', async () => {
     await mount(createElement(CupDayResults, { days }));
@@ -77,13 +78,14 @@ describe('CupDayResults', () => {
     await click(cards[0].querySelector('button[data-role="cup-day-toggle"]'));
     expect(container.querySelector('div[data-role="cup-day"][data-date="2026-10-08"] div[data-role="cup-day-match"]')).toBeNull();
   });
-  it('경기 줄에 스코어·가점 배지, 팀 줄에 등록 참석·용병·✓/✗', async () => {
+  it('경기 줄에 스코어만(배지 없음), 팀 줄에 등록 참석·용병·✓/✗', async () => {
     await mount(createElement(CupDayResults, { days: [days[0]] }));
     const match = container.querySelector('div[data-role="cup-day-match"]');
     expect(match.textContent).toContain('팀A');
     expect(match.textContent).toContain('3 : 0');
-    expect(match.textContent).toContain('+1 다득점');
+    expect(match.textContent).not.toContain('다득점');
     expect(match.textContent).not.toContain('무실점');
+    expect(match.textContent).not.toContain('+1');
     const teamA = container.querySelector('div[data-role="cup-day-team"][data-team="팀A"]');
     const teamB = container.querySelector('div[data-role="cup-day-team"][data-team="팀B"]');
     expect(teamA.textContent).toContain('등록 7명 참석');

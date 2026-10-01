@@ -100,13 +100,13 @@ const stand = (rows) => calcCupStandings({ matchRows: selectCupRows({ matchRows:
 describe('calcCupStandings — 경기 단위 승점·가점', () => {
   it('0:0 → 양 팀 무 1점, 무실점 팀 가점은 없다(클린시트는 개인기록만)', () => {
     const { standings } = stand([M({ our_score: 0, opponent_score: 0 })]);
-    expect(row(standings, '팀A')).toMatchObject({ games: 1, draws: 1, points: 1, bonusMargin: 0, bonusAttend: 0, bonus: 0, total: 1 });
+    expect(row(standings, '팀A')).toMatchObject({ games: 1, draws: 1, points: 1, bonusAttend: 0, bonus: 0, total: 1 });
     expect(row(standings, '팀B')).toMatchObject({ games: 1, draws: 1, points: 1, bonus: 0, total: 1 });
     expect(row(standings, '팀A')).not.toHaveProperty('bonusClean');
   });
   it('2:0 → 이긴 팀 3(무실점 가점 없음), 진 팀 0', () => {
     const { standings } = stand([M({ our_score: 2, opponent_score: 0 })]);
-    expect(row(standings, '팀A')).toMatchObject({ wins: 1, points: 3, bonusMargin: 0, bonus: 0, total: 3, gf: 2, ga: 0, gd: 2 });
+    expect(row(standings, '팀A')).toMatchObject({ wins: 1, points: 3, bonus: 0, total: 3, gf: 2, ga: 0, gd: 2 });
     expect(row(standings, '팀B')).toMatchObject({ losses: 1, points: 0, total: 0, gd: -2 });
   });
   it('0:1 → 원정 승 3', () => {
@@ -114,17 +114,16 @@ describe('calcCupStandings — 경기 단위 승점·가점', () => {
     expect(row(standings, '팀B')).toMatchObject({ wins: 1, points: 3, bonus: 0, total: 3 });
     expect(row(standings, '팀A')).toMatchObject({ losses: 1, total: 0 });
   });
-  it('3:0 → 다득점 1 (합계 4)', () => {
-    const { standings } = stand([M({ our_score: 3, opponent_score: 0 })]);
-    expect(row(standings, '팀A')).toMatchObject({ points: 3, bonusMargin: 1, bonus: 1, total: 4 });
-  });
-  it('4:1 → 다득점만(합계 4), 3:1 → 가점 없음(합계 3)', () => {
-    expect(row(stand([M({ our_score: 4, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 1, total: 4 });
-    expect(row(stand([M({ our_score: 3, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonusMargin: 0, total: 3 });
+  it('3:0·4:1 대승도 승점 3뿐 — 다득점 가점 없음(클린시트·다득점 팀 가점 모두 폐지)', () => {
+    const big = row(stand([M({ our_score: 3, opponent_score: 0 })]).standings, '팀A');
+    expect(big).toMatchObject({ points: 3, bonus: 0, total: 4 - 1 });
+    expect(big).not.toHaveProperty('bonusMargin');
+    expect(row(stand([M({ our_score: 4, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonus: 0, total: 3 });
+    expect(row(stand([M({ our_score: 3, opponent_score: 1 })]).standings, '팀A')).toMatchObject({ bonus: 0, total: 3 });
   });
   it('스코어가 문자열로 와도 숫자로 센다', () => {
     const { standings } = stand([M({ our_score: '3', opponent_score: '0' })]);
-    expect(row(standings, '팀A')).toMatchObject({ gf: 3, total: 4 });
+    expect(row(standings, '팀A')).toMatchObject({ gf: 3, total: 3 });
   });
 });
 
@@ -241,17 +240,17 @@ describe('calcCupStandings — 합산·정렬·출력 모양', () => {
     expect(standings.map(s => s.name)).toEqual(['팀A', '팀B', '팀C']);
     expect(days).toEqual([]);
   });
-  it('days.matches 는 match_idx 오름차순이고 경기 가점을 양쪽에 단다', () => {
+  it('days.matches 는 match_idx 오름차순, 경기 단위 가점 필드는 없다', () => {
     const { days } = stand([
       M({ match_idx: 2, match_id: 'R2_C0', our_score: 0, opponent_score: 0 }),
       M({ match_idx: 1, match_id: 'R1_C0', our_score: 3, opponent_score: 0 }),
     ]);
     expect(days[0].matches.map(m => m.matchId)).toEqual(['R1_C0', 'R2_C0']);
     expect(days[0].matches[0]).toMatchObject({ home: '팀A', away: '팀B', homeScore: 3, awayScore: 0, key: '2026-10-01|g1|R1_C0' });
-    expect(days[0].matches[0].homeBonus).toEqual({ margin: 1 });
-    expect(days[0].matches[0].awayBonus).toEqual({ margin: 0 });
-    expect(days[0].matches[1].homeBonus).toEqual({ margin: 0 });
-    expect(days[0].teams['팀A']).toMatchObject({ points: 4, bonusMargin: 1 });
+    expect(days[0].matches[0]).not.toHaveProperty('homeBonus');
+    expect(days[0].matches[0]).not.toHaveProperty('awayBonus');
+    expect(days[0].teams['팀A']).toMatchObject({ points: 4 });
+    expect(days[0].teams['팀A']).not.toHaveProperty('bonusMargin');
     expect(days[0].teams['팀A']).not.toHaveProperty('bonusClean');
   });
   it('cup 이 teams 없이 와도(RTDB 빈 배열 누락) 행의 팀만으로 계산한다', () => {
