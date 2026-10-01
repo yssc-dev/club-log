@@ -72,12 +72,12 @@ export function invalidateSheetGid(sheetId, sheetName) {
  * @param {{ sheetId: string, attendanceSheet: string }} s
  * @returns {Promise<{ text: string, source: 'export' | 'gviz' }>}
  */
-export async function fetchAttendanceCsv(s) {
+export async function fetchSheetCsvByName(sheetId, sheetName) {
   // Step 1-3: gid 조회 → export 시도
   try {
-    const gid = await resolveSheetGid(s.sheetId, s.attendanceSheet);
+    const gid = await resolveSheetGid(sheetId, sheetName);
     if (gid !== null) {
-      const exportUrl = SHEET_CONFIG.csvUrlByGid(s.sheetId, gid);
+      const exportUrl = SHEET_CONFIG.csvUrlByGid(sheetId, gid);
       const resp = await fetch(exportUrl);
       if (resp.ok) {
         const text = await resp.text();
@@ -86,10 +86,10 @@ export async function fetchAttendanceCsv(s) {
         }
       }
       // 수락 실패 → 무효화 후 한 번 재시도
-      invalidateSheetGid(s.sheetId, s.attendanceSheet);
-      const newGid = await resolveSheetGid(s.sheetId, s.attendanceSheet, { force: true });
+      invalidateSheetGid(sheetId, sheetName);
+      const newGid = await resolveSheetGid(sheetId, sheetName, { force: true });
       if (newGid !== null && newGid !== gid) {
-        const resp2 = await fetch(SHEET_CONFIG.csvUrlByGid(s.sheetId, newGid));
+        const resp2 = await fetch(SHEET_CONFIG.csvUrlByGid(sheetId, newGid));
         if (resp2.ok) {
           const text2 = await resp2.text();
           if (text2 && !text2.startsWith('<')) {
@@ -103,9 +103,14 @@ export async function fetchAttendanceCsv(s) {
   }
 
   // Step 4: gviz 폴백
-  const resp = await fetch(SHEET_CONFIG.csvUrlBySheet(s.sheetId, s.attendanceSheet));
+  const resp = await fetch(SHEET_CONFIG.csvUrlBySheet(sheetId, sheetName));
   if (!resp.ok) throw new Error(`HTTP ${resp.status}`);
   return { text: await resp.text(), source: 'gviz' };
+}
+
+// 참석명단 시트(정규 풋살·축구). 시트명만 다른 fetchSheetCsvByName 의 얇은 래퍼 — 기존 호출부·테스트 호환.
+export async function fetchAttendanceCsv(s) {
+  return fetchSheetCsvByName(s.sheetId, s.attendanceSheet);
 }
 
 // 시트가 붙이는 이름 장식(100포인트 ★ 등)은 읽는 시점에 제거한다.
@@ -297,6 +302,39 @@ export async function fetchAttendanceData() {
     return { attendees, teamCount: 0, prebuiltTeams: [], prebuiltTeamNames: [], source };
   }
   return { ...parseAttendanceGrid(text), source };
+}
+
+// 컵 참석 시트(전용 탭, 기본 "컵참석"): 1행 = 팀명 머리글, 아래 행 = 그 팀 참석자 이름. 테스트를 위해 분리 export.
+// 숫자·빈 칸은 무시하고 열별로 중복을 제거한다. 머리글이 비어 있는 열도 header '' 로 돌려준다(적용 단계가 판단).
+export function parseCupAttendanceGrid(text) {
+  const lines = String(text || '').split('\n').map(l => l.replace(/\r$/, ''));
+  let headerRow = -1;
+  for (let i = 0; i < lines.length; i++) {
+    const f = parseCSVLine(lines[i]);
+    if (f.some(c => cleanName(c))) { headerRow = i; break; }
+  }
+  if (headerRow < 0) return { columns: [] };
+  const headers = parseCSVLine(lines[headerRow]).map(h => cleanName(h));
+  const width = headers.length;
+  const columns = headers.map(header => ({ header, names: [] }));
+  for (let i = headerRow + 1; i < lines.length; i++) {
+    const f = parseCSVLine(lines[i]);
+    for (let col = 0; col < width; col++) {
+      const name = cleanName(f[col]);
+      if (!name || /^[\d.-]+$/.test(name)) continue;
+      if (!columns[col].names.includes(name)) columns[col].names.push(name);
+    }
+  }
+  return { columns };
+}
+
+export async function fetchCupAttendanceData() {
+  const auth = AuthUtil.getStored();
+  const s = getSettings(auth?.team);
+  const sheetName = s.cupAttendanceSheet;
+  if (!sheetName) throw new Error("컵 참석 시트 미설정(설정 → 구글시트 설정)");
+  const { text, source } = await fetchSheetCsvByName(s.sheetId, sheetName);
+  return { ...parseCupAttendanceGrid(text), source, sheetName };
 }
 
 // 참석명단 시트(풋살)의 시드 그리드 파싱. 테스트를 위해 분리 export.

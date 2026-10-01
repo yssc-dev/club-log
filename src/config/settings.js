@@ -92,6 +92,7 @@ export function resolvePreset(team, sport) {
 const DEFAULTS = {
   sheetId: SHEET_CONFIG.sheetId,
   attendanceSheet: "참석명단",
+  cupAttendanceSheet: "컵참석",   // 컵 경기일 참석자 전용 탭(1행 팀명, 아래 이름) — 2026-10-01
   dashboardSheet: "대시보드",
   pointLogSheet: "포인트로그",
   playerLogSheet: "선수별집계기록로그",
@@ -278,7 +279,7 @@ export function getSourceOf(team, sport, key) {
 }
 
 const SHARED_KEYS = [
-  "sheetId", "attendanceSheet", "dashboardSheet",
+  "sheetId", "attendanceSheet", "cupAttendanceSheet", "dashboardSheet",
   "pointLogSheet", "playerLogSheet",
 ];
 const FUTSAL_KEYS = [

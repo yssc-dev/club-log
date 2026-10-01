@@ -353,6 +353,7 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
             <div style={ss.hint}>구글시트 URL에서 /d/ 뒤의 값</div>
           </div>
           <div className="app-row"><SheetSelect label="참석명단 시트" value={settings.attendanceSheet} onChange={v => update("attendanceSheet", v)} /></div>
+          <div className="app-row"><SheetSelect label="컵 참석 시트" value={settings.cupAttendanceSheet} onChange={v => update("cupAttendanceSheet", v)} /></div>
           <div className="app-row"><SheetSelect label="대시보드 시트" value={settings.dashboardSheet} onChange={v => update("dashboardSheet", v)} /></div>
           <div className="app-row"><SheetSelect label="포인트로그 시트" value={settings.pointLogSheet} onChange={v => update("pointLogSheet", v)} /></div>
           <div className="app-row"><SheetSelect label="선수별집계 시트" value={settings.playerLogSheet} onChange={v => update("playerLogSheet", v)} /></div>

@@ -194,6 +194,19 @@ L2 노드는 **풋살 전체 행**을 담고, 데이터셋별 "뷰 필터"를 `g
 7. **경기 시작(`startMatches` 컵 분기):** `present[i] = teams[i].filter(p => attendees.includes(p))`. 참석자 0명인 팀은 제외하고 참석 팀 M(≥2, 아니면 alert)으로 `teams/teamNames/teamColorIndices/teamCount`를 재구성해 `SET_FIELDS`한 뒤 `schedule = buildCupDaySchedule(M, courtCount, rotations)`로 `START_MATCHES`. `splitPhase`·`pushState`는 만들지 않는다. 결석자는 세션 명단에서 빠지므로 라운드 명단 스냅샷·로그_매치 `our_members_json`·로그_선수경기 행에 나오지 않는다.
 8. 재진입은 `handleContinue` → `gameMode=null, gameParams=null`. 컵 로드 분기를 타지 않고 RTDB 복원만(팀편성 단계부터 저장되므로 팀편성에서 멈춘 컵 세션도 "진행중 경기"에 🏆로 뜬다). 이후 컵 동작은 `isCupSession(state)`.
 
+#### 6.2.1 참석자 시트 연동 (2026-10-01 추가)
+
+PC 에서 참석자를 관리하고 경기 시작 때 한 번에 반영하기 위한 기능. 정규 참석명단 시트와 섞이지 않도록 **컵 전용 탭**을 쓴다.
+
+- 설정 → 구글시트 설정에 "컵 참석 시트"(공유 키 `cupAttendanceSheet`, 기본 `컵참석`) 추가. 탭 형식: **1행 = 대회 팀명 머리글, 그 아래 행 = 그 팀의 오늘 참석자 이름**. 숫자·빈 칸은 무시.
+- 컵 참석자 단계에 "시트 연동" 버튼(`data-role="cup-sheet-sync"`, `syncCupAttendance`). 누르면 `fetchCupAttendanceData()`(export CSV, gid 미확인 시 gviz 폴백 — `fetchSheetCsvByName`) → `parseCupAttendanceGrid` → `applyCupSheetAttendance({ teams, teamNames, columns })` 로 `attendees`·`teams` 를 덮어쓰고 요약을 alert 로 보여준다. 이후 칩으로 손수 고칠 수 있다(자동 반영 없음 — 시트가 낡아 있을 때 엉뚱한 불참 처리를 막는다).
+- 적용 규칙(`src/utils/cup/cupAttendanceSheet.js`): 대회 명단(세션 팀) 이름은 **어느 열에 있든 참석**(원소속 팀 유지). 명단 밖 이름은 **열 머리글이 대회 팀명과 같을 때만** 그 팀에 당일 추가(`addCupGuest` 와 같은 결과), 아니면 "배치 못 함"으로 보고. 시트에 없는 팀원은 불참. 이름·팀명 비교는 `cleanPlayerName`·`normalizeTeamName`. 이름이 하나도 없으면 적용하지 않는다.
+- 정규 참석자 단계의 `syncAttendance`/`sheetDraft`/활동선수 전체 버튼은 컵에서 여전히 렌더되지 않는다(가드 테스트).
+
+#### 6.2.2 설정 단계 "경기 취소" (2026-10-01)
+
+설정 단계(참석자·팀편성) 하단의 "로그아웃"을 "경기 취소"(`cancelSetupGame`)로 바꿨다(정규·컵 공통). confirm → 자동저장 취소(`cancelPendingSave`) → `FirebaseSync.clearState` → `onBackToMenu`. 로그아웃은 대시보드 메뉴에 그대로 있다.
+
 ### 6.3 대진 — 경기일 풀리그 × 회전 (v2.1)
 
 - `generateCupRounds(N, courtCount)`(구현 완료): N=5·2구장은 `generate5Team2Court().slice(0,5)`, N=7·2구장은 `generate7Team2Court()`, 그 외 generic circle method 를 `courtCount`개씩 잘라 `{ matches:[[h,a],…] }`. N=2 → 1라운드 × 1경기(v2.1 추가: 경기일 참석 팀이 2개인 경우), N=3 → 3라운드 × 1경기, N=4 → 3라운드 × 2경기, N=6 → 10라운드, N=8 → 14라운드(각 쌍 1회, 라운드 내 팀 중복 없음).

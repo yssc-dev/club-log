@@ -15,7 +15,7 @@ import { validateTeams } from './utils/cup/cupEntity';
 import { courtCountFor, buildCupDaySchedule } from './utils/cup/cupSchedule';
 import { selectFinalizeWrites } from './utils/cup/finalizeWrites';
 import { gameDateFromId } from './utils/gameDate';
-import { fetchSheetData, fetchAttendanceData } from './services/sheetService';
+import { fetchSheetData, fetchAttendanceData, fetchCupAttendanceData } from './services/sheetService';
 import AppSync from './services/appSync';
 import SheetCache from './services/sheetCache';
 import FirebaseSync from './services/firebaseSync';
@@ -35,8 +35,9 @@ import BalancedScheduleModal from './components/game/BalancedScheduleModal';
 import StandingsModal from './components/game/StandingsModal';
 import PlayerStatsModal from './components/game/PlayerStatsModal';
 import CupAttendeePicker from './components/cup/CupAttendeePicker';
+import { applyCupSheetAttendance, formatCupSheetSummary } from './utils/cup/cupAttendanceSheet';
 
-export default function App({ authUser, teamContext, isNewGame, gameMode, gameParams, gameId, onLogout, onBackToMenu }) {
+export default function App({ authUser, teamContext, isNewGame, gameMode, gameParams, gameId, onLogout: _onLogout, onBackToMenu }) {
   const gameSettings = useMemo(() => getSettings(teamContext?.team), [teamContext?.team]);
   const [state, dispatch] = useGameReducer();
   // 컵 세션 로드 실패 사유(스펙 §6.2 3·6항). phase 는 setup 에 머물러 자동저장되지 않는다.
@@ -274,6 +275,35 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
       })
       .catch(err => alert("참석명단 연동 실패: " + err.message))
       .finally(() => set('attendanceLoading', false));
+  };
+
+  // 컵 참석 시트 연동(2026-10-01): 전용 탭(설정 "컵 참석 시트", 기본 "컵참석")을 읽어 칩을 시트대로 켜고 끈다.
+  // 명단 이름은 어느 열에 있든 참석, 명단 밖 이름은 머리글이 대회 팀명인 열에서만 당일 추가. 정규 syncAttendance 와 별개.
+  const syncCupAttendance = () => {
+    if (attendanceLoading) return;
+    set('attendanceLoading', true);
+    fetchCupAttendanceData()
+      .then(data => {
+        const r = applyCupSheetAttendance({ teams, teamNames, columns: data.columns });
+        if (r.empty) { alert(`시트 '${data.sheetName}'에 이름이 없습니다.\n1행에 대회 팀명, 그 아래로 오늘 참석자 이름을 적어 주세요.`); return; }
+        dispatch({ type: 'SET_FIELDS', fields: { attendees: r.attendees, teams: r.teams } });
+        alert(formatCupSheetSummary(r, data.sheetName));
+      })
+      .catch(err => alert("컵 참석 시트 연동 실패: " + err.message))
+      .finally(() => set('attendanceLoading', false));
+  };
+
+  // 설정 단계 "경기 취소"(2026-10-01): 아직 시작 전인 세션을 지우고 대시보드로. 자동저장이 지운 노드를 되살리지 않게 먼저 취소한다.
+  const cancelSetupGame = async () => {
+    if (!confirm("이 경기를 취소할까요?\n설정 중인 내용이 삭제되고 대시보드로 돌아갑니다.")) return;
+    try {
+      cancelPendingSave();
+      await FirebaseSync.clearState(teamContext?.team, gameId);
+    } catch (e) {
+      alert(`경기 취소 실패: ${e?.message || e}`);
+      return;
+    }
+    onBackToMenu();
   };
 
   // 컵 경기일 당일 추가(스펙 §6.2 v2.1 5항): attendees 와 그 팀에 함께 넣는다. 이미 어느 팀에든 있으면 무시. 세션 한정.
@@ -1123,6 +1153,18 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
           </div>
           {isCup ? (
             <div className="app-grouped">
+              <div className="app-row" style={{ gap: 8, flexWrap: "wrap", padding: "10px 12px", alignItems: "center" }}>
+                <button data-role="cup-sheet-sync" onClick={syncCupAttendance} disabled={attendanceLoading} style={{
+                  display: "inline-flex", alignItems: "center", gap: 4,
+                  padding: "6px 12px", borderRadius: 999,
+                  background: "rgba(52,199,89,0.12)", color: "var(--app-green)",
+                  border: "none", fontSize: 13, fontWeight: 500, cursor: "pointer",
+                  fontFamily: "inherit", opacity: attendanceLoading ? 0.6 : 1,
+                }}>
+                  <ListIcon width={14} /> {attendanceLoading ? "연동 중..." : "시트 연동"}
+                </button>
+                <span style={{ fontSize: 11, color: "var(--app-text-tertiary)" }}>설정의 "컵 참석 시트" 탭: 1행 팀명, 아래 참석자 이름</span>
+              </div>
               <CupAttendeePicker
                 teams={teams}
                 teamNames={teamNames}
@@ -1231,14 +1273,12 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
             );
           })()}
         </div>
-        {onLogout && (
-          <div style={{ textAlign: "center", padding: "8px 16px" }}>
-            <button onClick={onLogout} style={{
-              background: "transparent", color: "var(--app-red)",
-              border: "none", fontSize: 14, cursor: "pointer", fontFamily: "inherit",
-            }}>로그아웃</button>
-          </div>
-        )}
+        <div style={{ textAlign: "center", padding: "8px 16px" }}>
+          <button data-role="cancel-setup-game" onClick={cancelSetupGame} style={{
+            background: "transparent", color: "var(--app-red)",
+            border: "none", fontSize: 14, cursor: "pointer", fontFamily: "inherit",
+          }}>경기 취소</button>
+        </div>
       </div>
     );
   }

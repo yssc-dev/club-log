@@ -69,8 +69,13 @@ describe('App.jsx — 컵 경기일 마법사 경유 게이트 (스펙 §6.2 v2.
   it('startMatches 의 컵 분기가 참석 팀 풀리그×회전 대진을 만든다', () => {
     expect(src).toMatch(/const startMatches = \(\) => \{\s*\n\s*if \(isCupSession\(state\)\)[\s\S]{0,900}buildCupDaySchedule\(/);
   });
-  it('시트 연동 두 버튼·활동선수 전체는 컵에서 렌더되지 않는다', () => {
-    expect(src).toMatch(/isCup \? \([\s\S]{0,400}CupAttendeePicker/);
+  it('정규 시트 연동 두 버튼·활동선수 전체는 컵에서 렌더되지 않는다(컵 전용 시트 연동 버튼만)', () => {
+    const start = src.indexOf('{isCup ? (\n            <div className="app-grouped">');
+    const end = src.indexOf('<CupAttendeePicker', start);
+    expect(start).toBeGreaterThan(0); expect(end).toBeGreaterThan(start);
+    const cupBlock = src.slice(start, end);
+    expect(cupBlock).not.toMatch(/syncAttendance\b|sheetDraft\b|활동선수 전체/);
+    expect(cupBlock).toMatch(/data-role="cup-sheet-sync"[^>]*onClick=\{syncCupAttendance\}/);
     expect(src).toMatch(/isCup \? \([\s\S]{0,200}대회 팀<\/button>/);
   });
   it('팀 수 세그먼트는 컵에서 비활성', () => {
@@ -132,5 +137,36 @@ describe('CupDetail.jsx — 컵 뷰 읽기는 종목을 명시한다 (3단계 �
   it('잠금은 로그 파생 집합을 isLocked 에 넘긴다', () => {
     expect(src).toMatch(/isLocked\(cup, computed\.playedPairs\)/);
     expect(src).not.toMatch(/isLocked\(cup\)/);
+  });
+});
+
+describe('App.jsx — 컵 참석 시트 연동 + 설정 단계 경기 취소 (2026-10-01)', () => {
+  const src = read('App.jsx');
+  it('컵 참석자 단계에 시트 연동 버튼이 있고 전용 fetch·적용 함수를 쓴다', () => {
+    expect(src).toMatch(/import \{ fetchSheetData, fetchAttendanceData, fetchCupAttendanceData \} from '\.\/services\/sheetService'/);
+    expect(src).toMatch(/import \{ applyCupSheetAttendance, formatCupSheetSummary \} from '\.\/utils\/cup\/cupAttendanceSheet'/);
+    expect(src).toMatch(/const syncCupAttendance = /);
+    expect(src).toMatch(/data-role="cup-sheet-sync"[^>]*onClick=\{syncCupAttendance\}/);
+    // 정규 참석자 단계의 시트 연동 핸들러는 그대로
+    expect(src).toMatch(/const syncAttendance = /);
+  });
+  it('설정 단계 하단은 로그아웃 대신 경기 취소(자동저장 취소 → active 삭제 → 대시보드)', () => {
+    expect(src).not.toMatch(/>로그아웃<\/button>/);
+    expect(src).toMatch(/const cancelSetupGame = /);
+    expect(src).toMatch(/data-role="cancel-setup-game"[^>]*onClick=\{cancelSetupGame\}/);
+    const body = src.slice(src.indexOf('const cancelSetupGame = '), src.indexOf('const cancelSetupGame = ') + 900);
+    expect(body).toMatch(/cancelPendingSave\(\)/);
+    expect(body).toMatch(/FirebaseSync\.clearState\(teamContext\?\.team, gameId\)/);
+    expect(body).toMatch(/onBackToMenu\(\)/);
+  });
+});
+
+describe('설정 — 컵 참석 시트 키', () => {
+  it('settings.js 기본값·공유 키, SettingsScreen 입력 행', () => {
+    const settings = read('config/settings.js');
+    expect(settings).toMatch(/cupAttendanceSheet: "컵참석"/);
+    expect(settings).toMatch(/"attendanceSheet", "cupAttendanceSheet", "dashboardSheet"/);
+    const screen = read('components/common/SettingsScreen.jsx');
+    expect(screen).toMatch(/<SheetSelect label="컵 참석 시트" value=\{settings\.cupAttendanceSheet\} onChange=\{v => update\("cupAttendanceSheet", v\)\} \/>/);
   });
 });
