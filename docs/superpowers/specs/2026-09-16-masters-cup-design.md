@@ -199,7 +199,7 @@ L2 노드는 **풋살 전체 행**을 담고, 데이터셋별 "뷰 필터"를 `g
 PC 에서 참석자를 관리하고 경기 시작 때 한 번에 반영하기 위한 기능. 정규 참석명단 시트와 섞이지 않도록 **컵 전용 탭**을 쓴다.
 
 - 설정 → 구글시트 설정에 "컵 참석 시트"(공유 키 `cupAttendanceSheet`, 기본 `컵참석`) 추가. 탭 형식: **1행 = 대회 팀명 머리글, 그 아래 행 = 그 팀의 오늘 참석자 이름**. 숫자·빈 칸은 무시.
-- 컵 참석자 단계에 "시트 연동" 버튼(`data-role="cup-sheet-sync"`, `syncCupAttendance`). 누르면 `fetchCupAttendanceData()`(export CSV, gid 미확인 시 gviz 폴백 — `fetchSheetCsvByName`) → `parseCupAttendanceGrid` → `applyCupSheetAttendance({ teams, teamNames, columns })` 로 `attendees`·`teams` 를 덮어쓰고 요약을 alert 로 보여준다. 이후 칩으로 손수 고칠 수 있다(자동 반영 없음 — 시트가 낡아 있을 때 엉뚱한 불참 처리를 막는다).
+- 컵 참석자 단계에 "시트 연동" 버튼(`data-role="cup-sheet-sync"`, `syncCupAttendance`). 누르면 `fetchCupAttendanceData()`(시트 목록으로 탭 존재를 매번 확인(force) → export CSV(gid)로만 읽음. **gviz 폴백 없음** — 탭이 없으면 gviz 가 첫 번째 시트(대시보드)를 돌려줘 회원 전원이 엉뚱하게 처리되므로 "탭이 없습니다"로 실패한다, 2026-10-01 실측) → `parseCupAttendanceGrid` → `applyCupSheetAttendance({ teams, teamNames, columns })` 로 `attendees`·`teams` 를 덮어쓰고 요약을 alert 로 보여준다. 이후 칩으로 손수 고칠 수 있다(자동 반영 없음 — 시트가 낡아 있을 때 엉뚱한 불참 처리를 막는다).
 - 적용 규칙(`src/utils/cup/cupAttendanceSheet.js`): 대회 명단(세션 팀) 이름은 **어느 열에 있든 참석**(원소속 팀 유지). 명단 밖 이름은 **열 머리글이 대회 팀명과 같을 때만** 그 팀에 당일 추가(`addCupGuest` 와 같은 결과), 아니면 "배치 못 함"으로 보고. 시트에 없는 팀원은 불참. 이름·팀명 비교는 `cleanPlayerName`·`normalizeTeamName`. 이름이 하나도 없으면 적용하지 않는다. **1행에 대회 팀명이 하나도 없으면 팀 구분 없이 이름만 적은 시트로 보고 1행도 이름으로 읽는다**(명단 팀원만 적을 때는 팀명 머리글이 필요 없다; 명단 밖 용병을 팀에 넣을 때만 팀명 열이 필요).
 - 정규 참석자 단계의 `syncAttendance`/`sheetDraft`/활동선수 전체 버튼은 컵에서 여전히 렌더되지 않는다(가드 테스트).
 

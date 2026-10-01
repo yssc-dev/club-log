@@ -328,13 +328,22 @@ export function parseCupAttendanceGrid(text) {
   return { columns };
 }
 
+// 탭이 없으면 gviz 는 첫 번째 시트(대시보드)를 돌려준다(2026-10-01 실측) — 그걸 참석명단으로 읽으면 회원 전원이
+// 엉뚱하게 참석/불참 처리된다. 그래서 여기서는 시트 목록으로 탭 존재를 먼저 확인하고 export(gid)로만 읽으며,
+// 어떤 경우에도 gviz 로 폴백하지 않는다. 탭을 방금 만들었을 수 있으므로 목록은 매번 새로 조회한다(force).
 export async function fetchCupAttendanceData() {
   const auth = AuthUtil.getStored();
   const s = getSettings(auth?.team);
   const sheetName = s.cupAttendanceSheet;
   if (!sheetName) throw new Error("컵 참석 시트 미설정(설정 → 구글시트 설정)");
-  const { text, source } = await fetchSheetCsvByName(s.sheetId, sheetName);
-  return { ...parseCupAttendanceGrid(text), source, sheetName };
+  const gid = await resolveSheetGid(s.sheetId, sheetName, { force: true });
+  if (gid === null) {
+    throw new Error(`구글시트에 '${sheetName}' 탭이 없습니다. 탭을 만들거나 설정 → 구글시트 설정의 "컵 참석 시트" 이름을 확인하세요.`);
+  }
+  const resp = await fetch(SHEET_CONFIG.csvUrlByGid(s.sheetId, gid));
+  const text = resp.ok ? await resp.text() : '';
+  if (!text || text.startsWith('<')) throw new Error(`'${sheetName}' 탭을 읽지 못했습니다(공유 설정 또는 탭 삭제 여부를 확인하세요).`);
+  return { ...parseCupAttendanceGrid(text), source: 'export', sheetName };
 }
 
 // 참석명단 시트(풋살)의 시드 그리드 파싱. 테스트를 위해 분리 export.
