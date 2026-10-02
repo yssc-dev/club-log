@@ -170,3 +170,16 @@ describe('설정 — 컵 참석 시트 키', () => {
     expect(screen).toMatch(/<SheetSelect label="컵 참석 시트" value=\{settings\.cupAttendanceSheet\} onChange=\{v => update\("cupAttendanceSheet", v\)\} \/>/);
   });
 });
+
+describe('App.jsx — 세션 화면이 규칙 스냅샷을 쓴다 (2026-10-02: 자책 표시·크로바/고구마 아이콘)', () => {
+  const src = read('App.jsx');
+  it('오늘의 선수기록 모달에 세션 스냅샷의 ownGoalPoint 를 넘긴다', () => {
+    expect(src).toMatch(/<PlayerStatsModal[^>]*ownGoalPoint=\{state\.settingsSnapshot\?\.ownGoalPoint \?\? gameSettings\.ownGoalPoint\}/);
+  });
+  it('최종 집계 팀 순위의 🍀/🍠 열은 크로바/고구마가 켜진 세션에서만 그린다', () => {
+    expect(src).toMatch(/const _showSummaryBonus = courtCount === 2 && matchMode !== "push" && \(state\.settingsSnapshot\?\.useCrovaGoguma \?\? gameSettings\.useCrovaGoguma \?\? false\)/);
+    expect(src).toMatch(/\.\.\.\(_showSummaryBonus \? \[""\] : \[\]\)/);
+    expect(src).toMatch(/\{_showSummaryBonus && <td style=\{s\.td\(\)\}>\{i === 0 \? "🍀" : i === standings\.length - 1 \? "🍠" : ""\}<\/td>\}/);
+    expect(src).not.toMatch(/courtCount === 2 && <td style=\{s\.td\(\)\}>\{i === 0 \? "🍀"/);
+  });
+});

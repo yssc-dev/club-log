@@ -2,7 +2,8 @@ import { useState } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import Modal from '../common/Modal';
 
-export default function PlayerStatsModal({ attendees, calcPlayerPoints, showBonus, onClose, styles: s }) {
+// ownGoalPoint: 세션 규칙 스냅샷의 자책 점수(컵·표준 -1, 마스터FC 정규 -2). 합계와 같은 값으로 표시해야 한다.
+export default function PlayerStatsModal({ attendees, calcPlayerPoints, showBonus, onClose, styles: s, ownGoalPoint = -1 }) {
   const { C } = useTheme();
   const [sortKey, setSortKey] = useState("total");
   const cols = ["선수", "골", "어시", "자책", "클린", ...(showBonus ? ["🍀", "🍠"] : []), "키퍼", "실점", "합계"];
@@ -33,7 +34,7 @@ export default function PlayerStatsModal({ attendees, calcPlayerPoints, showBonu
                 <td style={s.td(true)}>{p.name}</td>
                 <td style={s.td(p.goals > 0)}>{p.goals}</td>
                 <td style={s.td(p.assists > 0)}>{p.assists}</td>
-                <td style={{ ...s.td(p.owngoals > 0), color: p.owngoals > 0 ? C.red : C.white }}>{p.owngoals > 0 ? `-${p.owngoals * 2}` : 0}</td>
+                <td style={{ ...s.td(p.owngoals > 0), color: p.owngoals > 0 ? C.red : C.white }}>{p.owngoals > 0 ? String(p.owngoals * ownGoalPoint) : 0}</td>
                 <td style={s.td(p.cleanSheets > 0)}>{p.cleanSheets}</td>
                 {showBonus && <td style={{ ...s.td(p.crova > 0), color: p.crova > 0 ? C.green : C.white }}>{p.crova || ""}</td>}
                 {showBonus && <td style={{ ...s.td(p.goguma < 0), color: p.goguma < 0 ? C.red : C.white }}>{p.goguma || ""}</td>}

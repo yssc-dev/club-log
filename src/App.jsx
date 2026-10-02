@@ -1661,7 +1661,7 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
         )}
 
         {matchModal === "standings" && <StandingsModal standings={getTeamStandings()} splitPhase={splitPhase} teamCount={teamCount} onClose={() => set('matchModal', null)} styles={s} />}
-        {matchModal === "playerStats" && <PlayerStatsModal attendees={attendees} calcPlayerPoints={calcPlayerPoints} showBonus={_showModalBonus} onClose={() => set('matchModal', null)} styles={s} />}
+        {matchModal === "playerStats" && <PlayerStatsModal attendees={attendees} calcPlayerPoints={calcPlayerPoints} showBonus={_showModalBonus} ownGoalPoint={state.settingsSnapshot?.ownGoalPoint ?? gameSettings.ownGoalPoint} onClose={() => set('matchModal', null)} styles={s} />}
 
         {matchModal === "gameFormat" && (
           <Modal onClose={() => set('matchModal', null)} title="경기방식">
@@ -1778,6 +1778,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
 
   // SUMMARY PHASE
   if (phase === "summary") {
+    // 크로바/고구마는 세션 규칙 스냅샷 기준(컵은 꺼져 있다) — 🍀/🍠 열은 켜진 세션에서만 그린다(2026-10-02).
+    const _showSummaryBonus = courtCount === 2 && matchMode !== "push" && (state.settingsSnapshot?.useCrovaGoguma ?? gameSettings.useCrovaGoguma ?? false);
     const standings = finalStandings;
     const playerRows = attendees.map(p => ({ name: p, team: getPlayerTeamName(p), ...calcPlayerPoints(p) })).sort((a, b) => b.total - a.total);
     const gameDate = gameDateFromId(gameId);
@@ -1800,14 +1802,14 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
           <div style={s.sectionTitle}>🏆 팀 순위</div>
           <div style={s.card}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
-              <thead><tr>{["#", "팀", "경기", "승", "무", "패", "득", "실", "승점", ...(courtCount === 2 ? [""] : [])].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
+              <thead><tr>{["#", "팀", "경기", "승", "무", "패", "득", "실", "승점", ...(_showSummaryBonus ? [""] : [])].map(h => <th key={h} style={s.th}>{h}</th>)}</tr></thead>
               <tbody>
                 {standings.map((t, i) => (
                   <tr key={t.name} style={{ background: i === 0 ? `${C.green}11` : i === standings.length - 1 ? `${C.red}11` : "transparent" }}>
                     <td style={s.td()}>{i + 1}</td><td style={s.td(true)}>{t.name}</td>
                     <td style={s.td()}>{t.games}</td><td style={s.td()}>{t.wins}</td><td style={s.td()}>{t.draws}</td><td style={s.td()}>{t.losses}</td>
                     <td style={s.td()}>{t.gf}</td><td style={s.td()}>{t.ga}</td><td style={s.td(true)}>{t.points}</td>
-                    {courtCount === 2 && <td style={s.td()}>{i === 0 ? "🍀" : i === standings.length - 1 ? "🍠" : ""}</td>}
+                    {_showSummaryBonus && <td style={s.td()}>{i === 0 ? "🍀" : i === standings.length - 1 ? "🍠" : ""}</td>}
                   </tr>
                 ))}
               </tbody>
