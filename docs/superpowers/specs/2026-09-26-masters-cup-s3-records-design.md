@@ -149,10 +149,10 @@ const ALIASES = {
 
 | 섹션 | 컴포넌트 | 계산 함수 | 정의 |
 |---|---|---|---|
-| 시상 | `CupAwardsCards` | `calcCupAwards` | 득점왕·도움왕·클린시트왕·수문장·수비력·개근. 동점 공동 수상. 개근은 경기일 2일 이상부터. `awards.length === 0`이면 섹션 전체 숨김 |
+| 시상 | `CupAwardsCards` | `calcCupAwards` | 상위 3명(동률 포함 최대 5) 막대 랭킹, 카드 8종(득점왕·도움왕·클린시트왕·수문장·수비력·득점관여·수비관여·개근), 수비력·관여는 `calcCupOnOff`(필드 지표와 동일 기준). 개근은 경기일 2일 이상부터. `awards.length === 0`이면 섹션 전체 숨김 |
 | 맞대결 전적 | `CupHeadToHead` | `calcCupHeadToHead` | 팀 × 팀 행렬. 행 팀 기준 W-D-L + 득:실. 대각 `·`, 미대결 `-` |
 | 개인기록에 통합 (GK·실점·실점률·클린시트 열) | `CupPlayerRecordsTable` | `mergePlayerKeeperRecords(players, keepers)` | `calcCupKeepers` 결과를 `mergePlayerKeeperRecords` 로 개인기록에 병합. 별도 키퍼 섹션 없음. `CupKeeperTable.jsx` 삭제. |
-| 필드 지표 (수비력·관여 통합) | `CupFieldImpactTable` | `calcCupOnOff({ matchRows, cup })` | `calcCupOnOff` 확장: `onCleanSheets`·`cleanRate` 추가. 열: 선수·팀·출전·경기당 득점·경기당 실점·무실점률·득점관여·수비관여. `calcCupFieldDefense` はシステム cards(수비력 어워드) 전용 — 별도 섹션 없음. |
+| 필드 지표 (수비력·관여 통합) | `CupFieldImpactTable` | `calcCupOnOff({ matchRows, cup })` | `calcCupOnOff` 확장: `onCleanSheets`·`cleanRate` 추가. 열: 선수·팀·출전·경기당 득점·경기당 실점·무실점률·득점관여·수비관여. |
 
 **개인기록 자책 표기 규칙**: 자책골 셀 = `ownGoals × getCupSettings(teamName).ownGoalPoint`. 마스터FC에서는 −2이므로 자책 1골 → "−2".
 
@@ -182,7 +182,7 @@ const ALIASES = {
 - `goalImpact = onGfPg − offGfPg`, `defImpact = offGaPg − onGaPg`.
 - primary 팀 · GK 양쪽 제외 · `minOn` 3 기본 · null · 정렬.
 
-**`calcCupFieldDefense`**: 시상 카드(수비력 어워드) 전용으로 유지. 별도 표 섹션 없음.
+**`calcCupFieldDefense` 폐지(2026-10-02)**: 시상 수비력 카드는 `calcCupOnOff.rated`로 대체. 함수 삭제.
 
 **열** (8열, 전부 정렬):
 선수 · 팀(회색 12px) · 출전 · 경기당 득점(onGfPg, toFixed(2)) · 경기당 실점(onGaPg, toFixed(2)) · 무실점률(Math.round(cleanRate×100)+'%') · 득점관여(부호 포함 toFixed(2), null→'—') · 수비관여(동일).

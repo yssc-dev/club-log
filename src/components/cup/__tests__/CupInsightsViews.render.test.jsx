@@ -29,37 +29,96 @@ describe('CupAwardsCards', () => {
     expect(container.querySelector('[data-role="cup-awards"]')).toBeNull();
   });
 
-  it('key·title·names(joined)·value 렌더', async () => {
+  it('rows 카드: rows 3개 렌더·rank 텍스트', async () => {
     const awards = [
-      { key: 'top-scorer', title: '득점왕', names: ['김철수', '이영희'], value: '3골', note: '공동' },
+      {
+        key: 'topScorer', title: '득점왕',
+        rows: [
+          { rank: 1, name: '김철수', value: 3, display: '3골', ratio: 1 },
+          { rank: 2, name: '이영희', value: 2, display: '2골', ratio: 0.67 },
+          { rank: 3, name: '박민수', value: 1, display: '1골', ratio: 0.33 },
+        ],
+      },
     ];
     await mount(createElement(CupAwardsCards, { awards }));
-    const cont = container.querySelector('[data-role="cup-awards"]');
-    expect(cont).not.toBeNull();
-    const card = container.querySelector('[data-role="cup-award-card"][data-key="top-scorer"]');
+    const card = container.querySelector('[data-role="cup-award-card"][data-key="topScorer"]');
     expect(card).not.toBeNull();
     expect(card.textContent).toContain('득점왕');
-    expect(card.textContent).toContain('김철수 · 이영희');
-    expect(card.textContent).toContain('3골');
-    expect(card.textContent).toContain('공동');
+    const rows = card.querySelectorAll('[data-role="cup-award-row"]');
+    expect(rows).toHaveLength(3);
+    expect(rows[0].dataset.rank).toBe('1');
+    expect(rows[1].dataset.rank).toBe('2');
+    expect(rows[2].dataset.rank).toBe('3');
+    expect(rows[0].textContent).toContain('김철수');
+    expect(rows[0].textContent).toContain('3골');
   });
 
-  it('names 빈 배열이면 —, note 없으면 note 없음', async () => {
-    const awards = [{ key: 'k1', title: '도움왕', names: [], value: '2개' }];
+  it('1위 막대 width 100%', async () => {
+    const awards = [
+      {
+        key: 'topScorer', title: '득점왕',
+        rows: [
+          { rank: 1, name: '김철수', value: 3, display: '3골', ratio: 1 },
+          { rank: 2, name: '이영희', value: 2, display: '2골', ratio: 0.5 },
+        ],
+      },
+    ];
     await mount(createElement(CupAwardsCards, { awards }));
-    const card = container.querySelector('[data-role="cup-award-card"][data-key="k1"]');
+    const bars = container.querySelectorAll('[data-role="cup-award-bar"]');
+    expect(bars[0].style.width).toBe('100%');
+    expect(bars[1].style.width).toBe('50%');
+  });
+
+  it('수문장 역전 ratio 그대로 반영 (ratio=1이 최장)', async () => {
+    const awards = [
+      {
+        key: 'keeper', title: '수문장', note: '최소 2경기',
+        rows: [
+          { rank: 1, name: '김GK', value: 0.20, display: '실점률 0.20', ratio: 1 },
+          { rank: 2, name: '이GK', value: 0.67, display: '실점률 0.67', ratio: 0.08 },
+        ],
+      },
+    ];
+    await mount(createElement(CupAwardsCards, { awards }));
+    const bars = container.querySelectorAll('[data-role="cup-award-bar"]');
+    expect(bars[0].dataset.ratio).toBe('1');
+    expect(bars[1].dataset.ratio).toBe('0.08');
+  });
+
+  it('note 표시', async () => {
+    const awards = [
+      {
+        key: 'defense', title: '수비력', note: '최소 3경기(필드)',
+        rows: [{ rank: 1, name: '홍길동', value: 0.8, display: '무실점률 80%', ratio: 1 }],
+      },
+    ];
+    await mount(createElement(CupAwardsCards, { awards }));
+    const card = container.querySelector('[data-role="cup-award-card"][data-key="defense"]');
+    expect(card.textContent).toContain('최소 3경기(필드)');
+  });
+
+  it('개근 카드(rows 없음): names join · value 렌더', async () => {
+    const awards = [{ key: 'attendance', title: '개근', names: ['가나', '다라'], value: '2/2일' }];
+    await mount(createElement(CupAwardsCards, { awards }));
+    const card = container.querySelector('[data-role="cup-award-card"][data-key="attendance"]');
+    expect(card.textContent).toContain('가나 · 다라');
+    expect(card.textContent).toContain('2/2일');
+    expect(card.querySelector('[data-role="cup-award-row"]')).toBeNull();
+  });
+
+  it('개근 names 빈 배열이면 —', async () => {
+    const awards = [{ key: 'attendance', title: '개근', names: [], value: '5명 · 2/2일' }];
+    await mount(createElement(CupAwardsCards, { awards }));
+    const card = container.querySelector('[data-role="cup-award-card"][data-key="attendance"]');
     expect(card.textContent).toContain('—');
-    expect(card.textContent).toContain('2개');
-    // note 없으면 note 텍스트 없어야 함 (note 가 undefined)
-    // card 텍스트에는 title+names+value 만 있음
     expect(card.textContent).not.toContain('undefined');
   });
 
   it('여러 카드가 모두 렌더됨', async () => {
     const awards = [
-      { key: 'a', title: 'A', names: ['홍길동'], value: '5' },
-      { key: 'b', title: 'B', names: ['이순신'], value: '3' },
-      { key: 'c', title: 'C', names: ['강감찬'], value: '1' },
+      { key: 'a', title: 'A', rows: [{ rank: 1, name: '홍길동', value: 5, display: '5', ratio: 1 }] },
+      { key: 'b', title: 'B', rows: [{ rank: 1, name: '이순신', value: 3, display: '3', ratio: 1 }] },
+      { key: 'c', title: 'C', names: ['강감찬'], value: '2/2일' },
     ];
     await mount(createElement(CupAwardsCards, { awards }));
     expect(container.querySelectorAll('[data-role="cup-award-card"]')).toHaveLength(3);

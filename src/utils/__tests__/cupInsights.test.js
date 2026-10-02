@@ -1,10 +1,9 @@
 // src/utils/__tests__/cupInsights.test.js
-// TDD: calcCupHeadToHead / calcCupKeepers / calcCupFieldDefense / calcCupAwards / calcCupOnOff / mergePlayerKeeperRecords
+// TDD: calcCupHeadToHead / calcCupKeepers / calcCupAwards / calcCupOnOff / mergePlayerKeeperRecords
 import { describe, it, expect } from 'vitest';
 import {
   calcCupHeadToHead,
   calcCupKeepers,
-  calcCupFieldDefense,
   calcCupAwards,
   calcCupOnOff,
   mergePlayerKeeperRecords,
@@ -176,322 +175,244 @@ describe('calcCupKeepers', () => {
   });
 });
 
-// ── calcCupFieldDefense ──────────────────────────────────────────────
-describe('calcCupFieldDefense', () => {
-  it('GK는 필드 수비에서 제외', () => {
-    const rows = [M({ our_gk: 'a1', our_score: 0, opponent_score: 1 })];
-    const { rated, unrated } = calcCupFieldDefense({ matchRows: rows });
-    const all = [...rated, ...unrated];
-    expect(all.every(p => p.name !== 'a1')).toBe(true);
-    expect(all.some(p => p.name === 'a2')).toBe(true);
-  });
-
-  it('absent 제외 — .actual 만 사용', () => {
-    const rows = [M({
-      our_gk: 'a1',
-      our_members_json: JSON.stringify({ players: ['a1', 'a2', 'a3', 'a4'], absent: ['a4'] }),
-      our_score: 0, opponent_score: 1,
-    })];
-    const { rated, unrated } = calcCupFieldDefense({ matchRows: rows });
-    const all = [...rated, ...unrated];
-    expect(all.every(p => p.name !== 'a4')).toBe(true); // a4는 휴식
-    expect(all.some(p => p.name === 'a2')).toBe(true);
-  });
-
-  it('빈 GK 사이드 통째로 건너뜀', () => {
-    const rows = [M({ our_gk: '', opponent_gk: 'b1', our_score: 0, opponent_score: 0 })];
-    const { rated, unrated } = calcCupFieldDefense({ matchRows: rows });
-    const all = [...rated, ...unrated];
-    // our side (gk empty) 는 건너뜀 → a1~a5 없음, b side 처리됨
-    expect(all.every(p => !['a1', 'a2', 'a3', 'a4', 'a5'].includes(p.name))).toBe(true);
-    expect(all.some(p => ['b2', 'b3', 'b4', 'b5'].includes(p.name))).toBe(true);
-  });
-
-  it('cleanSheets — 실점 0 경기', () => {
-    const rows = [
-      M({ our_gk: 'a1', our_score: 0, opponent_score: 0 }),
-      M({ our_gk: 'a1', our_score: 0, opponent_score: 1, match_idx: 2 }),
-    ];
-    const { rated, unrated } = calcCupFieldDefense({ matchRows: rows });
-    const all = [...rated, ...unrated];
-    const a2 = all.find(p => p.name === 'a2');
-    expect(a2).toMatchObject({ games: 2, cleanSheets: 1, conceded: 1 });
-  });
-
-  it('cleanRate, concededPerGame — 소수점 2자리 Number', () => {
-    const rows = [
-      M({ our_gk: 'a1', our_score: 0, opponent_score: 0 }),
-      M({ our_gk: 'a1', our_score: 0, opponent_score: 0, match_idx: 2 }),
-      M({ our_gk: 'a1', our_score: 0, opponent_score: 3, match_idx: 3 }),
-    ];
-    const { rated, unrated } = calcCupFieldDefense({ matchRows: rows });
-    const a2 = [...rated, ...unrated].find(p => p.name === 'a2');
-    expect(a2).toMatchObject({
-      games: 3, cleanSheets: 2, conceded: 3,
-      cleanRate: Number((2 / 3).toFixed(2)),
-      concededPerGame: 1,
-    });
-    expect(typeof a2.cleanRate).toBe('number');
-  });
-
-  it('minGames = dynamicMin(maxGames)', () => {
-    // a2 는 5경기, b2는 1경기; dynamicMin(5)=2 → b2 unrated
-    const rows = Array.from({ length: 5 }, (_, i) =>
-      M({ our_gk: 'a1', opponent_gk: 'b1', match_idx: i + 1, our_score: 0, opponent_score: 0 })
-    );
-    // b side의 b2~b5는 5경기 all played, a2~a5는 5경기
-    // opponent side 중 b1 이외: b2~b5 → 5경기; our side 중 a1 이외: a2~a5 → 5경기
-    // dynamicMin(5)=2 → 모두 rated
-    const { minGames } = calcCupFieldDefense({ matchRows: rows });
-    expect(minGames).toBe(2); // Math.ceil(5*0.3)=2
-  });
-
-  it('rated/unrated 분리 — games >= minGames 인 선수는 rated', () => {
-    // a1=GK 5경기, a2 5경기 rated, b1=GK 1경기, b2 1경기 unrated
-    const rows = Array.from({ length: 5 }, (_, i) =>
-      M({
-        our_gk: 'a1', opponent_gk: 'b1',
-        our_members_json: JSON.stringify(['a1', 'a2']),
-        opponent_members_json: JSON.stringify(['b1', 'b2']),
-        match_idx: i + 1, our_score: 0, opponent_score: 0,
-      })
-    );
-    const { minGames, rated, unrated } = calcCupFieldDefense({ matchRows: rows });
-    // a2: 5 games; b2: 5 games; dynamicMin(5)=2 → both rated
-    expect(minGames).toBe(2);
-    expect(rated.map(p => p.name).sort()).toContain('a2');
-    expect(rated.map(p => p.name).sort()).toContain('b2');
-    expect(unrated).toHaveLength(0);
-  });
-
-  it('rated 정렬 — cleanRate 내림 → concededPerGame 오름 → games 내림 → 이름 가나다', () => {
-    // opponent_gk='' → 상대 사이드 건너뜀, 홈 사이드만 집계
-    // p1: 2games,2cs,0conceded,rate=1.00,cpg=0.00
-    // p2: 3games,2cs,1conceded,rate=0.67,cpg=0.33
-    // p3: 4games,2cs,2conceded,rate=0.50,cpg=0.50
-    // dynamicMin(4)=2 → all rated
-    const rows = [
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'p1', 'p2', 'p3']), our_score: 0, opponent_score: 0, opponent_gk: '', match_idx: 1 }),
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'p1', 'p2', 'p3']), our_score: 0, opponent_score: 0, opponent_gk: '', match_idx: 2 }),
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'p2', 'p3']), our_score: 0, opponent_score: 1, opponent_gk: '', match_idx: 3 }),
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'p3']), our_score: 0, opponent_score: 1, opponent_gk: '', match_idx: 4 }),
-    ];
-    const { rated } = calcCupFieldDefense({ matchRows: rows });
-    expect(rated[0].name).toBe('p1');
-    expect(rated[1].name).toBe('p2');
-    expect(rated[2].name).toBe('p3');
-  });
-
-  it('unrated 정렬 — games 내림 → 이름 가나다', () => {
-    const rows = [
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'aa', 'bb', 'cc']), our_score: 0, opponent_score: 0, match_idx: 1 }),
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'aa', 'bb']), our_score: 0, opponent_score: 0, match_idx: 2 }),
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'aa', 'zz']), our_score: 0, opponent_score: 0, match_idx: 3 }),
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'aa', 'bb', 'cc']), our_score: 0, opponent_score: 0, match_idx: 4 }),
-      M({ our_gk: 'GK', our_members_json: JSON.stringify(['GK', 'aa', 'bb', 'cc']), our_score: 0, opponent_score: 0, match_idx: 5 }),
-    ];
-    // aa: 5 games, bb: 4 games, cc: 3 games, zz: 1 game
-    // dynamicMin(5)=2 → aa(5),bb(4),cc(3) rated; zz(1) unrated
-    const { unrated } = calcCupFieldDefense({ matchRows: rows });
-    expect(unrated.map(p => p.name)).toEqual(['zz']);
-  });
-
-  it('빈 입력 → minGames:0, 빈 배열들', () => {
-    expect(calcCupFieldDefense({ matchRows: [] })).toEqual({ minGames: 0, rated: [], unrated: [] });
-  });
-
-  it('team 표시명 — 행 팀명 "팀광땡" → 엔티티 표시명 "광땡"', () => {
-    const cupGwang = {
-      meta: CUP.meta,
-      teams: [
-        { id: 'g1', name: '광땡', captain: '', players: ['gkG', 'p1', 'p2'], order: 0 },
-        { id: 'g2', name: '국뽕', captain: '', players: ['gkB', 'q1', 'q2'], order: 1 },
-      ],
-    };
-    const rows = [
-      M({
-        our_team_name: '팀광땡', our_gk: 'gkG',
-        our_members_json: JSON.stringify(['gkG', 'p1', 'p2']),
-        opponent_team_name: '팀국뽕', opponent_gk: 'gkB',
-        opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']),
-        our_score: 0, opponent_score: 1, match_idx: 1,
-      }),
-    ];
-    const { rated, unrated } = calcCupFieldDefense({ matchRows: rows, cup: cupGwang });
-    const all = [...rated, ...unrated];
-    const p1 = all.find(p => p.name === 'p1');
-    expect(p1).toBeDefined();
-    expect(p1.team).toBe('광땡');
-  });
-
-  it('team — 두 팀에 등장 시 다수 팀이 선택됨', () => {
-    // p1: 팀A에 2경기, 팀B에 1경기 → team='팀A'
-    const rows = [
-      M({ our_gk: 'a1', our_members_json: JSON.stringify(['a1', 'p1', 'a3']),
-          opponent_gk: 'b1', opponent_members_json: JSON.stringify(['b1', 'b2', 'b3']),
-          our_score: 0, opponent_score: 0, match_idx: 1 }),
-      M({ our_gk: 'a1', our_members_json: JSON.stringify(['a1', 'p1', 'a3']),
-          opponent_gk: 'b1', opponent_members_json: JSON.stringify(['b1', 'b2', 'b3']),
-          our_score: 0, opponent_score: 0, match_idx: 2 }),
-      M({ our_gk: 'a1', our_members_json: JSON.stringify(['a1', 'a3', 'a4']),
-          opponent_gk: 'b1', opponent_members_json: JSON.stringify(['b1', 'p1', 'b3']),
-          our_score: 0, opponent_score: 0, match_idx: 3 }),
-    ];
-    const { rated, unrated } = calcCupFieldDefense({ matchRows: rows, cup: CUP });
-    const all = [...rated, ...unrated];
-    const p1 = all.find(p => p.name === 'p1');
-    expect(p1).toBeDefined();
-    expect(p1.team).toBe('팀A'); // 2경기 vs 1경기
-  });
-});
-
-// ── calcCupAwards ────────────────────────────────────────────────────
-const PLAYER = (over = {}) => ({ name: 'p1', team: '팀A', guest: false, goals: 0, assists: 0, cleanSheets: 0, ownGoals: 0, days: 1, ...over });
-const KEEPER = (over = {}) => ({ name: 'k1', games: 3, conceded: 1, cleanSheets: 1, concededRate: 0.33, ...over });
-const DEFENSE = (over = {}) => ({ minGames: 2, rated: [], unrated: [], ...over });
-const DAYS1 = [{ date: '2026-10-01' }];
-const DAYS2 = [{ date: '2026-10-01' }, { date: '2026-10-08' }];
+// ── calcCupAwards (재설계 2026-10-02) ──────────────────────────────
+// rows 카드: { key, title, note?, rows:[{ rank, name, value, display, ratio }] }
+// 개근 카드: { key, title, names, value }
+const AP = (over = {}) => ({ name: 'p1', team: '팀A', guest: false, goals: 0, assists: 0, cleanSheets: 0, ownGoals: 0, days: 1, onGames: 0, goalImpact: null, defImpact: null, cleanRate: 0, ...over });
+const AK = (over = {}) => ({ name: 'k1', games: 3, conceded: 1, cleanSheets: 1, concededRate: 0.33, ...over });
+const AR = (over = {}) => ({ name: 'r1', team: '팀A', onGames: 5, goalImpact: null, defImpact: null, cleanRate: 0, ...over });
+const ADAYS1 = [{ date: '2026-10-01' }];
+const ADAYS2 = [{ date: '2026-10-01' }, { date: '2026-10-08' }];
 
 describe('calcCupAwards', () => {
-  it('카드 고정 순서: topScorer → topAssist → cleanSheet → keeper → defense → attendance', () => {
+  it('카드 순서: topScorer→topAssist→cleanSheet→keeper→defense→goalImpact→defImpact→attendance', () => {
     const players = [
-      PLAYER({ name: 'p1', goals: 3, assists: 2, days: 2 }),
-      PLAYER({ name: 'p2', goals: 1, assists: 1, days: 2 }),
+      AP({ name: 'p1', goals: 3, assists: 2, days: 2 }),
+      AP({ name: 'p2', goals: 1, assists: 1, days: 2 }),
     ];
     const keepers = [
-      KEEPER({ name: 'k1', games: 3, conceded: 0, cleanSheets: 3, concededRate: 0 }),
-      KEEPER({ name: 'k2', games: 1, conceded: 2, cleanSheets: 0, concededRate: 2 }),
+      AK({ name: 'k1', games: 3, conceded: 0, cleanSheets: 3, concededRate: 0 }),
+      AK({ name: 'k2', games: 1, conceded: 2, cleanSheets: 0, concededRate: 2 }),
     ];
-    const defense = DEFENSE({
-      minGames: 1,
-      rated: [{ name: 'd1', games: 3, conceded: 0, cleanSheets: 3, cleanRate: 1, concededPerGame: 0 }],
-    });
-    const cards = calcCupAwards({ players, keepers, defense, days: DAYS2 });
+    const onoff = {
+      minOn: 1,
+      rated: [
+        AR({ name: 'd1', onGames: 3, cleanRate: 1, goalImpact: 1.5, defImpact: 0.8 }),
+      ],
+      unrated: [],
+    };
+    const cards = calcCupAwards({ players, keepers, onoff, days: ADAYS2 });
     const keys = cards.map(c => c.key);
-    expect(keys).toEqual(['topScorer', 'topAssist', 'cleanSheet', 'keeper', 'defense', 'attendance']);
+    expect(keys).toEqual(['topScorer', 'topAssist', 'cleanSheet', 'keeper', 'defense', 'goalImpact', 'defImpact', 'attendance']);
   });
 
-  it('득점왕 타이 — 여러 이름 ko 정렬', () => {
+  it('topN=3 기본: 상위 3개 rows', () => {
     const players = [
-      PLAYER({ name: '나B', goals: 3 }), PLAYER({ name: '가A', goals: 3 }), PLAYER({ name: '다C', goals: 1 }),
+      AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 3 }),
+      AP({ name: 'c', goals: 2 }), AP({ name: 'd', goals: 1 }),
     ];
-    const card = calcCupAwards({ players, keepers: [], defense: DEFENSE(), days: [] })
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
       .find(c => c.key === 'topScorer');
-    expect(card.names).toEqual(['가A', '나B']); // ko 정렬
-    expect(card.value).toBe('3골');
+    expect(card.rows).toHaveLength(3);
+    expect(card.rows.map(r => r.name)).toEqual(['a', 'b', 'c']);
+  });
+
+  it('동률 포함 규칙: 4명이면 4행', () => {
+    // 1위×2, 3위×2 → topN=3 이므로 3위(border) 동률 1명 추가 → 4행
+    const players = [
+      AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 5 }),
+      AP({ name: 'c', goals: 3 }), AP({ name: 'd', goals: 3 }),
+    ];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
+      .find(c => c.key === 'topScorer');
+    expect(card.rows).toHaveLength(4);
+    expect(card.rows.map(r => r.rank)).toEqual([1, 1, 3, 3]);
+  });
+
+  it('동률 포함 규칙: 6명 동률이면 5행(상한)', () => {
+    // topN=3, 3위(border)와 동률이 6명이지만 total max 5
+    const players = [
+      AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 5 }),
+      AP({ name: 'c', goals: 3 }), AP({ name: 'd', goals: 3 }),
+      AP({ name: 'e', goals: 3 }), AP({ name: 'f', goals: 3 }),
+      AP({ name: 'g', goals: 3 }),
+    ];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
+      .find(c => c.key === 'topScorer');
+    expect(card.rows).toHaveLength(5);
+  });
+
+  it('rank 경쟁 순위(1,1,3)', () => {
+    const players = [
+      AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 5 }),
+      AP({ name: 'c', goals: 3 }),
+    ];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
+      .find(c => c.key === 'topScorer');
+    expect(card.rows.map(r => r.rank)).toEqual([1, 1, 3]);
+  });
+
+  it('득점왕 display 및 ratio', () => {
+    const players = [AP({ name: 'a', goals: 4 }), AP({ name: 'b', goals: 2 })];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
+      .find(c => c.key === 'topScorer');
+    expect(card.rows[0].display).toBe('4골');
+    expect(card.rows[0].ratio).toBe(1);
+    expect(card.rows[1].ratio).toBeCloseTo(0.5);
   });
 
   it('득점 0 → topScorer 카드 없음', () => {
-    const cards = calcCupAwards({ players: [PLAYER()], keepers: [], defense: DEFENSE(), days: [] });
+    const cards = calcCupAwards({ players: [AP()], keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] });
     expect(cards.find(c => c.key === 'topScorer')).toBeUndefined();
   });
 
-  it('도움왕 타이 — value = n어시', () => {
-    const players = [
-      PLAYER({ name: 'a', assists: 2 }), PLAYER({ name: 'b', assists: 2 }),
-    ];
-    const card = calcCupAwards({ players, keepers: [], defense: DEFENSE(), days: [] })
+  it('도움왕 display', () => {
+    const players = [AP({ name: 'a', assists: 3 }), AP({ name: 'b', assists: 1 })];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
       .find(c => c.key === 'topAssist');
-    expect(card.value).toBe('2어시');
-    expect(card.names).toHaveLength(2);
+    expect(card.rows[0].display).toBe('3어시');
   });
 
-  it('클린시트왕 — keepers에서 cleanSheets 최대', () => {
+  it('클린시트왕 — keepers, display n경기, 동률 시 games 내림 타이브레이크', () => {
     const keepers = [
-      KEEPER({ name: 'k1', cleanSheets: 2 }),
-      KEEPER({ name: 'k2', cleanSheets: 2 }),
-      KEEPER({ name: 'k3', cleanSheets: 1 }),
+      AK({ name: 'k1', games: 3, cleanSheets: 2, concededRate: 0 }),
+      AK({ name: 'k2', games: 1, cleanSheets: 2, concededRate: 0 }),
     ];
-    const card = calcCupAwards({ players: [], keepers, defense: DEFENSE(), days: [] })
+    const card = calcCupAwards({ players: [], keepers, onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
       .find(c => c.key === 'cleanSheet');
-    expect(card.value).toBe('2경기');
-    expect(card.names).toEqual(['k1', 'k2']);
+    expect(card.rows.map(r => r.display)).toEqual(['2경기', '2경기']);
+    expect(card.rows.map(r => r.rank)).toEqual([1, 1]);
+    expect(card.rows[0].name).toBe('k1'); // games 더 많은 k1이 앞
   });
 
-  it('수문장 — dynamicMin 진입 기준, 최저 실점률', () => {
-    // maxKeeperGames=5, keeperMin=dynamicMin(5)=2
-    // k1: 5games rate=0.20; k2: 1game rate=0.00 (games<2 → 불통)
+  it('수문장 — dynamicMin 진입 기준, 최저 실점률 rows, ratio 역전(최저=1)', () => {
+    // maxGames=5, dynamicMin(5)=2; k2(1game) 불통
     const keepers = [
-      KEEPER({ name: 'k1', games: 5, conceded: 1, cleanSheets: 4, concededRate: 0.20 }),
-      KEEPER({ name: 'k2', games: 1, conceded: 0, cleanSheets: 1, concededRate: 0.00 }),
+      AK({ name: 'k1', games: 5, conceded: 1, cleanSheets: 4, concededRate: 0.20 }),
+      AK({ name: 'k2', games: 1, conceded: 0, cleanSheets: 1, concededRate: 0.00 }),
+      AK({ name: 'k3', games: 3, conceded: 2, cleanSheets: 1, concededRate: 0.67 }),
     ];
-    const card = calcCupAwards({ players: [], keepers, defense: DEFENSE(), days: [] })
+    const card = calcCupAwards({ players: [], keepers, onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
       .find(c => c.key === 'keeper');
-    expect(card.names).toEqual(['k1']);
     expect(card.note).toBe('최소 2경기');
+    // k1(0.20) < k3(0.67) → k1 rank=1
+    expect(card.rows[0].name).toBe('k1');
+    expect(card.rows[0].rank).toBe(1);
+    // ratio: 최저 실점률 k1(0.20)이 1위 → ratio=1
+    expect(card.rows[0].ratio).toBe(1);
+    // k3(0.67): ratio = Math.max(0.08, 1 - 0.67/0.67) = 0.08
+    expect(card.rows[1].ratio).toBeCloseTo(0.08);
   });
 
-  it('수문장 — value는 실점률 x.xx 형식', () => {
-    const keepers = [KEEPER({ games: 3, conceded: 1, concededRate: 0.33 })];
-    const card = calcCupAwards({ players: [], keepers, defense: DEFENSE(), days: [] })
+  it('수문장 — 실점률 0 이면 ratio 전부 1', () => {
+    const keepers = [
+      AK({ name: 'k1', games: 5, conceded: 0, concededRate: 0 }),
+      AK({ name: 'k2', games: 2, conceded: 0, concededRate: 0 }),
+    ];
+    const card = calcCupAwards({ players: [], keepers, onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
       .find(c => c.key === 'keeper');
-    expect(card.value).toBe('실점률 0.33');
+    expect(card.rows.every(r => r.ratio === 1)).toBe(true);
   });
 
-  it('수비력 — defense.rated[0] 과 cleanRate 같은 선수 모두', () => {
-    const defense = DEFENSE({
-      minGames: 2,
+  it('수비력 — onoff.rated cleanRate 내림, onGames 타이브레이크, cleanRate>0 만', () => {
+    const onoff = {
+      minOn: 2,
       rated: [
-        { name: '가', games: 3, conceded: 0, cleanSheets: 3, cleanRate: 1, concededPerGame: 0 },
-        { name: '나', games: 2, conceded: 0, cleanSheets: 2, cleanRate: 1, concededPerGame: 0 },
-        { name: '다', games: 2, conceded: 1, cleanSheets: 1, cleanRate: 0.5, concededPerGame: 0.5 },
+        AR({ name: 'd1', onGames: 3, cleanRate: 0.80 }),
+        AR({ name: 'd2', onGames: 5, cleanRate: 0.80 }),
+        AR({ name: 'd3', onGames: 4, cleanRate: 0.30 }),
+        AR({ name: 'd0', onGames: 6, cleanRate: 0     }),
       ],
-    });
-    const card = calcCupAwards({ players: [], keepers: [], defense, days: [] })
+      unrated: [],
+    };
+    const card = calcCupAwards({ players: [], keepers: [], onoff, days: [] })
       .find(c => c.key === 'defense');
-    expect(card.names).toEqual(['가', '나']); // rate=1 타이
-    expect(card.value).toBe('무실점률 100%');
+    expect(card).toBeDefined();
     expect(card.note).toBe('최소 2경기(필드)');
+    // d0 (cleanRate=0) 는 제외
+    expect(card.rows.some(r => r.name === 'd0')).toBe(false);
+    // d2(onGames=5) > d1(onGames=3) 타이브레이크 → d2 앞
+    expect(card.rows[0].name).toBe('d2');
+    expect(card.rows[1].name).toBe('d1');
+    expect(card.rows[0].ratio).toBe(1);
+    expect(card.rows[0].display).toBe('무실점률 80%');
   });
 
-  it('수비력 — defense.rated 비어있으면 카드 없음', () => {
-    const cards = calcCupAwards({ players: [], keepers: [], defense: DEFENSE(), days: [] });
+  it('수비력 — onoff.rated 비면 카드 없음', () => {
+    const cards = calcCupAwards({ players: [], keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] });
     expect(cards.find(c => c.key === 'defense')).toBeUndefined();
   });
 
-  it('개근 — days.length === 1 이면 카드 없음', () => {
-    const players = [PLAYER({ name: 'p1', days: 1 })];
-    const cards = calcCupAwards({ players, keepers: [], defense: DEFENSE(), days: DAYS1 });
+  it('득점관여 — goalImpact>0 만, null 제외, note 포함', () => {
+    const onoff = {
+      minOn: 3,
+      rated: [
+        AR({ name: 'g1', onGames: 5, goalImpact: 1.50, defImpact: 0.5 }),
+        AR({ name: 'g2', onGames: 4, goalImpact: 0.80, defImpact: null }),
+        AR({ name: 'g3', onGames: 4, goalImpact: null,  defImpact: 1.0 }),
+        AR({ name: 'g4', onGames: 4, goalImpact: -0.5, defImpact: 0.2 }),
+      ],
+      unrated: [],
+    };
+    const card = calcCupAwards({ players: [], keepers: [], onoff, days: [] })
+      .find(c => c.key === 'goalImpact');
+    expect(card).toBeDefined();
+    expect(card.note).toBe('최소 3경기(필드)');
+    expect(card.rows.map(r => r.name)).toEqual(['g1', 'g2']);
+    expect(card.rows[0].display).toBe('+1.50');
+    expect(card.rows[0].ratio).toBe(1);
+    expect(card.rows[1].ratio).toBeCloseTo(0.8 / 1.5);
+  });
+
+  it('수비관여 — defImpact>0 만, null 제외', () => {
+    const onoff = {
+      minOn: 3,
+      rated: [
+        AR({ name: 'd1', onGames: 5, defImpact: 2.00, goalImpact: 0.5 }),
+        AR({ name: 'd2', onGames: 4, defImpact: 1.00, goalImpact: null }),
+        AR({ name: 'd3', onGames: 3, defImpact: null,  goalImpact: 0.1 }),
+      ],
+      unrated: [],
+    };
+    const card = calcCupAwards({ players: [], keepers: [], onoff, days: [] })
+      .find(c => c.key === 'defImpact');
+    expect(card.rows.map(r => r.name)).toEqual(['d1', 'd2']);
+    expect(card.rows[0].display).toBe('+2.00');
+  });
+
+  it('개근 — days.length===1 이면 카드 없음', () => {
+    const players = [AP({ name: 'p1', days: 1 })];
+    const cards = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: ADAYS1 });
     expect(cards.find(c => c.key === 'attendance')).toBeUndefined();
   });
 
-  it('개근 — days.length >= 2, 4명 이하 → names 배열 + n/n일 value', () => {
+  it('개근 — days.length>=2, 4명 이하 → names 배열 + n/n일', () => {
     const players = [
-      PLAYER({ name: 'a', days: 2 }), PLAYER({ name: 'b', days: 2 }),
-      PLAYER({ name: 'c', days: 1 }), // 한 번만
+      AP({ name: 'a', days: 2 }), AP({ name: 'b', days: 2 }),
+      AP({ name: 'c', days: 1 }),
     ];
-    const card = calcCupAwards({ players, keepers: [], defense: DEFENSE(), days: DAYS2 })
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: ADAYS2 })
       .find(c => c.key === 'attendance');
-    expect(card.names).toEqual(['a', 'b']); // ko 정렬
+    expect(card.names).toEqual(['a', 'b']);
     expect(card.value).toBe('2/2일');
   });
 
-  it('개근 — days.length >= 2, 5명 초과 → names=[], value = n명 · n/n일', () => {
-    const players = Array.from({ length: 5 }, (_, i) => PLAYER({ name: `p${i + 1}`, days: 2 }));
-    const card = calcCupAwards({ players, keepers: [], defense: DEFENSE(), days: DAYS2 })
+  it('개근 — days.length>=2, 5명 초과 → names=[], value=n명·n/n일', () => {
+    const players = Array.from({ length: 5 }, (_, i) => AP({ name: `p${i + 1}`, days: 2 }));
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: ADAYS2 })
       .find(c => c.key === 'attendance');
     expect(card.names).toEqual([]);
     expect(card.value).toBe('5명 · 2/2일');
   });
 
-  it('개근 — 개근자 없으면 카드 없음 (days>=2여도)', () => {
-    const players = [PLAYER({ name: 'p1', days: 1 })];
-    const cards = calcCupAwards({ players, keepers: [], defense: DEFENSE(), days: DAYS2 });
-    expect(cards.find(c => c.key === 'attendance')).toBeUndefined();
-  });
-
-  it('게스트도 득점왕/도움왕 자격', () => {
-    const players = [
-      PLAYER({ name: 'guest1', guest: true, goals: 5 }),
-      PLAYER({ name: 'regular', guest: false, goals: 3 }),
-    ];
-    const card = calcCupAwards({ players, keepers: [], defense: DEFENSE(), days: [] })
-      .find(c => c.key === 'topScorer');
-    expect(card.names).toEqual(['guest1']);
+  it('rows 비면 카드 없음 (goals=0, assists=0)', () => {
+    const cards = calcCupAwards({ players: [AP()], keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] });
+    expect(cards.find(c => c.key === 'topScorer')).toBeUndefined();
+    expect(cards.find(c => c.key === 'topAssist')).toBeUndefined();
   });
 
   it('빈 입력 → 카드 없음', () => {
-    const cards = calcCupAwards({ players: [], keepers: [], defense: DEFENSE(), days: [] });
+    const cards = calcCupAwards({ players: [], keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] });
     expect(cards).toHaveLength(0);
   });
 });

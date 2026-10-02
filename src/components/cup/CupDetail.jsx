@@ -10,7 +10,7 @@ import SheetCache from '../../services/sheetCache';
 import { validateTeams, isLocked } from '../../utils/cup/cupEntity';
 import { isCupSession } from '../../utils/cup/cupSession';
 import { selectCupRows, calcCupStandings, calcCupPlayerRecords, collectPlayedPairs } from '../../utils/cup/cupRecords';
-import { calcCupHeadToHead, calcCupKeepers, calcCupFieldDefense, calcCupAwards, calcCupOnOff, mergePlayerKeeperRecords } from '../../utils/cup/cupInsights';
+import { calcCupHeadToHead, calcCupKeepers, calcCupAwards, calcCupOnOff, mergePlayerKeeperRecords } from '../../utils/cup/cupInsights';
 import { getCupSettings } from '../../config/settings';
 import CupTeamEditor from './CupTeamEditor';
 import CupStandingsTable from './CupStandingsTable';
@@ -55,9 +55,8 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
     const { standings, days } = calcCupStandings({ matchRows: sel.matchRows, cup });
     const players = calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup });
     const keepers = calcCupKeepers({ matchRows: sel.matchRows });
-    const defense = calcCupFieldDefense({ matchRows: sel.matchRows, cup });
-    const awards = calcCupAwards({ players, keepers, defense, days });
     const onoff = calcCupOnOff({ matchRows: sel.matchRows, cup });
+    const awards = calcCupAwards({ players, keepers, onoff, days });
     const mergedPlayers = mergePlayerKeeperRecords(players, keepers);
     return {
       hasMatches: sel.matchRows.length > 0,
@@ -65,7 +64,6 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
       players,
       mergedPlayers,
       keepers,
-      defense,
       awards,
       onoff,
       h2h: calcCupHeadToHead({ matchRows: sel.matchRows, cup }),

@@ -129,159 +129,132 @@ export function calcCupKeepers({ matchRows = [] }) {
     .sort((a, b) => b.games - a.games || a.concededRate - b.concededRate || byKo(a.name, b.name));
 }
 
-/**
- * 필드 수비 통계.
- * - GK 비어있는 사이드는 통째 건너뜀.
- * - 멤버 = parseMembersWithAbsent(json).actual 에서 해당 사이드 GK 제외.
- * @param {{ matchRows?: Array, cup?: object }} params
- * @returns {{ minGames: number, rated: Array, unrated: Array }}
- * 각 항목: { name, team, games, conceded, cleanSheets, cleanRate, concededPerGame }
- * team: 필드로 가장 많이 등장한 사이드의 팀 표시명. 동률이면 ko 순 첫 번째.
- */
-export function calcCupFieldDefense({ matchRows = [], cup } = {}) {
-  const { displayOf } = buildTeamDisplay(matchRows, cup);
-
-  const map = new Map(); // name → 누적
-  const fieldTeamCount = new Map(); // name → Map<teamKey, count>
-
-  const ensure = name => {
-    if (!map.has(name)) map.set(name, { name, games: 0, conceded: 0, cleanSheets: 0 });
-    return map.get(name);
-  };
-
-  const accFieldTeam = (name, teamName) => {
-    const key = teamKeyOf(teamName);
-    if (!key) return;
-    if (!fieldTeamCount.has(name)) fieldTeamCount.set(name, new Map());
-    const m = fieldTeamCount.get(name);
-    m.set(key, (m.get(key) || 0) + 1);
-  };
-
-  const processSide = (membersJson, gkRaw, conceded, teamName) => {
-    const gk = nameOf(gkRaw);
-    if (!gk) return; // GK 비어있으면 이 사이드 전체 건너뜀
-    const { actual } = parseMembersWithAbsent(membersJson);
-    for (const raw of actual) {
-      const name = nameOf(raw);
-      if (!name || name === gk) continue; // GK 자신은 필드 수비 제외
-      const p = ensure(name);
-      p.games++; p.conceded += conceded; if (conceded === 0) p.cleanSheets++;
-      accFieldTeam(name, teamName);
-    }
-  };
-
-  for (const r of matchRows || []) {
-    if (!r) continue;
-    processSide(r.our_members_json, r.our_gk, num(r.opponent_score), r.our_team_name);
-    processSide(r.opponent_members_json, r.opponent_gk, num(r.our_score), r.opponent_team_name);
-  }
-
-  if (map.size === 0) return { minGames: 0, rated: [], unrated: [] };
-
-  // 선수별 team 표시명 결정: 가장 많이 필드로 등장한 팀. 동률 시 ko 순 첫 번째.
-  const teamOf = name => {
-    const teamCounts = fieldTeamCount.get(name);
-    if (!teamCounts || teamCounts.size === 0) return '';
-    const maxCount = Math.max(...teamCounts.values());
-    const ties = [...teamCounts.entries()]
-      .filter(([, c]) => c === maxCount)
-      .map(([k]) => k);
-    ties.sort((a, b) => byKo(displayOf(a), displayOf(b)));
-    return displayOf(ties[0]);
-  };
-
-  const maxGames = Math.max(...[...map.values()].map(p => p.games));
-  const minGames = dynamicMin(maxGames);
-
-  const entries = [...map.values()].map(p => ({
-    ...p,
-    team: teamOf(p.name),
-    cleanRate: Number((p.cleanSheets / p.games).toFixed(2)),
-    concededPerGame: Number((p.conceded / p.games).toFixed(2)),
-  }));
-
-  const rated = entries
-    .filter(p => p.games >= minGames)
-    .sort((a, b) =>
-      b.cleanRate - a.cleanRate ||
-      a.concededPerGame - b.concededPerGame ||
-      b.games - a.games ||
-      byKo(a.name, b.name)
-    );
-
-  const unrated = entries
-    .filter(p => p.games < minGames)
-    .sort((a, b) => b.games - a.games || byKo(a.name, b.name));
-
-  return { minGames, rated, unrated };
-}
 
 /**
  * 어워드 카드 배열 (고정 순서, 수상자 없는 카드는 생략).
- * @param {{ players, keepers, defense, days }} params
+ *
+ * @param {{ players, keepers, onoff, days, topN }} params
  *   players = calcCupPlayerRecords 결과 rows.
  *   keepers = calcCupKeepers 결과.
- *   defense = calcCupFieldDefense 결과.
+ *   onoff   = calcCupOnOff 결과 { minOn, rated, unrated }.
  *   days    = calcCupStandings().days.
- * @returns {Array<{ key, title, names, value, note? }>}
+ *   topN    = 상위 몇 명 (기본 3). topN 번째와 같은 값(동률)은 최대 5행까지 포함.
+ * @returns {Array}
+ *   rows 카드: { key, title, note?, rows: [{ rank, name, value, display, ratio }] }
+ *   개근 카드: { key, title, names, value }  (rows 없음)
  */
-export function calcCupAwards({ players = [], keepers = [], defense = { minGames: 0, rated: [], unrated: [] }, days = [] }) {
+export function calcCupAwards({
+  players = [],
+  keepers = [],
+  onoff = { minOn: 3, rated: [], unrated: [] },
+  days = [],
+  topN = 3,
+} = {}) {
+  const minOn = onoff.minOn ?? 3;
+  const rated = onoff.rated || [];
   const cards = [];
 
-  // 1. 득점왕
-  if (players.length > 0) {
-    const max = Math.max(0, ...players.map(p => p.goals));
-    if (max > 0) {
-      const names = players.filter(p => p.goals === max).map(p => p.name).sort(byKo);
-      cards.push({ key: 'topScorer', title: '득점왕', names, value: `${max}골` });
+  // ── 공통 헬퍼 ────────────────────────────────────────────────────────
+  // 정렬된 배열에서 상위 topN + 동률(동일 primary 값) 행, 최대 5개.
+  // ratioFn(item, pool) → 0~1.
+  function makeRows(items, keyFn, displayFn, ratioFn) {
+    if (!items.length) return [];
+    const sliceN = Math.min(topN, items.length);
+    const borderVal = keyFn(items[sliceN - 1]);
+    const pool = [];
+    for (const item of items) {
+      if (pool.length >= 5) break;
+      const v = keyFn(item);
+      if (pool.length < topN || v === borderVal) pool.push(item);
+      else break;
     }
-  }
-
-  // 2. 도움왕
-  if (players.length > 0) {
-    const max = Math.max(0, ...players.map(p => p.assists));
-    if (max > 0) {
-      const names = players.filter(p => p.assists === max).map(p => p.name).sort(byKo);
-      cards.push({ key: 'topAssist', title: '도움왕', names, value: `${max}어시` });
-    }
-  }
-
-  // 3. 클린시트왕
-  if (keepers.length > 0) {
-    const max = Math.max(0, ...keepers.map(k => k.cleanSheets));
-    if (max > 0) {
-      const names = keepers.filter(k => k.cleanSheets === max).map(k => k.name).sort(byKo);
-      cards.push({ key: 'cleanSheet', title: '클린시트왕', names, value: `${max}경기` });
-    }
-  }
-
-  // 4. 수문장 — keepers 중 games >= dynamicMin(최다경기) 인 자 내 최저 실점률
-  if (keepers.length > 0) {
-    const maxGames = Math.max(...keepers.map(k => k.games));
-    const minK = dynamicMin(maxGames);
-    const qual = keepers.filter(k => k.games >= minK);
-    if (qual.length > 0) {
-      const minRate = Math.min(...qual.map(k => k.concededRate));
-      const names = qual.filter(k => k.concededRate === minRate).map(k => k.name).sort(byKo);
-      cards.push({
-        key: 'keeper', title: '수문장',
-        names, value: `실점률 ${minRate.toFixed(2)}`, note: `최소 ${minK}경기`,
-      });
-    }
-  }
-
-  // 5. 수비력 — defense.rated[0] 과 cleanRate 동률인 모든 선수
-  if (defense.rated && defense.rated.length > 0) {
-    const topRate = defense.rated[0].cleanRate;
-    const names = defense.rated.filter(p => p.cleanRate === topRate).map(p => p.name).sort(byKo);
-    const pct = Math.round(topRate * 100);
-    cards.push({
-      key: 'defense', title: '수비력',
-      names, value: `무실점률 ${pct}%`, note: `최소 ${defense.minGames}경기(필드)`,
+    return pool.map(item => {
+      const v = keyFn(item);
+      const rank = pool.findIndex(x => keyFn(x) === v) + 1; // 경쟁 순위(1,1,3)
+      return { rank, name: item.name, value: v, display: displayFn(item), ratio: ratioFn(item, pool) };
     });
   }
 
-  // 6. 개근 — days.length >= 2 일 때만 (첫 경기일에는 전원 개근이라 생략)
+  // 높을수록 좋은 지표 ratio: value / 1위 value (1위가 1)
+  const stdRatio = fn => (item, pool) => {
+    const top = fn(pool[0]);
+    return top === 0 ? 1 : fn(item) / top;
+  };
+
+  // ── 1. 득점왕 ────────────────────────────────────────────────────────
+  {
+    const sorted = [...players]
+      .filter(p => p.goals > 0)
+      .sort((a, b) => b.goals - a.goals || byKo(a.name, b.name));
+    const rows = makeRows(sorted, p => p.goals, p => `${p.goals}골`, stdRatio(p => p.goals));
+    if (rows.length) cards.push({ key: 'topScorer', title: '득점왕', rows });
+  }
+
+  // ── 2. 도움왕 ────────────────────────────────────────────────────────
+  {
+    const sorted = [...players]
+      .filter(p => p.assists > 0)
+      .sort((a, b) => b.assists - a.assists || byKo(a.name, b.name));
+    const rows = makeRows(sorted, p => p.assists, p => `${p.assists}어시`, stdRatio(p => p.assists));
+    if (rows.length) cards.push({ key: 'topAssist', title: '도움왕', rows });
+  }
+
+  // ── 3. 클린시트왕 ────────────────────────────────────────────────────
+  {
+    const sorted = [...keepers]
+      .filter(k => k.cleanSheets > 0)
+      .sort((a, b) => b.cleanSheets - a.cleanSheets || b.games - a.games || byKo(a.name, b.name));
+    const rows = makeRows(sorted, k => k.cleanSheets, k => `${k.cleanSheets}경기`, stdRatio(k => k.cleanSheets));
+    if (rows.length) cards.push({ key: 'cleanSheet', title: '클린시트왕', rows });
+  }
+
+  // ── 4. 수문장 — games >= dynamicMin(최다경기) 중 최저 실점률 ─────────
+  if (keepers.length > 0) {
+    const maxGames = Math.max(...keepers.map(k => k.games));
+    const minK = dynamicMin(maxGames);
+    const qual = [...keepers]
+      .filter(k => k.games >= minK)
+      .sort((a, b) => a.concededRate - b.concededRate || b.games - a.games || byKo(a.name, b.name));
+    if (qual.length > 0) {
+      const keeperRatio = (item, pool) => {
+        const maxRate = Math.max(...pool.map(k => k.concededRate));
+        const minRate = Math.min(...pool.map(k => k.concededRate));
+        if (maxRate === minRate) return 1; // 전원 동일(0 포함) → 모두 1
+        return Math.max(0.08, (maxRate - item.concededRate) / (maxRate - minRate));
+      };
+      const rows = makeRows(qual, k => k.concededRate, k => `실점률 ${k.concededRate.toFixed(2)}`, keeperRatio);
+      if (rows.length) cards.push({ key: 'keeper', title: '수문장', note: `최소 ${minK}경기`, rows });
+    }
+  }
+
+  // ── 5. 수비력 — onoff.rated, cleanRate 내림 ──────────────────────────
+  {
+    const sorted = [...rated]
+      .filter(p => p.cleanRate > 0)
+      .sort((a, b) => b.cleanRate - a.cleanRate || b.onGames - a.onGames || byKo(a.name, b.name));
+    const rows = makeRows(sorted, p => p.cleanRate, p => `무실점률 ${Math.round(p.cleanRate * 100)}%`, stdRatio(p => p.cleanRate));
+    if (rows.length) cards.push({ key: 'defense', title: '수비력', note: `최소 ${minOn}경기(필드)`, rows });
+  }
+
+  // ── 6. 득점관여 — onoff.rated 중 goalImpact > 0 ──────────────────────
+  {
+    const sorted = [...rated]
+      .filter(p => p.goalImpact !== null && p.goalImpact > 0)
+      .sort((a, b) => b.goalImpact - a.goalImpact || b.onGames - a.onGames || byKo(a.name, b.name));
+    const rows = makeRows(sorted, p => p.goalImpact, p => `+${p.goalImpact.toFixed(2)}`, stdRatio(p => p.goalImpact));
+    if (rows.length) cards.push({ key: 'goalImpact', title: '득점관여', note: `최소 ${minOn}경기(필드)`, rows });
+  }
+
+  // ── 7. 수비관여 — onoff.rated 중 defImpact > 0 ───────────────────────
+  {
+    const sorted = [...rated]
+      .filter(p => p.defImpact !== null && p.defImpact > 0)
+      .sort((a, b) => b.defImpact - a.defImpact || b.onGames - a.onGames || byKo(a.name, b.name));
+    const rows = makeRows(sorted, p => p.defImpact, p => `+${p.defImpact.toFixed(2)}`, stdRatio(p => p.defImpact));
+    if (rows.length) cards.push({ key: 'defImpact', title: '수비관여', note: `최소 ${minOn}경기(필드)`, rows });
+  }
+
+  // ── 8. 개근 — days.length >= 2 일 때만 ──────────────────────────────
   if (days.length >= 2) {
     const totalDays = days.length;
     const names = players.filter(p => p.days === totalDays).map(p => p.name).sort(byKo);
@@ -303,7 +276,7 @@ export function calcCupAwards({ players = [], keepers = [], defense = { minGames
  * "내가 필드로 명단에 있을 때 우리 팀의 경기당 득점·실점" vs
  * "내가 명단에 없을 때 우리 팀의 경기당 득점·실점" 의 차이.
  *
- * GK 미기록 사이드(gk 빈 값): calcCupFieldDefense 와 달리 해당 사이드를 건너뛰지 않고
+ * GK 미기록 사이드(gk 빈 값): 해당 사이드를 건너뛰지 않고
  * 전원 필드로 취급해 집계한다 — 득점·실점 자체는 유효하기 때문.
  *
  * @param {{ matchRows?: Array, cup?: object, minOn?: number }} params

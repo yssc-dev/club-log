@@ -248,3 +248,17 @@ describe('App.jsx — 세션 화면이 규칙 스냅샷을 쓴다 (2026-10-02: �
     expect(src).not.toMatch(/courtCount === 2 && <td style=\{s\.td\(\)\}>\{i === 0 \? "🍀"/);
   });
 });
+
+describe('CupDetail.jsx — calcCupFieldDefense 폐지·calcCupAwards onoff 배선 (2026-10-02)', () => {
+  const src = read('components/cup/CupDetail.jsx');
+  it('calcCupFieldDefense 를 import 하지 않는다', () => {
+    expect(src).not.toMatch(/calcCupFieldDefense/);
+  });
+  it('calcCupAwards 에 onoff 를 넘긴다', () => {
+    expect(src).toMatch(/calcCupAwards\(\{[^}]*onoff[^}]*\}\)/);
+  });
+  it('computed.defense 필드가 없다', () => {
+    // 반환 객체에 defense: 필드가 없어야 한다
+    expect(src).not.toMatch(/\bdefense,\s*\n\s*awards,/);
+  });
+});

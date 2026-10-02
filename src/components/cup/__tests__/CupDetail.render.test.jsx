@@ -171,6 +171,15 @@ describe('CupDetail 기록 섹션', () => {
     // 키퍼 테이블은 더 이상 별도 섹션이 없다
     expect(container.querySelector('table[data-role="cup-keepers"]')).toBeNull();
   });
+  it('시상 카드가 rows 를 가진 형태로 그려진다(cup-award-row 존재)', async () => {
+    // M(): a1=GK, a2~a7 필드, E(): a2 골 → 득점왕 카드 rows 있음
+    h.matchRows = [M()];
+    h.eventRows = [E()];
+    await mount();
+    // 시상은 대시보드 탭(기본)에 있음
+    expect(container.querySelector('[data-role="cup-award-row"]')).not.toBeNull();
+  });
+
   it('행이 없으면 시상·맞대결·필드 지표 섹션 없음', async () => {
     await mount();
     expect(container.querySelector('[data-role="cup-awards"]')).toBeNull();

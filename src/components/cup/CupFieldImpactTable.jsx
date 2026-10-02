@@ -7,6 +7,15 @@ import { useTheme } from '../../hooks/useTheme';
 import { SortHeader } from '../tennis/Sortable';
 import { sortRows, nextSort } from '../../utils/tennis/sortRows';
 
+// 표 위 안내 — 한 항목에 한 가지만
+const HELP_LINES = [
+  '기준: 내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다(GK로 뛴 경기 제외)',
+  '경기당 득점·실점·무실점률: 내가 뛸 때 우리 팀의 경기당 득점·실점과 무실점 경기 비율',
+  '득점관여 +1.00: 내가 뛸 때 팀이 경기당 1골 더 넣음(내가 없던 우리 팀 경기와 비교)',
+  '수비관여 +1.50: 내가 뛸 때 팀이 경기당 1.5골 덜 먹음(둘 다 +가 좋음)',
+  '같은 경기에 함께 뛴 팀원끼리는 값이 비슷하고, 경기일이 쌓일수록 차이가 드러납니다',
+];
+
 const COLS_COUNT = 8;
 
 const COLS = {
@@ -91,11 +100,14 @@ export default function CupFieldImpactTable({ minOn = 3, rated = [], unrated = [
 
   return (
     <div>
-      <div data-role="cup-field-impact-help" style={{ fontSize: 11, color: C.gray, marginBottom: 6, lineHeight: 1.5 }}>
-        <div>내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다(GK로 뛴 경기 제외).</div>
-        <div>경기당 득점·실점·무실점률 = 내가 뛸 때 우리 팀의 경기당 득점·실점과 무실점 경기 비율</div>
-        <div>득점관여 +1.00 = 내가 뛸 때 팀이 경기당 1골 더 넣음 · 수비관여 +1.50 = 내가 뛸 때 팀이 경기당 1.5골 덜 먹음 (내가 없던 우리 팀 경기와 비교, 둘 다 +가 좋음)</div>
-        <div>같은 경기에 함께 뛴 팀원끼리는 값이 비슷하고, 경기일이 쌓일수록 차이가 드러납니다.</div>
+      {/* 안내는 항목별 한 줄 — 문단처럼 붙여 쓰면 읽히지 않는다(2026-10-02 사용자 피드백). 구분자 "-" + 들여쓰기 */}
+      <div data-role="cup-field-impact-help" style={{ fontSize: 11, color: C.gray, marginBottom: 8, lineHeight: 1.5 }}>
+        {HELP_LINES.map((line, i) => (
+          <div key={i} style={{ display: 'flex', gap: 5, alignItems: 'flex-start' }}>
+            <span style={{ flexShrink: 0 }}>-</span>
+            <span>{line}</span>
+          </div>
+        ))}
       </div>
       <div style={{ overflowX: 'auto' }}>
         <table data-role="cup-field-impact" style={{ width: '100%', borderCollapse: 'collapse' }}>
