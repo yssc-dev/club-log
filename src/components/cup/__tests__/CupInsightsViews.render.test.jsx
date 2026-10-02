@@ -8,6 +8,7 @@ import CupAwardsCards from '../CupAwardsCards';
 import CupHeadToHead from '../CupHeadToHead';
 import CupKeeperTable from '../CupKeeperTable';
 import CupDefenseTable from '../CupDefenseTable';
+import CupPlayerRecordsTable from '../CupPlayerRecordsTable';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -197,5 +198,142 @@ describe('CupDefenseTable', () => {
     expect(unratedRow.style.opacity).toBe('0.5');
     const ratedRow = container.querySelector('[data-role="cup-defense-row"][data-rated="true"]');
     expect(ratedRow.style.opacity).toBe('');
+  });
+});
+
+// ─── CupPlayerRecordsTable 정렬 ────────────────────────────────────────────────
+describe('CupPlayerRecordsTable 정렬', () => {
+  const records = [
+    { name: '김철수', team: '광땡', guest: false, goals: 3, assists: 1, cleanSheets: 0, ownGoals: 0, days: 2 },
+    { name: '이영희', team: '리즈',  guest: false, goals: 1, assists: 3, cleanSheets: 1, ownGoals: 0, days: 3 },
+    { name: '용병A',  team: '광땡', guest: true,  goals: 2, assists: 2, cleanSheets: 0, ownGoals: 1, days: 1 },
+  ];
+
+  it('초기 상태는 입력 순서 유지', async () => {
+    await mount(createElement(CupPlayerRecordsTable, { records }));
+    const rows = [...container.querySelectorAll('[data-role="cup-player-row"]')];
+    expect(rows.map(r => r.dataset.player)).toEqual(['김철수', '이영희', '용병A']);
+  });
+
+  it('어시 클릭 → 어시 내림차순', async () => {
+    await mount(createElement(CupPlayerRecordsTable, { records }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const assistTh = ths.find(th => th.textContent.includes('어시'));
+    await act(async () => { assistTh.click(); });
+    const rows = [...container.querySelectorAll('[data-role="cup-player-row"]')];
+    const assists = rows.map(r => {
+      const tds = r.querySelectorAll('td');
+      return Number(tds[3].textContent);
+    });
+    expect(assists[0]).toBeGreaterThanOrEqual(assists[1]);
+    expect(assists[1]).toBeGreaterThanOrEqual(assists[2]);
+  });
+
+  it('어시 재클릭 → 오름차순', async () => {
+    await mount(createElement(CupPlayerRecordsTable, { records }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const assistTh = ths.find(th => th.textContent.includes('어시'));
+    await act(async () => { assistTh.click(); });
+    await act(async () => { assistTh.click(); });
+    const rows = [...container.querySelectorAll('[data-role="cup-player-row"]')];
+    const assists = rows.map(r => {
+      const tds = r.querySelectorAll('td');
+      return Number(tds[3].textContent);
+    });
+    expect(assists[0]).toBeLessThanOrEqual(assists[1]);
+    expect(assists[1]).toBeLessThanOrEqual(assists[2]);
+  });
+
+  it('선수 클릭 → 가나다 오름차순', async () => {
+    await mount(createElement(CupPlayerRecordsTable, { records }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const nameTh = ths.find(th => th.textContent.replace(/[▲▼]/g, '').trim() === '선수');
+    await act(async () => { nameTh.click(); });
+    const rows = [...container.querySelectorAll('[data-role="cup-player-row"]')];
+    const names = rows.map(r => r.dataset.player);
+    const sorted = [...names].sort((a, b) => a.localeCompare(b, 'ko'));
+    expect(names).toEqual(sorted);
+  });
+});
+
+// ─── CupKeeperTable 정렬 ───────────────────────────────────────────────────────
+describe('CupKeeperTable 정렬', () => {
+  const keepers = [
+    { name: '노필선', games: 6, conceded: 5, cleanSheets: 2, concededRate: 0.8333 },
+    { name: '박GK',  games: 2, conceded: 4, cleanSheets: 0, concededRate: 2 },
+    { name: '최GK',  games: 4, conceded: 2, cleanSheets: 2, concededRate: 0.5 },
+  ];
+
+  it('실점률 클릭 → 내림차순', async () => {
+    await mount(createElement(CupKeeperTable, { keepers }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const rateTh = ths.find(th => th.textContent.includes('실점률'));
+    await act(async () => { rateTh.click(); });
+    const rows = [...container.querySelectorAll('[data-role="cup-keeper-row"]')];
+    const rates = rows.map(r => {
+      const tds = r.querySelectorAll('td');
+      return Number(tds[3].textContent);
+    });
+    expect(rates[0]).toBeGreaterThanOrEqual(rates[1]);
+    expect(rates[1]).toBeGreaterThanOrEqual(rates[2]);
+  });
+
+  it('실점률 재클릭 → 오름차순', async () => {
+    await mount(createElement(CupKeeperTable, { keepers }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const rateTh = ths.find(th => th.textContent.includes('실점률'));
+    await act(async () => { rateTh.click(); });
+    await act(async () => { rateTh.click(); });
+    const rows = [...container.querySelectorAll('[data-role="cup-keeper-row"]')];
+    const rates = rows.map(r => {
+      const tds = r.querySelectorAll('td');
+      return Number(tds[3].textContent);
+    });
+    expect(rates[0]).toBeLessThanOrEqual(rates[1]);
+    expect(rates[1]).toBeLessThanOrEqual(rates[2]);
+  });
+
+  it('빈 배열이면 기록 없음 그대로', async () => {
+    await mount(createElement(CupKeeperTable, { keepers: [] }));
+    expect(container.textContent).toContain('기록 없음');
+    expect(container.querySelectorAll('[data-role="cup-keeper-row"]')).toHaveLength(0);
+  });
+});
+
+// ─── CupDefenseTable 정렬 ──────────────────────────────────────────────────────
+describe('CupDefenseTable 정렬', () => {
+  const rated = [
+    { name: '김수비', games: 5, conceded: 3, cleanSheets: 2, cleanRate: 0.4,  concededPerGame: 0.6 },
+    { name: '이태클', games: 4, conceded: 6, cleanSheets: 1, cleanRate: 0.25, concededPerGame: 1.5 },
+    { name: '박블록', games: 6, conceded: 1, cleanSheets: 4, cleanRate: 0.67, concededPerGame: 0.17 },
+  ];
+  const unrated = [
+    { name: '최미니', games: 1, conceded: 2, cleanSheets: 0, cleanRate: 0, concededPerGame: 2 },
+    { name: '강신인', games: 2, conceded: 0, cleanSheets: 2, cleanRate: 1, concededPerGame: 0 },
+  ];
+
+  it('어떤 정렬에서도 rated 행이 unrated 행보다 앞', async () => {
+    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const cleanRateTh = ths.find(th => th.textContent.includes('무실점률'));
+    await act(async () => { cleanRateTh.click(); });
+    const allRows = [...container.querySelectorAll('[data-role="cup-defense-row"]')];
+    const ratedIndices   = allRows.map((r, i) => r.dataset.rated === 'true'  ? i : null).filter(i => i !== null);
+    const unratedIndices = allRows.map((r, i) => r.dataset.rated === 'false' ? i : null).filter(i => i !== null);
+    expect(Math.max(...ratedIndices)).toBeLessThan(Math.min(...unratedIndices));
+  });
+
+  it('무실점률 클릭 → rated 안에서 내림차순', async () => {
+    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const cleanRateTh = ths.find(th => th.textContent.includes('무실점률'));
+    await act(async () => { cleanRateTh.click(); });
+    const ratedRows = [...container.querySelectorAll('[data-role="cup-defense-row"][data-rated="true"]')];
+    const pcts = ratedRows.map(r => {
+      const tds = r.querySelectorAll('td');
+      return parseInt(tds[4].textContent, 10); // e.g. "67%" → 67
+    });
+    expect(pcts[0]).toBeGreaterThanOrEqual(pcts[1]);
+    expect(pcts[1]).toBeGreaterThanOrEqual(pcts[2]);
   });
 });
