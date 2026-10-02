@@ -124,4 +124,41 @@ describe('CupDetail 기록 섹션', () => {
     await mount({ cup: cup({ status: 'finished' }) });
     expect(container.querySelector('tr[data-role="cup-standing-row"]').textContent).toContain('🏆 우승');
   });
+  it('행이 있으면 시상·맞대결·키퍼·수비력 네 섹션이 그려진다', async () => {
+    // M(): 팀A 3:0 팀B, our_gk=a1, opponent_gk=b1
+    // E(): goal player=a2, related_player=a3
+    h.matchRows = [M()];
+    h.eventRows = [E()];
+    await mount();
+    // 시상: awards.length > 0 이어야 렌더 (득점왕 a2)
+    const awards = container.querySelector('[data-role="cup-awards"]');
+    expect(awards).not.toBeNull();
+    expect(awards.textContent).toContain('득점왕');
+    expect(awards.textContent).toContain('a2');
+    // 키퍼: a1 clean sheet 1, b1 clean sheet 0
+    const keeperTable = container.querySelector('table[data-role="cup-keepers"]');
+    expect(keeperTable).not.toBeNull();
+    const a1Row = container.querySelector('[data-role="cup-keeper-row"][data-player="a1"]');
+    const b1Row = container.querySelector('[data-role="cup-keeper-row"][data-player="b1"]');
+    expect(a1Row).not.toBeNull();
+    expect(b1Row).not.toBeNull();
+    // a1: 1 game, 0 conceded, 1 clean sheet
+    const a1Cells = [...a1Row.querySelectorAll('td')].map(td => td.textContent.trim());
+    expect(a1Cells[4]).toBe('1'); // cleanSheets
+    // 맞대결: 팀A→팀B 1-0-0
+    const h2hTable = container.querySelector('table[data-role="cup-h2h"]');
+    expect(h2hTable).not.toBeNull();
+    const h2hCell = container.querySelector('[data-role="cup-h2h-cell"][data-row="팀A"][data-col="팀B"]');
+    expect(h2hCell).not.toBeNull();
+    expect(h2hCell.textContent).toContain('1-0-0');
+    // 수비력
+    expect(container.querySelector('table[data-role="cup-defense"]')).not.toBeNull();
+  });
+  it('행이 없으면 시상·맞대결·키퍼·수비력 섹션 없음', async () => {
+    await mount();
+    expect(container.querySelector('[data-role="cup-awards"]')).toBeNull();
+    expect(container.querySelector('table[data-role="cup-h2h"]')).toBeNull();
+    expect(container.querySelector('table[data-role="cup-keepers"]')).toBeNull();
+    expect(container.querySelector('table[data-role="cup-defense"]')).toBeNull();
+  });
 });

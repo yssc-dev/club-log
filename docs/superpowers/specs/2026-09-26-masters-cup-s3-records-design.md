@@ -143,6 +143,19 @@ const ALIASES = {
 - `CupTeamEditor` 잠금 안내 문구에 "팀원을 빼면 지난 경기일 참석 가점이 바뀔 수 있습니다"를 덧붙인다.
 - 스타일은 `CupDetail`의 `section`/`card`/`title` 토큰과 `useTheme().C`를 재사용. 표는 `overflow-x:auto` 컨테이너 안.
 
+### 5.1 컵 전용 지표 (2026-10-02)
+
+섹션 순서 갱신: 순위표 → **시상** → 개인기록 → **맞대결 전적** → **키퍼** → **수비력 (필드)** → 경기일별 결과 → 팀 관리.
+
+| 섹션 | 컴포넌트 | 계산 함수 | 정의 |
+|---|---|---|---|
+| 시상 | `CupAwardsCards` | `calcCupAwards` | 득점왕·도움왕·클린시트왕·수문장·수비력·개근. 동점 공동 수상. 개근은 경기일 2일 이상부터. `awards.length === 0`이면 섹션 전체 숨김 |
+| 맞대결 전적 | `CupHeadToHead` | `calcCupHeadToHead` | 팀 × 팀 행렬. 행 팀 기준 W-D-L + 득:실. 대각 `·`, 미대결 `-` |
+| 키퍼 | `CupKeeperTable` | `calcCupKeepers` | 소스 = 로그_매치 `our_gk`/`opponent_gk` 열, 경기 단위 집계. 열: 선수·경기·실점·실점률·클린시트 |
+| 수비력 (필드) | `CupDefenseTable` | `calcCupFieldDefense` | 실제 출전(휴식 제외, `parseMembersWithAbsent().actual`)·GK 제외·GK 미기록 사이드 제외. 기준: `dynamicMin(최다경기, 0.3)` 이상(30%). 열: 선수·경기·실점·경기당 실점·무실점률 |
+
+불변식: `records.status === 'ok' && computed.hasMatches`일 때만 네 섹션 모두 렌더 대상. `calcCupAwards`에서 수상자가 없으면 시상 섹션은 추가로 숨김.
+
 ## 6. 파일별 변경 범위
 
 | 파일 | 변경 |

@@ -171,6 +171,26 @@ describe('설정 — 컵 참석 시트 키', () => {
   });
 });
 
+describe('CupDetail.jsx — 컵 전용 지표 배선 (2026-10-02 스펙 §5.1)', () => {
+  const src = read('components/cup/CupDetail.jsx');
+  it('네 인사이트 컴포넌트와 cupInsights 를 import 한다', () => {
+    expect(src).toMatch(/import CupAwardsCards from '\.\/CupAwardsCards'/);
+    expect(src).toMatch(/import CupHeadToHead from '\.\/CupHeadToHead'/);
+    expect(src).toMatch(/import CupKeeperTable from '\.\/CupKeeperTable'/);
+    expect(src).toMatch(/import CupDefenseTable from '\.\/CupDefenseTable'/);
+    expect(src).toMatch(/from '\.\.\/\.\.\/utils\/cup\/cupInsights'/);
+  });
+  it('섹션 제목이 스펙 순서대로 등장한다', () => {
+    const titles = ['순위표', '시상', '개인기록', '맞대결 전적', '키퍼', '수비력', '경기일별 결과', '팀 관리'];
+    let pos = 0;
+    for (const t of titles) {
+      const idx = src.indexOf(t, pos);
+      expect(idx, `"${t}" not found after pos ${pos}`).toBeGreaterThan(-1);
+      pos = idx + 1;
+    }
+  });
+});
+
 describe('App.jsx — 세션 화면이 규칙 스냅샷을 쓴다 (2026-10-02: 자책 표시·크로바/고구마 아이콘)', () => {
   const src = read('App.jsx');
   it('오늘의 선수기록 모달에 세션 스냅샷의 ownGoalPoint 를 넘긴다', () => {

@@ -1,6 +1,7 @@
 // src/components/cup/CupDetail.jsx
 // 대회 상세 — 스펙 §6.1: 시작·이어서·팀 관리·상태·삭제. 3단계(2026-09-26 스펙 §4.2·§5): 컵 뷰 2종을 읽어
 // 누적 순위표·개인기록·경기일별 결과를 그리고, 잠금은 lockedAt OR 로그 파생(collectPlayedPairs).
+// 컵 전용 지표(2026-10-02 스펙 §5.1): 시상·맞대결 전적·키퍼·수비력(필드) 섹션 추가.
 import { useState, useEffect, useMemo } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import CupSync from '../../services/cupSync';
@@ -8,10 +9,15 @@ import SheetCache from '../../services/sheetCache';
 import { validateTeams, isLocked } from '../../utils/cup/cupEntity';
 import { isCupSession } from '../../utils/cup/cupSession';
 import { selectCupRows, calcCupStandings, calcCupPlayerRecords, collectPlayedPairs } from '../../utils/cup/cupRecords';
+import { calcCupHeadToHead, calcCupKeepers, calcCupFieldDefense, calcCupAwards } from '../../utils/cup/cupInsights';
 import CupTeamEditor from './CupTeamEditor';
 import CupStandingsTable from './CupStandingsTable';
 import CupPlayerRecordsTable from './CupPlayerRecordsTable';
 import CupDayResults from './CupDayResults';
+import CupAwardsCards from './CupAwardsCards';
+import CupHeadToHead from './CupHeadToHead';
+import CupKeeperTable from './CupKeeperTable';
+import CupDefenseTable from './CupDefenseTable';
 
 export default function CupDetail({ teamName, cup, members, pendingGames = [], isAdmin, onStartGame, onContinueGame, onBack, onChanged }) {
   const { C } = useTheme();
@@ -42,10 +48,18 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
   const computed = useMemo(() => {
     const sel = selectCupRows({ matchRows: records.matchRows, eventRows: records.eventRows, cupId });
     const { standings, days } = calcCupStandings({ matchRows: sel.matchRows, cup });
+    const players = calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup });
+    const keepers = calcCupKeepers({ matchRows: sel.matchRows });
+    const defense = calcCupFieldDefense({ matchRows: sel.matchRows });
+    const awards = calcCupAwards({ players, keepers, defense, days });
     return {
       hasMatches: sel.matchRows.length > 0,
       standings, days,
-      players: calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup }),
+      players,
+      keepers,
+      defense,
+      awards,
+      h2h: calcCupHeadToHead({ matchRows: sel.matchRows, cup }),
       playedPairs: collectPlayedPairs(records.matchRows, cupId),
     };
   }, [records.matchRows, records.eventRows, cupId, cup]);
@@ -124,9 +138,27 @@ export default function CupDetail({ teamName, cup, members, pendingGames = [], i
 
       {records.status === 'ok' && computed.hasMatches && (
         <>
+          {computed.awards.length > 0 && (
+            <div style={section}>
+              <div style={title}>시상</div>
+              <CupAwardsCards awards={computed.awards} />
+            </div>
+          )}
           <div style={section}>
             <div style={title}>개인기록</div>
             <div style={card}><CupPlayerRecordsTable records={computed.players} /></div>
+          </div>
+          <div style={section}>
+            <div style={title}>맞대결 전적</div>
+            <div style={card}><CupHeadToHead teams={computed.h2h.teams} cells={computed.h2h.cells} /></div>
+          </div>
+          <div style={section}>
+            <div style={title}>키퍼</div>
+            <div style={card}><CupKeeperTable keepers={computed.keepers} /></div>
+          </div>
+          <div style={section}>
+            <div style={title}>수비력 (필드)</div>
+            <div style={card}><CupDefenseTable minGames={computed.defense.minGames} rated={computed.defense.rated} unrated={computed.defense.unrated} /></div>
           </div>
           <div style={section}>
             <div style={title}>경기일별 결과</div>
