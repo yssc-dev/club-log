@@ -5,7 +5,8 @@
 // 대회 팀명과 같을 때만 그 팀에 당일 추가하고, 아니면 "배치 못 함"으로 보고한다. 시트에 없는 팀원은 불참.
 // 1행에 대회 팀명이 하나도 없으면(팀 구분 없이 이름만 적은 시트) 1행도 이름으로 읽는다.
 // React·firebase 의존 없음.
-import { cleanPlayerName, normalizeTeamName } from './cupEntity';
+import { cleanPlayerName } from './cupEntity';
+import { teamKeyOf } from './cupRecords';
 
 // 머리글 없는 시트에서 1행에 흔히 적는 라벨 — 이름으로 세지 않는다.
 const GENERIC_LABELS = new Set(['참석', '참석자', '이름', '명단', '선수', '참가자', '출석', '참석명단']);
@@ -20,10 +21,11 @@ export function applyCupSheetAttendance({ teams = [], teamNames = [], columns = 
   const baseTeams = teams.map(t => [...(t || [])]);
   const rosterTeam = new Map();                       // 이름 → 팀 index(첫 소속)
   baseTeams.forEach((t, i) => t.forEach(p => { const n = cleanPlayerName(p); if (n && !rosterTeam.has(n)) rosterTeam.set(n, i); }));
+  // 머리글 ↔ 세션 팀명 비교는 "팀" 접두어를 무시한 키로(엔티티 '광땡' / 세션 '팀광땡' 혼용 대응).
   const teamIdxOf = (header) => {
-    const h = normalizeTeamName(header);
+    const h = teamKeyOf(header);
     if (!h) return -1;
-    return teamNames.findIndex(tn => normalizeTeamName(tn) === h);
+    return teamNames.findIndex(tn => teamKeyOf(tn) === h);
   };
 
   const present = new Set();

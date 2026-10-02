@@ -71,6 +71,14 @@ describe('applyCupSheetAttendance', () => {
     expect(r.attendees).toEqual(['a1', 'b1']);
     expect(r.summary.unknownHeaders).toEqual(['참석']);
   });
+  it('열 머리글과 세션 팀명의 "팀" 접두어 유무가 달라도 같은 팀으로 본다', () => {
+    const r1 = applyCupSheetAttendance({ teams, teamNames: ['팀광땡', '팀리즈', '팀나와'], columns: [{ header: '광땡', names: ['a1', '용병1'] }] });
+    expect(r1.teams[0]).toEqual(['a1', 'a2', 'a3', '용병1']);
+    expect(r1.summary.unknownHeaders).toEqual([]);
+    const r2 = applyCupSheetAttendance({ teams, teamNames: ['광땡', '리즈', '나와'], columns: [{ header: '팀 리즈', names: ['b1', '용병2'] }] });
+    expect(r2.teams[1]).toEqual(['b1', 'b2', '용병2']);
+    expect(r2.summary.guestsAdded).toEqual([{ name: '용병2', team: '리즈' }]);
+  });
   it('시트에 이름이 하나도 없으면 empty', () => {
     const r = apply([{ header: '팀광땡', names: [] }, { header: '', names: [] }]);
     expect(r.empty).toBe(true);

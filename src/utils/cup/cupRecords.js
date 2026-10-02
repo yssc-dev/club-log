@@ -30,6 +30,9 @@ export function matchKeyOf(row) {
 
 const num = (v) => { const n = Number(v); return Number.isFinite(n) ? n : 0; };
 const teamOf = (v) => normalizeTeamName(v);
+// 팀 매칭용 정규 키: 앞의 "팀" 접두어를 무시한다. 세션 팀명("팀광땡")과 대회 엔티티 팀명("광땡")이 접두어만 다른
+// 채로 운영된 실사례(2026-10-02)에서 순위표가 8행으로 쪼개졌다. 표시명은 등록 팀이면 엔티티 이름을 쓴다.
+export const teamKeyOf = (v) => teamOf(v).replace(/^팀\s*/, '');
 const nameOf = (v) => cleanPlayerName(v);
 const byKo = (a, b) => String(a ?? '').localeCompare(String(b ?? ''), 'ko');
 const sameCup = (row, cupId) => String(row?.tournament_id ?? '') === String(cupId ?? '');
@@ -40,14 +43,15 @@ function membersOf(json) {
   return [...new Set(players.map(nameOf).filter(Boolean))];
 }
 
-// 대회 엔티티 → Map<정규화 팀명, Set<정규화 선수명>>. RTDB 빈 배열 누락 방어.
+// 대회 엔티티 → Map<팀 키, { name: 표시 팀명, players: Set<정규화 선수명> }>. RTDB 빈 배열 누락 방어.
 function rosterOf(cup) {
   const out = new Map();
   for (const t of cup?.teams || []) {
     const name = teamOf(t?.name);
-    if (!name) continue;
-    if (!out.has(name)) out.set(name, new Set());
-    for (const p of t?.players || []) { const n = nameOf(p); if (n) out.get(name).add(n); }
+    const key = teamKeyOf(name);
+    if (!key) continue;
+    if (!out.has(key)) out.set(key, { name, players: new Set() });
+    for (const p of t?.players || []) { const n = nameOf(p); if (n) out.get(key).players.add(n); }
   }
   return out;
 }
@@ -71,7 +75,7 @@ export function collectPlayedPairs(matchRows, cupId) {
   const out = new Set();
   for (const r of matchRows || []) {
     if (!r || !sameCup(r, cupId) || isExtraRow(r)) continue;
-    const home = teamOf(r.our_team_name), away = teamOf(r.opponent_team_name);
+    const home = teamKeyOf(r.our_team_name), away = teamKeyOf(r.opponent_team_name);
     if (!home || !away) continue;
     out.add([home, away].sort(byKo).join('|'));
   }
@@ -93,12 +97,15 @@ function newDayTeam(registered) {
  */
 export function calcCupStandings({ matchRows = [], cup }) {
   const roster = rosterOf(cup);
+  // 키 → 표시명: 등록 팀은 엔티티 이름, 아니면 처음 본 행의 팀명.
+  const display = new Map([...roster].map(([k, v]) => [k, v.name]));
+  const displayOf = (key, fallback) => { if (!display.has(key)) display.set(key, fallback); return display.get(key); };
   const stats = new Map();
-  const ensure = (name) => {
-    if (!stats.has(name)) stats.set(name, newTeamStat(name, roster.has(name)));
-    return stats.get(name);
+  const ensure = (key, fallbackName) => {
+    if (!stats.has(key)) stats.set(key, newTeamStat(displayOf(key, fallbackName), roster.has(key)));
+    return stats.get(key);
   };
-  for (const name of roster.keys()) ensure(name);
+  for (const [key, v] of roster) ensure(key, v.name);
 
   // 경기일 버킷: date → { date, matches, attendees:Set(그날 온 전원), lists:Map(팀→Set(그 팀 명단으로 뛴 사람)), teams:Map }
   const dayMap = new Map();
@@ -106,9 +113,9 @@ export function calcCupStandings({ matchRows = [], cup }) {
     if (!dayMap.has(date)) dayMap.set(date, { date, matches: [], attendees: new Set(), lists: new Map(), teams: new Map() });
     return dayMap.get(date);
   };
-  const dayTeam = (day, name) => {
-    if (!day.teams.has(name)) day.teams.set(name, newDayTeam(roster.has(name)));
-    return day.teams.get(name);
+  const dayTeam = (day, key) => {
+    if (!day.teams.has(key)) day.teams.set(key, newDayTeam(roster.has(key)));
+    return day.teams.get(key);
   };
   const dayList = (day, name) => {
     if (!day.lists.has(name)) day.lists.set(name, new Set());
@@ -119,10 +126,10 @@ export function calcCupStandings({ matchRows = [], cup }) {
     .sort((a, b) => byKo(a.date, b.date) || byKo(a.game_id, b.game_id) || num(a.match_idx) - num(b.match_idx));
 
   for (const r of ordered) {
-    const home = teamOf(r.our_team_name), away = teamOf(r.opponent_team_name);
+    const home = teamKeyOf(r.our_team_name), away = teamKeyOf(r.opponent_team_name);
     if (!home || !away) continue;
     const hs = num(r.our_score), as = num(r.opponent_score);
-    const h = ensure(home), a = ensure(away);
+    const h = ensure(home, teamOf(r.our_team_name)), a = ensure(away, teamOf(r.opponent_team_name));
     const day = dayOf(String(r.date ?? ''));
     const dh = dayTeam(day, home), da = dayTeam(day, away);
 
@@ -135,25 +142,25 @@ export function calcCupStandings({ matchRows = [], cup }) {
     h.points += hp; a.points += ap;
     dh.points += hp; da.points += ap;
 
-    day.matches.push({ key: matchKeyOf(r), matchId: String(r.match_id ?? ''), home, away, homeScore: hs, awayScore: as });
+    day.matches.push({ key: matchKeyOf(r), matchId: String(r.match_id ?? ''), home: display.get(home), away: display.get(away), homeScore: hs, awayScore: as });
     for (const p of membersOf(r.our_members_json)) { day.attendees.add(p); dayList(day, home).add(p); }
     for (const p of membersOf(r.opponent_members_json)) { day.attendees.add(p); dayList(day, away).add(p); }
   }
 
   // 경기일 단위 참석 가점 — 등록 팀마다, 그날 온 등록 팀원 수로.
   const days = [...dayMap.values()].sort((x, y) => byKo(x.date, y.date)).map(day => {
-    for (const [name, players] of roster) {
-      const dt = dayTeam(day, name);
+    for (const [key, { name, players }] of roster) {
+      const dt = dayTeam(day, key);
       let present = 0;
       for (const p of players) if (day.attendees.has(p)) present++;
       dt.present = present;
-      dt.guests = [...(day.lists.get(name) || [])].filter(p => !players.has(p)).sort(byKo);
+      dt.guests = [...(day.lists.get(key) || [])].filter(p => !players.has(p)).sort(byKo);
       const bonus = attendBonusOf(present);
-      if (bonus > 0) { dt.bonusAttend = bonus; ensure(name).bonusAttend += bonus; }
+      if (bonus > 0) { dt.bonusAttend = bonus; ensure(key, name).bonusAttend += bonus; }
     }
     // 팀명이 객체 키가 된다. 대괄호 대입은 '__proto__' 같은 이름에서 [[Set]] 이 프로토타입을 바꿔 항목이
     // 사라지므로(적대적 리뷰 D-1) own property 로 정의하는 Object.fromEntries 를 쓴다.
-    return { date: day.date, matches: day.matches, teams: Object.fromEntries(day.teams) };
+    return { date: day.date, matches: day.matches, teams: Object.fromEntries([...day.teams].map(([k, dt]) => [display.get(k) ?? k, dt])) };
   });
 
   const standings = [...stats.values()].map(s => {
@@ -172,7 +179,7 @@ export function calcCupStandings({ matchRows = [], cup }) {
 export function calcCupPlayerRecords({ matchRows = [], eventRows = [], cup }) {
   const roster = rosterOf(cup);
   const teamByPlayer = new Map();
-  for (const [team, players] of roster) for (const p of players) if (!teamByPlayer.has(p)) teamByPlayer.set(p, team);
+  for (const [, { name, players }] of roster) for (const p of players) if (!teamByPlayer.has(p)) teamByPlayer.set(p, name);
 
   const recs = new Map();
   const ensure = (name) => {

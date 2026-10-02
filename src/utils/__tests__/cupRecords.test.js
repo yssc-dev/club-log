@@ -77,7 +77,7 @@ describe('collectPlayedPairs', () => {
       M({ our_team_name: '팀B', opponent_team_name: '팀C', is_extra: true, match_id: 'R4_C0' }),
       M({ tournament_id: 'OTHER', our_team_name: '팀X', opponent_team_name: '팀Y' }),
     ], 'CUP');
-    expect([...pairs].sort()).toEqual(['팀A|팀B', '팀A|팀C']);
+    expect([...pairs].sort()).toEqual(['A|B', 'A|C']);   // 키는 "팀" 접두어 무시(잠금 판정용)
   });
   it('빈 입력은 빈 Set', () => {
     expect(collectPlayedPairs(undefined, 'CUP').size).toBe(0);
@@ -285,6 +285,42 @@ const recs = (rows, events) => {
   return calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup: CUP });
 };
 const rec = (list, name) => list.find(r => r.name === name);
+
+describe('팀명 "팀" 접두어 무시 매칭 (2026-10-02 실데이터: 세션 팀광땡 vs 엔티티 광땡)', () => {
+  const CUP_BARE = { meta: { id: 'CUP' }, teams: [
+    { id: 't1', name: 'A', captain: '', players: A7, order: 0 },
+    { id: 't2', name: 'B', captain: '', players: B6, order: 1 },
+    { id: 't3', name: 'C', captain: '', players: ['c1'], order: 2 },
+  ] };
+  const standBare = (rows) => calcCupStandings({ matchRows: selectCupRows({ matchRows: rows, eventRows: [], cupId: 'CUP' }).matchRows, cup: CUP_BARE });
+  it('행은 "팀A", 엔티티는 "A" 여도 같은 팀 — 등록으로 잡히고 참석 가점이 붙으며 표시명은 엔티티 이름', () => {
+    const { standings, days } = standBare([M({ our_score: 1, opponent_score: 0, our_members_json: JSON.stringify(A7) })]);
+    expect(standings.map(s => s.name)).toEqual(['A', 'C', 'B']);     // 4(3+참석1), 0, 0(gd −1)
+    expect(standings.every(s => s.registered)).toBe(true);
+    expect(standings).toHaveLength(3);
+    expect(row(standings, 'A')).toMatchObject({ games: 1, points: 3, bonusAttend: 1, total: 4 });
+    expect(Object.keys(days[0].teams).sort()).toEqual(['A', 'B', 'C']);
+    expect(days[0].matches[0]).toMatchObject({ home: 'A', away: 'B' });
+  });
+  it('반대로 엔티티가 "팀A", 행이 "A" 여도 같은 팀이고 표시명은 엔티티 이름 "팀A"', () => {
+    const { standings } = stand([M({ our_team_name: 'A', opponent_team_name: 'B', our_score: 1, opponent_score: 0 })]);
+    expect(standings.map(s => s.name)).toEqual(['팀A', '팀C', '팀B']);
+    expect(standings).toHaveLength(3);
+  });
+  it('어느 쪽에도 없는 팀명은 그대로(미등록)', () => {
+    const { standings } = standBare([M({ our_team_name: '팀X', our_members_json: '["x1"]' })]);
+    expect(row(standings, '팀X')).toMatchObject({ registered: false, games: 1 });
+  });
+  it('개인기록의 팀 표시도 엔티티 이름', () => {
+    const sel = selectCupRows({ matchRows: [M()], eventRows: [E({ player: 'a2' })], cupId: 'CUP' });
+    const list = calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup: CUP_BARE });
+    expect(list.find(r => r.name === 'a2')).toMatchObject({ team: 'A', guest: false, goals: 1 });
+  });
+  it('collectPlayedPairs 키도 접두어 무시', () => {
+    const pairs = collectPlayedPairs([M(), M({ our_team_name: 'B', opponent_team_name: 'A', match_id: 'R2_C0' })], 'CUP');
+    expect([...pairs]).toEqual(['A|B']);
+  });
+});
 
 describe('calcCupPlayerRecords', () => {
   it('골·어시·자책골은 로그_이벤트에서', () => {

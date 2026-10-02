@@ -39,7 +39,7 @@
 - **경기(행)**: 로그_매치 1행 = 경기 1건. `our_team_name`=홈, `opponent_team_name`=원정, `our_score`/`opponent_score`, `our_gk`/`opponent_gk`, `our_members_json`/`opponent_members_json`(그 경기 그 팀 명단, 휴식 포함).
 - **경기 키**: `${date}|${game_id}|${normalizeMatchId(match_id,'풋살')}`. 로그_이벤트 행도 같은 세 열을 가지므로 경기와 이벤트를 잇는 키다(이벤트 쪽 `match_id`는 이미 표준형이고, 로그_매치 쪽은 세션 원값이라 양쪽 다 정규화해 비교한다).
 - **임시 라운드**: `is_extra`가 참인 행. 값은 boolean `true` 또는 문자열 `'TRUE'`(시트 경유)일 수 있어 `isExtraRow(row)`가 둘 다 참으로 본다.
-- **등록 팀원**: 대회 엔티티 `teams[i].players`(열람 시점). 이름 비교는 양쪽 모두 `cleanPlayerName`(장식 제거+trim) 후. 팀명 비교는 양쪽 모두 `normalizeTeamName`(`cupEntity.js`, `/^팀 /`→`팀` + trim) 후.
+- **등록 팀원**: 대회 엔티티 `teams[i].players`(열람 시점). 이름 비교는 양쪽 모두 `cleanPlayerName`(장식 제거+trim) 후. 팀명 비교는 **`teamKeyOf`(`cupRecords.js`) = `normalizeTeamName` 후 앞의 "팀" 접두어 제거** — 세션 팀명 `팀광땡` 과 엔티티 `광땡` 이 접두어만 다른 채 운영된 실사례(2026-10-02, 첫 경기일 마감 전 검증에서 발견; 순위표 8행 분리) 대응. 표시명은 등록 팀이면 엔티티 이름, 미등록이면 행의 팀명. 컵 참석 시트 머리글 매칭도 같은 키.
 - **그날 참석자 전체** `dayAttendees(date)`: 그 경기일의 모든 (임시 라운드 제외) 행의 홈·원정 명단(`players`, 휴식 포함) 합집합.
 - **팀의 그날 명단** `teamDayList(date, team)`: 그 팀이 홈 또는 원정으로 나온 행들의 그 팀 쪽 명단 합집합.
 
