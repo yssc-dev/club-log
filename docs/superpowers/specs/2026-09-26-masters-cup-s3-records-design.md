@@ -151,40 +151,53 @@ const ALIASES = {
 |---|---|---|---|
 | 시상 | `CupAwardsCards` | `calcCupAwards` | 득점왕·도움왕·클린시트왕·수문장·수비력·개근. 동점 공동 수상. 개근은 경기일 2일 이상부터. `awards.length === 0`이면 섹션 전체 숨김 |
 | 맞대결 전적 | `CupHeadToHead` | `calcCupHeadToHead` | 팀 × 팀 행렬. 행 팀 기준 W-D-L + 득:실. 대각 `·`, 미대결 `-` |
-| 키퍼 | `CupKeeperTable` | `calcCupKeepers` | 소스 = 로그_매치 `our_gk`/`opponent_gk` 열, 경기 단위 집계. 열: 선수·경기·실점·실점률·클린시트 |
-| 수비력 (필드) | `CupDefenseTable` | `calcCupFieldDefense` | 실제 출전(휴식 제외, `parseMembersWithAbsent().actual`)·GK 제외·GK 미기록 사이드 제외. 기준: `dynamicMin(최다경기, 0.3)` 이상(30%). 열: 선수·경기·실점·경기당 실점·무실점률 |
+| 개인기록에 통합 (GK·실점·실점률·클린시트 열) | `CupPlayerRecordsTable` | `mergePlayerKeeperRecords(players, keepers)` | `calcCupKeepers` 결과를 `mergePlayerKeeperRecords` 로 개인기록에 병합. 별도 키퍼 섹션 없음. `CupKeeperTable.jsx` 삭제. |
+| 필드 지표 (수비력·관여 통합) | `CupFieldImpactTable` | `calcCupOnOff({ matchRows, cup })` | `calcCupOnOff` 확장: `onCleanSheets`·`cleanRate` 추가. 열: 선수·팀·출전·경기당 득점·경기당 실점·무실점률·득점관여·수비관여. `calcCupFieldDefense` はシステム cards(수비력 어워드) 전용 — 별도 섹션 없음. |
 
-불변식: `records.status === 'ok' && computed.hasMatches`일 때만 네 섹션 모두 렌더 대상. `calcCupAwards`에서 수상자가 없으면 시상 섹션은 추가로 숨김.
+**개인기록 자책 표기 규칙**: 자책골 셀 = `ownGoals × getCupSettings(teamName).ownGoalPoint`. 마스터FC에서는 −2이므로 자책 1골 → "−2".
+
+불변식: `records.status === 'ok' && computed.hasMatches`일 때만 세 섹션 모두 렌더 대상. `calcCupAwards`에서 수상자가 없으면 시상 섹션은 추가로 숨김.
 
 ### 5.2 탭 구성 (2026-10-02)
 
 | 탭 | 섹션 순서 |
 |---|---|
-| 대시보드 | pendingCup 배너 → 시작 버튼(관리자) → 순위표 (누적) → 시상(recordsOk) → 경기일별 결과(recordsOk) |
-| 분석 | 개인기록 → 맞대결 전적 → 키퍼 → 수비력 (필드) → 득점·수비 관여 |
+| 대시보드 | pendingCup 배너 → 시작 버튼(관리자) → 순위표 (누적) → 시상(recordsOk) → 경기일별 결과(recordsOk, **기본 전부 접힘**) |
+| 분석 | 개인기록 → 맞대결 전적 → 필드 지표 (수비력·관여 통합, 키퍼는 개인기록에 통합) |
 | 팀 관리 | 팀 요약 목록 / 편집기 토글 → 잠금 안내 → 팀 편집 버튼(관리자) → 대회 종료/다시 열기 + 대회 삭제(관리자) |
 
 초기 탭: `isAdmin && teams.length === 0` → `'teams'`, 그 외 → `'dashboard'`. 탭 state는 로컬 useState — useBackNavigation 불필요.
 
 분석 탭은 `records.status !== 'ok' || !hasMatches`이면 로딩/에러/빈 상태만 표시.
 
-### 5.3 득점·수비 관여 (2026-10-02)
+### 5.3 필드 지표 (수비력·관여 통합) (2026-10-02)
 
-**정의 (`calcCupOnOff`)**: 선수가 **필드로 뛴** 경기(출전, on)와 **필드에 없던** 경기(미출전, off)의 팀 득점/실점 차이로 영향력을 측정한다. GK로 뛴 경기는 on·off 양쪽에서 제외한다.
+**컴포넌트**: `CupFieldImpactTable` (props: `{ minOn=3, rated=[], unrated=[] }`). `CupOnOffTable`·`CupDefenseTable` 통합 후 삭제.
 
-- `goalImpact = onGfPg − offGfPg`: 경기당 팀 득점, on vs off 차이. 양수 = 출전 시 팀이 더 많이 득점.
-- `defImpact = offGaPg − onGaPg`: 경기당 팀 실점, off vs on 차이. 양수 = 출전 시 팀이 더 적게 실점.
-- `offGames === 0`이면 두 값 모두 `null`(표 '—'). `offGames < minOff(=2)`이면 값은 계산하되 unrated(미출전 표본 부족, 흐리게).
-- GK 제외는 양쪽 사이드 기준: 그 경기에서 어느 팀의 GK로든 뛰었으면 primary 팀의 on·off 어디에도 넣지 않는다(상대 팀 GK로 뛴 경기가 '미출전'으로 잡히는 것을 막는다).
-- `onGames === 0`인 선수는 목록에서 제외.
+**계산 (`calcCupOnOff` 확장)**: 기존 on/off 관여 지표에 아래 두 필드를 추가.
+- `onCleanSheets`: on 경기 중 팀 실점 0인 경기 수.
+- `cleanRate = onCleanSheets / onGames`, `Number(x.toFixed(2))`.
 
-**rated/unrated 분리**: `onGames >= minOn && offGames >= minOff` → rated. `minOn`은 `dynamicMin(최다 출전수)` 동적 계산.
+기존 지표 불변:
+- `goalImpact = onGfPg − offGfPg`, `defImpact = offGaPg − onGaPg`.
+- primary 팀 · GK 양쪽 제외 · `minOn` 3 기본 · null · 정렬.
 
-**한계**: 같은 경기일 같은 명단인 팀원은 값이 같다. 경기일이 쌓일수록 명단 변동에 따라 값이 갈라진다. GK로만 뛴 경기일이 많으면 표본이 줄어든다.
+**`calcCupFieldDefense`**: 시상 카드(수비력 어워드) 전용으로 유지. 별도 표 섹션 없음.
 
-**열**: 선수 · 팀 · 출전 · 미출전 · 득점관여 · 수비관여.
+**열** (8열, 전부 정렬):
+선수 · 팀(회색 12px) · 출전 · 경기당 득점(onGfPg, toFixed(2)) · 경기당 실점(onGaPg, toFixed(2)) · 무실점률(Math.round(cleanRate×100)+'%') · 득점관여(부호 포함 toFixed(2), null→'—') · 수비관여(동일).
 
-**정렬**: SortHeader — 숫자 열 첫 클릭 내림차순, 선수·팀 첫 클릭 가나다. rated 그룹이 unrated 그룹보다 항상 앞.
+**data-role**: 표 `cup-field-impact`, 행 `cup-field-impact-row`, 설명 블록 `cup-field-impact-help`.
+
+**설명 블록 문구** (`data-role="cup-field-impact-help"`, 표 위, 스크롤 영역 밖):
+- "내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다(GK로 뛴 경기 제외)."
+- "경기당 득점·실점·무실점률 = 내가 뛸 때 우리 팀의 경기당 득점·실점과 무실점 경기 비율"
+- "득점관여 +1.00 = 내가 뛸 때 팀이 경기당 1골 더 넣음 · 수비관여 +1.50 = 내가 뛸 때 팀이 경기당 1.5골 덜 먹음 (내가 없던 우리 팀 경기와 비교, 둘 다 +가 좋음)"
+- "같은 경기에 함께 뛴 팀원끼리는 값이 비슷하고, 경기일이 쌓일수록 차이가 드러납니다."
+
+**캡션** (표 아래): "기준: 필드 {minOn}경기 이상 출전 · 내가 없던 우리 팀 경기가 없으면 관여는 —"
+
+**정렬**: 숫자 열 첫 클릭 내림차순, 선수·팀 첫 클릭 가나다. rated 그룹이 unrated 그룹보다 항상 앞.
 
 ## 6. 파일별 변경 범위
 

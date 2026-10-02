@@ -25,6 +25,9 @@ vi.mock('../../../services/cupSync', () => ({
     saveTeams: () => Promise.resolve(), setStatus: () => Promise.resolve(), deleteCup: () => Promise.resolve(), markLocked: () => Promise.resolve(),
   },
 }));
+vi.mock('../../../config/settings', () => ({
+  getCupSettings: () => ({ ownGoalPoint: -2 }),
+}));
 
 import CupDetail from '../CupDetail';
 
@@ -137,7 +140,7 @@ describe('CupDetail 기록 섹션', () => {
     await mount({ cup: cup({ status: 'finished' }) });
     expect(container.querySelector('tr[data-role="cup-standing-row"]').textContent).toContain('🏆 우승');
   });
-  it('행이 있으면 시상·맞대결·키퍼·수비력 네 섹션이 그려진다', async () => {
+  it('행이 있으면 시상·맞대결·필드 지표 세 섹션이 그려지고 개인기록 표에 GK·실점률 열이 있다', async () => {
     // M(): 팀A 3:0 팀B, our_gk=a1, opponent_gk=b1
     // E(): goal player=a2, related_player=a3
     h.matchRows = [M()];
@@ -148,40 +151,49 @@ describe('CupDetail 기록 섹션', () => {
     expect(awards).not.toBeNull();
     expect(awards.textContent).toContain('득점왕');
     expect(awards.textContent).toContain('a2');
-    // 분석 탭으로 전환 후 맞대결·키퍼·수비력 확인
+    // 분석 탭으로 전환 후 개인기록·맞대결·필드 지표 확인
     await switchTab('analysis');
-    // 키퍼: a1 clean sheet 1, b1 clean sheet 0
-    const keeperTable = container.querySelector('table[data-role="cup-keepers"]');
-    expect(keeperTable).not.toBeNull();
-    const a1Row = container.querySelector('[data-role="cup-keeper-row"][data-player="a1"]');
-    const b1Row = container.querySelector('[data-role="cup-keeper-row"][data-player="b1"]');
-    expect(a1Row).not.toBeNull();
-    expect(b1Row).not.toBeNull();
-    // a1: 1 game, 0 conceded, 1 clean sheet
-    const a1Cells = [...a1Row.querySelectorAll('td')].map(td => td.textContent.trim());
-    expect(a1Cells[4]).toBe('1'); // cleanSheets
+    // 개인기록 표 머리글에 GK 와 실점률 열이 있다
+    const ths = [...container.querySelectorAll('table[data-role="cup-player-records"] thead th')].map(t => t.textContent.trim());
+    expect(ths).toContain('GK');
+    expect(ths).toContain('실점률');
+    // 자책골 0이면 ownGoalPoint(-2) × 0 = "0"
+    const playerRow = container.querySelector('[data-role="cup-player-row"][data-player="a2"]');
+    expect(playerRow).not.toBeNull();
     // 맞대결: 팀A→팀B 1-0-0
     const h2hTable = container.querySelector('table[data-role="cup-h2h"]');
     expect(h2hTable).not.toBeNull();
     const h2hCell = container.querySelector('[data-role="cup-h2h-cell"][data-row="팀A"][data-col="팀B"]');
     expect(h2hCell).not.toBeNull();
     expect(h2hCell.textContent).toContain('1승0무0패');
-    // 수비력
-    expect(container.querySelector('table[data-role="cup-defense"]')).not.toBeNull();
+    // 필드 지표 표
+    expect(container.querySelector('table[data-role="cup-field-impact"]')).not.toBeNull();
+    // 키퍼 테이블은 더 이상 별도 섹션이 없다
+    expect(container.querySelector('table[data-role="cup-keepers"]')).toBeNull();
   });
-  it('행이 없으면 시상·맞대결·키퍼·수비력 섹션 없음', async () => {
+  it('행이 없으면 시상·맞대결·필드 지표 섹션 없음', async () => {
     await mount();
     expect(container.querySelector('[data-role="cup-awards"]')).toBeNull();
     expect(container.querySelector('table[data-role="cup-h2h"]')).toBeNull();
     expect(container.querySelector('table[data-role="cup-keepers"]')).toBeNull();
-    expect(container.querySelector('table[data-role="cup-defense"]')).toBeNull();
+    expect(container.querySelector('table[data-role="cup-field-impact"]')).toBeNull();
   });
-  it('행이 있으면 분석 탭에 cup-onoff 표가 그려진다', async () => {
+  it('자책골이 있으면 개인기록 표에서 ownGoalPoint(-2) 를 곱해 표기한다', async () => {
+    // a2 의 own goal 1건 → "-2" 표시
+    h.matchRows = [M()];
+    h.eventRows = [E({ event_type: 'owngoal', player: 'a2', related_player: '' })];
+    await mount();
+    await switchTab('analysis');
+    const a2Row = container.querySelector('[data-role="cup-player-row"][data-player="a2"]');
+    expect(a2Row).not.toBeNull();
+    expect(a2Row.textContent).toContain('-2');
+  });
+  it('행이 있으면 분석 탭에 cup-field-impact 표가 그려진다', async () => {
     h.matchRows = [M()];
     h.eventRows = [E()];
     await mount();
     await switchTab('analysis');
-    expect(container.querySelector('table[data-role="cup-onoff"]')).not.toBeNull();
+    expect(container.querySelector('table[data-role="cup-field-impact"]')).not.toBeNull();
   });
 });
 

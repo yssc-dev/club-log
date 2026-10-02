@@ -173,15 +173,24 @@ describe('설정 — 컵 참석 시트 키', () => {
 
 describe('CupDetail.jsx — 컵 전용 지표 배선 (2026-10-02 스펙 §5.1)', () => {
   const src = read('components/cup/CupDetail.jsx');
-  it('네 인사이트 컴포넌트와 cupInsights 를 import 한다', () => {
+  it('인사이트 컴포넌트와 cupInsights 를 import 한다', () => {
     expect(src).toMatch(/import CupAwardsCards from '\.\/CupAwardsCards'/);
     expect(src).toMatch(/import CupHeadToHead from '\.\/CupHeadToHead'/);
-    expect(src).toMatch(/import CupKeeperTable from '\.\/CupKeeperTable'/);
-    expect(src).toMatch(/import CupDefenseTable from '\.\/CupDefenseTable'/);
+    // 통합 필드 지표 컴포넌트
+    expect(src).toMatch(/import CupFieldImpactTable from '\.\/CupFieldImpactTable'/);
     expect(src).toMatch(/from '\.\.\/\.\.\/utils\/cup\/cupInsights'/);
+    // CupKeeperTable 은 개인기록 통합 후 삭제 — import 가 없어야 한다
+    expect(src).not.toMatch(/import CupKeeperTable/);
+    // 수비력·관여 표는 필드 지표로 통합 — 옛 컴포넌트가 다시 import 되면 안 된다
+    expect(src).not.toMatch(/import CupOnOffTable|import CupDefenseTable/);
   });
-  it('CupOnOffTable 컴포넌트와 calcCupOnOff 를 import 한다', () => {
-    expect(src).toMatch(/import CupOnOffTable from '\.\/CupOnOffTable'/);
+  it('개인기록 표에 ownGoalPoint 를 getCupSettings 로 넘긴다', () => {
+    expect(src).toMatch(/import \{ getCupSettings \} from '\.\.\/\.\.\/config\/settings'/);
+    expect(src).toMatch(/getCupSettings\(teamName\)/);
+    expect(src).toMatch(/ownGoalPoint=\{ownGoalPoint\}/);
+  });
+  it('CupFieldImpactTable 과 calcCupOnOff 를 사용한다', () => {
+    expect(src).toMatch(/CupFieldImpactTable/);
     expect(src).toMatch(/calcCupOnOff/);
   });
   it('탭 버튼 3개가 존재한다(data-tab="dashboard"/"analysis"/"teams")', () => {
@@ -200,8 +209,8 @@ describe('CupDetail.jsx — 컵 전용 지표 배선 (2026-10-02 스펙 §5.1)',
     }
   });
   it('분석 탭 섹션 제목이 순서대로 등장한다', () => {
-    // 분석 탭: 개인기록 → 맞대결 전적 → 키퍼 → 수비력 → 득점·수비 관여
-    const analysisTitles = ['개인기록', '맞대결 전적', '키퍼', '수비력', '득점·수비 관여'];
+    // 분석 탭: 개인기록 → 맞대결 전적 → 필드 지표 (수비력·관여 통합, 키퍼는 개인기록에 통합)
+    const analysisTitles = ['개인기록', '맞대결 전적', '필드 지표'];
     let pos = 0;
     for (const t of analysisTitles) {
       const idx = src.indexOf(t, pos);
@@ -219,8 +228,8 @@ describe('CupDetail.jsx — 컵 전용 지표 배선 (2026-10-02 스펙 §5.1)',
       expect(idx, `"${t}" not found before analysis tab`).toBeGreaterThan(-1);
       expect(idx, `"${t}" should be before analysis tab separator`).toBeLessThan(analysisSep);
     }
-    // 분석 섹션 제목들은 분석 탭 구분자 이후에
-    for (const t of ['개인기록', '맞대결 전적', '키퍼', '수비력 (필드)', '득점·수비 관여']) {
+    // 분석 섹션 제목들은 분석 탭 구분자 이후에 (수비력·관여는 필드 지표로 통합)
+    for (const t of ['개인기록', '맞대결 전적', '필드 지표']) {
       const idx = src.indexOf(t, analysisSep);
       expect(idx, `"${t}" not found after analysis tab`).toBeGreaterThan(-1);
     }

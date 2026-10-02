@@ -6,10 +6,8 @@ import { createRoot } from 'react-dom/client';
 import { ThemeProvider } from '../../../hooks/useTheme';
 import CupAwardsCards from '../CupAwardsCards';
 import CupHeadToHead from '../CupHeadToHead';
-import CupKeeperTable from '../CupKeeperTable';
-import CupDefenseTable from '../CupDefenseTable';
+import CupFieldImpactTable from '../CupFieldImpactTable';
 import CupPlayerRecordsTable from '../CupPlayerRecordsTable';
-import CupOnOffTable from '../CupOnOffTable';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -116,93 +114,8 @@ describe('CupHeadToHead', () => {
   });
 });
 
-// ─── CupKeeperTable ────────────────────────────────────────────────────────────
-describe('CupKeeperTable', () => {
-  it('열 헤더 확인', async () => {
-    await mount(createElement(CupKeeperTable, { keepers: [] }));
-    const ths = [...container.querySelectorAll('thead th')].map((t) => t.textContent);
-    expect(ths).toEqual(['선수', '경기', '실점', '실점률', '클린시트']);
-  });
 
-  it('빈 keepers 면 "기록 없음"', async () => {
-    await mount(createElement(CupKeeperTable, { keepers: [] }));
-    expect(container.textContent).toContain('기록 없음');
-    expect(container.querySelectorAll('[data-role="cup-keeper-row"]')).toHaveLength(0);
-  });
-
-  it('keeper 행·toFixed(2) 렌더', async () => {
-    const keepers = [
-      { name: '노필선', games: 6, conceded: 5, cleanSheets: 2, concededRate: 0.8333 },
-      { name: '박GK', games: 2, conceded: 4, cleanSheets: 0, concededRate: 2 },
-    ];
-    await mount(createElement(CupKeeperTable, { keepers }));
-    const rows = [...container.querySelectorAll('[data-role="cup-keeper-row"]')];
-    expect(rows).toHaveLength(2);
-    expect(rows[0].dataset.player).toBe('노필선');
-    expect(rows[0].textContent).toContain('노필선');
-    expect(rows[0].textContent).toContain('6');
-    expect(rows[0].textContent).toContain('5');
-    expect(rows[0].textContent).toContain('0.83'); // toFixed(2) of 0.8333
-    expect(rows[0].textContent).toContain('2');
-    expect(rows[1].dataset.player).toBe('박GK');
-    expect(rows[1].textContent).toContain('2.00'); // toFixed(2) of 2
-  });
-});
-
-// ─── CupDefenseTable ───────────────────────────────────────────────────────────
-describe('CupDefenseTable', () => {
-  const rated = [
-    { name: '김수비', games: 5, conceded: 3, cleanSheets: 2, cleanRate: 0.4, concededPerGame: 0.6 },
-    { name: '이태클', games: 4, conceded: 6, cleanSheets: 1, cleanRate: 0.25, concededPerGame: 1.5 },
-  ];
-  const unrated = [
-    { name: '박미니', games: 1, conceded: 1, cleanSheets: 0, cleanRate: 0, concededPerGame: 1 },
-  ];
-
-  it('열 헤더 확인', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
-    const ths = [...container.querySelectorAll('thead th')].map((t) => t.textContent);
-    expect(ths).toEqual(['선수', '경기', '실점', '경기당 실점', '무실점률']);
-  });
-
-  it('rated 행은 data-rated="true", unrated 는 "false"', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
-    const ratedRows = [...container.querySelectorAll('[data-role="cup-defense-row"][data-rated="true"]')];
-    const unratedRows = [...container.querySelectorAll('[data-role="cup-defense-row"][data-rated="false"]')];
-    expect(ratedRows).toHaveLength(2);
-    expect(unratedRows).toHaveLength(1);
-    expect(ratedRows.map((r) => r.dataset.player)).toEqual(['김수비', '이태클']);
-    expect(unratedRows[0].dataset.player).toBe('박미니');
-  });
-
-  it('무실점률 % 텍스트 (Math.round)', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
-    const row = container.querySelector('[data-role="cup-defense-row"][data-player="김수비"]');
-    expect(row.textContent).toContain('40%'); // Math.round(0.4*100)
-    const row2 = container.querySelector('[data-role="cup-defense-row"][data-player="이태클"]');
-    expect(row2.textContent).toContain('25%');
-  });
-
-  it('캡션에 minGames 포함', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
-    expect(container.textContent).toContain('기준: 필드 3경기 이상 (GK로 뛴 경기 제외)');
-  });
-
-  it('minGames 다른 값도 캡션 반영', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 5, rated: [], unrated: [] }));
-    expect(container.textContent).toContain('기준: 필드 5경기 이상 (GK로 뛴 경기 제외)');
-  });
-
-  it('unrated 행은 opacity 0.5', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 2, rated, unrated }));
-    const unratedRow = container.querySelector('[data-role="cup-defense-row"][data-rated="false"]');
-    expect(unratedRow.style.opacity).toBe('0.5');
-    const ratedRow = container.querySelector('[data-role="cup-defense-row"][data-rated="true"]');
-    expect(ratedRow.style.opacity).toBe('');
-  });
-});
-
-// ─── CupPlayerRecordsTable 정렬 ────────────────────────────────────────────────
+// ─── CupPlayerRecordsTable ─────────────────────────────────────────────────────
 describe('CupPlayerRecordsTable 정렬', () => {
   const records = [
     { name: '김철수', team: '광땡', guest: false, goals: 3, assists: 1, cleanSheets: 0, ownGoals: 0, days: 2 },
@@ -255,138 +168,118 @@ describe('CupPlayerRecordsTable 정렬', () => {
     const sorted = [...names].sort((a, b) => a.localeCompare(b, 'ko'));
     expect(names).toEqual(sorted);
   });
-});
 
-// ─── CupKeeperTable 정렬 ───────────────────────────────────────────────────────
-describe('CupKeeperTable 정렬', () => {
-  const keepers = [
-    { name: '노필선', games: 6, conceded: 5, cleanSheets: 2, concededRate: 0.8333 },
-    { name: '박GK',  games: 2, conceded: 4, cleanSheets: 0, concededRate: 2 },
-    { name: '최GK',  games: 4, conceded: 2, cleanSheets: 2, concededRate: 0.5 },
-  ];
-
-  it('실점률 클릭 → 내림차순', async () => {
-    await mount(createElement(CupKeeperTable, { keepers }));
-    const ths = [...container.querySelectorAll('thead th')];
-    const rateTh = ths.find(th => th.textContent.includes('실점률'));
-    await act(async () => { rateTh.click(); });
-    const rows = [...container.querySelectorAll('[data-role="cup-keeper-row"]')];
-    const rates = rows.map(r => {
-      const tds = r.querySelectorAll('td');
-      return Number(tds[3].textContent);
-    });
-    expect(rates[0]).toBeGreaterThanOrEqual(rates[1]);
-    expect(rates[1]).toBeGreaterThanOrEqual(rates[2]);
-  });
-
-  it('실점률 재클릭 → 오름차순', async () => {
-    await mount(createElement(CupKeeperTable, { keepers }));
-    const ths = [...container.querySelectorAll('thead th')];
-    const rateTh = ths.find(th => th.textContent.includes('실점률'));
-    await act(async () => { rateTh.click(); });
-    await act(async () => { rateTh.click(); });
-    const rows = [...container.querySelectorAll('[data-role="cup-keeper-row"]')];
-    const rates = rows.map(r => {
-      const tds = r.querySelectorAll('td');
-      return Number(tds[3].textContent);
-    });
-    expect(rates[0]).toBeLessThanOrEqual(rates[1]);
-    expect(rates[1]).toBeLessThanOrEqual(rates[2]);
-  });
-
-  it('빈 배열이면 기록 없음 그대로', async () => {
-    await mount(createElement(CupKeeperTable, { keepers: [] }));
-    expect(container.textContent).toContain('기록 없음');
-    expect(container.querySelectorAll('[data-role="cup-keeper-row"]')).toHaveLength(0);
+  it('ownGoalPoint 기본값 -1 — 자책 1골이면 -1', async () => {
+    const recs = [{ name: '박선수', team: '광땡', guest: false, goals: 0, assists: 0, cleanSheets: 0, ownGoals: 1, days: 1, gkGames: 0, gkConceded: 0, gkRate: null }];
+    await mount(createElement(CupPlayerRecordsTable, { records: recs }));
+    const row = container.querySelector('[data-role="cup-player-row"][data-player="박선수"]');
+    expect(row).not.toBeNull();
+    expect(row.textContent).toContain('-1');
   });
 });
 
-// ─── CupDefenseTable 정렬 ──────────────────────────────────────────────────────
-describe('CupDefenseTable 정렬', () => {
+
+// ─── CupFieldImpactTable ───────────────────────────────────────────────────────
+describe('CupFieldImpactTable', () => {
   const rated = [
-    { name: '김수비', games: 5, conceded: 3, cleanSheets: 2, cleanRate: 0.4,  concededPerGame: 0.6 },
-    { name: '이태클', games: 4, conceded: 6, cleanSheets: 1, cleanRate: 0.25, concededPerGame: 1.5 },
-    { name: '박블록', games: 6, conceded: 1, cleanSheets: 4, cleanRate: 0.67, concededPerGame: 0.17 },
+    { name: '김공격', team: '팀A', onGames: 5, offGames: 3, onGfPg: 2.00, onGaPg: 0.50, onCleanSheets: 3, cleanRate: 0.60, goalImpact: 1.50, defImpact: 0.40 },
+    { name: '이미드',  team: '팀B', onGames: 4, offGames: 2, onGfPg: 1.25, onGaPg: 1.00, onCleanSheets: 0, cleanRate: 0.00, goalImpact: -0.95, defImpact: null },
   ];
   const unrated = [
-    { name: '최미니', games: 1, conceded: 2, cleanSheets: 0, cleanRate: 0, concededPerGame: 2 },
-    { name: '강신인', games: 2, conceded: 0, cleanSheets: 2, cleanRate: 1, concededPerGame: 0 },
+    { name: '박루키', team: '팀A', onGames: 1, offGames: 0, onGfPg: 1.00, onGaPg: 0.00, onCleanSheets: 1, cleanRate: 1.00, goalImpact: null, defImpact: null },
+  ];
+
+  it('머리글 8개 순서', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    const ths = [...container.querySelectorAll('thead th')].map((t) => t.textContent.replace(/[▲▼]/g, '').trim());
+    expect(ths).toEqual(['선수', '팀', '출전', '경기당 득점', '경기당 실점', '무실점률', '득점관여', '수비관여']);
+  });
+
+  it('무실점률은 % 표기 (Math.round)', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    const row = container.querySelector('[data-role="cup-field-impact-row"][data-player="김공격"]');
+    expect(row).not.toBeNull();
+    expect(row.textContent).toContain('60%'); // Math.round(0.60*100)
+    const row2 = container.querySelector('[data-role="cup-field-impact-row"][data-player="이미드"]');
+    expect(row2.textContent).toContain('0%');
+  });
+
+  it('관여 null 이면 —', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    const row = container.querySelector('[data-role="cup-field-impact-row"][data-player="이미드"]');
+    expect(row.textContent).toContain('—'); // defImpact=null
+    const row2 = container.querySelector('[data-role="cup-field-impact-row"][data-player="박루키"]');
+    expect(row2.textContent).toContain('—'); // goalImpact=null and defImpact=null
+  });
+
+  it('정렬 시 rated 가 unrated 앞', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    const ths = [...container.querySelectorAll('thead th')];
+    const goalTh = ths.find(th => th.textContent.includes('득점관여'));
+    await act(async () => { goalTh.click(); });
+    const allRows = [...container.querySelectorAll('[data-role="cup-field-impact-row"]')];
+    const ratedIdx   = allRows.map((r, i) => r.dataset.rated === 'true'  ? i : null).filter(i => i !== null);
+    const unratedIdx = allRows.map((r, i) => r.dataset.rated === 'false' ? i : null).filter(i => i !== null);
+    expect(Math.max(...ratedIdx)).toBeLessThan(Math.min(...unratedIdx));
+  });
+
+  it('help 블록 존재·문구', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    const help = container.querySelector('[data-role="cup-field-impact-help"]');
+    expect(help).not.toBeNull();
+    expect(help.textContent).toContain('내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다');
+    expect(help.textContent).toContain('경기당 득점·실점·무실점률');
+    expect(help.textContent).toContain('득점관여 +1.00');
+    expect(help.textContent).toContain('경기일이 쌓일수록');
+  });
+
+  it('캡션에 필드 3경기 이상 출전 포함', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    expect(container.textContent).toContain('필드 3경기 이상 출전');
+  });
+
+  it('빈 입력이면 기록 없음', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated: [], unrated: [] }));
+    expect(container.querySelector('table[data-role="cup-field-impact"]')).not.toBeNull();
+    expect(container.textContent).toContain('기록 없음');
+    expect(container.querySelectorAll('[data-role="cup-field-impact-row"]')).toHaveLength(0);
+  });
+});
+
+// ─── CupFieldImpactTable 정렬 ──────────────────────────────────────────────────
+describe('CupFieldImpactTable 정렬', () => {
+  const rated = [
+    { name: '김공격', team: '팀A', onGames: 5, offGames: 3, onGfPg: 2.00, onGaPg: 0.50, onCleanSheets: 3, cleanRate: 0.60, goalImpact: 1.50, defImpact: 0.40 },
+    { name: '이미드',  team: '팀B', onGames: 4, offGames: 2, onGfPg: 1.25, onGaPg: 1.00, onCleanSheets: 0, cleanRate: 0.00, goalImpact: -0.95, defImpact: 0.10 },
+    { name: '박디펜', team: '팀A', onGames: 6, offGames: 1, onGfPg: 1.50, onGaPg: 0.33, onCleanSheets: 4, cleanRate: 0.67, goalImpact: 0.50, defImpact: 1.20 },
+  ];
+  const unrated = [
+    { name: '최미니', team: '팀B', onGames: 1, offGames: 1, onGfPg: 0.00, onGaPg: 2.00, onCleanSheets: 0, cleanRate: 0.00, goalImpact: -1.00, defImpact: -1.00 },
+    { name: '강신인', team: '팀A', onGames: 2, offGames: 0, onGfPg: 2.00, onGaPg: 0.00, onCleanSheets: 2, cleanRate: 1.00, goalImpact: null,  defImpact: null },
   ];
 
   it('어떤 정렬에서도 rated 행이 unrated 행보다 앞', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const ths = [...container.querySelectorAll('thead th')];
     const cleanRateTh = ths.find(th => th.textContent.includes('무실점률'));
     await act(async () => { cleanRateTh.click(); });
-    const allRows = [...container.querySelectorAll('[data-role="cup-defense-row"]')];
+    const allRows = [...container.querySelectorAll('[data-role="cup-field-impact-row"]')];
     const ratedIndices   = allRows.map((r, i) => r.dataset.rated === 'true'  ? i : null).filter(i => i !== null);
     const unratedIndices = allRows.map((r, i) => r.dataset.rated === 'false' ? i : null).filter(i => i !== null);
     expect(Math.max(...ratedIndices)).toBeLessThan(Math.min(...unratedIndices));
   });
 
   it('무실점률 클릭 → rated 안에서 내림차순', async () => {
-    await mount(createElement(CupDefenseTable, { minGames: 3, rated, unrated }));
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const ths = [...container.querySelectorAll('thead th')];
     const cleanRateTh = ths.find(th => th.textContent.includes('무실점률'));
     await act(async () => { cleanRateTh.click(); });
-    const ratedRows = [...container.querySelectorAll('[data-role="cup-defense-row"][data-rated="true"]')];
+    const ratedRows = [...container.querySelectorAll('[data-role="cup-field-impact-row"][data-rated="true"]')];
     const pcts = ratedRows.map(r => {
       const tds = r.querySelectorAll('td');
-      return parseInt(tds[4].textContent, 10); // e.g. "67%" → 67
+      return parseInt(tds[5].textContent, 10); // e.g. "67%" → 67
     });
     expect(pcts[0]).toBeGreaterThanOrEqual(pcts[1]);
     expect(pcts[1]).toBeGreaterThanOrEqual(pcts[2]);
-  });
-});
-
-// ─── CupOnOffTable ─────────────────────────────────────────────────────────────
-describe('CupOnOffTable', () => {
-  const rated = [
-    { name: '김공격', team: '팀A', onGames: 5, offGames: 3, goalImpact: 1.50, defImpact: 0.40 },
-    { name: '이미드',  team: '팀B', onGames: 4, offGames: 2, goalImpact: -0.95, defImpact: null },
-  ];
-  const unrated = [
-    { name: '박루키', team: '팀A', onGames: 1, offGames: 1, goalImpact: 0.00, defImpact: 0.00 },
-  ];
-
-  it('값 표기 — 양수 +기호·소수 둘째 자리, 음수, 0.00', async () => {
-    await mount(createElement(CupOnOffTable, { minOn: 3, minOff: 2, rated, unrated }));
-    const row = container.querySelector('[data-role="cup-onoff-row"][data-player="김공격"]');
-    expect(row).not.toBeNull();
-    expect(row.textContent).toContain('+1.50');
-    expect(row.textContent).toContain('+0.40');
-    const row2 = container.querySelector('[data-role="cup-onoff-row"][data-player="이미드"]');
-    expect(row2.textContent).toContain('-0.95');
-    const row3 = container.querySelector('[data-role="cup-onoff-row"][data-player="박루키"]');
-    expect(row3.textContent).toContain('0.00');
-  });
-
-  it('null impact 는 —', async () => {
-    await mount(createElement(CupOnOffTable, { minOn: 3, minOff: 2, rated, unrated }));
-    const row = container.querySelector('[data-role="cup-onoff-row"][data-player="이미드"]');
-    expect(row.textContent).toContain('—');
-  });
-
-  it('정렬 시 rated 행이 unrated 행보다 앞', async () => {
-    await mount(createElement(CupOnOffTable, { minOn: 3, minOff: 2, rated, unrated }));
-    const ths = [...container.querySelectorAll('thead th')];
-    const goalTh = ths.find(th => th.textContent.includes('득점관여'));
-    await act(async () => { goalTh.click(); });
-    const allRows = [...container.querySelectorAll('[data-role="cup-onoff-row"]')];
-    const ratedIdx   = allRows.map((r, i) => r.dataset.rated === 'true'  ? i : null).filter(i => i !== null);
-    const unratedIdx = allRows.map((r, i) => r.dataset.rated === 'false' ? i : null).filter(i => i !== null);
-    expect(Math.max(...ratedIdx)).toBeLessThan(Math.min(...unratedIdx));
-  });
-
-  it('빈 입력이면 "기록 없음" 한 행', async () => {
-    await mount(createElement(CupOnOffTable, { minOn: 1, minOff: 2, rated: [], unrated: [] }));
-    expect(container.querySelector('table[data-role="cup-onoff"]')).not.toBeNull();
-    expect(container.textContent).toContain('기록 없음');
-    expect(container.querySelectorAll('[data-role="cup-onoff-row"]')).toHaveLength(0);
-  });
-
-  it('캡션에 minOn·minOff 포함', async () => {
-    await mount(createElement(CupOnOffTable, { minOn: 4, minOff: 2, rated, unrated }));
-    expect(container.textContent).toContain('출전 4경기·미출전 2경기 이상');
   });
 });
