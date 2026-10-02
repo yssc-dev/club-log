@@ -88,19 +88,19 @@ describe('CupAwardsCards', () => {
   it('note 표시', async () => {
     const awards = [
       {
-        key: 'goalImpact', title: '득점관여', note: '최소 3경기(필드) · 경기당 득점',
+        key: 'goalImpact', title: '득점관여', note: '최소 3경기(필드, GK 경기 제외) · 경기당 득점',
         rows: [{ rank: 1, name: '홍길동', value: 1.83, display: '+1.83', ratio: 1 }],
       },
     ];
     await mount(createElement(CupAwardsCards, { awards }));
     const card = container.querySelector('[data-role="cup-award-card"][data-key="goalImpact"]');
-    expect(card.textContent).toContain('최소 3경기(필드) · 경기당 득점');
+    expect(card.textContent).toContain('최소 3경기(필드, GK 경기 제외) · 경기당 득점');
   });
 
   it('row.sub 가 있으면 행 아래 기준값 줄(cup-award-sub) 렌더, 없으면 미렌더', async () => {
     const awards = [
       {
-        key: 'goalImpact', title: '득점관여', note: '최소 3경기(필드) · 경기당 득점',
+        key: 'goalImpact', title: '득점관여', note: '최소 3경기(필드, GK 경기 제외) · 경기당 득점',
         rows: [
           { rank: 1, name: '신관수', value: 1.83, display: '+1.83', ratio: 1, sub: '뛸 때 2.50 · 없을 때 0.67' },
         ],
@@ -324,7 +324,8 @@ describe('CupFieldImpactTable', () => {
     await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const help = container.querySelector('[data-role="cup-field-impact-help"]');
     expect(help).not.toBeNull();
-    expect(help.textContent).toContain('내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다');
+    expect(help.textContent).toContain('모든 수치는 필드 플레이어 기준');
+    expect(help.textContent).toContain('GK로 선 경기는 출전·뛸 때·없을 때·관여·무실점률 어디에도 넣지 않습니다');
     expect(help.textContent).toContain('뛸 때·없을 때');
     expect(help.textContent).toContain('득점관여 = 뛸 때 득점 − 없을 때 득점');
     expect(help.textContent).toContain('수비관여 = 없을 때 실점 − 뛸 때 실점');

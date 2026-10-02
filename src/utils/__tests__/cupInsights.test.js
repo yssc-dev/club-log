@@ -341,7 +341,7 @@ describe('calcCupAwards', () => {
     const card = calcCupAwards({ players: [], keepers: [], onoff, days: [] })
       .find(c => c.key === 'goalImpact');
     expect(card).toBeDefined();
-    expect(card.note).toBe('최소 3경기(필드) · 경기당 득점');
+    expect(card.note).toBe('최소 3경기(필드, GK 경기 제외) · 경기당 득점');
     expect(card.rows.map(r => r.name)).toEqual(['g1', 'g2']);
     expect(card.rows[0].display).toBe('+1.50');
     expect(card.rows[0].ratio).toBe(1);
@@ -375,7 +375,7 @@ describe('calcCupAwards', () => {
     };
     const card = calcCupAwards({ players: [], keepers: [], onoff, days: [] })
       .find(c => c.key === 'defImpact');
-    expect(card.note).toBe('최소 3경기(필드) · 경기당 실점');
+    expect(card.note).toBe('최소 3경기(필드, GK 경기 제외) · 경기당 실점');
     expect(card.rows.map(r => r.name)).toEqual(['d1', 'd2']);
     expect(card.rows[0].display).toBe('+2.00');
   });

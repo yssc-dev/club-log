@@ -244,7 +244,7 @@ export function calcCupAwards({
       .filter(p => p.goalImpact !== null && p.goalImpact > 0)
       .sort((a, b) => b.goalImpact - a.goalImpact || b.onGames - a.onGames || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.goalImpact, p => `+${p.goalImpact.toFixed(2)}`, stdRatio(p => p.goalImpact), onOffSub('onGfPg', 'offGfPg'));
-    if (rows.length) cards.push({ key: 'goalImpact', title: '득점관여', note: `최소 ${minOn}경기(필드) · 경기당 득점`, rows });
+    if (rows.length) cards.push({ key: 'goalImpact', title: '득점관여', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 득점`, rows });
   }
 
   // ── 6. 수비관여 — onoff.rated 중 defImpact > 0 ───────────────────────
@@ -253,7 +253,7 @@ export function calcCupAwards({
       .filter(p => p.defImpact !== null && p.defImpact > 0)
       .sort((a, b) => b.defImpact - a.defImpact || b.onGames - a.onGames || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.defImpact, p => `+${p.defImpact.toFixed(2)}`, stdRatio(p => p.defImpact), onOffSub('onGaPg', 'offGaPg'));
-    if (rows.length) cards.push({ key: 'defImpact', title: '수비관여', note: `최소 ${minOn}경기(필드) · 경기당 실점`, rows });
+    if (rows.length) cards.push({ key: 'defImpact', title: '수비관여', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 실점`, rows });
   }
 
   // ── 7. 개근 — days.length >= 2 일 때만 ──────────────────────────────
