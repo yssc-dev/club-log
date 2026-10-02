@@ -98,7 +98,7 @@ describe('CupHeadToHead', () => {
   it('존재하는 pair 는 W-D-L 과 gf:ga', async () => {
     await mount(createElement(CupHeadToHead, { teams, cells }));
     const cell = container.querySelector('[data-role="cup-h2h-cell"][data-row="광땡"][data-col="리즈"]');
-    expect(cell.textContent).toContain('1-1-0');
+    expect(cell.textContent).toContain('1승1무0패');
     expect(cell.textContent).toContain('3:1');
   });
 
@@ -110,7 +110,7 @@ describe('CupHeadToHead', () => {
 
   it('캡션 텍스트 포함', async () => {
     await mount(createElement(CupHeadToHead, { teams, cells }));
-    expect(container.textContent).toContain('행 팀 기준 승-무-패 · 득:실');
+    expect(container.textContent).toContain('행 팀 기준 승무패 · 득:실');
   });
 });
 

@@ -150,7 +150,7 @@ describe('CupDetail 기록 섹션', () => {
     expect(h2hTable).not.toBeNull();
     const h2hCell = container.querySelector('[data-role="cup-h2h-cell"][data-row="팀A"][data-col="팀B"]');
     expect(h2hCell).not.toBeNull();
-    expect(h2hCell.textContent).toContain('1-0-0');
+    expect(h2hCell.textContent).toContain('1승0무0패');
     // 수비력
     expect(container.querySelector('table[data-role="cup-defense"]')).not.toBeNull();
   });

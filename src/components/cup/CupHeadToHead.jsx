@@ -60,7 +60,7 @@ export default function CupHeadToHead({ teams = [], cells = {} }) {
                       data-col={col}
                       style={td}
                     >
-                      <div>{`${pair.wins}-${pair.draws}-${pair.losses}`}</div>
+                      <div>{`${pair.wins}승${pair.draws}무${pair.losses}패`}</div>
                       <div style={{ fontSize: 10, color: C.gray }}>{`${pair.gf}:${pair.ga}`}</div>
                     </td>
                   );
@@ -71,7 +71,7 @@ export default function CupHeadToHead({ teams = [], cells = {} }) {
         </table>
       </div>
       <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>
-        행 팀 기준 승-무-패 · 득:실
+        행 팀 기준 승무패 · 득:실
       </div>
     </div>
   );
