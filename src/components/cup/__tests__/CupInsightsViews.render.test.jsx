@@ -88,13 +88,35 @@ describe('CupAwardsCards', () => {
   it('note 표시', async () => {
     const awards = [
       {
-        key: 'defense', title: '수비력', note: '최소 3경기(필드)',
-        rows: [{ rank: 1, name: '홍길동', value: 0.8, display: '무실점률 80%', ratio: 1 }],
+        key: 'goalImpact', title: '득점관여', note: '최소 3경기(필드) · 경기당 득점',
+        rows: [{ rank: 1, name: '홍길동', value: 1.83, display: '+1.83', ratio: 1 }],
       },
     ];
     await mount(createElement(CupAwardsCards, { awards }));
-    const card = container.querySelector('[data-role="cup-award-card"][data-key="defense"]');
-    expect(card.textContent).toContain('최소 3경기(필드)');
+    const card = container.querySelector('[data-role="cup-award-card"][data-key="goalImpact"]');
+    expect(card.textContent).toContain('최소 3경기(필드) · 경기당 득점');
+  });
+
+  it('row.sub 가 있으면 행 아래 기준값 줄(cup-award-sub) 렌더, 없으면 미렌더', async () => {
+    const awards = [
+      {
+        key: 'goalImpact', title: '득점관여', note: '최소 3경기(필드) · 경기당 득점',
+        rows: [
+          { rank: 1, name: '신관수', value: 1.83, display: '+1.83', ratio: 1, sub: '뛸 때 2.50 · 없을 때 0.67' },
+        ],
+      },
+      {
+        key: 'topScorer', title: '득점왕',
+        rows: [{ rank: 1, name: '홍길동', value: 5, display: '5골', ratio: 1 }],
+      },
+    ];
+    await mount(createElement(CupAwardsCards, { awards }));
+    const impactCard = container.querySelector('[data-role="cup-award-card"][data-key="goalImpact"]');
+    const sub = impactCard.querySelector('[data-role="cup-award-sub"]');
+    expect(sub).not.toBeNull();
+    expect(sub.textContent).toBe('뛸 때 2.50 · 없을 때 0.67');
+    const scorerCard = container.querySelector('[data-role="cup-award-card"][data-key="topScorer"]');
+    expect(scorerCard.querySelector('[data-role="cup-award-sub"]')).toBeNull();
   });
 
   it('개근 카드(rows 없음): names join · value 렌더', async () => {
@@ -241,17 +263,26 @@ describe('CupPlayerRecordsTable 정렬', () => {
 // ─── CupFieldImpactTable ───────────────────────────────────────────────────────
 describe('CupFieldImpactTable', () => {
   const rated = [
-    { name: '김공격', team: '팀A', onGames: 5, offGames: 3, onGfPg: 2.00, onGaPg: 0.50, onCleanSheets: 3, cleanRate: 0.60, goalImpact: 1.50, defImpact: 0.40 },
-    { name: '이미드',  team: '팀B', onGames: 4, offGames: 2, onGfPg: 1.25, onGaPg: 1.00, onCleanSheets: 0, cleanRate: 0.00, goalImpact: -0.95, defImpact: null },
+    { name: '김공격', team: '팀A', onGames: 5, offGames: 3, onGfPg: 2.00, onGaPg: 0.50, offGfPg: 0.50, offGaPg: 0.90, onCleanSheets: 3, cleanRate: 0.60, goalImpact: 1.50, defImpact: 0.40 },
+    { name: '이미드',  team: '팀B', onGames: 4, offGames: 2, onGfPg: 1.25, onGaPg: 1.00, offGfPg: 2.20, offGaPg: null, onCleanSheets: 0, cleanRate: 0.00, goalImpact: -0.95, defImpact: null },
   ];
   const unrated = [
-    { name: '박루키', team: '팀A', onGames: 1, offGames: 0, onGfPg: 1.00, onGaPg: 0.00, onCleanSheets: 1, cleanRate: 1.00, goalImpact: null, defImpact: null },
+    { name: '박루키', team: '팀A', onGames: 1, offGames: 0, onGfPg: 1.00, onGaPg: 0.00, offGfPg: null, offGaPg: null, onCleanSheets: 1, cleanRate: 1.00, goalImpact: null, defImpact: null },
   ];
 
-  it('머리글 8개 순서', async () => {
+  it('머리글 11개 순서 — 득점 묶음·실점 묶음에 기준값(없을 때) 열 포함', async () => {
     await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const ths = [...container.querySelectorAll('thead th')].map((t) => t.textContent.replace(/[▲▼]/g, '').trim());
-    expect(ths).toEqual(['선수', '팀', '출전', '경기당 득점', '경기당 실점', '무실점률', '득점관여', '수비관여']);
+    expect(ths).toEqual(['선수', '팀', '출전', '미출전', '뛸 때 득점', '없을 때 득점', '득점관여', '뛸 때 실점', '없을 때 실점', '수비관여', '무실점률']);
+  });
+
+  it('기준값 셀: 미출전 수·없을 때 득점/실점 toFixed(2), null 이면 —', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    const cells = (name) => [...container.querySelector(`[data-role="cup-field-impact-row"][data-player="${name}"]`).querySelectorAll('td')].map(td => td.textContent.trim());
+    // 열 순서: 선수·팀·출전·미출전·뛸 때 득점·없을 때 득점·득점관여·뛸 때 실점·없을 때 실점·수비관여·무실점률
+    expect(cells('김공격')).toEqual(['김공격', '팀A', '5', '3', '2.00', '0.50', '+1.50', '0.50', '0.90', '+0.40', '60%']);
+    expect(cells('이미드')).toEqual(['이미드', '팀B', '4', '2', '1.25', '2.20', '-0.95', '1.00', '—', '—', '0%']);
+    expect(cells('박루키')).toEqual(['박루키', '팀A', '1', '0', '1.00', '—', '—', '0.00', '—', '—', '100%']);
   });
 
   it('무실점률은 % 표기 (Math.round)', async () => {
@@ -287,8 +318,9 @@ describe('CupFieldImpactTable', () => {
     const help = container.querySelector('[data-role="cup-field-impact-help"]');
     expect(help).not.toBeNull();
     expect(help.textContent).toContain('내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다');
-    expect(help.textContent).toContain('경기당 득점·실점·무실점률');
-    expect(help.textContent).toContain('득점관여 +1.00');
+    expect(help.textContent).toContain('뛸 때·없을 때');
+    expect(help.textContent).toContain('득점관여 = 뛸 때 득점 − 없을 때 득점');
+    expect(help.textContent).toContain('수비관여 = 없을 때 실점 − 뛸 때 실점');
     expect(help.textContent).toContain('경기일이 쌓일수록');
   });
 
@@ -336,7 +368,7 @@ describe('CupFieldImpactTable 정렬', () => {
     const ratedRows = [...container.querySelectorAll('[data-role="cup-field-impact-row"][data-rated="true"]')];
     const pcts = ratedRows.map(r => {
       const tds = r.querySelectorAll('td');
-      return parseInt(tds[5].textContent, 10); // e.g. "67%" → 67
+      return parseInt(tds[10].textContent, 10); // 무실점률은 마지막(11번째) 열, e.g. "67%" → 67
     });
     expect(pcts[0]).toBeGreaterThanOrEqual(pcts[1]);
     expect(pcts[1]).toBeGreaterThanOrEqual(pcts[2]);

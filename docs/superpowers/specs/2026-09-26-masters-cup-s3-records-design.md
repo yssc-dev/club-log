@@ -149,10 +149,10 @@ const ALIASES = {
 
 | 섹션 | 컴포넌트 | 계산 함수 | 정의 |
 |---|---|---|---|
-| 시상 | `CupAwardsCards` | `calcCupAwards` | 상위 3명(동률 포함 최대 5) 막대 랭킹, 카드 8종(득점왕·도움왕·클린시트왕·수문장·수비력·득점관여·수비관여·개근), 수비력·관여는 `calcCupOnOff`(필드 지표와 동일 기준). 개근은 경기일 2일 이상부터. `awards.length === 0`이면 섹션 전체 숨김 |
+| 시상 | `CupAwardsCards` | `calcCupAwards` | 상위 3명(동률 포함 최대 5) 막대 랭킹, 카드 7종(득점왕·도움왕·클린시트왕·수문장·득점관여·수비관여·개근), 관여는 `calcCupOnOff`(필드 지표와 동일 기준). **수비력(무실점률) 카드는 2026-10-02 저녁 제거** — 분석 탭 필드 지표에서 수비관여와 통합돼 중복. 관여 카드 각 행 아래 기준값 줄 `row.sub` = "뛸 때 2.50 · 없을 때 0.67"(득점관여는 경기당 득점, 수비관여는 경기당 실점), note 는 `최소 N경기(필드) · 경기당 득점/실점`. 개근은 경기일 2일 이상부터. `awards.length === 0`이면 섹션 전체 숨김 |
 | 맞대결 전적 | `CupHeadToHead` | `calcCupHeadToHead` | 팀 × 팀 행렬. 행 팀 기준 W-D-L + 득:실. 대각 `·`, 미대결 `-` |
 | 개인기록에 통합 (GK·실점·실점률·클린시트 열) | `CupPlayerRecordsTable` | `mergePlayerKeeperRecords(players, keepers)` | `calcCupKeepers` 결과를 `mergePlayerKeeperRecords` 로 개인기록에 병합. 별도 키퍼 섹션 없음. `CupKeeperTable.jsx` 삭제. |
-| 필드 지표 (수비력·관여 통합) | `CupFieldImpactTable` | `calcCupOnOff({ matchRows, cup })` | `calcCupOnOff` 확장: `onCleanSheets`·`cleanRate` 추가. 열: 선수·팀·출전·경기당 득점·경기당 실점·무실점률·득점관여·수비관여. |
+| 필드 지표 (수비력·관여 통합) | `CupFieldImpactTable` | `calcCupOnOff({ matchRows, cup })` | `calcCupOnOff` 확장: `onCleanSheets`·`cleanRate` 추가. 열(11, 2026-10-02 저녁 기준값 열 추가): 선수·팀·출전·미출전·뛸 때 득점·없을 때 득점·득점관여·뛸 때 실점·없을 때 실점·수비관여·무실점률. |
 
 **개인기록 자책 표기 규칙**: 자책골 셀 = `ownGoals × getCupSettings(teamName).ownGoalPoint`. 마스터FC에서는 −2이므로 자책 1골 → "−2".
 
@@ -184,18 +184,21 @@ const ALIASES = {
 
 **`calcCupFieldDefense` 폐지(2026-10-02)**: 시상 수비력 카드는 `calcCupOnOff.rated`로 대체. 함수 삭제.
 
-**열** (8열, 전부 정렬):
-선수 · 팀(회색 12px) · 출전 · 경기당 득점(onGfPg, toFixed(2)) · 경기당 실점(onGaPg, toFixed(2)) · 무실점률(Math.round(cleanRate×100)+'%') · 득점관여(부호 포함 toFixed(2), null→'—') · 수비관여(동일).
+**열** (11열, 전부 정렬 — 2026-10-02 저녁, "+1.83이 어디서 나왔는지" 보이게 기준값 열 추가·득점 묶음/실점 묶음으로 재배치):
+선수 · 팀(회색 12px) · 출전(onGames) · 미출전(offGames, 회색) · 뛸 때 득점(onGfPg, toFixed(2)) · 없을 때 득점(offGfPg, 회색, null→'—') · 득점관여(부호 포함 toFixed(2), null→'—') · 뛸 때 실점(onGaPg) · 없을 때 실점(offGaPg, 회색, null→'—') · 수비관여(동일) · 무실점률(Math.round(cleanRate×100)+'%').
+정렬 시 null 맨 뒤 규칙은 관여 2열 + 없을 때 2열에 적용.
 
 **data-role**: 표 `cup-field-impact`, 행 `cup-field-impact-row`, 설명 블록 `cup-field-impact-help`.
 
-**설명 블록 문구** (`data-role="cup-field-impact-help"`, 표 위, 스크롤 영역 밖):
-- "내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다(GK로 뛴 경기 제외)."
-- "경기당 득점·실점·무실점률 = 내가 뛸 때 우리 팀의 경기당 득점·실점과 무실점 경기 비율"
-- "득점관여 +1.00 = 내가 뛸 때 팀이 경기당 1골 더 넣음 · 수비관여 +1.50 = 내가 뛸 때 팀이 경기당 1.5골 덜 먹음 (내가 없던 우리 팀 경기와 비교, 둘 다 +가 좋음)"
-- "같은 경기에 함께 뛴 팀원끼리는 값이 비슷하고, 경기일이 쌓일수록 차이가 드러납니다."
+**설명 블록 문구** (`data-role="cup-field-impact-help"`, 표 위, 스크롤 영역 밖, 한 항목에 한 가지):
+- "기준: 내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다(GK로 뛴 경기 제외)"
+- "뛸 때·없을 때: 내가 명단에 있던 우리 팀 경기와 없던 우리 팀 경기의 경기당 득점·실점"
+- "득점관여 = 뛸 때 득점 − 없을 때 득점 (+1.00이면 내가 뛸 때 팀이 경기당 1골 더 넣음)"
+- "수비관여 = 없을 때 실점 − 뛸 때 실점 (+1.50이면 내가 뛸 때 팀이 경기당 1.5골 덜 먹음, 둘 다 +가 좋음)"
+- "무실점률: 내가 뛸 때 우리 팀이 무실점으로 마친 경기 비율"
+- "같은 경기에 함께 뛴 팀원끼리는 값이 비슷하고, 경기일이 쌓일수록 차이가 드러납니다"
 
-**캡션** (표 아래): "기준: 필드 {minOn}경기 이상 출전 · 내가 없던 우리 팀 경기가 없으면 관여는 —"
+**캡션** (표 아래): "기준: 필드 {minOn}경기 이상 출전(미달은 흐리게) · 내가 없던 우리 팀 경기가 없으면 없을 때·관여는 —"
 
 **정렬**: 숫자 열 첫 클릭 내림차순, 선수·팀 첫 클릭 가나다. rated 그룹이 unrated 그룹보다 항상 앞.
 

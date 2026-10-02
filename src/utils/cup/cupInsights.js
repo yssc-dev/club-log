@@ -140,8 +140,10 @@ export function calcCupKeepers({ matchRows = [] }) {
  *   days    = calcCupStandings().days.
  *   topN    = 상위 몇 명 (기본 3). topN 번째와 같은 값(동률)은 최대 5행까지 포함.
  * @returns {Array}
- *   rows 카드: { key, title, note?, rows: [{ rank, name, value, display, ratio }] }
+ *   rows 카드: { key, title, note?, rows: [{ rank, name, value, display, ratio, sub? }] }
+ *     sub = 기준값 한 줄(관여 카드만): "뛸 때 2.50 · 없을 때 0.67" — 차이값이 어디서 나왔는지 보여준다(2026-10-02).
  *   개근 카드: { key, title, names, value }  (rows 없음)
+ *   수비력(무실점률) 카드는 2026-10-02 제거 — 분석 탭 필드 지표에 수비관여와 통합됐다.
  */
 export function calcCupAwards({
   players = [],
@@ -156,8 +158,8 @@ export function calcCupAwards({
 
   // ── 공통 헬퍼 ────────────────────────────────────────────────────────
   // 정렬된 배열에서 상위 topN + 동률(동일 primary 값) 행, 최대 5개.
-  // ratioFn(item, pool) → 0~1.
-  function makeRows(items, keyFn, displayFn, ratioFn) {
+  // ratioFn(item, pool) → 0~1. subFn(item) → 기준값 줄 문자열(없으면 sub 키 생략).
+  function makeRows(items, keyFn, displayFn, ratioFn, subFn) {
     if (!items.length) return [];
     const sliceN = Math.min(topN, items.length);
     const borderVal = keyFn(items[sliceN - 1]);
@@ -171,9 +173,15 @@ export function calcCupAwards({
     return pool.map(item => {
       const v = keyFn(item);
       const rank = pool.findIndex(x => keyFn(x) === v) + 1; // 경쟁 순위(1,1,3)
-      return { rank, name: item.name, value: v, display: displayFn(item), ratio: ratioFn(item, pool) };
+      const row = { rank, name: item.name, value: v, display: displayFn(item), ratio: ratioFn(item, pool) };
+      if (subFn) row.sub = subFn(item);
+      return row;
     });
   }
+
+  // 관여 카드 기준값 줄: "뛸 때 X · 없을 때 Y" (경기당 득점 또는 실점, toFixed 2)
+  const onOffSub = (onKey, offKey) => item =>
+    `뛸 때 ${Number(item[onKey]).toFixed(2)} · 없을 때 ${Number(item[offKey]).toFixed(2)}`;
 
   // 높을수록 좋은 지표 ratio: value / 1위 value (1위가 1)
   const stdRatio = fn => (item, pool) => {
@@ -227,34 +235,28 @@ export function calcCupAwards({
     }
   }
 
-  // ── 5. 수비력 — onoff.rated, cleanRate 내림 ──────────────────────────
-  {
-    const sorted = [...rated]
-      .filter(p => p.cleanRate > 0)
-      .sort((a, b) => b.cleanRate - a.cleanRate || b.onGames - a.onGames || byKo(a.name, b.name));
-    const rows = makeRows(sorted, p => p.cleanRate, p => `무실점률 ${Math.round(p.cleanRate * 100)}%`, stdRatio(p => p.cleanRate));
-    if (rows.length) cards.push({ key: 'defense', title: '수비력', note: `최소 ${minOn}경기(필드)`, rows });
-  }
+  // (수비력 카드 자리 — 2026-10-02 제거. 무실점률은 분석 탭 필드 지표 열로만 남는다.)
 
-  // ── 6. 득점관여 — onoff.rated 중 goalImpact > 0 ──────────────────────
+  // ── 5. 득점관여 — onoff.rated 중 goalImpact > 0 ──────────────────────
+  // goalImpact 가 숫자면 offGfPg 도 숫자(offGames>0)라 sub 의 toFixed 가 안전하다.
   {
     const sorted = [...rated]
       .filter(p => p.goalImpact !== null && p.goalImpact > 0)
       .sort((a, b) => b.goalImpact - a.goalImpact || b.onGames - a.onGames || byKo(a.name, b.name));
-    const rows = makeRows(sorted, p => p.goalImpact, p => `+${p.goalImpact.toFixed(2)}`, stdRatio(p => p.goalImpact));
-    if (rows.length) cards.push({ key: 'goalImpact', title: '득점관여', note: `최소 ${minOn}경기(필드)`, rows });
+    const rows = makeRows(sorted, p => p.goalImpact, p => `+${p.goalImpact.toFixed(2)}`, stdRatio(p => p.goalImpact), onOffSub('onGfPg', 'offGfPg'));
+    if (rows.length) cards.push({ key: 'goalImpact', title: '득점관여', note: `최소 ${minOn}경기(필드) · 경기당 득점`, rows });
   }
 
-  // ── 7. 수비관여 — onoff.rated 중 defImpact > 0 ───────────────────────
+  // ── 6. 수비관여 — onoff.rated 중 defImpact > 0 ───────────────────────
   {
     const sorted = [...rated]
       .filter(p => p.defImpact !== null && p.defImpact > 0)
       .sort((a, b) => b.defImpact - a.defImpact || b.onGames - a.onGames || byKo(a.name, b.name));
-    const rows = makeRows(sorted, p => p.defImpact, p => `+${p.defImpact.toFixed(2)}`, stdRatio(p => p.defImpact));
-    if (rows.length) cards.push({ key: 'defImpact', title: '수비관여', note: `최소 ${minOn}경기(필드)`, rows });
+    const rows = makeRows(sorted, p => p.defImpact, p => `+${p.defImpact.toFixed(2)}`, stdRatio(p => p.defImpact), onOffSub('onGaPg', 'offGaPg'));
+    if (rows.length) cards.push({ key: 'defImpact', title: '수비관여', note: `최소 ${minOn}경기(필드) · 경기당 실점`, rows });
   }
 
-  // ── 8. 개근 — days.length >= 2 일 때만 ──────────────────────────────
+  // ── 7. 개근 — days.length >= 2 일 때만 ──────────────────────────────
   if (days.length >= 2) {
     const totalDays = days.length;
     const names = players.filter(p => p.days === totalDays).map(p => p.name).sort(byKo);
