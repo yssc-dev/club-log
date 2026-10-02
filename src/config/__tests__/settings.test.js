@@ -297,7 +297,7 @@ describe('saveSettings', () => {
 });
 
 describe('getCupSettings (스펙 §4.3)', () => {
-  it('팀 프리셋·오버라이드(자책 -2, 크로바/고구마)는 무시하고 표준 규칙 + shared 시트 설정만 남긴다', () => {
+  it('팀 규칙(자책 -2 등)은 유지하고 크로바/고구마·보너스 배율만 끈다 + shared 시트 설정 (2026-10-02 개정)', () => {
     _setCacheForTest({ '마스터FC': {
       shared: { sheetId: 'SID', attendanceSheet: '참석명단', dashboardSheet: '대시보드', pointLogSheet: '마스터FC 포인트 로그', playerLogSheet: '마스터FC 선수별집계기록 로그' },
       풋살: { preset: '마스터FC풋살', overrides: { ownGoalPoint: -2, useCrovaGoguma: true, bonusMultiplier: 2 } },
@@ -305,9 +305,12 @@ describe('getCupSettings (스펙 §4.3)', () => {
     const s = getCupSettings('마스터FC');
     expect(s.sheetId).toBe('SID');
     expect(s.pointLogSheet).toBe('마스터FC 포인트 로그');
-    expect(s.ownGoalPoint).toBe(SPORT_DEFAULTS.풋살.ownGoalPoint);
+    expect(s.ownGoalPoint).toBe(-2);                 // 팀 규칙 유지(컵도 자책 -2)
     expect(s.useCrovaGoguma).toBe(false);
+    expect(s.crovaPoint).toBe(0);
+    expect(s.gogumaPoint).toBe(0);
     expect(s.bonusMultiplier).toBe(1);
+    expect(SPORT_DEFAULTS.풋살.ownGoalPoint).toBe(-1);  // 표준값과 다름을 명시
     expect(s._meta).toBeUndefined();
   });
 });

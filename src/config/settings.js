@@ -250,9 +250,12 @@ export function getEffectiveSettings(team, sport) {
 // 컵 세션 규칙 스냅샷(스펙 §4.3): getEffectiveSettings 를 거쳐 캐시 하이드레이션·shared(sheetId·시트명)를 받고,
 // 규칙 키는 SPORT_DEFAULTS.풋살 로 되돌린다(팀 프리셋·오버라이드 미적용: 자책 -1, 크로바/고구마 꺼짐, 보너스 1배).
 // 새 프리셋·설정 키를 만들지 않는다.
+// 컵(마스터스컵) 규칙 스냅샷: 팀의 풋살 규칙(마스터FC 자책 -2 등)을 그대로 쓰되 크로바/고구마·보너스 배율만 끈다.
+// (2026-10-02 개정 — 처음엔 표준 규칙(자책 -1)으로 되돌렸으나 실제 운영 규칙은 자책 -2.)
+const CUP_RULE_OVERRIDES = { useCrovaGoguma: false, crovaPoint: 0, gogumaPoint: 0, bonusMultiplier: 1 };
 export function getCupSettings(team) {
   const { _meta, ...eff } = getEffectiveSettings(team, "풋살");
-  return { ...eff, ...SPORT_DEFAULTS.풋살 };
+  return { ...eff, ...CUP_RULE_OVERRIDES };
 }
 
 export function getSportDefault(sport, key) {
