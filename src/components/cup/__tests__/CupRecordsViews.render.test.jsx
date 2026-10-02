@@ -39,6 +39,13 @@ describe('CupStandingsTable', () => {
     expect(rows[1].textContent).toContain('(미등록)');
     expect(container.textContent).not.toContain('우승');
   });
+  it('팀장이 있으면 팀 칸에 성을 뺀 두 글자로 "국뽕(강국)" 처럼 붙는다', async () => {
+    await mount(createElement(CupStandingsTable, { standings: [
+      S({ name: '국뽕', captain: '이강국' }), S({ name: '나와', captain: '강국', total: 5 }), S({ name: '리즈', captain: '', total: 4 }),
+    ], finished: false }));
+    const cells = [...container.querySelectorAll('tr[data-role="cup-standing-row"]')].map(r => r.querySelectorAll('td')[1].textContent.replace(/\s+/g, ''));
+    expect(cells).toEqual(['국뽕(강국)', '나와(강국)', '리즈']);
+  });
   it('finished 면 1위에 🏆 우승', async () => {
     await mount(createElement(CupStandingsTable, { standings: [S()], finished: true }));
     expect(container.querySelector('tr[data-role="cup-standing-row"]').textContent).toContain('🏆 우승');

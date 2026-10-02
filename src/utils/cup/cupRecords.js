@@ -43,14 +43,14 @@ function membersOf(json) {
   return [...new Set(players.map(nameOf).filter(Boolean))];
 }
 
-// 대회 엔티티 → Map<팀 키, { name: 표시 팀명, players: Set<정규화 선수명> }>. RTDB 빈 배열 누락 방어.
+// 대회 엔티티 → Map<팀 키, { name: 표시 팀명, captain: 팀장(없으면 ''), players: Set<정규화 선수명> }>. RTDB 빈 배열 누락 방어.
 function rosterOf(cup) {
   const out = new Map();
   for (const t of cup?.teams || []) {
     const name = teamOf(t?.name);
     const key = teamKeyOf(name);
     if (!key) continue;
-    if (!out.has(key)) out.set(key, { name, players: new Set() });
+    if (!out.has(key)) out.set(key, { name, captain: nameOf(t?.captain), players: new Set() });
     for (const p of t?.players || []) { const n = nameOf(p); if (n) out.get(key).players.add(n); }
   }
   return out;
@@ -82,8 +82,8 @@ export function collectPlayedPairs(matchRows, cupId) {
   return out;
 }
 
-function newTeamStat(name, registered) {
-  return { name, registered, games: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, points: 0, bonusAttend: 0, bonus: 0, total: 0 };
+function newTeamStat(name, registered, captain = '') {
+  return { name, registered, captain, games: 0, wins: 0, draws: 0, losses: 0, gf: 0, ga: 0, gd: 0, points: 0, bonusAttend: 0, bonus: 0, total: 0 };
 }
 function newDayTeam(registered) {
   return { registered, present: 0, guests: [], bonusAttend: 0, points: 0 };
@@ -102,7 +102,7 @@ export function calcCupStandings({ matchRows = [], cup }) {
   const displayOf = (key, fallback) => { if (!display.has(key)) display.set(key, fallback); return display.get(key); };
   const stats = new Map();
   const ensure = (key, fallbackName) => {
-    if (!stats.has(key)) stats.set(key, newTeamStat(displayOf(key, fallbackName), roster.has(key)));
+    if (!stats.has(key)) stats.set(key, newTeamStat(displayOf(key, fallbackName), roster.has(key), roster.get(key)?.captain || ''));
     return stats.get(key);
   };
   for (const [key, v] of roster) ensure(key, v.name);

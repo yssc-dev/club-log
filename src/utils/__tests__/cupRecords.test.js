@@ -316,6 +316,16 @@ describe('팀명 "팀" 접두어 무시 매칭 (2026-10-02 실데이터: 세션 
     const list = calcCupPlayerRecords({ matchRows: sel.matchRows, eventRows: sel.eventRows, cup: CUP_BARE });
     expect(list.find(r => r.name === 'a2')).toMatchObject({ team: 'A', guest: false, goals: 1 });
   });
+  it('순위표 행에 엔티티 팀장(captain)이 실린다 — 미등록 팀·팀장 없음은 빈 문자열', () => {
+    const withCap = { meta: { id: 'CUP' }, teams: [
+      { id: 't1', name: 'A', captain: '이강국', players: A7, order: 0 },
+      { id: 't2', name: 'B', captain: '', players: B6, order: 1 },
+    ] };
+    const { standings } = calcCupStandings({ matchRows: selectCupRows({ matchRows: [M({ our_team_name: '팀A', opponent_team_name: '팀X', our_score: 1, opponent_score: 0 })], eventRows: [], cupId: 'CUP' }).matchRows, cup: withCap });
+    expect(row(standings, 'A').captain).toBe('이강국');
+    expect(row(standings, 'B').captain).toBe('');
+    expect(row(standings, '팀X')).toMatchObject({ registered: false, captain: '' });
+  });
   it('collectPlayedPairs 키도 접두어 무시', () => {
     const pairs = collectPlayedPairs([M(), M({ our_team_name: 'B', opponent_team_name: 'A', match_id: 'R2_C0' })], 'CUP');
     expect([...pairs]).toEqual(['A|B']);

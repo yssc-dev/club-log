@@ -10,6 +10,8 @@ export default function CupStandingsTable({ standings = [], finished = false }) 
   const th = { padding: "6px 4px", fontSize: 11, color: C.gray, fontWeight: 600, textAlign: "center", whiteSpace: "nowrap" };
   const td = (bold = false) => ({ padding: "6px 4px", fontSize: 13, color: C.white, textAlign: "center", fontWeight: bold ? 700 : 400, whiteSpace: "nowrap", verticalAlign: "top" });
   const gdText = (gd) => (gd > 0 ? `+${gd}` : String(gd));
+  // 팀장 표기 "국뽕(강국)" — 성을 뺀 두 글자(3자 이상이면 뒤 2자, 그 외 그대로). 정규 세션의 makeTeamName 과 같은 관례.
+  const givenName = (n) => (n.length >= 3 ? n.slice(-2) : n);
   return (
     <div style={{ overflowX: "auto" }}>
       <table data-role="cup-standings" style={{ width: "100%", borderCollapse: "collapse" }}>
@@ -23,6 +25,7 @@ export default function CupStandingsTable({ standings = [], finished = false }) 
                 <td style={td(first)}>{i + 1}</td>
                 <td style={{ ...td(first), textAlign: "left" }}>
                   {s.name}
+                  {s.captain && <span style={{ fontSize: 11, color: C.gray }}>({givenName(s.captain)})</span>}
                   {!s.registered && <span style={{ fontSize: 11, color: C.gray }}> (미등록)</span>}
                   {first && finished && <span style={{ marginLeft: 4, fontSize: 12 }}>🏆 우승</span>}
                 </td>
