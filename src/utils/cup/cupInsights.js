@@ -269,3 +269,185 @@ export function calcCupAwards({ players = [], keepers = [], defense = { minGames
 
   return cards;
 }
+
+/**
+ * 득점·수비 관여 (On/Off) 통계.
+ *
+ * "내가 필드로 명단에 있을 때 우리 팀의 경기당 득점·실점" vs
+ * "내가 명단에 없을 때 우리 팀의 경기당 득점·실점" 의 차이.
+ *
+ * GK 미기록 사이드(gk 빈 값): calcCupFieldDefense 와 달리 해당 사이드를 건너뛰지 않고
+ * 전원 필드로 취급해 집계한다 — 득점·실점 자체는 유효하기 때문.
+ *
+ * @param {{ matchRows?: Array, cup?: object }} params
+ * @returns {{ minOn: number, minOff: number, rated: Array, unrated: Array }}
+ * 각 항목: { name, team, onGames, offGames, onGfPg, onGaPg, offGfPg, offGaPg, goalImpact, defImpact }
+ * 정렬: (goalImpact ?? -Inf) + (defImpact ?? -Inf) 내림 → onGames 내림 → name ko (null 은 맨 뒤).
+ */
+export function calcCupOnOff({ matchRows = [], cup } = {}) {
+  const { displayOf } = buildTeamDisplay(matchRows, cup);
+
+  // 엔티티 팀 키 집합 — primary 팀 동률 시 엔티티 우선
+  const entityKeySet = new Set();
+  for (const t of (cup?.teams || [])) {
+    const key = teamKeyOf(normalizeTeamName(t?.name ?? ''));
+    if (key) entityKeySet.add(key);
+  }
+
+  // ── 1단계: 선수별·팀별 필드 출전 횟수 (primary 팀 결정용) ──────────
+  // GK 로 뛴 경기는 필드 횟수에서 제외.
+  const fieldCountMap = new Map(); // playerName → Map<teamKey, count>
+
+  const accFieldCount = (membersJson, gkRaw, teamName) => {
+    const teamKey = teamKeyOf(teamName);
+    if (!teamKey) return;
+    const gk = nameOf(gkRaw);
+    const { actual } = parseMembersWithAbsent(membersJson);
+    for (const raw of actual) {
+      const name = nameOf(raw);
+      if (!name) continue;
+      if (gk && name === gk) continue; // GK 출전은 필드 횟수에서 제외
+      if (!fieldCountMap.has(name)) fieldCountMap.set(name, new Map());
+      const m = fieldCountMap.get(name);
+      m.set(teamKey, (m.get(teamKey) || 0) + 1);
+    }
+  };
+
+  for (const r of matchRows || []) {
+    if (!r) continue;
+    accFieldCount(r.our_members_json, r.our_gk, r.our_team_name);
+    accFieldCount(r.opponent_members_json, r.opponent_gk, r.opponent_team_name);
+  }
+
+  if (fieldCountMap.size === 0) return { minOn: 0, minOff: 2, rated: [], unrated: [] };
+
+  // ── 2단계: primary 팀 결정 ────────────────────────────────────────────
+  // 동률 → 엔티티 팀 우선 → 표시명 ko 오름 순 첫 번째
+  const primaryKeyOf = new Map(); // playerName → teamKey
+
+  for (const [name, teamCounts] of fieldCountMap) {
+    const maxCount = Math.max(...teamCounts.values());
+    let candidates = [...teamCounts.entries()]
+      .filter(([, c]) => c === maxCount)
+      .map(([k]) => k);
+
+    let chosen;
+    if (candidates.length === 1) {
+      chosen = candidates[0];
+    } else {
+      const entityCands = candidates.filter(k => entityKeySet.has(k));
+      const pool = entityCands.length > 0 ? entityCands : candidates;
+      // displayOf 는 teamKey 를 raw 로 받아도 teamKeyOf 가 멱등이라 정상 동작
+      pool.sort((a, b) => byKo(displayOf(a), displayOf(b)));
+      chosen = pool[0];
+    }
+    primaryKeyOf.set(name, chosen);
+  }
+
+  // ── 3단계: teamKey → 해당 팀을 primary 로 하는 선수 집합 ─────────────
+  const teamToPlayers = new Map(); // teamKey → Set<name>
+  for (const [name, tKey] of primaryKeyOf) {
+    if (!teamToPlayers.has(tKey)) teamToPlayers.set(tKey, new Set());
+    teamToPlayers.get(tKey).add(name);
+  }
+
+  // ── 4단계: 경기 사이드별 on/off/GK 분류 ─────────────────────────────
+
+  // 선수별 GK를 선 경기(matchRow 레퍼런스) Set — 양쪽 사이드 모두 수집.
+  // 이 Set에 해당 경기 행이 있으면 어느 사이드 처리 시에도 on/off 집계에서 제외한다.
+  const gkGamesOf = new Map(); // playerName → Set<matchRow>
+
+  for (const r of matchRows || []) {
+    if (!r) continue;
+    for (const gkRaw of [r.our_gk, r.opponent_gk]) {
+      const gk = nameOf(gkRaw);
+      if (!gk) continue;
+      if (!gkGamesOf.has(gk)) gkGamesOf.set(gk, new Set());
+      gkGamesOf.get(gk).add(r);
+    }
+  }
+
+  const statsMap = new Map(); // playerName → { onGames,offGames,onGf,onGa,offGf,offGa }
+
+  const ensureStat = name => {
+    if (!statsMap.has(name)) {
+      statsMap.set(name, { onGames: 0, offGames: 0, onGf: 0, onGa: 0, offGf: 0, offGa: 0 });
+    }
+    return statsMap.get(name);
+  };
+
+  // r: 행 레퍼런스 — gkGamesOf 조회에 사용
+  const processSide = (r, teamName, membersJson, gf, ga) => {
+    const teamKey = teamKeyOf(teamName);
+    if (!teamKey) return;
+    const players = teamToPlayers.get(teamKey);
+    if (!players || players.size === 0) return;
+
+    const { actual } = parseMembersWithAbsent(membersJson);
+    // GK 빈 값이면 전원 필드 취급 (set 에 포함)
+    const actualSet = new Set(actual.map(nameOf).filter(Boolean));
+
+    for (const name of players) {
+      // 양쪽 사이드 GK 포함 — 이 경기에서 어느 팀이든 GK로 뛴 경기는 제외
+      if (gkGamesOf.get(name)?.has(r)) continue;
+      const s = ensureStat(name);
+      if (actualSet.has(name)) {
+        s.onGames++; s.onGf += gf; s.onGa += ga;
+      } else {
+        s.offGames++; s.offGf += gf; s.offGa += ga;
+      }
+    }
+  };
+
+  for (const r of matchRows || []) {
+    if (!r) continue;
+    processSide(r, r.our_team_name, r.our_members_json, num(r.our_score), num(r.opponent_score));
+    processSide(r, r.opponent_team_name, r.opponent_members_json, num(r.opponent_score), num(r.our_score));
+  }
+
+  // ── 5단계: 지표 계산, onGames=0 제외 ─────────────────────────────────
+  const entries = [];
+
+  for (const [name, tKey] of primaryKeyOf) {
+    const s = statsMap.get(name);
+    if (!s || s.onGames === 0) continue;
+
+    const onGfPg  = Number((s.onGf  / s.onGames).toFixed(2));
+    const onGaPg  = Number((s.onGa  / s.onGames).toFixed(2));
+    const offGfPg = s.offGames > 0 ? Number((s.offGf / s.offGames).toFixed(2)) : null;
+    const offGaPg = s.offGames > 0 ? Number((s.offGa / s.offGames).toFixed(2)) : null;
+    const goalImpact = offGfPg !== null ? Number((onGfPg - offGfPg).toFixed(2)) : null;
+    const defImpact  = offGaPg !== null ? Number((offGaPg - onGaPg).toFixed(2)) : null;
+
+    entries.push({
+      name,
+      team: displayOf(tKey),
+      onGames:  s.onGames,
+      offGames: s.offGames,
+      onGfPg, onGaPg, offGfPg, offGaPg,
+      goalImpact, defImpact,
+    });
+  }
+
+  if (entries.length === 0) return { minOn: 0, minOff: 2, rated: [], unrated: [] };
+
+  // ── 6단계: minOn(동적), minOff=2, rated/unrated 분리 ─────────────────
+  const maxOnGames = Math.max(...entries.map(e => e.onGames));
+  const minOn  = dynamicMin(maxOnGames);
+  const minOff = 2;
+
+  // 정렬: (goalImpact ?? -Inf) + (defImpact ?? -Inf) 내림 → onGames 내림 → name ko
+  // null 이 하나라도 있으면 합이 -Infinity 가 되어 맨 뒤로.
+  const sortFn = (a, b) => {
+    const sumA = (a.goalImpact ?? -Infinity) + (a.defImpact ?? -Infinity);
+    const sumB = (b.goalImpact ?? -Infinity) + (b.defImpact ?? -Infinity);
+    if (sumB !== sumA) return sumB - sumA;
+    if (b.onGames !== a.onGames) return b.onGames - a.onGames;
+    return byKo(a.name, b.name);
+  };
+
+  const rated   = entries.filter(e => e.onGames >= minOn  && e.offGames >= minOff).sort(sortFn);
+  const unrated = entries.filter(e => !(e.onGames >= minOn && e.offGames >= minOff)).sort(sortFn);
+
+  return { minOn, minOff, rated, unrated };
+}

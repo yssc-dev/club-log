@@ -131,9 +131,11 @@ describe('CupListTab 실렌더', () => {
     h.cups = [cup('잠김', { lockedAt: 5 }), cup('열림')];
     await mount();
     await click(btn('잠김'));
+    await click(container.querySelector('[data-tab="teams"]'));
     expect(btn('대회 삭제').disabled).toBe(true);
     await click(btn('← 대회 목록'));
     await click(btn('열림'));
+    await click(container.querySelector('[data-tab="teams"]'));
     await click(btn('대회 삭제'));
     expect(h.deleted).toEqual(['열림']);
     expect(container.textContent).not.toContain('팀 관리');
@@ -143,6 +145,7 @@ describe('CupListTab 실렌더', () => {
     h.cups = [cup('컵2026')];
     await mount({ pendingGames: [{ gameId: 'g_1', state: { tournamentId: '컵2026', phase: 'match', schedule: [{}], currentRoundIdx: 0, attendees: ['a1'] } }] });
     await click(btn('컵2026'));
+    await click(container.querySelector('[data-tab="teams"]'));
     expect(btn('대회 삭제').disabled).toBe(true);
     await click(btn('대회 삭제'));
     expect(h.deleted).toEqual([]);
@@ -152,6 +155,7 @@ describe('CupListTab 실렌더', () => {
     h.cups = [cup('컵2026')];
     await mount({ pendingGames: [{ gameId: 'g_1', state: { tournamentId: '다른컵', phase: 'match', schedule: [{}], currentRoundIdx: 0, attendees: ['a1'] } }] });
     await click(btn('컵2026'));
+    await click(container.querySelector('[data-tab="teams"]'));
     expect(btn('대회 삭제').disabled).toBe(false);
     await click(btn('대회 삭제'));
     expect(h.deleted).toEqual(['컵2026']);
@@ -162,9 +166,12 @@ describe('CupListTab 실렌더', () => {
     await mount({ isAdmin: false });
     expect(btn('+ 새 대회')).toBeUndefined();
     await click(btn('컵2026'));
+    // 시작·삭제·저장은 대시보드/팀 관리 탭에서도 없음
     expect(btn('오늘 컵 경기 시작')).toBeUndefined();
-    expect(btn('대회 삭제')).toBeUndefined();
     expect(btn('저장')).toBeUndefined();
+    // 팀 관리 탭으로 전환
+    await click(container.querySelector('[data-tab="teams"]'));
+    expect(btn('대회 삭제')).toBeUndefined();
     // 비관리자: 팀 편집 버튼 없음, team-summary 3개 표시
     expect(btn('팀 편집')).toBeUndefined();
     expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
@@ -193,6 +200,8 @@ describe('CupListTab 실렌더', () => {
     h.cups = [cup('컵2026', {}, T3_CAP)];
     await mount();
     await click(btn('컵2026'));
+    // 팀 관리 탭으로 전환
+    await click(container.querySelector('[data-tab="teams"]'));
     // 기본: 요약 카드 3개, 팀명 입력 없음
     expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
     expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(0);
@@ -214,6 +223,8 @@ describe('CupListTab 실렌더', () => {
     h.cups = [cup('컵2026')];
     await mount();
     await click(btn('컵2026'));
+    // 팀 관리 탭으로 전환
+    await click(container.querySelector('[data-tab="teams"]'));
     // 요약 상태 확인
     expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
     expect(container.querySelectorAll('input[data-role="team-name"]')).toHaveLength(0);
@@ -237,6 +248,8 @@ describe('CupListTab 실렌더', () => {
     h.cups = [cup('잠긴컵', { lockedAt: 5 })];
     await mount();
     await click(btn('잠긴컵'));
+    // 팀 관리 탭으로 전환
+    await click(container.querySelector('[data-tab="teams"]'));
     // 요약 표시
     expect(container.querySelectorAll('[data-role="team-summary"]')).toHaveLength(3);
     // 🔒 문구

@@ -145,7 +145,7 @@ const ALIASES = {
 
 ### 5.1 컵 전용 지표 (2026-10-02)
 
-섹션 순서 갱신: 순위표 → **시상** → 개인기록 → **맞대결 전적** → **키퍼** → **수비력 (필드)** → 경기일별 결과 → 팀 관리.
+섹션 순서 갱신: §5.2 참조.
 
 | 섹션 | 컴포넌트 | 계산 함수 | 정의 |
 |---|---|---|---|
@@ -155,6 +155,36 @@ const ALIASES = {
 | 수비력 (필드) | `CupDefenseTable` | `calcCupFieldDefense` | 실제 출전(휴식 제외, `parseMembersWithAbsent().actual`)·GK 제외·GK 미기록 사이드 제외. 기준: `dynamicMin(최다경기, 0.3)` 이상(30%). 열: 선수·경기·실점·경기당 실점·무실점률 |
 
 불변식: `records.status === 'ok' && computed.hasMatches`일 때만 네 섹션 모두 렌더 대상. `calcCupAwards`에서 수상자가 없으면 시상 섹션은 추가로 숨김.
+
+### 5.2 탭 구성 (2026-10-02)
+
+| 탭 | 섹션 순서 |
+|---|---|
+| 대시보드 | pendingCup 배너 → 시작 버튼(관리자) → 순위표 (누적) → 시상(recordsOk) → 경기일별 결과(recordsOk) |
+| 분석 | 개인기록 → 맞대결 전적 → 키퍼 → 수비력 (필드) → 득점·수비 관여 |
+| 팀 관리 | 팀 요약 목록 / 편집기 토글 → 잠금 안내 → 팀 편집 버튼(관리자) → 대회 종료/다시 열기 + 대회 삭제(관리자) |
+
+초기 탭: `isAdmin && teams.length === 0` → `'teams'`, 그 외 → `'dashboard'`. 탭 state는 로컬 useState — useBackNavigation 불필요.
+
+분석 탭은 `records.status !== 'ok' || !hasMatches`이면 로딩/에러/빈 상태만 표시.
+
+### 5.3 득점·수비 관여 (2026-10-02)
+
+**정의 (`calcCupOnOff`)**: 선수가 **필드로 뛴** 경기(출전, on)와 **필드에 없던** 경기(미출전, off)의 팀 득점/실점 차이로 영향력을 측정한다. GK로 뛴 경기는 on·off 양쪽에서 제외한다.
+
+- `goalImpact = onGfPg − offGfPg`: 경기당 팀 득점, on vs off 차이. 양수 = 출전 시 팀이 더 많이 득점.
+- `defImpact = offGaPg − onGaPg`: 경기당 팀 실점, off vs on 차이. 양수 = 출전 시 팀이 더 적게 실점.
+- `offGames === 0`이면 두 값 모두 `null`(표 '—'). `offGames < minOff(=2)`이면 값은 계산하되 unrated(미출전 표본 부족, 흐리게).
+- GK 제외는 양쪽 사이드 기준: 그 경기에서 어느 팀의 GK로든 뛰었으면 primary 팀의 on·off 어디에도 넣지 않는다(상대 팀 GK로 뛴 경기가 '미출전'으로 잡히는 것을 막는다).
+- `onGames === 0`인 선수는 목록에서 제외.
+
+**rated/unrated 분리**: `onGames >= minOn && offGames >= minOff` → rated. `minOn`은 `dynamicMin(최다 출전수)` 동적 계산.
+
+**한계**: 같은 경기일 같은 명단인 팀원은 값이 같다. 경기일이 쌓일수록 명단 변동에 따라 값이 갈라진다. GK로만 뛴 경기일이 많으면 표본이 줄어든다.
+
+**열**: 선수 · 팀 · 출전 · 미출전 · 득점관여 · 수비관여.
+
+**정렬**: SortHeader — 숫자 열 첫 클릭 내림차순, 선수·팀 첫 클릭 가나다. rated 그룹이 unrated 그룹보다 항상 앞.
 
 ## 6. 파일별 변경 범위
 

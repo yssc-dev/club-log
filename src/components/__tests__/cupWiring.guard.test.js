@@ -180,13 +180,49 @@ describe('CupDetail.jsx — 컵 전용 지표 배선 (2026-10-02 스펙 §5.1)',
     expect(src).toMatch(/import CupDefenseTable from '\.\/CupDefenseTable'/);
     expect(src).toMatch(/from '\.\.\/\.\.\/utils\/cup\/cupInsights'/);
   });
-  it('섹션 제목이 스펙 순서대로 등장한다', () => {
-    const titles = ['순위표', '시상', '개인기록', '맞대결 전적', '키퍼', '수비력', '경기일별 결과', '팀 관리'];
+  it('CupOnOffTable 컴포넌트와 calcCupOnOff 를 import 한다', () => {
+    expect(src).toMatch(/import CupOnOffTable from '\.\/CupOnOffTable'/);
+    expect(src).toMatch(/calcCupOnOff/);
+  });
+  it('탭 버튼 3개가 존재한다(data-tab="dashboard"/"analysis"/"teams")', () => {
+    expect(src).toMatch(/data-tab="dashboard"/);
+    expect(src).toMatch(/data-tab="analysis"/);
+    expect(src).toMatch(/data-tab="teams"/);
+  });
+  it('대시보드 탭 섹션 제목이 순서대로 등장한다', () => {
+    // 대시보드 탭: 순위표 → 시상 → 경기일별 결과
+    const dashTitles = ['순위표', '시상', '경기일별 결과'];
     let pos = 0;
-    for (const t of titles) {
+    for (const t of dashTitles) {
       const idx = src.indexOf(t, pos);
       expect(idx, `"${t}" not found after pos ${pos}`).toBeGreaterThan(-1);
       pos = idx + 1;
+    }
+  });
+  it('분석 탭 섹션 제목이 순서대로 등장한다', () => {
+    // 분석 탭: 개인기록 → 맞대결 전적 → 키퍼 → 수비력 → 득점·수비 관여
+    const analysisTitles = ['개인기록', '맞대결 전적', '키퍼', '수비력', '득점·수비 관여'];
+    let pos = 0;
+    for (const t of analysisTitles) {
+      const idx = src.indexOf(t, pos);
+      expect(idx, `"${t}" not found after pos ${pos}`).toBeGreaterThan(-1);
+      pos = idx + 1;
+    }
+  });
+  it('대시보드 섹션이 분석 섹션보다 앞에 등장한다', () => {
+    // {/* 분석 탭 */} 구분자를 기준으로 대시보드/분석 영역을 분리한다.
+    const analysisSep = src.indexOf('{/* 분석 탭 */}');
+    expect(analysisSep, '{/* 분석 탭 */} comment not found').toBeGreaterThan(-1);
+    // 대시보드 섹션 제목들은 분석 탭 구분자 이전에
+    for (const t of ['순위표 (누적)', '시상', '경기일별 결과']) {
+      const idx = src.indexOf(t);
+      expect(idx, `"${t}" not found before analysis tab`).toBeGreaterThan(-1);
+      expect(idx, `"${t}" should be before analysis tab separator`).toBeLessThan(analysisSep);
+    }
+    // 분석 섹션 제목들은 분석 탭 구분자 이후에
+    for (const t of ['개인기록', '맞대결 전적', '키퍼', '수비력 (필드)', '득점·수비 관여']) {
+      const idx = src.indexOf(t, analysisSep);
+      expect(idx, `"${t}" not found after analysis tab`).toBeGreaterThan(-1);
     }
   });
 });

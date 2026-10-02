@@ -6,6 +6,7 @@ import {
   calcCupKeepers,
   calcCupFieldDefense,
   calcCupAwards,
+  calcCupOnOff,
 } from '../cup/cupInsights';
 
 // ── 공통 픽스처 ──────────────────────────────────────────────────────
@@ -447,5 +448,325 @@ describe('calcCupAwards', () => {
   it('빈 입력 → 카드 없음', () => {
     const cards = calcCupAwards({ players: [], keepers: [], defense: DEFENSE(), days: [] });
     expect(cards).toHaveLength(0);
+  });
+});
+
+// ── calcCupOnOff ─────────────────────────────────────────────────────
+// 공통 헬퍼: 팀 A 단독(GK=gk, 필드=field members, 스코어=hs:as)
+const OO = (over = {}) => ({
+  tournament_id: 'CUP', date: '2026-10-01', game_id: 'g1', match_idx: 1,
+  our_team_name: '팀A', opponent_team_name: '팀B',
+  our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3', 'p4']),
+  opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2', 'q3', 'q4']),
+  our_score: 1, opponent_score: 0,
+  our_gk: 'gkA', opponent_gk: 'gkB',
+  is_extra: false, ...over,
+});
+
+const CUP_OO = {
+  meta: { id: 'CUP', name: 'CUP', sport: '풋살', status: 'active', createdAt: 1, createdBy: '', updatedAt: 1, lockedAt: null },
+  teams: [
+    { id: 't1', name: '팀A', captain: '', players: ['gkA', 'p1', 'p2', 'p3', 'p4'], order: 0 },
+    { id: 't2', name: '팀B', captain: '', players: ['gkB', 'q1', 'q2', 'q3', 'q4'], order: 1 },
+  ],
+};
+
+describe('calcCupOnOff', () => {
+  // 1. 기본: 출전 2경기, 미출전 1경기 → 지표 계산
+  it('기본 — on 2경기(2:0, 1:1), off 1경기(0:3) → onGfPg=1.5, defImpact=2.5', () => {
+    const rows = [
+      OO({ match_idx: 1, our_score: 2, opponent_score: 0,
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3', 'p4']) }),
+      OO({ match_idx: 2, our_score: 1, opponent_score: 1,
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3', 'p4']) }),
+      OO({ match_idx: 3, our_score: 0, opponent_score: 3,
+           our_members_json: JSON.stringify(['gkA', 'p2', 'p3', 'p4']) }), // p1 off
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1).toBeDefined();
+    expect(p1.onGames).toBe(2);
+    expect(p1.offGames).toBe(1);
+    expect(p1.onGfPg).toBe(1.5);
+    expect(p1.onGaPg).toBe(0.5);
+    expect(p1.offGfPg).toBe(0);
+    expect(p1.offGaPg).toBe(3);
+    expect(p1.goalImpact).toBe(1.5);
+    expect(p1.defImpact).toBe(2.5);
+  });
+
+  // 2. GK 경기는 on/off 어디에도 포함되지 않음
+  it('GK 경기는 on/off 양쪽 모두 제외', () => {
+    // p1 이 GK 인 경기 1개, 필드 출전 2개 → onGames=2, offGames=0
+    const rows = [
+      OO({ match_idx: 1, our_gk: 'p1',
+           our_members_json: JSON.stringify(['p1', 'p2', 'p3', 'p4', 'p5']) }), // p1=GK
+      OO({ match_idx: 2, our_gk: 'gkA',
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3', 'p4']) }), // p1 field on
+      OO({ match_idx: 3, our_gk: 'gkA',
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3', 'p4']) }), // p1 field on
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1).toBeDefined();
+    expect(p1.onGames).toBe(2); // GK 경기 제외
+    expect(p1.offGames).toBe(0);
+    expect(p1.goalImpact).toBeNull();
+    expect(p1.defImpact).toBeNull();
+  });
+
+  // 3. offGames < 2 → impact 는 숫자지만 unrated
+  it('offGames=1 → impact 계산되지만 unrated', () => {
+    const rows = [
+      OO({ match_idx: 1, our_score: 2, opponent_score: 0,
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3']) }),
+      OO({ match_idx: 2, our_score: 1, opponent_score: 2,
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3']) }),
+      OO({ match_idx: 3, our_score: 0, opponent_score: 1,
+           our_members_json: JSON.stringify(['gkA', 'p2', 'p3']) }), // p1 off (1회)
+    ];
+    const { minOff, rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    expect(minOff).toBe(2);
+    const p1r = rated.find(e => e.name === 'p1');
+    const p1u = unrated.find(e => e.name === 'p1');
+    expect(p1r).toBeUndefined();       // rated 에 없음
+    expect(p1u).toBeDefined();         // unrated
+    expect(p1u.offGames).toBe(1);
+    expect(typeof p1u.goalImpact).toBe('number'); // impact 는 숫자
+    expect(typeof p1u.defImpact).toBe('number');
+  });
+
+  // 4. onGames < minOn → unrated
+  it('onGames < dynamicMin → unrated', () => {
+    // 상대 명단을 비워 팀B 선수 집계를 배제 → maxOnGames 는 팀A만 결정
+    // p2: bigRows 5경기 on → onGames=5, dynamicMin(5)=2, minOn=2
+    // p1: 1경기 on, 2경기 off → onGames=1 < 2 → unrated
+    const bigRows = Array.from({ length: 5 }, (_, i) =>
+      OO({ match_idx: i + 1, our_score: 1, opponent_score: 0,
+           our_members_json: JSON.stringify(['gkA', 'p2']),
+           opponent_members_json: JSON.stringify([]) }) // 팀B 선수 배제
+    );
+    const p1Rows = [
+      OO({ match_idx: 6, our_score: 1, opponent_score: 1,
+           our_members_json: JSON.stringify(['gkA', 'p1']),
+           opponent_members_json: JSON.stringify([]) }), // p1 on (1)
+      OO({ match_idx: 7, our_score: 0, opponent_score: 1,
+           our_members_json: JSON.stringify(['gkA', 'p2']),
+           opponent_members_json: JSON.stringify([]) }), // p1 off
+      OO({ match_idx: 8, our_score: 0, opponent_score: 2,
+           our_members_json: JSON.stringify(['gkA', 'p2']),
+           opponent_members_json: JSON.stringify([]) }), // p1 off
+    ];
+    const { minOn, rated, unrated } = calcCupOnOff({ matchRows: [...bigRows, ...p1Rows], cup: CUP_OO });
+    // p2: onGames=7(games1-5 + games7-8), p1: onGames=1
+    // maxOnGames=7, dynamicMin(7)=Math.ceil(2.1)=3 → p1(1) < 3 → unrated ✓
+    expect(rated.find(e => e.name === 'p1')).toBeUndefined();
+    expect(unrated.find(e => e.name === 'p1')).toBeDefined();
+    const p1 = unrated.find(e => e.name === 'p1');
+    expect(p1.onGames).toBe(1);
+    expect(p1.onGames).toBeLessThan(minOn);
+  });
+
+  // 5. offGames=0 → offGfPg/offGaPg/goalImpact/defImpact 모두 null, unrated
+  it('offGames=0 → null 지표, unrated', () => {
+    // p1 이 모든 경기에 출전
+    const rows = [
+      OO({ match_idx: 1, our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3']) }),
+      OO({ match_idx: 2, our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3']) }),
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1).toBeDefined();
+    expect(p1.offGames).toBe(0);
+    expect(p1.offGfPg).toBeNull();
+    expect(p1.offGaPg).toBeNull();
+    expect(p1.goalImpact).toBeNull();
+    expect(p1.defImpact).toBeNull();
+    // offGames=0 < minOff=2 → unrated
+    expect(rated.find(e => e.name === 'p1')).toBeUndefined();
+    expect(unrated.find(e => e.name === 'p1')).toBeDefined();
+  });
+
+  // 6. onGames=0(필드 명단에 한 번도 없음) → 결과에 없음
+  it('onGames=0 → 결과에 포함되지 않음', () => {
+    // rX 는 어떤 경기 명단에도 없음
+    const rows = [
+      OO({ match_idx: 1, our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3']) }),
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    expect(all.find(e => e.name === 'rX')).toBeUndefined();
+  });
+
+  // 7. primary 팀: 두 팀 명단에 등장 → 더 많이 등장한 팀으로만 집계
+  it('primary 팀 — 더 많이 등장한 팀으로만 집계, 상대 팀 출전은 primary 팀 기준 off', () => {
+    // p1: 팀A 2경기, 팀B 1경기 → primary=팀A
+    // matchRow 구조: 팀A vs 팀B 이므로 같은 행에 양 팀이 있음
+    const rows = [
+      // game1: 팀A 명단에 p1, 팀B 명단에 q1
+      OO({ match_idx: 1, our_score: 2, opponent_score: 0,
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2']),
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']) }),
+      // game2: 팀A 명단에 p1, 팀B 명단에 q1
+      OO({ match_idx: 2, our_score: 1, opponent_score: 1,
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2']),
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']) }),
+      // game3: 팀A 명단에 p1 없음, 팀B 명단에 p1 있음
+      // p1 입장: 팀A의 game3 side에서는 off (팀A 명단에 없음)
+      OO({ match_idx: 3, our_score: 0, opponent_score: 3,
+           our_members_json: JSON.stringify(['gkA', 'p2', 'p3']),
+           opponent_members_json: JSON.stringify(['gkB', 'p1', 'q2']) }),
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1).toBeDefined();
+    expect(p1.team).toBe('팀A'); // primary = 팀A (2경기 > 1경기)
+    expect(p1.onGames).toBe(2);  // game1, game2에서 팀A on
+    expect(p1.offGames).toBe(1); // game3에서 팀A off (팀B로 뛰었어도 팀A 기준 off)
+    expect(p1.onGfPg).toBe(1.5);
+  });
+
+  // 8. primary 팀 동률 → 엔티티 등록 팀 우선
+  it('primary 팀 동률 → 엔티티 팀 우선', () => {
+    // 팀A(엔티티), 팀X(행 전용)에 p1 각 1회씩 → 팀A 우선
+    const cupWithX = {
+      meta: CUP_OO.meta,
+      teams: [
+        { id: 't1', name: '팀A', captain: '', players: [], order: 0 }, // 엔티티
+      ],
+    };
+    const rows = [
+      OO({ match_idx: 1,
+           our_team_name: '팀A', our_gk: 'gkA',
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2']),
+           opponent_team_name: '팀X', opponent_gk: 'gkX',
+           opponent_members_json: JSON.stringify(['gkX', 'p3', 'p4']),
+           our_score: 1, opponent_score: 0 }),
+      OO({ match_idx: 2,
+           our_team_name: '팀X', our_gk: 'gkX',
+           our_members_json: JSON.stringify(['gkX', 'p1', 'p3']),
+           opponent_team_name: '팀A', opponent_gk: 'gkA',
+           opponent_members_json: JSON.stringify(['gkA', 'p2', 'p4']),
+           our_score: 0, opponent_score: 2 }),
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: cupWithX });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1).toBeDefined();
+    expect(p1.team).toBe('팀A'); // 엔티티 팀 우선
+  });
+
+  // 9. 팀 표시명 = 엔티티 이름 ('팀광땡' 행 → '광땡')
+  it('행 팀명 "팀광땡" → displayOf 엔티티명 "광땡"', () => {
+    const cupGwang = {
+      meta: CUP_OO.meta,
+      teams: [
+        { id: 'g1', name: '광땡', captain: '', players: ['gkG', 'p1', 'p2'], order: 0 },
+        { id: 'g2', name: '팀B',  captain: '', players: ['gkB', 'q1', 'q2'], order: 1 },
+      ],
+    };
+    const rows = [
+      // 행에 "팀광땡" 으로 표기
+      OO({ match_idx: 1,
+           our_team_name: '팀광땡', our_gk: 'gkG',
+           our_members_json: JSON.stringify(['gkG', 'p1', 'p2']),
+           opponent_team_name: '팀B', opponent_gk: 'gkB',
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']),
+           our_score: 1, opponent_score: 0 }),
+      OO({ match_idx: 2,
+           our_team_name: '팀광땡', our_gk: 'gkG',
+           our_members_json: JSON.stringify(['gkG', 'p1', 'p2']),
+           opponent_team_name: '팀B', opponent_gk: 'gkB',
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']),
+           our_score: 2, opponent_score: 1 }),
+      OO({ match_idx: 3,
+           our_team_name: '팀광땡', our_gk: 'gkG',
+           our_members_json: JSON.stringify(['gkG', 'p2']),
+           opponent_team_name: '팀B', opponent_gk: 'gkB',
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']),
+           our_score: 0, opponent_score: 1 }), // p1 off
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: cupGwang });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1).toBeDefined();
+    expect(p1.team).toBe('광땡'); // 엔티티 표시명
+  });
+
+  // 10. 정렬: goalImpact+defImpact 합 내림차순, null 은 맨 뒤
+  it('정렬 — 합 내림 → onGames 내림 → name ko; null 은 맨 뒤', () => {
+    // pa: goalImpact=1.50, defImpact=1.50 → sum=3.00 (아래 손계산 참조)
+    // pb·pc: offGames=0 → goalImpact=null, defImpact=null → sum=-Inf (맨 뒤)
+    const rows = [
+      // pa: on 2경기(3:0, 1:0), off 2경기(1:2, 0:1)
+      OO({ match_idx: 1, our_score: 3, opponent_score: 0,
+           our_members_json: JSON.stringify(['gkA', 'pa', 'pb', 'pc']) }),
+      OO({ match_idx: 2, our_score: 1, opponent_score: 0,
+           our_members_json: JSON.stringify(['gkA', 'pa', 'pb', 'pc']) }),
+      OO({ match_idx: 3, our_score: 1, opponent_score: 2,
+           our_members_json: JSON.stringify(['gkA', 'pb', 'pc']) }), // pa off
+      OO({ match_idx: 4, our_score: 0, opponent_score: 1,
+           our_members_json: JSON.stringify(['gkA', 'pb', 'pc']) }), // pa off
+      // pb: on 4경기, off 2경기(same as above + game3,4 on; off missing pa games above)
+      // pc: on 4경기, off 0 → null impacts
+    ];
+    // pa: onGf=4,onGa=0,onGames=2; offGf=1,offGa=3,offGames=2
+    //   onGfPg=2.00,onGaPg=0.00,offGfPg=0.50,offGaPg=1.50
+    //   goalImpact=1.50,defImpact=1.50 → sum=3.00
+    // pb: on all 4 games → offGames=0 → null
+    // pc: on all 4 games → offGames=0 → null
+
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    const names = all.map(e => e.name);
+    // pa 는 null 아닌 impact → 앞에, pb·pc 는 null → 뒤
+    expect(names.indexOf('pa')).toBeLessThan(names.indexOf('pb'));
+    expect(names.indexOf('pa')).toBeLessThan(names.indexOf('pc'));
+    // 손계산 값 고정 — 정렬만 보면 계산 회귀를 놓친다
+    expect(all.find(e => e.name === 'pa')).toMatchObject({ onGames: 2, offGames: 2, goalImpact: 1.5, defImpact: 1.5 });
+    expect(all.find(e => e.name === 'pb')).toMatchObject({ onGames: 4, offGames: 0, goalImpact: null, defImpact: null });
+  });
+
+  // 11. __proto__ 팀명이 있어도 예외 없음
+  it('__proto__ 팀명 — Map 사용으로 예외 없음', () => {
+    const rows = [
+      OO({ match_idx: 1,
+           our_team_name: '__proto__', our_gk: 'gkP',
+           our_members_json: JSON.stringify(['gkP', 'p1', 'p2']),
+           opponent_team_name: '팀B', opponent_gk: 'gkB',
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']),
+           our_score: 1, opponent_score: 0 }),
+      OO({ match_idx: 2,
+           our_team_name: '__proto__', our_gk: 'gkP',
+           our_members_json: JSON.stringify(['gkP', 'p1', 'p2']),
+           opponent_team_name: '팀B', opponent_gk: 'gkB',
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']),
+           our_score: 0, opponent_score: 2 }),
+      OO({ match_idx: 3,
+           our_team_name: '__proto__', our_gk: 'gkP',
+           our_members_json: JSON.stringify(['gkP', 'p2']),
+           opponent_team_name: '팀B', opponent_gk: 'gkB',
+           opponent_members_json: JSON.stringify(['gkB', 'q1', 'q2']),
+           our_score: 0, opponent_score: 1 }), // p1 off
+    ];
+    expect(() => calcCupOnOff({ matchRows: rows, cup: CUP_OO })).not.toThrow();
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1).toBeDefined();
+    expect(p1.onGames).toBe(2);
+    expect(p1.offGames).toBe(1);
+  });
+
+  // 12. 빈 입력 → { minOn:0, minOff:2, rated:[], unrated:[] }
+  it('빈 입력 → { minOn:0, minOff:2, rated:[], unrated:[] }', () => {
+    expect(calcCupOnOff({ matchRows: [], cup: CUP_OO }))
+      .toEqual({ minOn: 0, minOff: 2, rated: [], unrated: [] });
+    expect(calcCupOnOff({}))
+      .toEqual({ minOn: 0, minOff: 2, rated: [], unrated: [] });
   });
 });
