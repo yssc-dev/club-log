@@ -263,26 +263,33 @@ describe('CupPlayerRecordsTable 정렬', () => {
 // ─── CupFieldImpactTable ───────────────────────────────────────────────────────
 describe('CupFieldImpactTable', () => {
   const rated = [
-    { name: '김공격', team: '팀A', onGames: 5, offGames: 3, onGfPg: 2.00, onGaPg: 0.50, offGfPg: 0.50, offGaPg: 0.90, onCleanSheets: 3, cleanRate: 0.60, goalImpact: 1.50, defImpact: 0.40 },
-    { name: '이미드',  team: '팀B', onGames: 4, offGames: 2, onGfPg: 1.25, onGaPg: 1.00, offGfPg: 2.20, offGaPg: null, onCleanSheets: 0, cleanRate: 0.00, goalImpact: -0.95, defImpact: null },
+    { name: '김공격', team: '팀A', onGames: 5, offGames: 3, gkGames: 1, onGfPg: 2.00, onGaPg: 0.50, offGfPg: 0.50, offGaPg: 0.90, onCleanSheets: 3, cleanRate: 0.60, goalImpact: 1.50, defImpact: 0.40 },
+    { name: '이미드',  team: '팀B', onGames: 4, offGames: 2, gkGames: 0, onGfPg: 1.25, onGaPg: 1.00, offGfPg: 2.20, offGaPg: null, onCleanSheets: 0, cleanRate: 0.00, goalImpact: -0.95, defImpact: null },
   ];
   const unrated = [
-    { name: '박루키', team: '팀A', onGames: 1, offGames: 0, onGfPg: 1.00, onGaPg: 0.00, offGfPg: null, offGaPg: null, onCleanSheets: 1, cleanRate: 1.00, goalImpact: null, defImpact: null },
+    { name: '박루키', team: '팀A', onGames: 1, offGames: 0, gkGames: 2, onGfPg: 1.00, onGaPg: 0.00, offGfPg: null, offGaPg: null, onCleanSheets: 1, cleanRate: 1.00, goalImpact: null, defImpact: null },
   ];
 
-  it('머리글 11개 순서 — 득점 묶음·실점 묶음에 기준값(없을 때) 열 포함', async () => {
+  it('머리글 12개 순서 — 출전·미출전·GK(제외) 뒤에 득점 묶음·실점 묶음', async () => {
     await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const ths = [...container.querySelectorAll('thead th')].map((t) => t.textContent.replace(/[▲▼]/g, '').trim());
-    expect(ths).toEqual(['선수', '팀', '출전', '미출전', '뛸 때 득점', '없을 때 득점', '득점관여', '뛸 때 실점', '없을 때 실점', '수비관여', '무실점률']);
+    expect(ths).toEqual(['선수', '팀', '출전', '미출전', 'GK(제외)', '뛸 때 득점', '없을 때 득점', '득점관여', '뛸 때 실점', '없을 때 실점', '수비관여', '무실점률']);
   });
 
-  it('기준값 셀: 미출전 수·없을 때 득점/실점 toFixed(2), null 이면 —', async () => {
+  it('기준값 셀: 미출전·GK(제외) 수, 없을 때 득점/실점 toFixed(2), null 이면 —', async () => {
     await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const cells = (name) => [...container.querySelector(`[data-role="cup-field-impact-row"][data-player="${name}"]`).querySelectorAll('td')].map(td => td.textContent.trim());
-    // 열 순서: 선수·팀·출전·미출전·뛸 때 득점·없을 때 득점·득점관여·뛸 때 실점·없을 때 실점·수비관여·무실점률
-    expect(cells('김공격')).toEqual(['김공격', '팀A', '5', '3', '2.00', '0.50', '+1.50', '0.50', '0.90', '+0.40', '60%']);
-    expect(cells('이미드')).toEqual(['이미드', '팀B', '4', '2', '1.25', '2.20', '-0.95', '1.00', '—', '—', '0%']);
-    expect(cells('박루키')).toEqual(['박루키', '팀A', '1', '0', '1.00', '—', '—', '0.00', '—', '—', '100%']);
+    // 열 순서: 선수·팀·출전·미출전·GK(제외)·뛸 때 득점·없을 때 득점·득점관여·뛸 때 실점·없을 때 실점·수비관여·무실점률
+    expect(cells('김공격')).toEqual(['김공격', '팀A', '5', '3', '1', '2.00', '0.50', '+1.50', '0.50', '0.90', '+0.40', '60%']);
+    expect(cells('이미드')).toEqual(['이미드', '팀B', '4', '2', '0', '1.25', '2.20', '-0.95', '1.00', '—', '—', '0%']);
+    expect(cells('박루키')).toEqual(['박루키', '팀A', '1', '0', '2', '1.00', '—', '—', '0.00', '—', '—', '100%']);
+  });
+
+  it('help 에 출전+미출전+GK(제외) = 소속팀 경기 수 안내', async () => {
+    await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
+    const help = container.querySelector('[data-role="cup-field-impact-help"]');
+    expect(help.textContent).toContain('GK(제외)');
+    expect(help.textContent).toContain('출전 + 미출전 + GK(제외) = 소속팀 경기 수');
   });
 
   it('무실점률은 % 표기 (Math.round)', async () => {
@@ -368,7 +375,7 @@ describe('CupFieldImpactTable 정렬', () => {
     const ratedRows = [...container.querySelectorAll('[data-role="cup-field-impact-row"][data-rated="true"]')];
     const pcts = ratedRows.map(r => {
       const tds = r.querySelectorAll('td');
-      return parseInt(tds[10].textContent, 10); // 무실점률은 마지막(11번째) 열, e.g. "67%" → 67
+      return parseInt(tds[11].textContent, 10); // 무실점률은 마지막(12번째) 열, e.g. "67%" → 67
     });
     expect(pcts[0]).toBeGreaterThanOrEqual(pcts[1]);
     expect(pcts[1]).toBeGreaterThanOrEqual(pcts[2]);

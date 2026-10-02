@@ -284,7 +284,9 @@ export function calcCupAwards({
  * @param {{ matchRows?: Array, cup?: object, minOn?: number }} params
  *   minOn: 필드 출전 최소 경기수 기준 (기본 3). 이 값 이상이면 rated.
  * @returns {{ minOn: number, rated: Array, unrated: Array }}
- * 각 항목: { name, team, onGames, offGames, onGfPg, onGaPg, offGfPg, offGaPg, goalImpact, defImpact, onCleanSheets, cleanRate }
+ * 각 항목: { name, team, onGames, offGames, gkGames, onGfPg, onGaPg, offGfPg, offGaPg, goalImpact, defImpact, onCleanSheets, cleanRate }
+ *   gkGames: 소속(primary)팀 경기 중 GK로 서서 on/off 에서 제외된 경기 수(어느 팀 GK든).
+ *            onGames + offGames + gkGames = 소속팀 경기 수 — 표에서 "GK(제외)" 열로 합이 맞는지 보여준다(2026-10-02).
  *   onCleanSheets: on 경기 중 팀 실점 0 인 경기 수.
  *   cleanRate: onCleanSheets / onGames, Number(x.toFixed(2)).
  * 정렬: (goalImpact ?? -Inf) + (defImpact ?? -Inf) 내림 → onGames 내림 → name ko (null 은 맨 뒤).
@@ -372,11 +374,11 @@ export function calcCupOnOff({ matchRows = [], cup, minOn = 3 } = {}) {
     }
   }
 
-  const statsMap = new Map(); // playerName → { onGames,offGames,onGf,onGa,offGf,offGa,onCleanSheets }
+  const statsMap = new Map(); // playerName → { onGames,offGames,gkGames,onGf,onGa,offGf,offGa,onCleanSheets }
 
   const ensureStat = name => {
     if (!statsMap.has(name)) {
-      statsMap.set(name, { onGames: 0, offGames: 0, onGf: 0, onGa: 0, offGf: 0, offGa: 0, onCleanSheets: 0 });
+      statsMap.set(name, { onGames: 0, offGames: 0, gkGames: 0, onGf: 0, onGa: 0, offGf: 0, offGa: 0, onCleanSheets: 0 });
     }
     return statsMap.get(name);
   };
@@ -393,9 +395,9 @@ export function calcCupOnOff({ matchRows = [], cup, minOn = 3 } = {}) {
     const actualSet = new Set(actual.map(nameOf).filter(Boolean));
 
     for (const name of players) {
-      // 양쪽 사이드 GK 포함 — 이 경기에서 어느 팀이든 GK로 뛴 경기는 제외
-      if (gkGamesOf.get(name)?.has(r)) continue;
       const s = ensureStat(name);
+      // 양쪽 사이드 GK 포함 — 이 경기에서 어느 팀이든 GK로 뛴 경기는 on/off 제외, gkGames 로만 센다
+      if (gkGamesOf.get(name)?.has(r)) { s.gkGames++; continue; }
       if (actualSet.has(name)) {
         s.onGames++; s.onGf += gf; s.onGa += ga;
         if (ga === 0) s.onCleanSheets++;
@@ -432,6 +434,7 @@ export function calcCupOnOff({ matchRows = [], cup, minOn = 3 } = {}) {
       team: displayOf(tKey),
       onGames:  s.onGames,
       offGames: s.offGames,
+      gkGames:  s.gkGames,
       onGfPg, onGaPg, offGfPg, offGaPg,
       goalImpact, defImpact,
       onCleanSheets, cleanRate,

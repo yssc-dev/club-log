@@ -11,6 +11,7 @@ import { sortRows, nextSort } from '../../utils/tennis/sortRows';
 // 표 위 안내 — 한 항목에 한 가지만
 const HELP_LINES = [
   '기준: 내가 필드로 뛴 우리 팀 경기를 기준으로 봅니다(GK로 뛴 경기 제외)',
+  'GK(제외): 내가 GK로 선 경기 수. 키퍼 성적은 개인기록 GK 열에서 따로 보며, 출전 + 미출전 + GK(제외) = 소속팀 경기 수',
   '뛸 때·없을 때: 내가 명단에 있던 우리 팀 경기와 없던 우리 팀 경기의 경기당 득점·실점',
   '득점관여 = 뛸 때 득점 − 없을 때 득점 (+1.00이면 내가 뛸 때 팀이 경기당 1골 더 넣음)',
   '수비관여 = 없을 때 실점 − 뛸 때 실점 (+1.50이면 내가 뛸 때 팀이 경기당 1.5골 덜 먹음, 둘 다 +가 좋음)',
@@ -18,13 +19,14 @@ const HELP_LINES = [
   '같은 경기에 함께 뛴 팀원끼리는 값이 비슷하고, 경기일이 쌓일수록 차이가 드러납니다',
 ];
 
-const COLS_COUNT = 11;
+const COLS_COUNT = 12;
 
 const COLS = {
   name:       { accessor: p => p.name,                         type: 'text' },
   team:       { accessor: p => p.team,                         type: 'text' },
   onGames:    { accessor: p => p.onGames,                      type: 'num'  },
   offGames:   { accessor: p => p.offGames,                     type: 'num'  },
+  gkGames:    { accessor: p => p.gkGames ?? 0,                 type: 'num'  },
   onGfPg:     { accessor: p => p.onGfPg,                       type: 'num'  },
   offGfPg:    { accessor: p => p.offGfPg,                      type: 'num'  },
   goalImpact: { accessor: p => p.goalImpact,                   type: 'num'  },
@@ -98,6 +100,7 @@ export default function CupFieldImpactTable({ minOn = 3, rated = [], unrated = [
         <td style={{ ...td, color: C.gray, fontSize: 12 }}>{p.team}</td>
         <td style={td}>{p.onGames}</td>
         <td style={{ ...td, color: C.gray }}>{p.offGames}</td>
+        <td style={{ ...td, color: C.gray }}>{p.gkGames ?? 0}</td>
         {/* 득점 묶음: 뛸 때 − 없을 때 = 득점관여 */}
         <td style={td}>{fmtPg(p.onGfPg)}</td>
         <td style={{ ...td, color: C.gray }}>{fmtPg(p.offGfPg)}</td>
@@ -130,6 +133,7 @@ export default function CupFieldImpactTable({ minOn = 3, rated = [], unrated = [
               <SortHeader label="팀"          sortKey="team"       sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="출전"        sortKey="onGames"    sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="미출전"      sortKey="offGames"   sort={sort} onSort={onSort} align="center" ds={ds} />
+              <SortHeader label="GK(제외)"    sortKey="gkGames"    sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="뛸 때 득점"   sortKey="onGfPg"     sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="없을 때 득점" sortKey="offGfPg"    sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="득점관여"    sortKey="goalImpact" sort={sort} onSort={onSort} align="center" ds={ds} />

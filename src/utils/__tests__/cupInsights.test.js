@@ -503,6 +503,46 @@ describe('calcCupOnOff', () => {
     expect(p1.defImpact).toBeNull();
   });
 
+  // 2b. 제외된 GK 경기 수를 gkGames 로 돌려준다 — 출전+미출전+GK = 소속팀 경기 수
+  it('gkGames = 소속팀 경기 중 GK로 선 경기 수, onGames+offGames+gkGames = 팀 경기 수', () => {
+    const rows = [
+      OO({ match_idx: 1, our_gk: 'p1',
+           our_members_json: JSON.stringify(['p1', 'p2', 'p3', 'p4', 'p5']) }), // p1=GK
+      OO({ match_idx: 2, our_gk: 'gkA',
+           our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3', 'p4']) }), // p1 on
+      OO({ match_idx: 3, our_gk: 'gkA',
+           our_members_json: JSON.stringify(['gkA', 'p2', 'p3', 'p4']) }),       // p1 off
+      OO({ match_idx: 4, our_gk: 'p1',
+           our_members_json: JSON.stringify(['p1', 'p2', 'p3', 'p4', 'p5']) }), // p1=GK
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const all = [...rated, ...unrated];
+    const p1 = all.find(e => e.name === 'p1');
+    expect(p1.gkGames).toBe(2);
+    expect(p1.onGames + p1.offGames + p1.gkGames).toBe(4);
+    // GK로 선 적 없는 p2: gkGames 0
+    const p2 = all.find(e => e.name === 'p2');
+    expect(p2.gkGames).toBe(0);
+    expect(p2.onGames + p2.offGames + p2.gkGames).toBe(4);
+  });
+
+  it('gkGames — 상대팀 GK로 선 경기(소속팀 상대전)도 제외 경기로 센다', () => {
+    // p1(팀A 소속)이 2경기째에 팀B GK 로 섰다 → 팀A 쪽 처리에서 제외되고 gkGames 1
+    const rows = [
+      OO({ match_idx: 1 }),
+      OO({ match_idx: 2, opponent_gk: 'p1',
+           our_members_json: JSON.stringify(['gkA', 'p2', 'p3', 'p4']),
+           opponent_members_json: JSON.stringify(['p1', 'q1', 'q2', 'q3', 'q4']) }),
+      OO({ match_idx: 3 }),
+    ];
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const p1 = [...rated, ...unrated].find(e => e.name === 'p1');
+    expect(p1.team).toBe('팀A');
+    expect(p1.gkGames).toBe(1);
+    expect(p1.onGames).toBe(2);
+    expect(p1.offGames).toBe(0);
+  });
+
   // 3. offGames < minOn 에 관계없이 unrated — onGames 기준만
   it('offGames=1 → onGames < minOn(3) 이면 unrated', () => {
     const rows = [
