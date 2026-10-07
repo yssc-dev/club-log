@@ -55,8 +55,18 @@ export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
     if (referee === name) setReferee(''); // 부심으로 내리면 주심에서 뺀다(상호 배타)
   };
 
+  // 아무것도 안 건드리고 저장만 눌렀을 때는 쓰지 않는다 — 모달이 열린 채 다른 기기가
+  // roles 를 바꾼 경우, no-op 저장이 그 변경을 조용히 덮어쓰는 것을 막는다(LWW 는 유지:
+  // 실제로 뭔가 바꿨으면 그대로 onSave 가 호출돼 마지막 쓰기가 이긴다).
+  // `initial` 은 매 렌더마다 readRoles(match) 로 다시 계산되므로 여기서 항상 최신 권위 값이다.
+  const isUnchanged = (a, b) =>
+    a.referee === b.referee &&
+    a.camera.length === b.camera.length && a.camera.every((n, i) => n === b.camera[i]) &&
+    a.assistants.length === b.assistants.length && a.assistants.every((n, i) => n === b.assistants[i]);
+
   const handleSave = () => {
-    onSave?.({ camera, referee, assistants });
+    const current = { camera, referee, assistants };
+    if (!isUnchanged(current, initial)) onSave?.(current);
     onClose?.();
   };
 
@@ -83,7 +93,7 @@ export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
               style={{
                 padding: '6px 10px', borderRadius: 999, fontSize: 12, cursor: 'pointer',
                 background: on ? C.accent : 'transparent',
-                color: on ? C.black : (played ? C.gray : C.white),
+                color: on ? C.bg : (played ? C.gray : C.white),
                 border: `1px solid ${on ? C.accent : C.grayDarker}`,
                 opacity: played && !on ? 0.55 : 1,
               }}>
@@ -108,7 +118,7 @@ export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
       <button onClick={handleSave}
         style={{
           width: '100%', padding: '12px 0', borderRadius: 10, border: 'none',
-          background: C.accent, color: C.black, fontSize: 14, fontWeight: 700, cursor: 'pointer',
+          background: C.accent, color: C.bg, fontSize: 14, fontWeight: 700, cursor: 'pointer',
         }}>
         저장
       </button>

@@ -93,6 +93,9 @@ describe('MatchRolesModal', () => {
     await mount({ onSave });
     await click(chip('camera', 'X'));
     await click(chip('camera', 'X'));
+    // 카메라만 토글오프하면 초기값과 완전히 같아져 no-op 저장 가드(F-4)에 걸린다 —
+    // 무관한 역할(주심)도 같이 바꿔 실제 저장이 일어나게 한 뒤 camera 값을 관찰한다.
+    await click(chip('referee', 'Y'));
     await click(save());
     expect(onSave.mock.calls[0][0].camera).toEqual([]);
   });
@@ -111,6 +114,9 @@ describe('MatchRolesModal', () => {
     await mount({ onSave });
     await click(chip('referee', 'X'));
     await click(chip('referee', 'X'));
+    // 주심만 토글오프하면 초기값과 같아져 no-op 저장 가드(F-4)에 걸린다 — 무관한 역할
+    // (영상촬영)도 같이 바꿔 실제 저장이 일어나게 한 뒤 referee 값을 관찰한다.
+    await click(chip('camera', 'Y'));
     await click(save());
     expect(onSave.mock.calls[0][0].referee).toBe('');
   });
@@ -174,8 +180,21 @@ describe('MatchRolesModal', () => {
   it('기존 roles 를 초기값으로 띄운다 (RTDB 드롭 모양도 안전)', async () => {
     const onSave = vi.fn();
     await mount({ match: { ...MATCH, roles: { referee: 'Z' } }, onSave });
+    // 아무것도 안 건드리고 저장하면 no-op 가드에 걸려 onSave 가 호출되지 않으므로,
+    // 칩 하나(camera 'X')를 토글해 초기값 referee:'Z' 가 결과에 그대로 반영되는지로 확인한다 —
+    // 초기 state 가 실제로 'Z' 로 seed 되지 않았다면 여기서 referee 가 '' 로 나온다.
+    await click(chip('camera', 'X'));
     await click(save());
-    expect(onSave).toHaveBeenCalledWith({ camera: [], referee: 'Z', assistants: [] });
+    expect(onSave).toHaveBeenCalledWith({ camera: ['X'], referee: 'Z', assistants: [] });
+  });
+
+  it('아무것도 안 건드리고 저장하면 onSave 는 호출되지 않고 닫히기만 한다 (no-op 저장 가드)', async () => {
+    const onSave = vi.fn();
+    const onClose = vi.fn();
+    await mount({ match: { ...MATCH, roles: { referee: 'Z' } }, onSave, onClose });
+    await click(save());
+    expect(onSave).not.toHaveBeenCalled();
+    expect(onClose).toHaveBeenCalled();
   });
 
   it('저장하면 onClose 도 호출된다', async () => {
