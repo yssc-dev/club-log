@@ -191,8 +191,12 @@ L2 캐시를 자동 무효화한다.
    (`{referee:''}`)을 `reconstructState` 가 배열로 복원(= 실시간 공유 보장).
 4. **시트 빌더** — 전원 공석 → `''`, 레거시 경기(roles 없음) → `''`, 정상값 → JSON.
 5. **`calcRoleCounts`** — 집계 정확성, 빈 `roles_json` 무시, 깨진 JSON 에도 크래시 금지.
-6. **렌더 스모크(RTL)** — 역할 모달과 역할 탭. 빌드 · vitest 가 렌더 크래시를 못 잡는 공백이 있어
-   필수(기존 `analyticsTabs.smoke.test.jsx` · `IntraSoccerMatchView.smoke.test.jsx` 패턴).
+6. **렌더 스모크** — 빌드 · vitest 가 렌더 크래시(TDZ · undefined 접근)를 못 잡는 공백이 있어 필수.
+   이 레포에는 `@testing-library/react` 가 없으므로 기존 두 하네스를 그대로 쓴다:
+   - `MatchRolesModal`(클릭 필요) → `act` + `createRoot`
+     (`IntraSoccerMatchView.smoke.test.jsx` 패턴)
+   - `RoleRecordTab`(표시 전용) → `renderToStaticMarkup`
+     (`analyticsTabs.smoke.test.jsx` 패턴)
 
 ## 9. 배포
 
