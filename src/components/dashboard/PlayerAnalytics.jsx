@@ -9,6 +9,7 @@ import ChemistryTab from './analytics/ChemistryTab';
 import AwardsTab from './analytics/AwardsTab';
 import CrovaGogumaRankTab from './analytics/CrovaGogumaRankTab';
 import LegacyDataNotice from './analytics/LegacyDataNotice';
+import RoleRecordTab from './analytics/RoleRecordTab';
 
 const LEGACY_TAB_MAP = {
   playercard: 'personal',
@@ -58,6 +59,8 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
     { key: "personal", label: "개인분석" },
     { key: "chem", label: "케미" },
     { key: "awards", label: "어워드" },
+    // 역할(영상촬영·주심·부심)은 축구 전용 — 풋살 로그_매치에는 roles_json 이 항상 빈칸이다
+    isSoccer && { key: "roles", label: "역할" },
     showCrovaGoguma && { key: "crovaguma", label: "🍀/🍠" },
   ].filter(Boolean);
 
@@ -89,6 +92,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
       )}
       {tab === "chem" && <ChemistryTab matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
       {tab === "awards" && <AwardsTab playerGameLogs={playerGameLogs} matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
+      {tab === "roles" && isSoccer && <RoleRecordTab matchLogs={matchLogs} C={C} />}
       {tab === "crovaguma" && showCrovaGoguma && (
         <CrovaGogumaRankTab members={members || []} C={C} />
       )}
