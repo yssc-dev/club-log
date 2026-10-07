@@ -9,6 +9,8 @@ import ChemistryTab from './analytics/ChemistryTab';
 import AwardsTab from './analytics/AwardsTab';
 import CrovaGogumaRankTab from './analytics/CrovaGogumaRankTab';
 import LegacyDataNotice from './analytics/LegacyDataNotice';
+import RoleRecordTab from './analytics/RoleRecordTab';
+import { isIntraSquadTeam } from '../../utils/intraSoccer/isIntraSquadTeam';
 
 const LEGACY_TAB_MAP = {
   playercard: 'personal',
@@ -53,11 +55,16 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
 
   const settings = useMemo(() => getEffectiveSettings(teamName, isSoccer ? '축구' : '풋살'), [teamName, isSoccer]);
   const showCrovaGoguma = !isSoccer && settings?.useCrovaGoguma === true && teamName === '마스터FC';
+  // 역할(영상촬영·주심·부심)은 축구 전용 — 풋살 로그_매치에는 roles_json 이 항상 빈칸이다.
+  // 빅마스터FC(자체전) 는 IntraSoccerMatchView 에 역할 지정 진입점이 없어 영구히 빈 상태만
+  // 뜨므로 탭 자체를 숨긴다 — 자체전에 역할을 주려면 그 진입점을 먼저 만드는 별도 작업이 필요하다.
+  const showRoles = isSoccer && !isIntraSquadTeam(teamName, '축구');
 
   const tabs = [
     { key: "personal", label: "개인분석" },
     { key: "chem", label: "케미" },
     { key: "awards", label: "어워드" },
+    showRoles && { key: "roles", label: "역할" },
     showCrovaGoguma && { key: "crovaguma", label: "🍀/🍠" },
   ].filter(Boolean);
 
@@ -89,6 +96,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
       )}
       {tab === "chem" && <ChemistryTab matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
       {tab === "awards" && <AwardsTab playerGameLogs={playerGameLogs} matchLogs={matchLogs} eventLogs={eventLogs} C={C} isSoccer={isSoccer} />}
+      {tab === "roles" && showRoles && <RoleRecordTab matchLogs={matchLogs} C={C} />}
       {tab === "crovaguma" && showCrovaGoguma && (
         <CrovaGogumaRankTab members={members || []} C={C} />
       )}

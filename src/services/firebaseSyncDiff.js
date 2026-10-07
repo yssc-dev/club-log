@@ -1,6 +1,8 @@
 // firebaseSync 의 순수 helper 함수들. firebase SDK 의존 없음.
 // 별도 파일로 분리해 단위테스트 가능하게 함.
 
+import { readRoles } from '../utils/soccerRoles';
+
 export const META_FIELDS = [
   'gameCreator', 'phase', 'currentRoundIdx', 'teamCount', 'courtCount',
   'matchMode', 'isExtraRound', 'splitPhase', 'rotations',
@@ -332,6 +334,11 @@ function normalizeSoccerMatch(m) {
     assignments: m.assignments || null,
     positionMap: m.positionMap || null,
     formation: m.formation || null,
+    // 역할(영상촬영·주심·부심) — camera/assistants 는 빈 배열이면 RTDB 가 드롭하므로
+    // 여기서 배열로 되살린다. 단, 이것이 유일한 방어선은 아니다:
+    // firebaseSync.loadFinalizedOne(아카이브)은 reconstructState 를 타지 않으므로
+    // 읽는 쪽은 전부 readRoles 를 경유해야 한다(utils/soccerRoles.js 주석 참고).
+    roles: readRoles(m),
   };
 }
 

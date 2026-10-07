@@ -17,6 +17,9 @@ vi.mock('../../../config/settings', () => ({
   getSettings: () => ({ playerLogSheet: '', pointLogSheet: '', dashboardSheet: '', attendanceSheet: '', sheetId: '' }),
   getEffectiveSettings: () => ({ useCrovaGoguma: false }),
   loadSettingsFromFirebase: () => Promise.resolve({}),
+  // PlayerAnalytics → isIntraSquadTeam 이 호출한다 — 실제 PRESET_MAP 과 같은 모양(빅마스터FC=자체전축구).
+  resolvePreset: (team, sport) => (team === '빅마스터FC' && sport === '축구' ? '자체전축구' : '기본'),
+  getPresetValue: (sport, preset, key) => (preset === '자체전축구' && key === 'intraSquad' ? true : undefined),
 }));
 
 const getSpy = vi.fn(() => Promise.resolve([]));

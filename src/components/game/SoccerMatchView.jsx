@@ -12,6 +12,8 @@ import FormationPitch from './FormationPitch';
 import LineupEditView from './LineupEditView';
 import RoundNav from './RoundNav';
 import ConfirmBar from './ConfirmBar';
+import MatchRolesModal from './MatchRolesModal';
+import { readRoles } from '../../utils/soccerRoles';
 // 축구 기록화면: 단일 navIdx 연속체로 [과거 경기…] + [진행중/새 경기]를 오간다(풋살 ScheduleMatchView 패턴).
 // 노드 본문 결정 권위 = navIdx + 경기 status. viewState는 서브플로우(formation)와 유휴만.
 export default function SoccerMatchView({
@@ -20,7 +22,7 @@ export default function SoccerMatchView({
   onUpdateMatchFormation, onReopenMatch, onCreateRestMatch,
   onAddOpponent, onRemoveOpponent, onRenameOpponent, onGoToSummary, gameSettings, styles: s,
   savedFormation, onFormationChange,
-  onSetMatchOpponent, onCorrectLineup, onSwapLineupPositions, gameFinalized,
+  onSetMatchOpponent, onCorrectLineup, onSwapLineupPositions, gameFinalized, onSetMatchRoles,
 }) {
   const { C } = useTheme();
 
@@ -32,6 +34,7 @@ export default function SoccerMatchView({
   const [navLocked, setNavLocked] = useState(false);            // goalFlow 열림 중 ◀▶ 잠금
   const [opponentModalIdx, setOpponentModalIdx] = useState(null); // 상대팀 변경 모달 대상 matchIdx
   const [lineupEditIdx, setLineupEditIdx] = useState(null);       // 라인업 편집기 대상 matchIdx
+  const [rolesModalIdx, setRolesModalIdx] = useState(null);      // 역할 지정 모달 대상 matchIdx
 
   // 멀티탭 동기화: 서브플로우 상태만 따라감(playing/selectOpponent는 노드 권위가 아니므로 sync에서 제외).
   useEffect(() => {
@@ -229,6 +232,14 @@ export default function SoccerMatchView({
     setLineupEditIdx(node.matchIdx);
   };
 
+  // 역할 지정 모달. Modal 오버레이라 진행 중 경기의 FormationRecorder 가 언마운트되지 않으므로
+  // navLocked(골 입력 중) 차단이 필요 없다 — 「상대팀 변경」과 같은 규칙.
+  const openRolesModal = () => {
+    if (!node) return;
+    if (gameFinalized && !confirm("이미 구글시트로 전송(마감)된 경기입니다.\n로그_매치는 중복 전송을 차단하므로 역할을 바꿔도 '수정 후 재전송'으로는 시트가 갱신되지 않습니다.\n시트까지 고치려면 설정 화면에서 그 날짜의 로그_매치를 삭제한 뒤 재전송해야 합니다.\n계속하시겠습니까?")) return;
+    setRolesModalIdx(node.matchIdx);
+  };
+
   return (
     <div>
       <RoundNav
@@ -241,6 +252,10 @@ export default function SoccerMatchView({
 
       {canChangeOpponent && (
         <div style={{ display: "flex", justifyContent: "flex-end", gap: 6, marginBottom: 10 }}>
+          <button onClick={openRolesModal}
+            style={{ fontSize: 12, padding: "5px 12px", borderRadius: 8, background: C.grayDark, color: C.white, border: "none", cursor: "pointer" }}>
+            🎥 역할 지정
+          </button>
           <button onClick={openLineupEditor} disabled={navLocked}
             style={{ fontSize: 12, padding: "5px 12px", borderRadius: 8, background: C.grayDark, color: navLocked ? C.gray : C.white, border: "none", cursor: navLocked ? "not-allowed" : "pointer", opacity: navLocked ? 0.5 : 1 }}>
             🔁 출전 수정
@@ -303,6 +318,15 @@ export default function SoccerMatchView({
               </div>
               <div style={{ fontSize: 14, fontWeight: 700, color: C.white }}>vs {node.opponent}{isRest ? "" : <span style={{ color: resultColor }}> — {result}</span>}</div>
               {csPlayers.length > 0 && <div style={{ fontSize: 11, color: C.yellow, marginTop: 6 }}>🛡 클린시트: {csPlayers.join(", ")}</div>}
+              {!isRest && (() => {
+                const r = readRoles(node);
+                const or = (v) => (v && v.length ? (Array.isArray(v) ? v.join(", ") : v) : "—");
+                return (
+                  <div style={{ fontSize: 11, color: C.grayLight, marginTop: 8, lineHeight: 1.7 }}>
+                    🎥 영상촬영: {or(r.camera)} · 🧑‍⚖️ 주심: {or(r.referee)} · 🚩 부심: {or(r.assistants)}
+                  </div>
+                );
+              })()}
             </div>
             {fm && (
               <div style={{ ...s.card, marginBottom: 12 }}>
@@ -353,6 +377,19 @@ export default function SoccerMatchView({
             styles={s} />
         </Modal>
       )}
+
+      {/* 역할 지정 모달 — 논리 matchIdx 로 저장 */}
+      {rolesModalIdx !== null && (() => {
+        const m = soccerMatches.find(x => x.matchIdx === rolesModalIdx);
+        if (!m) return null;
+        return (
+          <MatchRolesModal
+            match={m} attendees={attendees}
+            onSave={(roles) => onSetMatchRoles?.(m.matchIdx, roles)}
+            onClose={() => setRolesModalIdx(null)}
+          />
+        );
+      })()}
 
     </div>
   );

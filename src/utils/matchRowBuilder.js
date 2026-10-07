@@ -2,6 +2,7 @@
 // 풋살 / 축구 공통 스키마로 정규화.
 
 import { calcSoccerScore } from './soccerScoring';
+import { readRoles, serializeRoles } from './soccerRoles';
 
 // our_members_json 직렬화: 휴식 정보가 있으면 객체 형식, 없으면 기존 배열 형식 (호환 유지).
 //   - 휴식 있음 : { "players": ["A","B","C"], "absent": ["C"] }
@@ -23,6 +24,9 @@ export const RAW_MATCH_COLUMNS = [
   'our_gk', 'opponent_gk',
   'formation', 'our_defenders_json',
   'is_extra', 'input_time',
+  // ★ 새 열은 반드시 맨 끝. Apps Script 가 열 순서를 하드코딩(_rawMatchToArray /
+  //   _getRawMatches)하므로 중간에 끼우면 기존 데이터 전체가 오독된다.
+  'roles_json',
 ];
 
 function parseMatchIdFutsal(matchId) {
@@ -115,6 +119,8 @@ export function buildRoundRowsFromSoccer({ team, mode = '기본', tournamentId =
       our_defenders_json: JSON.stringify(m.defenders || []),
       is_extra: false,
       input_time: inputTime || '',
+      // 경기별 역할(영상촬영·주심·부심). 전원 공석이면 ''(레거시 행과 같은 모양).
+      roles_json: serializeRoles(readRoles(m)),
     };
   });
 }

@@ -22,6 +22,7 @@ export * from './calcPlayerSummary';
 export * from './calcRadarData';
 export * from './calcRecentHotStreak'; // 대시보드 최상단 카드 — 양쪽에 같은 이름으로 존재(셰도잉 대응)
 export * from './calcRivalry';
+export * from './calcRoleCounts';   // 축구 전용 — analyticsV2 대응 불필요(컴포넌트 직접 소비)
 export * from './calcRoundSlope';
 export * from './calcSoloGoalRatio';
 export * from './calcStreaks';

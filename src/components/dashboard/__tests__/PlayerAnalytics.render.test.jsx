@@ -30,6 +30,9 @@ vi.mock('../../../services/sheetService', () => ({
 
 vi.mock('../../../config/settings', () => ({
   getEffectiveSettings: () => ({ useCrovaGoguma: false }),
+  // PlayerAnalytics → isIntraSquadTeam 이 폴백으로 호출한다 — '테스트팀'은 빅마스터FC가 아니므로 false.
+  resolvePreset: () => '기본',
+  getPresetValue: () => undefined,
 }));
 
 // 로그 3종은 캐시에서 {rows} 래퍼가 아니라 배열로 온다 — 호출부(PlayerAnalytics)가
