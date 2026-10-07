@@ -26,7 +26,7 @@ export function calcRoleCounts(matchLogs) {
 
   const rows = [...acc.entries()]
     .map(([name, c]) => ({ name, ...c, total: c.camera + c.referee + c.assistant }))
-    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name));
+    .sort((a, b) => b.total - a.total || a.name.localeCompare(b.name, 'ko'));
 
   return { rows, hasAny };
 }
