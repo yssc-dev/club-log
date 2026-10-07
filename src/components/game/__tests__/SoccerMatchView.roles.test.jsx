@@ -114,8 +114,9 @@ describe('SoccerMatchView — 역할 지정', () => {
       soccerMatches: [finished({ roles: { camera: ['X', 'Y'], referee: 'Z', assistants: ['A'] } })],
     });
     await goPrevNode();
-    expect(container.textContent).toContain('X, Y');
-    expect(container.textContent).toContain('Z');
+    expect(container.textContent).toContain('영상촬영: X, Y');
+    expect(container.textContent).toContain('주심: Z');
+    expect(container.textContent).toContain('부심: A');
   });
 
   it('역할이 전부 공석이면 — 로 표시한다 (RTDB 드롭 모양도 안전)', async () => {
