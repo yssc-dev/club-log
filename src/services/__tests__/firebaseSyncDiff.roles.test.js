@@ -68,8 +68,14 @@ describe('reconstructState — RTDB 빈배열 드롭 복원', () => {
     expect(st.soccerMatches[0].roles.camera).toEqual(['김A', '이B']);
   });
 
-  it('복원 결과는 재전송을 유발하지 않는다 — 같은 state 를 diff 하면 쓰기 0', () => {
-    const st = reconstructState('g_1', raw({ referee: '박C' }));
-    expect(diffStateToWrites(st, st)).toEqual({});
+  it('복원 결과는 재전송을 유발하지 않는다 — 독립 복원 2개를 diff 하면 쓰기 0', () => {
+    // ★ 같은 참조를 두 번 넘기면(diffStateToWrites(st, st)) deepEqual 의 a===b 빠른 경로에 걸려
+    //   정규화가 틀려도 통과한다. 독립 복원 2개를 비교해야 "값이 안정적이다"를 실제로 검증한다
+    //   (= 받은 원격 state 가 기준선이 되는 useFirebaseSync 경로에서 재전송이 안 생긴다).
+    const a = reconstructState('g_1', raw({ referee: '박C' }));
+    const b = reconstructState('g_1', raw({ referee: '박C' }));
+    expect(a).not.toBe(b);
+    expect(a.soccerMatches[0]).not.toBe(b.soccerMatches[0]);
+    expect(diffStateToWrites(a, b)).toEqual({});
   });
 });
