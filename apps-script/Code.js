@@ -2,6 +2,10 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-10-07: 로그_매치 roles_json 열 추가 (축구 경기별 영상촬영·주심·부심).
+//             RAW_MATCHES_HEADERS 맨 끝 + _rawMatchToArray 맨 끝. 기존 열 위치 불변.
+//             ★ 기존 시트는 헤더 행 W1 에 roles_json 을 수동 입력해야 한다
+//               (_ensureRawSheets 는 시트가 없을 때만 헤더를 쓴다).
 // 2026-09-09: 회원인증·테니스_회원명부를 비공개 스프레드시트로 분리 — 스크립트 속성 PRIVATE_SHEET_ID 가
 //             가리키는 시트에서만 읽고 쓴다(_getPrivateSpreadsheet/_getPrivateSheet). 원래 스프레드시트가
 //             링크 공개라 로그인 자격증명(이름+휴대폰뒷자리+역할)과 생년월일이 무인증 CSV 로 읽혔다.
@@ -95,7 +99,8 @@ var RAW_MATCHES_HEADERS = [
   "our_score","opponent_score",
   "our_gk","opponent_gk",
   "formation","our_defenders_json",
-  "is_extra","input_time"
+  "is_extra","input_time",
+  "roles_json"   // ★ 맨 끝 고정 — src/utils/matchRowBuilder.js RAW_MATCH_COLUMNS 와 순서 일치
 ];
 
 var RAW_PLAYER_GAMES_HEADERS = [
@@ -1203,7 +1208,8 @@ function _rawMatchToArray(r) {
     r.our_score||0, r.opponent_score||0,
     r.our_gk||"", r.opponent_gk||"",
     r.formation||"", r.our_defenders_json||"[]",
-    r.is_extra===true, r.input_time||""
+    r.is_extra===true, r.input_time||"",
+    r.roles_json||""
   ];
 }
 
