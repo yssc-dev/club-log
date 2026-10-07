@@ -4,6 +4,7 @@
 //    → 이게 없으면 받는 기기가 roles.camera.map 에서 터진다.
 import { describe, it, expect } from 'vitest';
 import { diffStateToWrites, reconstructState } from '../firebaseSyncDiff';
+import { gameReducer, initialState } from '../../hooks/useGameReducer';
 
 const match = (idx, extra = {}) => ({
   matchIdx: idx, opponent: `상대${idx}`, lineup: ['A', 'B'], gk: 'A', defenders: ['B'],
@@ -68,14 +69,48 @@ describe('reconstructState — RTDB 빈배열 드롭 복원', () => {
     expect(st.soccerMatches[0].roles.camera).toEqual(['김A', '이B']);
   });
 
-  it('복원 결과는 재전송을 유발하지 않는다 — 독립 복원 2개를 diff 하면 쓰기 0', () => {
-    // ★ 같은 참조를 두 번 넘기면(diffStateToWrites(st, st)) deepEqual 의 a===b 빠른 경로에 걸려
-    //   정규화가 틀려도 통과한다. 독립 복원 2개를 비교해야 "값이 안정적이다"를 실제로 검증한다
-    //   (= 받은 원격 state 가 기준선이 되는 useFirebaseSync 경로에서 재전송이 안 생긴다).
-    const a = reconstructState('g_1', raw({ referee: '박C' }));
-    const b = reconstructState('g_1', raw({ referee: '박C' }));
-    expect(a).not.toBe(b);
-    expect(a.soccerMatches[0]).not.toBe(b.soccerMatches[0]);
-    expect(diffStateToWrites(a, b)).toEqual({});
+  it('리듀서가 저장한 로컬 state 와 RTDB 왕복 복원 state 가 같다 — 에코 쓰기 루프 없음', () => {
+    // ★ 이 테스트가 지키는 것: 받는 기기에서 '복원된 원격 state'가 그대로 다음 diff 의 기준선이
+    //   된다(useFirebaseSync.js). 그래서 리듀서가 저장한 모양과 복원된 모양이 한 글자라도 다르면
+    //   매 동기화 틱마다 soccerMatches/{idx}/roles 를 다시 쓰는 무한 루프가 된다.
+    //   약한 버전 두 개를 쓰지 말 것:
+    //     - diffStateToWrites(st, st)  : deepEqual 의 a===b 빠른 경로에 걸려 항상 통과
+    //     - 독립 복원 2개 비교          : '결정성'만 증명 — 순수 함수면 자동으로 참
+    const local = gameReducer(
+      { ...initialState, soccerMatches: [{
+        matchIdx: 0, opponent: '한울', status: 'finished', startedAt: 1000,
+        lineup: ['A', 'B'], gk: 'A', defenders: ['B'], subs: [], formation: '4-4-2',
+        assignments: { 0: 'A' }, positionMap: { A: 'GK' },
+        events: [{ id: 'e0', type: 'goal', player: 'B', timestamp: 100 }],
+        ourScore: 1, opponentScore: 0,
+      }] },
+      { type: 'SET_SOCCER_MATCH_ROLES', matchIdx: 0, roles: { camera: [], referee: '박C', assistants: [] } }
+    );
+
+    // Firebase 가 실제로 하는 일: 빈 배열/빈 객체를 저장하지 않는다. 그 손실을 그대로 재현한다.
+    const dropEmpties = (o) => {
+      if (Array.isArray(o)) return o.length === 0 ? undefined : o.map(dropEmpties);
+      if (o && typeof o === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(o)) {
+          const d = dropEmpties(v);
+          if (d !== undefined) out[k] = d;
+        }
+        return Object.keys(out).length === 0 ? undefined : out;
+      }
+      return o;
+    };
+    const m = local.soccerMatches[0];
+    const node = dropEmpties({
+      meta: { gameId: 'g_1' },
+      soccerMatches: { 0: { ...m, events: { e0: m.events[0] } } },
+    });
+    expect(node.soccerMatches[0].roles).toEqual({ referee: '박C' }); // 빈 배열이 사라진 것 확인
+
+    const remote = reconstructState('g_1', node);
+    expect(remote.soccerMatches[0].roles).toEqual(m.roles);
+
+    const writes = diffStateToWrites(remote, local);
+    expect(Object.keys(writes).filter(k => k.startsWith('soccerMatches'))).toEqual([]);
   });
 });
