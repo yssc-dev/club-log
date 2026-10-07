@@ -13,6 +13,7 @@ describe('RAW_MATCH_COLUMNS', () => {
       'our_gk', 'opponent_gk',
       'formation', 'our_defenders_json',
       'is_extra', 'input_time',
+      'roles_json',
     ]);
   });
 });
