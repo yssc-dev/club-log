@@ -20,6 +20,7 @@ export * from './calcPersonalRecords';
 export * from './calcPersonalSynergy';
 export * from './calcPlayerSummary';
 export * from './calcRadarData';
+export * from './calcRoleCounts';   // 축구 전용 — analyticsV2 대응 불필요(컴포넌트 직접 소비)
 export * from './calcRecentHotStreak'; // 대시보드 최상단 카드 — 양쪽에 같은 이름으로 존재(셰도잉 대응)
 export * from './calcRivalry';
 export * from './calcRoundSlope';
