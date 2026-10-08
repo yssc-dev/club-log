@@ -3,6 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isExtraRow, matchKeyOf, selectCupRows, collectPlayedPairs, calcCupStandings, calcCupPlayerRecords,
+  cupStandingRules, ATTEND_BONUS_TIERS, CUP_MATCH_POINTS,
 } from '../cup/cupRecords';
 
 const A5 = ['a1', 'a2', 'a3', 'a4', 'a5'];
@@ -390,5 +391,29 @@ describe('calcCupPlayerRecords', () => {
     expect(list.slice(0, 3).map(r => r.name)).toEqual(['a3', 'a4', 'b2']);
     expect(list[3].name).toBe('b3');
     expect(list[4].name).toBe('a1');
+  });
+});
+
+describe('cupStandingRules — 순위표 툴팁 문구는 계산 상수에서 나온다', () => {
+  it('승점·참석 가점·합계·순위 결정 4줄', () => {
+    const lines = cupStandingRules();
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toBe(`승점: 승 ${CUP_MATCH_POINTS.win} · 무 ${CUP_MATCH_POINTS.draw} · 패 ${CUP_MATCH_POINTS.loss}`);
+    expect(lines[0]).toBe('승점: 승 3 · 무 1 · 패 0');
+    expect(lines[1]).toBe('참석 가점: 경기일당 등록 팀원 7~9명 +1 · 10명 이상 +3 (용병 제외)');
+    expect(lines[2]).toBe('합계 = 승점 + 참석 가점');
+    expect(lines[3]).toBe('순위: 합계 → 골득실 → 총득점 → 팀명');
+  });
+  it('참석 가점 줄은 ATTEND_BONUS_TIERS 의 모든 구간을 담는다(상수 바꾸면 문구도 따라감)', () => {
+    const line = cupStandingRules()[1];
+    for (const t of ATTEND_BONUS_TIERS) expect(line).toContain(`+${t.bonus}`);
+    expect(ATTEND_BONUS_TIERS).toEqual([{ min: 10, bonus: 3 }, { min: 7, bonus: 1 }]);
+  });
+  it('승점 상수가 실제 집계와 같다(승 3·무 1·패 0)', () => {
+    const win = calcCupStandings({ matchRows: [M({ our_score: 2, opponent_score: 0 })], cup: { meta: { id: 'CUP' } } }).standings;
+    expect(win.find(s => s.name === '팀A').points).toBe(CUP_MATCH_POINTS.win);
+    expect(win.find(s => s.name === '팀B').points).toBe(CUP_MATCH_POINTS.loss);
+    const draw = calcCupStandings({ matchRows: [M({ our_score: 1, opponent_score: 1 })], cup: { meta: { id: 'CUP' } } }).standings;
+    expect(draw.find(s => s.name === '팀A').points).toBe(CUP_MATCH_POINTS.draw);
   });
 });

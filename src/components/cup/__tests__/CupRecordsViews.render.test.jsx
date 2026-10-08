@@ -50,6 +50,26 @@ describe('CupStandingsTable', () => {
     await mount(createElement(CupStandingsTable, { standings: [S()], finished: true }));
     expect(container.querySelector('tr[data-role="cup-standing-row"]').textContent).toContain('🏆 우승');
   });
+  it('점수 규칙 ⓘ: 기본 닫힘 → 탭하면 규칙 4줄(10명 이상 +3 포함) → 다시 탭하면 닫힘', async () => {
+    await mount(createElement(CupStandingsTable, { standings: [S()], finished: false }));
+    const toggle = container.querySelector('[data-role="cup-rules-toggle"]');
+    expect(toggle).not.toBeNull();
+    expect(toggle.textContent).toContain('점수 규칙');
+    expect(container.querySelector('[data-role="cup-rules-panel"]')).toBeNull();
+    expect(container.textContent).not.toContain('10명 이상');
+    await click(toggle);
+    const panel = container.querySelector('[data-role="cup-rules-panel"]');
+    expect(panel).not.toBeNull();
+    expect(panel.querySelectorAll('li').length).toBe(4);
+    expect(panel.textContent).toContain('승 3 · 무 1 · 패 0');
+    expect(panel.textContent).toContain('7~9명 +1');
+    expect(panel.textContent).toContain('10명 이상 +3');
+    expect(panel.textContent).toContain('합계 = 승점 + 참석 가점');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    await click(toggle);
+    expect(container.querySelector('[data-role="cup-rules-panel"]')).toBeNull();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+  });
 });
 
 describe('CupPlayerRecordsTable', () => {

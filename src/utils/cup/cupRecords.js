@@ -16,6 +16,28 @@ export function attendBonusOf(present) {
   return tier ? tier.bonus : 0;
 }
 
+// 경기 결과 승점. calcCupStandings 집계와 순위표 툴팁(cupStandingRules)이 같은 값을 본다.
+export const CUP_MATCH_POINTS = { win: 3, draw: 1, loss: 0 };
+
+/**
+ * 순위표 점수 규칙 문구(2026-10-08, 툴팁용). 상수에서 조립하므로 구간·승점을 바꾸면 문구도 따라온다.
+ * 참석 구간은 오름차순으로 "7~9명 +1 · 10명 이상 +3" 처럼 잇는다(마지막 구간만 "이상").
+ */
+export function cupStandingRules() {
+  const tiers = [...ATTEND_BONUS_TIERS].sort((a, b) => a.min - b.min);
+  const tierText = tiers.map((t, i) => {
+    const next = tiers[i + 1];
+    const range = next ? `${t.min}~${next.min - 1}명` : `${t.min}명 이상`;
+    return `${range} +${t.bonus}`;
+  }).join(' · ');
+  return [
+    `승점: 승 ${CUP_MATCH_POINTS.win} · 무 ${CUP_MATCH_POINTS.draw} · 패 ${CUP_MATCH_POINTS.loss}`,
+    `참석 가점: 경기일당 등록 팀원 ${tierText} (용병 제외)`,
+    '합계 = 승점 + 참석 가점',
+    '순위: 합계 → 골득실 → 총득점 → 팀명',
+  ];
+}
+
 // is_extra 는 세션 저장값(boolean) 또는 시트 경유 문자열('TRUE')로 온다 — 둘 다 임시 라운드.
 export function isExtraRow(row) {
   const v = row?.is_extra;
@@ -135,10 +157,11 @@ export function calcCupStandings({ matchRows = [], cup }) {
 
     h.games++; a.games++;
     h.gf += hs; h.ga += as; a.gf += as; a.ga += hs;
-    let hp = 0, ap = 0;
-    if (hs > as) { h.wins++; a.losses++; hp = 3; }
-    else if (hs < as) { a.wins++; h.losses++; ap = 3; }
-    else { h.draws++; a.draws++; hp = 1; ap = 1; }
+    const { win, draw, loss } = CUP_MATCH_POINTS;
+    let hp = loss, ap = loss;
+    if (hs > as) { h.wins++; a.losses++; hp = win; }
+    else if (hs < as) { a.wins++; h.losses++; ap = win; }
+    else { h.draws++; a.draws++; hp = draw; ap = draw; }
     h.points += hp; a.points += ap;
     dh.points += hp; da.points += ap;
 
