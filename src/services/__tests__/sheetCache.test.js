@@ -16,6 +16,7 @@ const h = vi.hoisted(() => ({
   },
   rosterEmptyNext: false, // _safeRead 가 조회 실패를 [] 로 삼킨 상황 재현용
   cumulativeBonusEmptyNext: false, // getCumulativeBonus 의 !enabled()/조회 실패 모양 재현용
+  logResponseNext: null, // 로그 3종 getMatchLog 의 다음 응답을 통째로 지정('NULL' 센티널 = null 응답)
   auth: { team: '몽피스', mode: '테니스' },
   settings: {},
 }));
@@ -73,7 +74,14 @@ vi.mock('../tennisSync', () => ({
 
 vi.mock('../appSync', () => ({
   default: {
-    getMatchLog: () => { h.fetchCounts.matchLog++; return Promise.resolve({ rows: [{ team: '마스터FC', date: '2026-09-01', match_id: 'R1_C0' }] }); },
+    getMatchLog: () => {
+      h.fetchCounts.matchLog++;
+      if (h.logResponseNext !== null) {
+        const r = h.logResponseNext; h.logResponseNext = null;
+        return Promise.resolve(r === 'NULL' ? null : r);
+      }
+      return Promise.resolve({ rows: [{ team: '마스터FC', date: '2026-09-01', match_id: 'R1_C0' }] });
+    },
     getEventLog: () => { h.fetchCounts.eventLog++; return Promise.resolve({ rows: [{ team: '마스터FC', event_type: 'goal', player: '박성언' }] }); },
     getPlayerGameLog: () => { h.fetchCounts.playerGameLog++; return Promise.resolve({ rows: [{ team: '마스터FC', player: '박성언', games: 3 }] }); },
     getPointLog: () => { h.fetchCounts.pointLog++; return Promise.resolve([{ date: '2026-09-01', scorer: '박성언', assist: '김원희' }]); },
@@ -107,6 +115,7 @@ beforeEach(() => {
   };
   h.rosterEmptyNext = false;
   h.cumulativeBonusEmptyNext = false;
+  h.logResponseNext = null;
   h.auth = { team: '몽피스', mode: '테니스' };
   h.settings = {};
   SheetCache._resetForTest();
@@ -602,6 +611,32 @@ describe('세대(generation) 가드 — get 이 더 신선한 refresh 를 덮지
   it('경합이 없으면 get 은 평소처럼 L2 를 채운다(가드가 정상 경로를 막지 않는다)', async () => {
     await SheetCache.get('matchLog');
     expect(h.store.has('cache/마스터FC/풋살/matchLog/all')).toBe(true);
+    expect(h.fetchCounts.matchLog).toBe(1);
+  });
+});
+
+// 서버가 success:false 를 돌려준 것은 "0행"이 아니라 조회 실패다(getRange 범위 오류·인증 실패 등).
+// 예전엔 어댑터가 r?.rows || [] 로 조용히 [] 를 만들어 화면엔 "0경기"만 남고 에러 문구가
+// 어디에도(콘솔에도) 남지 않았다 — 2026-10-08 로그_매치 23열 전환 직후 마스터FC 분석이
+// 0경기로 뜬 사고를 원인 불명으로 만든 바로 그 경로.
+describe('로그 3종 — Apps Script 실패 응답은 [] 가 아니라 에러다', () => {
+  beforeEach(() => { h.auth = { team: '마스터FC', mode: '풋살' }; });
+
+  it('success:false 면 get() 이 서버 에러 문구를 담아 거부되고, L3 는 한 번만 친다', async () => {
+    h.logResponseNext = { success: false, error: '범위의 열 수는 최대 22이어야 합니다' };
+    await expect(SheetCache.get('matchLog')).rejects.toThrow('범위의 열 수는 최대 22이어야 합니다');
+    // 어댑터 예외가 "L2 읽기 실패 → 시트 폴백" catch 로 흘러 L3 를 두 번 치면 안 된다.
+    expect(h.fetchCounts.matchLog).toBe(1);
+    // 실패는 캐시에 남지 않는다 — L2 노드 없음, L1 도 비어 다음 get() 이 다시 L3 를 시도해 복귀한다.
+    expect(h.store.has('cache/마스터FC/풋살/matchLog/all')).toBe(false);
+    const rows = await SheetCache.get('matchLog');
+    expect(rows[0].match_id).toBe('R1_C0');
+    expect(h.fetchCounts.matchLog).toBe(2);
+  });
+
+  it('응답이 null(네트워크 실패·Apps Script 미설정)이어도 시트 이름을 담아 거부된다', async () => {
+    h.logResponseNext = 'NULL';
+    await expect(SheetCache.get('matchLog')).rejects.toThrow('로그_매치');
     expect(h.fetchCounts.matchLog).toBe(1);
   });
 });

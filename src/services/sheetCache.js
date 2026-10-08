@@ -34,6 +34,21 @@ const L1_TTL_MS = 5 * 60 * 1000;          // appSync 대회 캐시와 같은 관
 // 모든 쓰기 경로(마감·회원 upsert·자동 업로드 봇)가 재적재하므로 순수 백스톱이다.
 export const L2_TTL_MS = 12 * 60 * 60 * 1000;
 
+// 로그 3종 응답 → 행 배열. 서버의 success:false(getRange 범위 오류·인증 실패 등)와
+// null(네트워크 실패·Apps Script 미설정)은 "0행"이 아니라 조회 실패다 — 예전처럼 조용히
+// [] 로 바꾸면 화면엔 "0경기"만 남고 원인 문구가 콘솔에도 남지 않는다(2026-10-08 로그_매치
+// 23열 전환 직후 마스터FC 분석이 0경기로 뜬 사고가 원인 불명이 된 경로). 에러로 던져
+// get() 이 거부되게 한다. get 호출부(PlayerAnalytics·DefenseTopCards·RecentFormTop3·
+// CupDetail)는 전부 .catch 를 갖고 있어 화면은 죽지 않고, refresh() 는 어차피 빈 결과를
+// 실패로 보므로 동작이 같다(강등 경고에 원인이 붙을 뿐).
+function logRows(sheetName) {
+  return (r) => {
+    if (r === null || r === undefined) throw new Error(`${sheetName} 조회 실패: 응답 없음(네트워크 또는 Apps Script 미설정)`);
+    if (r.success === false) throw new Error(`${sheetName} 조회 실패: ${r.error || '원인 미상'}`);
+    return r.rows || [];
+  };
+}
+
 // 풋살·축구는 같은 Apps Script 함수를 쓰지만 sport 인자와 시트명이 다르다.
 // {rows} 래퍼는 여기서 벗겨 배열만 캐시한다 — 호출부도 배열을 직접 받는다.
 //
@@ -45,9 +60,9 @@ export const L2_TTL_MS = 12 * 60 * 60 * 1000;
 // 생성에서 종목 세그먼트를 '공용' 으로 고정해 한 노드를 공유한다(_pathFor).
 function soccerLikeAdapters(sport) {
   const adapters = {
-    matchLog:      { columns: RAW_MATCH_COLUMNS,       fetch: () => AppSync.getMatchLog({ sport }).then(r => r?.rows || []) },
-    eventLog:      { columns: RAW_EVENT_COLUMNS,       fetch: () => AppSync.getEventLog({ sport }).then(r => r?.rows || []) },
-    playerGameLog: { columns: RAW_PLAYER_GAME_COLUMNS, fetch: () => AppSync.getPlayerGameLog({ sport }).then(r => r?.rows || []) },
+    matchLog:      { columns: RAW_MATCH_COLUMNS,       fetch: () => AppSync.getMatchLog({ sport }).then(logRows('로그_매치')) },
+    eventLog:      { columns: RAW_EVENT_COLUMNS,       fetch: () => AppSync.getEventLog({ sport }).then(logRows('로그_이벤트')) },
+    playerGameLog: { columns: RAW_PLAYER_GAME_COLUMNS, fetch: () => AppSync.getPlayerGameLog({ sport }).then(logRows('로그_선수경기')) },
     pointLog:  { columns: POINT_LOG_CACHE_COLUMNS,  sharedSheet: true, sheetOf: s => s.pointLogSheet,  fetch: s => AppSync.getPointLog(s.pointLogSheet) },
     playerLog: { columns: PLAYER_LOG_CACHE_COLUMNS, sharedSheet: true, sheetOf: s => s.playerLogSheet, fetch: s => AppSync.getPlayerLog(s.playerLogSheet) },
     latestDeltas:    { mode: 'raw', sharedSheet: true, sheetOf: s => s.playerLogSheet, fetch: s => AppSync.getLatestDeltas(s.playerLogSheet) },
@@ -245,25 +260,28 @@ const SheetCache = {
         genAtFetch = _gen.get(path) || 0;
         return _fetchValue(adapter, settings);
       };
+      // L2 읽기 실패만 폴백 대상이다. 어댑터(L3) 예외까지 같은 catch 로 받으면 "시트 폴백"
+      // 이라며 L3 를 한 번 더 치고 나서야 실패가 전파된다 — L3 호출은 try 밖에 둔다.
+      // res === null 은 L2 읽기 자체가 실패한 경우: 예전과 같이 저장도 시도하지 않는다.
+      let res = null;
       try {
         const snap = await get(ref(firebaseDb, path));
-        const res = readCacheNode(snap.val(), _readOpts(adapter, settings), L2_TTL_MS, Date.now());
-        if (res.ok) {
-          value = res.rows;
-        } else {
-          value = await fetchL3();
-          if (!_isEmptyValue(adapter, value) && !staleNow()) {
-            try {
-              await set(ref(firebaseDb, path), {
-                ..._encodeNode(adapter, value, settings),
-                version: serverTimestamp(),
-              });
-            } catch (e) { console.warn(`[sheetCache] ${dataset} L2 저장 실패:`, e.message); }
-          }
-        }
+        res = readCacheNode(snap.val(), _readOpts(adapter, settings), L2_TTL_MS, Date.now());
       } catch (e) {
         console.warn(`[sheetCache] ${dataset} L2 읽기 실패, 시트 폴백:`, e.message);
+      }
+      if (res?.ok) {
+        value = res.rows;
+      } else {
         value = await fetchL3();
+        if (res && !_isEmptyValue(adapter, value) && !staleNow()) {
+          try {
+            await set(ref(firebaseDb, path), {
+              ..._encodeNode(adapter, value, settings),
+              version: serverTimestamp(),
+            });
+          } catch (e) { console.warn(`[sheetCache] ${dataset} L2 저장 실패:`, e.message); }
+        }
       }
       // 빈 결과는 L1에도 넣지 않는다(refresh 와 대칭, _isEmptyValue 로 판정).
       // Apps Script 콜드스타트 실패가 _safeRead 에 의해 []로 삼켜진 경우, 이걸

@@ -40,12 +40,13 @@ vi.mock('../../../config/settings', () => ({
 // 스파이로 받는다(2번째 인자를 버리지 않는다) — teamMode → { sport } 배선이 사라지면
 // 겸직팀에서 축구 탭을 보면서 풋살 캐시를 읽는 사고가 나는데, 인자를 버리는 목은
 // 그 회귀를 전혀 잡지 못한다.
-const getSpy = vi.fn((dataset) => Promise.resolve(
+const defaultGet = (dataset) => Promise.resolve(
   dataset === 'matchLog' ? matchLogs
   : dataset === 'eventLog' ? eventLogs
   : dataset === 'playerGameLog' ? playerGameLogs
   : []
-));
+);
+const getSpy = vi.fn(defaultGet);
 vi.mock('../../../services/sheetCache', () => ({
   default: { get: (...args) => getSpy(...args) },
 }));
@@ -57,7 +58,7 @@ Object.defineProperty(window, 'matchMedia', {
 globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 let container, root;
-beforeEach(() => { getSpy.mockClear(); container = document.createElement('div'); document.body.appendChild(container); });
+beforeEach(() => { getSpy.mockReset(); getSpy.mockImplementation(defaultGet); container = document.createElement('div'); document.body.appendChild(container); });
 afterEach(() => { act(() => root?.unmount()); container.remove(); });
 
 async function mount(props) {
@@ -97,5 +98,27 @@ describe('PlayerAnalytics 실렌더(act) — SheetCache 읽기 경로 (.rows 래
     expect(getSpy).toHaveBeenCalledWith('matchLog', { sport: '축구' });
     expect(getSpy).toHaveBeenCalledWith('eventLog', { sport: '축구' });
     expect(getSpy).toHaveBeenCalledWith('playerGameLog', { sport: '축구' });
+  });
+});
+
+// 로그 조회 실패(Apps Script success:false·네트워크)는 "0경기"가 아니라 실패로 보여야 한다.
+// 예전엔 .catch(() => []) 가 삼켜 화면엔 "서라현 (0경기)"만 남고 원인은 어디에도 없었다
+// (2026-10-08 로그_매치 23열 전환 직후 마스터FC 사고).
+describe('PlayerAnalytics — 로그 조회 실패 표시', () => {
+  it('SheetCache.get 이 거부되면 서버 메시지를 담은 실패 문구를 띄우고 나머지 화면은 그대로 그린다', async () => {
+    getSpy.mockImplementation((dataset) => (
+      dataset === 'matchLog'
+        ? Promise.reject(new Error('로그_매치 조회 실패: 범위의 열 수는 최대 22이어야 합니다'))
+        : defaultGet(dataset)
+    ));
+    await mount();
+    expect(container.textContent).toContain('로그_매치 조회 실패');
+    expect(container.textContent).toContain('범위의 열 수는 최대 22이어야 합니다');
+    expect(container.textContent).toContain('개인분석'); // 서브탭은 살아 있다 — 실패가 화면을 죽이지 않는다
+  });
+
+  it('정상 로드면 실패 문구가 없다', async () => {
+    await mount();
+    expect(container.textContent).not.toContain('조회 실패');
   });
 });
