@@ -35,6 +35,17 @@ async function mount(props = {}) {
   });
 }
 
+// 같은 root 에 새 props 로 다시 렌더 — 다른 기기의 roles 변경이 구독으로 도착한 상황.
+// mount 는 새 root 를 만들어 무조건 재마운트되므로 '열어둔 채 원격이 바뀜' 을 재현할 수 없다.
+async function rerender(props = {}) {
+  await act(async () => {
+    root.render(createElement(ThemeProvider, null,
+      createElement(MatchRolesModal, {
+        match: MATCH, attendees: ATTENDEES, onSave: () => {}, onClose: () => {}, ...props,
+      })));
+  });
+}
+
 const click = async (el) => {
   expect(el, '클릭 대상 엘리먼트를 찾지 못했다').toBeTruthy();
   await act(async () => { el.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
@@ -202,5 +213,29 @@ describe('MatchRolesModal', () => {
     await mount({ onClose });
     await click(save());
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // ★ no-op 저장 가드의 핵심 케이스. 2026-10-08 회귀 수정 —
+  // 이전 구현은 initial 을 매 렌더 readRoles(match) 로 다시 계산해서, 원격이 바뀌면
+  // 비교가 '로컬(열 때 스냅샷) vs 원격(새것)' 이 되어 달라지고 가드가 통과했다.
+  // 그래서 아무것도 안 건드렸는데도 onSave 가 낡은 값으로 호출돼 상대 변경을 되돌렸다.
+  it('모달 열어둔 채 원격이 바뀌어도, 아무것도 안 건드리고 저장하면 쓰지 않는다', async () => {
+    const onSave = vi.fn();
+    const onClose = vi.fn();
+    await mount({ match: { ...MATCH, roles: { camera: [], referee: 'X', assistants: [] } }, onSave, onClose });
+    // 다른 기기가 주심을 X → Y 로 바꿈 (RESTORE_STATE 로 새 match 객체가 prop 으로 도착)
+    await rerender({ match: { ...MATCH, roles: { camera: [], referee: 'Y', assistants: [] } }, onSave, onClose });
+    await click(save());
+    expect(onSave).not.toHaveBeenCalled();   // 낡은 X 로 Y 를 덮지 않는다
+    expect(onClose).toHaveBeenCalled();
+  });
+
+  it('원격이 바뀐 뒤 내가 실제로 편집하면 쓴다 — LWW 유지', async () => {
+    const onSave = vi.fn();
+    await mount({ match: { ...MATCH, roles: { camera: [], referee: 'X', assistants: [] } }, onSave });
+    await rerender({ match: { ...MATCH, roles: { camera: [], referee: 'Y', assistants: [] } }, onSave });
+    await click(chip('camera', 'Z'));        // 실제 편집
+    await click(save());
+    expect(onSave).toHaveBeenCalledWith({ camera: ['Z'], referee: 'X', assistants: [] });
   });
 });

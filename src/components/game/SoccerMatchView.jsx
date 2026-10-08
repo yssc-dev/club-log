@@ -218,7 +218,9 @@ export default function SoccerMatchView({
   const canChangeOpponent = !!node && !atNewNode && !isRest;
   const openOpponentModal = () => {
     if (!node) return;
-    if (gameFinalized && !confirm("이미 구글시트로 전송(마감)된 경기입니다.\n상대팀을 바꾸면 최종집계 화면의 '수정 후 재전송'으로 다시 전송해야 시트가 정합됩니다.\n계속하시겠습니까?")) return;
+    // 로그_매치는 game_id|match_id 로 중복을 차단하므로(_writeRawMatches) 이미 전송된 행은
+    // '수정 후 재전송'으로 갱신되지 않고 건너뛰어진다 — 역할 지정 confirm 과 같은 사실을 쓴다.
+    if (gameFinalized && !confirm("이미 구글시트로 전송(마감)된 경기입니다.\n로그_매치는 중복 전송을 차단하므로 상대팀을 바꿔도 '수정 후 재전송'으로는 시트가 갱신되지 않습니다.\n시트까지 고치려면 설정 화면에서 그 날짜의 로그_매치를 삭제한 뒤 재전송해야 합니다.\n계속하시겠습니까?")) return;
     setOpponentModalIdx(node.matchIdx);
   };
   const openLineupEditor = () => {

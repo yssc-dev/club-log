@@ -16,7 +16,12 @@ import { getNonPlayers } from '../../utils/soccerScoring';
 // 설계: docs/superpowers/specs/2026-10-07-soccer-match-roles-design.md
 export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
   const { C } = useTheme();
-  const initial = readRoles(match);
+  // ★ 열 때 한 번만 평가한다(useState 초기화 함수). 매 렌더 readRoles(match) 로 다시 계산하면
+  //   원격 변경이 도착할 때 initial 이 그 새 값으로 갈아타는데 아래 세 state 는 열 때 스냅샷
+  //   그대로라서, handleSave 의 "손 안 댔나" 비교가 '로컬(낡음) vs 원격(새것)' 이 된다.
+  //   그 둘은 원격이 바뀌었기 때문에 달라지므로, 가드가 정확히 위험한 순간에 통과해 버린다
+  //   (실측: 원격 X→Y 후 아무것도 안 건드리고 저장 → onSave('X') 로 Y 를 되돌렸다).
+  const [initial] = useState(() => readRoles(match));
   const [camera, setCamera] = useState(initial.camera);
   const [referee, setReferee] = useState(initial.referee);
   const [assistants, setAssistants] = useState(initial.assistants);
@@ -58,7 +63,8 @@ export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
   // 아무것도 안 건드리고 저장만 눌렀을 때는 쓰지 않는다 — 모달이 열린 채 다른 기기가
   // roles 를 바꾼 경우, no-op 저장이 그 변경을 조용히 덮어쓰는 것을 막는다(LWW 는 유지:
   // 실제로 뭔가 바꿨으면 그대로 onSave 가 호출돼 마지막 쓰기가 이긴다).
-  // `initial` 은 매 렌더마다 readRoles(match) 로 다시 계산되므로 여기서 항상 최신 권위 값이다.
+  // 비교 기준은 '열 때 스냅샷'(initial)이어야 한다 — 최신 원격 값과 비교하면 원격이 바뀐
+  // 바로 그 경우에 비교가 어긋나 가드가 통과한다(위 initial 주석 참고).
   const isUnchanged = (a, b) =>
     a.referee === b.referee &&
     a.camera.length === b.camera.length && a.camera.every((n, i) => n === b.camera[i]) &&
