@@ -33,14 +33,14 @@ const CUP = {
 describe('calcCupHeadToHead', () => {
   it('단방향 홈 승리 — cells[A][B] 승, cells[B][A] 패', () => {
     const r = calcCupHeadToHead({ matchRows: [M()], cup: CUP });
-    expect(r.cells['팀A']['팀B']).toEqual({ games: 1, wins: 1, draws: 0, losses: 0, gf: 1, ga: 0 });
-    expect(r.cells['팀B']['팀A']).toEqual({ games: 1, wins: 0, draws: 0, losses: 1, gf: 0, ga: 1 });
+    expect(r.cells['팀A']['팀B']).toEqual({ games: 1, wins: 1, draws: 0, losses: 0, gf: 1, ga: 0, winRate: 1 });
+    expect(r.cells['팀B']['팀A']).toEqual({ games: 1, wins: 0, draws: 0, losses: 1, gf: 0, ga: 1, winRate: 0 });
   });
 
   it('무승부는 양쪽 draws +1', () => {
     const r = calcCupHeadToHead({ matchRows: [M({ our_score: 1, opponent_score: 1 })], cup: CUP });
-    expect(r.cells['팀A']['팀B']).toMatchObject({ games: 1, wins: 0, draws: 1, losses: 0 });
-    expect(r.cells['팀B']['팀A']).toMatchObject({ games: 1, wins: 0, draws: 1, losses: 0 });
+    expect(r.cells['팀A']['팀B']).toMatchObject({ games: 1, wins: 0, draws: 1, losses: 0, winRate: 0.5 });
+    expect(r.cells['팀B']['팀A']).toMatchObject({ games: 1, wins: 0, draws: 1, losses: 0, winRate: 0.5 });
   });
 
   it('여러 번 만난 경우 누적', () => {
@@ -50,8 +50,23 @@ describe('calcCupHeadToHead', () => {
       M({ our_score: 1, opponent_score: 3, match_idx: 3 }), // A 패
     ];
     const r = calcCupHeadToHead({ matchRows: rows, cup: CUP });
-    expect(r.cells['팀A']['팀B']).toEqual({ games: 3, wins: 1, draws: 1, losses: 1, gf: 3, ga: 4 });
-    expect(r.cells['팀B']['팀A']).toEqual({ games: 3, wins: 1, draws: 1, losses: 1, gf: 4, ga: 3 });
+    expect(r.cells['팀A']['팀B']).toEqual({ games: 3, wins: 1, draws: 1, losses: 1, gf: 3, ga: 4, winRate: 0.5 });
+    expect(r.cells['팀B']['팀A']).toEqual({ games: 3, wins: 1, draws: 1, losses: 1, gf: 4, ga: 3, winRate: 0.5 });
+  });
+
+  it('승률 = (승 + 0.5×무) / 경기 — 정규 분석탭(calcRivalry·pairBaseline)과 같은 정의 (2026-10-09)', () => {
+    const rows = [
+      M({ our_score: 2, opponent_score: 1 }),
+      M({ our_score: 0, opponent_score: 0, match_idx: 2 }),
+      M({ our_score: 0, opponent_score: 0, match_idx: 3 }),
+      M({ our_score: 0, opponent_score: 0, match_idx: 4 }),
+      M({ our_score: 0, opponent_score: 1, match_idx: 5 }),
+      M({ our_score: 0, opponent_score: 1, match_idx: 6 }),
+    ];
+    const r = calcCupHeadToHead({ matchRows: rows, cup: CUP });
+    // 1승3무2패 → (1 + 1.5) / 6
+    expect(r.cells['팀A']['팀B'].winRate).toBeCloseTo(2.5 / 6, 10);
+    expect(r.cells['팀B']['팀A'].winRate).toBeCloseTo(3.5 / 6, 10);
   });
 
   it('teams 순서 — 엔티티 순서 우선, 행 전용 팀은 ko 정렬로 뒤에', () => {

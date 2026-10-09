@@ -51,7 +51,8 @@ function buildTeamDisplay(matchRows, cup) {
 
 /**
  * 팀별 상대전적 표.
- * @returns {{ teams: string[], cells: { [rowTeam]: { [colTeam]: { games, wins, draws, losses, gf, ga } } } }}
+ * @returns {{ teams: string[], cells: { [rowTeam]: { [colTeam]: { games, wins, draws, losses, gf, ga, winRate } } } }}
+ * winRate = (승 + 0.5×무) / 경기 — 정규 분석탭(calcRivalry·calcSynergyMatrix·pairBaseline)과 같은 정의(2026-10-09).
  * cells 는 Object.fromEntries 로 구성 — '__proto__' 같은 팀명이 Object.prototype 을 오염하지 않는다.
  * 짝 없는 팀 쌍은 키 부재(UI 가 '-' 표시).
  */
@@ -87,6 +88,10 @@ export function calcCupHeadToHead({ matchRows = [], cup }) {
     const ac = ensureCell(aName, hName);
     ac.games++; ac.gf += as; ac.ga += hs;
     if (as > hs) ac.wins++; else if (as < hs) ac.losses++; else ac.draws++;
+  }
+
+  for (const colMap of cellMaps.values()) {
+    for (const c of colMap.values()) c.winRate = c.games > 0 ? (c.wins + 0.5 * c.draws) / c.games : null;
   }
 
   // Map → 일반 객체. Object.fromEntries 는 [[CreateDataPropertyOrThrow]] 를 써서

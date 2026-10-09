@@ -38,6 +38,39 @@ export function cupStandingRules() {
   ];
 }
 
+/**
+ * 개인기록 기본 정렬 축(앞에서부터 우선, 전부 내림차순, 전부 같으면 이름 가나다).
+ * calcCupPlayerRecords 의 정렬과 개인기록 툴팁(cupPlayerRecordRules)이 같은 배열을 본다 — 축을 바꾸면 둘 다 따라온다.
+ * 2026-10-09: 참석(days)을 이름 앞에 추가 — 기록이 전부 0 인 선수들 사이에서 출전한 선수가 미출전보다 위.
+ */
+export const PLAYER_RECORD_ORDER = [
+  { key: 'goals', label: '골' },
+  { key: 'assists', label: '어시' },
+  { key: 'cleanSheets', label: '클린시트' },
+  { key: 'days', label: '참석' },
+];
+export function comparePlayerRecords(x, y) {
+  for (const { key } of PLAYER_RECORD_ORDER) {
+    const d = num(y?.[key]) - num(x?.[key]);
+    if (d !== 0) return d;
+  }
+  return byKo(x?.name, y?.name);
+}
+
+/**
+ * 개인기록 정렬 기준 문구(2026-10-09, 툴팁용). 첫 줄은 PLAYER_RECORD_ORDER 라벨에서 조립.
+ * 머리글 탭 정렬은 안정 정렬(sortRows)이라 동값 묶음 안에서는 이 기본 순서가 유지된다.
+ */
+export function cupPlayerRecordRules() {
+  const chain = PLAYER_RECORD_ORDER.map(o => o.label).join(' → ');
+  return [
+    `기본 순서: ${chain} → 이름(가나다)`,
+    '기록이 같으면 참석(출전) 날짜가 많은 선수가 위',
+    '열 머리글을 탭하면 그 열로 정렬, 한 번 더 탭하면 반대 방향 (숫자 열은 큰 값부터)',
+    "실점률 '—'(GK 미출전)는 방향과 무관하게 맨 뒤",
+  ];
+}
+
 // is_extra 는 세션 저장값(boolean) 또는 시트 경유 문자열('TRUE')로 온다 — 둘 다 임시 라운드.
 export function isExtraRow(row) {
   const v = row?.is_extra;
@@ -238,5 +271,5 @@ export function calcCupPlayerRecords({ matchRows = [], eventRows = [], cup }) {
 
   return [...recs.values()]
     .map(({ dates, ...rec }) => ({ ...rec, days: dates.size }))
-    .sort((x, y) => y.goals - x.goals || y.assists - x.assists || y.cleanSheets - x.cleanSheets || byKo(x.name, y.name));
+    .sort(comparePlayerRecords);
 }

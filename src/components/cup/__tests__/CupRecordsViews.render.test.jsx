@@ -123,6 +123,26 @@ describe('CupPlayerRecordsTable', () => {
     expect(gkVals[1]).toBeGreaterThanOrEqual(gkVals[2]);
   });
 
+  it('정렬 기준 ⓘ: 기본 닫힘 → 탭하면 4줄(참석 동률 규칙 포함) → 다시 탭하면 닫힘 (2026-10-09)', async () => {
+    await mount(createElement(CupPlayerRecordsTable, { records: [baseRec()] }));
+    const toggle = container.querySelector('[data-role="cup-player-rules-toggle"]');
+    expect(toggle).not.toBeNull();
+    expect(toggle.textContent).toContain('정렬 기준');
+    expect(container.querySelector('[data-role="cup-player-rules-panel"]')).toBeNull();
+    expect(container.textContent).not.toContain('기본 순서');
+    await click(toggle);
+    const panel = container.querySelector('[data-role="cup-player-rules-panel"]');
+    expect(panel).not.toBeNull();
+    expect(panel.querySelectorAll('li').length).toBe(4);
+    expect(panel.textContent).toContain('골 → 어시 → 클린시트 → 참석 → 이름');
+    expect(panel.textContent).toContain('참석(출전) 날짜가 많은 선수가 위');
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    await click(toggle);
+    expect(container.querySelector('[data-role="cup-player-rules-panel"]')).toBeNull();
+    // 순위표 토글과 data-role 이 다르다(같은 화면에 둘 다 있어도 섞이지 않음)
+    expect(container.querySelector('[data-role="cup-rules-toggle"]')).toBeNull();
+  });
+
   it('행·용병 표시', async () => {
     await mount(createElement(CupPlayerRecordsTable, { records: [
       baseRec(),

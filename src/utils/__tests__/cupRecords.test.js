@@ -3,7 +3,7 @@
 import { describe, it, expect } from 'vitest';
 import {
   isExtraRow, matchKeyOf, selectCupRows, collectPlayedPairs, calcCupStandings, calcCupPlayerRecords,
-  cupStandingRules, ATTEND_BONUS_TIERS, CUP_MATCH_POINTS,
+  cupStandingRules, ATTEND_BONUS_TIERS, CUP_MATCH_POINTS, cupPlayerRecordRules, PLAYER_RECORD_ORDER,
 } from '../cup/cupRecords';
 
 const A5 = ['a1', 'a2', 'a3', 'a4', 'a5'];
@@ -383,7 +383,7 @@ describe('calcCupPlayerRecords', () => {
     const list = recs([M(), M({ match_id: 'R2_C0', is_extra: true })], [E(), E({ match_id: 'R2_C0' })]);
     expect(rec(list, 'a2').goals).toBe(1);
   });
-  it('정렬: 골 → 어시 → 클린시트 → 이름', () => {
+  it('정렬: 골 → 어시 → 클린시트 → 참석 → 이름', () => {
     const list = recs([M({ our_score: 1, opponent_score: 0 })], [
       E({ player: 'b2', related_player: 'b3' }), E({ player: 'a4', related_player: 'a3' }), E({ player: 'a3' }),
     ]);
@@ -391,6 +391,31 @@ describe('calcCupPlayerRecords', () => {
     expect(list.slice(0, 3).map(r => r.name)).toEqual(['a3', 'a4', 'b2']);
     expect(list[3].name).toBe('b3');
     expect(list[4].name).toBe('a1');
+  });
+  it('기록이 같으면 참석(출전) 날짜가 많은 선수가 위 — 이름순보다 먼저 (2026-10-09)', () => {
+    // 팀A 명단을 a1·a2 만으로: a3~a7 은 등록 팀원이지만 미참석. 0:0 이라 GK a1·b1 은 CS 1 → 비교 대상에서 빠진다.
+    const list = recs([M({ our_members_json: JSON.stringify(['a1', 'a2']), opponent_members_json: JSON.stringify(['b1', 'b5']) })], []);
+    const zeros = list.filter(r => r.goals === 0 && r.assists === 0 && r.cleanSheets === 0).map(r => `${r.name}:${r.days}`);
+    // 참석 1 인 a2·b5 가 미참석 a3~a7·b2~b4·b6·c1 보다 앞. 각 묶음 안은 이름순.
+    expect(zeros).toEqual(['a2:1', 'b5:1', 'a3:0', 'a4:0', 'a5:0', 'a6:0', 'a7:0', 'b2:0', 'b3:0', 'b4:0', 'b6:0', 'c1:0']);
+  });
+  it('헤더 정렬 후 동값 유지 순서도 참석을 따른다 — 정렬 상수가 참석을 이름 앞에 둔다', () => {
+    expect(PLAYER_RECORD_ORDER.map(o => o.key)).toEqual(['goals', 'assists', 'cleanSheets', 'days']);
+  });
+});
+
+describe('cupPlayerRecordRules — 개인기록 정렬 기준 툴팁 문구는 정렬 상수에서 나온다', () => {
+  it('기본 순서·동률 규칙·머리글 정렬·실점률 — 4줄', () => {
+    const lines = cupPlayerRecordRules();
+    expect(lines).toHaveLength(4);
+    expect(lines[0]).toBe('기본 순서: 골 → 어시 → 클린시트 → 참석 → 이름(가나다)');
+    expect(lines[1]).toBe('기록이 같으면 참석(출전) 날짜가 많은 선수가 위');
+    expect(lines[2]).toBe('열 머리글을 탭하면 그 열로 정렬, 한 번 더 탭하면 반대 방향 (숫자 열은 큰 값부터)');
+    expect(lines[3]).toBe("실점률 '—'(GK 미출전)는 방향과 무관하게 맨 뒤");
+  });
+  it('첫 줄은 PLAYER_RECORD_ORDER 의 라벨을 순서대로 담는다(상수 바꾸면 문구도 따라감)', () => {
+    const line = cupPlayerRecordRules()[0];
+    expect(line).toContain(PLAYER_RECORD_ORDER.map(o => o.label).join(' → '));
   });
 });
 

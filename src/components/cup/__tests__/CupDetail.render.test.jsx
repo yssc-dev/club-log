@@ -160,12 +160,13 @@ describe('CupDetail 기록 섹션', () => {
     // 자책골 0이면 ownGoalPoint(-2) × 0 = "0"
     const playerRow = container.querySelector('[data-role="cup-player-row"][data-player="a2"]');
     expect(playerRow).not.toBeNull();
-    // 맞대결: 팀A→팀B 1-0-0
+    // 맞대결: 팀A→팀B 1-0-0 → 승률 100% / 1승/0무/0패 (2026-10-09 표기)
     const h2hTable = container.querySelector('table[data-role="cup-h2h"]');
     expect(h2hTable).not.toBeNull();
     const h2hCell = container.querySelector('[data-role="cup-h2h-cell"][data-row="팀A"][data-col="팀B"]');
     expect(h2hCell).not.toBeNull();
-    expect(h2hCell.textContent).toContain('1승0무0패');
+    expect(h2hCell.textContent).toContain('100%');
+    expect(h2hCell.textContent).toContain('1승/0무/0패');
     // 필드 지표 표
     expect(container.querySelector('table[data-role="cup-field-impact"]')).not.toBeNull();
     // 키퍼 테이블은 더 이상 별도 섹션이 없다

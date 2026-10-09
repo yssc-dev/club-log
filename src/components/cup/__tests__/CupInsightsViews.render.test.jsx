@@ -152,11 +152,11 @@ describe('CupHeadToHead', () => {
   const teams = ['광땡', '리즈', '나와'];
   const cells = {
     광땡: {
-      리즈: { games: 2, wins: 1, draws: 1, losses: 0, gf: 3, ga: 1 },
-      나와: { games: 1, wins: 0, draws: 0, losses: 1, gf: 0, ga: 2 },
+      리즈: { games: 2, wins: 1, draws: 1, losses: 0, gf: 3, ga: 1, winRate: 0.75 },
+      나와: { games: 1, wins: 0, draws: 0, losses: 1, gf: 0, ga: 2, winRate: 0 },
     },
     리즈: {
-      광땡: { games: 2, wins: 0, draws: 1, losses: 1, gf: 1, ga: 3 },
+      광땡: { games: 2, wins: 0, draws: 1, losses: 1, gf: 1, ga: 3, winRate: 0.25 },
     },
   };
 
@@ -176,11 +176,21 @@ describe('CupHeadToHead', () => {
     }
   });
 
-  it('존재하는 pair 는 W-D-L 과 gf:ga', async () => {
+  it('존재하는 pair 는 윗줄 승률 %, 아랫줄 n승/n무/n패 (2026-10-09: 득:실 대신 승률)', async () => {
     await mount(createElement(CupHeadToHead, { teams, cells }));
     const cell = container.querySelector('[data-role="cup-h2h-cell"][data-row="광땡"][data-col="리즈"]');
-    expect(cell.textContent).toContain('1승1무0패');
-    expect(cell.textContent).toContain('3:1');
+    const lines = [...cell.querySelectorAll('div')].map(d => d.textContent.trim());
+    expect(lines).toEqual(['75%', '1승/1무/0패']);
+    expect(cell.textContent).not.toContain('3:1');
+    const lose = container.querySelector('[data-role="cup-h2h-cell"][data-row="광땡"][data-col="나와"]');
+    expect([...lose.querySelectorAll('div')].map(d => d.textContent.trim())).toEqual(['0%', '0승/0무/1패']);
+  });
+
+  it('승률은 반올림 정수 % — 41.7% → 42%', async () => {
+    const c = { 광땡: { 리즈: { games: 6, wins: 1, draws: 3, losses: 2, gf: 6, ga: 8, winRate: 2.5 / 6 } } };
+    await mount(createElement(CupHeadToHead, { teams: ['광땡', '리즈'], cells: c }));
+    const cell = container.querySelector('[data-role="cup-h2h-cell"][data-row="광땡"][data-col="리즈"]');
+    expect([...cell.querySelectorAll('div')].map(d => d.textContent.trim())).toEqual(['42%', '1승/3무/2패']);
   });
 
   it('없는 pair 는 -', async () => {
@@ -191,7 +201,8 @@ describe('CupHeadToHead', () => {
 
   it('캡션 텍스트 포함', async () => {
     await mount(createElement(CupHeadToHead, { teams, cells }));
-    expect(container.textContent).toContain('행 팀 기준 승무패 · 득:실');
+    expect(container.textContent).toContain('행 팀 기준 승률(승 + 무×½ ÷ 경기) · 전적(승/무/패)');
+    expect(container.textContent).not.toContain('득:실');
   });
 });
 

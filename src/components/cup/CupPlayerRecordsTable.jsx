@@ -4,9 +4,13 @@
 // ownGoalPoint: 자책 1골당 점수 (기본 -1, 표준 규칙). 자책(점) 셀 = ownGoals * ownGoalPoint 정수 문자열.
 // CupDetail 은 getCupSettings 로 팀 규칙값(-2 등)을 넘기므로 화면은 팀 규칙을 따른다.
 // gkRate 정렬: 비-GK(null)는 방향과 무관하게 항상 맨 뒤.
+// 2026-10-09: 표 위 "정렬 기준 ⓘ" 탭 토글 — 문구는 cupPlayerRecordRules()(정렬 상수에서 조립)만 쓴다.
+// 기본 순서(골→어시→클린시트→참석→이름)는 records 가 이미 그 순서로 오고, 머리글 정렬은 안정 정렬이라 동값 안에서 유지된다.
 import { useMemo } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import { useSortableRows, SortHeader } from '../tennis/Sortable';
+import { cupPlayerRecordRules } from '../../utils/cup/cupRecords';
+import CupRulesToggle from './CupRulesToggle';
 
 export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 }) {
   const { C } = useTheme();
@@ -40,6 +44,7 @@ export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 
 
   return (
     <div>
+    <CupRulesToggle id="cup-player-rules" label="정렬 기준" lines={cupPlayerRecordRules()} />
     <div style={{ overflowX: 'auto' }}>
       <table data-role="cup-player-records" style={{ width: '100%', borderCollapse: 'collapse' }}>
         <thead>
