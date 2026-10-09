@@ -291,7 +291,7 @@ export function calcCupAwards({
  * @returns {{ minOn: number, rated: Array, unrated: Array }}
  * 각 항목: { name, team, onGames, offGames, gkGames, onGfPg, onGaPg, offGfPg, offGaPg, goalImpact, defImpact, onCleanSheets, cleanRate }
  *   gkGames: 소속(primary)팀 경기 중 GK로 서서 on/off 에서 제외된 경기 수(어느 팀 GK든).
- *            onGames + offGames + gkGames = 소속팀 경기 수 — 표에서 "GK(제외)" 열로 합이 맞는지 보여준다(2026-10-02).
+ *            onGames + offGames + gkGames = 소속팀 경기 수 — 표에서 "GK 출전" 열(10-09 개명, 전엔 "GK(제외)")로 합이 맞는지 보여준다(2026-10-02).
  *   onCleanSheets: on 경기 중 팀 실점 0 인 경기 수.
  *   cleanRate: onCleanSheets / onGames, Number(x.toFixed(2)).
  * 정렬: (goalImpact ?? -Inf) + (defImpact ?? -Inf) 내림 → onGames 내림 → name ko (null 은 맨 뒤).
