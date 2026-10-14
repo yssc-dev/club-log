@@ -1,31 +1,29 @@
 import { useState } from 'react';
 import { useTheme } from '../../hooks/useTheme';
 import Modal from '../common/Modal';
-import { readRoles, MAX_ASSISTANTS } from '../../utils/soccerRoles';
+import { readRoles } from '../../utils/soccerRoles';
 import { getNonPlayers } from '../../utils/soccerScoring';
 
-// 경기별 역할 지정 — 영상촬영(복수) · 주심(1) · 부심(2). 전부 공석 가능.
+// 경기별 역할 지정 — 영상촬영(복수) · 주심(1). 전부 공석 가능.
+// 부심은 2026-10-14 폐지(사용자 요청) — 섹션·상호배타 규칙 모두 사라졌다.
 //
 // 후보는 참석자 전원이다. getNonPlayers 는 '경기 전체 기준' 미출전자라서, 전반에 심판 보다가
 // 후반 교체 투입된 사람이 후보에서 사라진다. 그래서 미출전자를 앞에 두고 출전자는 「출전」
 // 라벨만 달아 뒤에 두되, 선택은 막지 않는다(사용자 결정).
 //
-// 겸임 규칙: 주심 ↔ 부심만 상호 배타(한쪽을 누르면 다른 쪽에서 빠진다).
-// 영상촬영은 심판과 겸임 허용 — 한 명이 찍으면서 주심 보는 경우가 실제로 있다.
+// 겸임: 영상촬영과 주심은 겸임 허용 — 한 명이 찍으면서 주심 보는 경우가 실제로 있다.
 //
 // 설계: docs/superpowers/specs/2026-10-07-soccer-match-roles-design.md
 export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
   const { C } = useTheme();
   // ★ 열 때 한 번만 평가한다(useState 초기화 함수). 매 렌더 readRoles(match) 로 다시 계산하면
-  //   원격 변경이 도착할 때 initial 이 그 새 값으로 갈아타는데 아래 세 state 는 열 때 스냅샷
+  //   원격 변경이 도착할 때 initial 이 그 새 값으로 갈아타는데 아래 두 state 는 열 때 스냅샷
   //   그대로라서, handleSave 의 "손 안 댔나" 비교가 '로컬(낡음) vs 원격(새것)' 이 된다.
   //   그 둘은 원격이 바뀌었기 때문에 달라지므로, 가드가 정확히 위험한 순간에 통과해 버린다
   //   (실측: 원격 X→Y 후 아무것도 안 건드리고 저장 → onSave('X') 로 Y 를 되돌렸다).
   const [initial] = useState(() => readRoles(match));
   const [camera, setCamera] = useState(initial.camera);
   const [referee, setReferee] = useState(initial.referee);
-  const [assistants, setAssistants] = useState(initial.assistants);
-  const [notice, setNotice] = useState('');
 
   // 후보 정렬: 미출전자 먼저, 각 그룹은 참석자 순서 유지.
   const nonPlayers = new Set(getNonPlayers(match, attendees || []));
@@ -35,29 +33,11 @@ export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
   ];
 
   const toggleCamera = (name) => {
-    setNotice('');
     setCamera(prev => prev.includes(name) ? prev.filter(n => n !== name) : [...prev, name]);
   };
 
   const toggleReferee = (name) => {
-    setNotice('');
     setReferee(prev => (prev === name ? '' : name));
-    // 주심으로 올리면 부심에서 빼준다(상호 배타)
-    setAssistants(prev => (referee === name ? prev : prev.filter(n => n !== name)));
-  };
-
-  const toggleAssistant = (name) => {
-    setNotice('');
-    if (assistants.includes(name)) {
-      setAssistants(assistants.filter(n => n !== name));
-      return;
-    }
-    if (assistants.length >= MAX_ASSISTANTS) {
-      setNotice(`부심은 ${MAX_ASSISTANTS}명까지입니다. 먼저 한 명을 해제하세요.`);
-      return;
-    }
-    setAssistants([...assistants, name]);
-    if (referee === name) setReferee(''); // 부심으로 내리면 주심에서 뺀다(상호 배타)
   };
 
   // 아무것도 안 건드리고 저장만 눌렀을 때는 쓰지 않는다 — 모달이 열린 채 다른 기기가
@@ -67,24 +47,19 @@ export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
   // 바로 그 경우에 비교가 어긋나 가드가 통과한다(위 initial 주석 참고).
   const isUnchanged = (a, b) =>
     a.referee === b.referee &&
-    a.camera.length === b.camera.length && a.camera.every((n, i) => n === b.camera[i]) &&
-    a.assistants.length === b.assistants.length && a.assistants.every((n, i) => n === b.assistants[i]);
+    a.camera.length === b.camera.length && a.camera.every((n, i) => n === b.camera[i]);
 
   const handleSave = () => {
-    const current = { camera, referee, assistants };
+    const current = { camera, referee };
     if (!isUnchanged(current, initial)) onSave?.(current);
     onClose?.();
   };
 
   const isOn = (role, name) =>
-    role === 'camera' ? camera.includes(name)
-    : role === 'referee' ? referee === name
-    : assistants.includes(name);
+    role === 'camera' ? camera.includes(name) : referee === name;
 
   const onTap = (role, name) =>
-    role === 'camera' ? toggleCamera(name)
-    : role === 'referee' ? toggleReferee(name)
-    : toggleAssistant(name);
+    role === 'camera' ? toggleCamera(name) : toggleReferee(name);
 
   const section = (role, label, hint) => (
     <div data-role={role} style={{ marginBottom: 16 }}>
@@ -114,12 +89,7 @@ export default function MatchRolesModal({ match, attendees, onSave, onClose }) {
   return (
     <Modal onClose={onClose} title={`제${(match?.matchIdx ?? 0) + 1}경기 역할 지정`}>
       {section('camera', '🎥 영상촬영', '여러 명 지정 가능 · 공석 가능')}
-      {section('referee', '🧑‍⚖️ 주심', '1명 · 공석 가능 · 부심과 겸임 불가')}
-      {section('assistants', '🚩 부심', `${MAX_ASSISTANTS}명까지 · 공석 가능 · 주심과 겸임 불가`)}
-
-      {notice && (
-        <div style={{ fontSize: 11, color: C.orange, marginBottom: 10 }}>{notice}</div>
-      )}
+      {section('referee', '🧑‍⚖️ 주심', '1명 · 공석 가능')}
 
       <button onClick={handleSave}
         style={{

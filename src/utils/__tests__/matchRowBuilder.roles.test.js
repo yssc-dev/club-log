@@ -39,11 +39,11 @@ describe('buildRoundRowsFromSoccer — roles_json', () => {
   it('역할이 있으면 JSON 으로 적재한다', () => {
     const rows = build([match({ roles: { camera: ['X', 'Y'], referee: 'Z', assistants: ['A'] } })]);
     expect(JSON.parse(rows[0].roles_json))
-      .toEqual({ camera: ['X', 'Y'], referee: 'Z', assistants: ['A'] });
+      .toEqual({ camera: ['X', 'Y'], referee: 'Z' });   // 레거시 부심은 직렬화에서 빠진다
   });
 
   it('전원 공석이면 빈 문자열이다 (시트 JSON 도배 방지)', () => {
-    const rows = build([match({ roles: { camera: [], referee: '', assistants: [] } })]);
+    const rows = build([match({ roles: { camera: [], referee: '' } })]);
     expect(rows[0].roles_json).toBe('');
   });
 
@@ -55,7 +55,7 @@ describe('buildRoundRowsFromSoccer — roles_json', () => {
   it('RTDB 드롭 모양({referee}만)도 정규화해 적재한다', () => {
     const rows = build([match({ roles: { referee: 'Z' } })]);
     expect(JSON.parse(rows[0].roles_json))
-      .toEqual({ camera: [], referee: 'Z', assistants: [] });
+      .toEqual({ camera: [], referee: 'Z' });
   });
 
   it('다른 열은 영향받지 않는다', () => {

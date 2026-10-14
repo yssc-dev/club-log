@@ -106,7 +106,7 @@ describe('SoccerMatchView — 역할 지정', () => {
       .find(b => b.dataset.name === 'X');
     await click(refChip);
     await click(btn('저장'));
-    expect(onSetMatchRoles).toHaveBeenCalledWith(0, { camera: [], referee: 'X', assistants: [] });
+    expect(onSetMatchRoles).toHaveBeenCalledWith(0, { camera: [], referee: 'X' });
   });
 
   it('종료 노드에 역할이 읽기전용으로 표시된다', async () => {
@@ -116,7 +116,8 @@ describe('SoccerMatchView — 역할 지정', () => {
     await goPrevNode();
     expect(container.textContent).toContain('영상촬영: X, Y');
     expect(container.textContent).toContain('주심: Z');
-    expect(container.textContent).toContain('부심: A');
+    // 부심은 2026-10-14 폐지 — 레거시 값이 들어있어도 표시되지 않는다
+    expect(container.textContent).not.toContain('부심');
   });
 
   it('역할이 전부 공석이면 — 로 표시한다 (RTDB 드롭 모양도 안전)', async () => {

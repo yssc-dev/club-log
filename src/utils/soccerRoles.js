@@ -1,4 +1,4 @@
-// 경기별 역할(영상촬영 · 주심 · 부심) 순수 함수.
+// 경기별 역할(영상촬영 · 주심) 순수 함수.
 //
 // ★ 이 모듈이 존재하는 이유: RTDB 는 빈 배열을 저장하지 않고, 비어있지 않은 배열을
 //   객체({0:'김A'})로 바꿔 돌려줄 수 있다. 그래서 같은 roles 가 경로에 따라 네 가지
@@ -8,14 +8,17 @@
 //   따라서 "읽는 쪽은 전부 readRoles 를 경유한다" 를 계약으로 둔다.
 //   호출부에 `|| []` 를 흩뿌리지 않는다 — 접근자 1개가 네 경로를 동시에 막는다.
 //
+// ★ 부심(assistants)은 2026-10-14 폐지됐다(사용자 요청). 2026-10-07~14 사이에
+//   RTDB·로그_매치에 들어간 레거시 값이 있으므로 **normalize 가 읽는 쪽에서 드롭**한다.
+//   시트 원본은 건드리지 않고, 해당 경기를 다시 전송하면 그때 JSON 에서 빠진다.
+//
 // 설계: docs/superpowers/specs/2026-10-07-soccer-match-roles-design.md
-
-export const MAX_ASSISTANTS = 2;
+//       (부심 폐지는 2026-10-14 bounded 변경 — 설계 문서 없음)
 
 // 정규형 빈 값. 호출마다 새 객체를 만든다 — 상수 하나를 공유하면 호출부가 push 해서
 // 다른 호출부를 오염시킨다.
 export function emptyRoles() {
-  return { camera: [], referee: '', assistants: [] };
+  return { camera: [], referee: '' };
 }
 
 // RTDB 가 돌려줄 수 있는 모든 모양 → 문자열 배열.
@@ -27,10 +30,10 @@ function asNameArray(v) {
 
 function normalize(raw) {
   if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return emptyRoles();
+  // raw.assistants 는 의도적으로 읽지 않는다(폐지된 축) — 레거시 값이 여기서 사라진다.
   return {
     camera: asNameArray(raw.camera),
     referee: typeof raw.referee === 'string' ? raw.referee : '',
-    assistants: asNameArray(raw.assistants).slice(0, MAX_ASSISTANTS),
   };
 }
 
@@ -40,11 +43,11 @@ export function readRoles(match) {
 }
 
 // 정규형 → 로그_매치 roles_json 값.
-// 전원 공석이면 빈 문자열 — 시트가 '{"camera":[],"referee":"","assistants":[]}' 로
+// 전원 공석이면 빈 문자열 — 시트가 '{"camera":[],"referee":""}' 로
 // 도배되지 않고, 역할 기능 이전의 레거시 행(빈칸)과 같은 모양이 된다.
 export function serializeRoles(roles) {
   const r = normalize(roles);
-  if (r.camera.length === 0 && r.referee === '' && r.assistants.length === 0) return '';
+  if (r.camera.length === 0 && r.referee === '') return '';
   return JSON.stringify(r);
 }
 

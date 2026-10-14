@@ -958,7 +958,7 @@ function gameReducer(state, action) {
       );
       return { ...state, soccerMatches: matches };
     }
-    // 경기별 역할(영상촬영 · 주심 · 부심). SET_SOCCER_MATCH_OPPONENT 와 같은 규약 —
+    // 경기별 역할(영상촬영 · 주심). SET_SOCCER_MATCH_OPPONENT 와 같은 규약 —
     // 논리 matchIdx 매칭이라 배열 index 불변식에 의존하지 않고, events/status/점수는
     // 스프레드로 보존한다. readRoles 로 정규화해 저장하므로 undefined/초과 인원이 state 에
     // 들어가지 않는다(= 받는 기기와 시트 빌더가 같은 모양을 본다).

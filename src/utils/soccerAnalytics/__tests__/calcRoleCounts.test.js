@@ -17,26 +17,24 @@ describe('calcRoleCounts', () => {
 
   it('역할별 횟수를 센다', () => {
     const { rows, hasAny } = calcRoleCounts([
-      row({ camera: ['X'], referee: 'Y', assistants: ['Z', 'W'] }),
-      row({ camera: ['X'], referee: 'X', assistants: [] }),
+      row({ camera: ['X'], referee: 'Y' }),
+      row({ camera: ['X'], referee: 'X' }),
     ]);
     expect(hasAny).toBe(true);
     const byName = Object.fromEntries(rows.map(r => [r.name, r]));
-    expect(byName.X).toEqual({ name: 'X', camera: 2, referee: 1, assistant: 0, total: 3 });
-    expect(byName.Y).toEqual({ name: 'Y', camera: 0, referee: 1, assistant: 0, total: 1 });
-    expect(byName.Z).toEqual({ name: 'Z', camera: 0, referee: 0, assistant: 1, total: 1 });
-    expect(byName.W).toEqual({ name: 'W', camera: 0, referee: 0, assistant: 1, total: 1 });
+    expect(byName.X).toEqual({ name: 'X', camera: 2, referee: 1, total: 3 });
+    expect(byName.Y).toEqual({ name: 'Y', camera: 0, referee: 1, total: 1 });
   });
 
   it('역할 1회 이상인 사람만 담는다 (0회는 행이 없다)', () => {
-    const { rows } = calcRoleCounts([row({ camera: ['X'], referee: '', assistants: [] })]);
+    const { rows } = calcRoleCounts([row({ camera: ['X'], referee: '' })]);
     expect(rows.map(r => r.name)).toEqual(['X']);
   });
 
   it('합계 내림차순, 동점은 이름 오름차순으로 정렬한다', () => {
     const { rows } = calcRoleCounts([
-      row({ camera: ['b', 'a'], referee: 'c', assistants: [] }),
-      row({ camera: ['c'], referee: 'c', assistants: [] }),
+      row({ camera: ['b', 'a'], referee: 'c' }),
+      row({ camera: ['c'], referee: 'c' }),
     ]);
     // c=3(referee2+camera1), a=1, b=1 → c, a, b
     expect(rows.map(r => r.name)).toEqual(['c', 'a', 'b']);
@@ -45,7 +43,7 @@ describe('calcRoleCounts', () => {
   it('깨진 JSON 행은 건너뛴다 (크래시 금지)', () => {
     const { rows, hasAny } = calcRoleCounts([
       { roles_json: '{nope' },
-      row({ camera: ['X'], referee: '', assistants: [] }),
+      row({ camera: ['X'], referee: '' }),
     ]);
     expect(hasAny).toBe(true);
     expect(rows.map(r => r.name)).toEqual(['X']);
@@ -55,8 +53,14 @@ describe('calcRoleCounts', () => {
     expect(calcRoleCounts([{ date: '2026-10-07' }])).toEqual({ rows: [], hasAny: false });
   });
 
-  it('부심 3명이 적힌 이상 행은 2명까지만 센다 (parseRoles 상한)', () => {
-    const { rows } = calcRoleCounts([row({ camera: [], referee: '', assistants: ['a', 'b', 'c'] })]);
-    expect(rows.map(r => r.name).sort()).toEqual(['a', 'b']);
+  it('레거시 부심(assistants)은 집계하지 않는다 — 부심뿐인 행은 hasAny false', () => {
+    expect(calcRoleCounts([row({ camera: [], referee: '', assistants: ['a', 'b'] })]))
+      .toEqual({ rows: [], hasAny: false });
+  });
+
+  it('부심이 섞인 레거시 행은 촬영·주심만 센다 (부심 키도 없다)', () => {
+    const { rows } = calcRoleCounts([row({ camera: ['X'], referee: 'Y', assistants: ['Z'] })]);
+    expect(rows.map(r => r.name).sort()).toEqual(['X', 'Y']);
+    expect(Object.keys(rows[0]).sort()).toEqual(['camera', 'name', 'referee', 'total']);
   });
 });

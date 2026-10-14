@@ -1,4 +1,4 @@
-// MatchRolesModal 실렌더(act) — 인원 제약·겸임 규칙·후보 분류 계약.
+// MatchRolesModal 실렌더(act) — 인원 제약·후보 분류·no-op 저장 가드 계약.
 // 이 레포에는 @testing-library/react 가 없다. IntraSoccerMatchView.smoke.test.jsx 와
 // 같은 act + createRoot 하네스를 쓴다(build/vitest 가 못 잡는 마운트 크래시도 함께 커버).
 import { describe, it, expect, beforeEach, afterEach, vi } from 'vitest';
@@ -50,7 +50,7 @@ const click = async (el) => {
   expect(el, '클릭 대상 엘리먼트를 찾지 못했다').toBeTruthy();
   await act(async () => { el.dispatchEvent(new MouseEvent('click', { bubbles: true })); });
 };
-// 섹션(data-role="camera"|"referee"|"assistants") 안에서 이름 칩 버튼을 찾는다
+// 섹션(data-role="camera"|"referee") 안에서 이름 칩 버튼을 찾는다
 const chip = (role, name) =>
   [...container.querySelectorAll(`[data-role="${role}"] button[data-name]`)]
     .find(b => b.dataset.name === name);
@@ -59,12 +59,20 @@ const chipsOf = (role) =>
 const save = () => [...container.querySelectorAll('button')].find(b => b.textContent.includes('저장'));
 
 describe('MatchRolesModal', () => {
-  it('세 섹션이 모두 렌더되고 "촬영감독" 문구는 쓰지 않는다', async () => {
+  it('두 섹션(영상촬영·주심)만 렌더되고 "촬영감독" 문구는 쓰지 않는다', async () => {
     await mount();
     expect(container.textContent).toContain('영상촬영');
     expect(container.textContent).toContain('주심');
-    expect(container.textContent).toContain('부심');
     expect(container.textContent).not.toContain('촬영감독');
+  });
+
+  // ★ 부심 폐지(2026-10-14). 섹션·칩·안내문이 전부 사라졌는지 — '부심' 은 '주심' 의
+  //   부분문자열이 아니므로 textContent 검사로 충분하다.
+  it('부심 섹션은 없다 (2026-10-14 폐지)', async () => {
+    await mount();
+    expect(container.querySelector('[data-role="assistants"]')).toBeNull();
+    expect(container.textContent).not.toContain('부심');
+    expect(container.textContent).not.toContain('겸임');
   });
 
   it('후보는 참석자 전원이고, 미출전자가 출전자보다 앞에 온다', async () => {
@@ -86,7 +94,7 @@ describe('MatchRolesModal', () => {
     await mount({ onSave });
     await click(chip('referee', 'A'));
     await click(save());
-    expect(onSave).toHaveBeenCalledWith({ camera: [], referee: 'A', assistants: [] });
+    expect(onSave).toHaveBeenCalledWith({ camera: [], referee: 'A' });
   });
 
   it('영상촬영은 여러 명 토글된다', async () => {
@@ -132,51 +140,6 @@ describe('MatchRolesModal', () => {
     expect(onSave.mock.calls[0][0].referee).toBe('');
   });
 
-  it('부심은 2명까지 — 세 번째는 차단되고 안내가 보인다', async () => {
-    const onSave = vi.fn();
-    await mount({ onSave });
-    await click(chip('assistants', 'X'));
-    await click(chip('assistants', 'Y'));
-    await click(chip('assistants', 'Z'));
-    expect(container.textContent).toContain('부심은 2명까지');
-    await click(save());
-    expect(onSave.mock.calls[0][0].assistants).toEqual(['X', 'Y']);
-  });
-
-  it('부심 재탭은 해제이고, 해제 후에는 다시 넣을 수 있다', async () => {
-    const onSave = vi.fn();
-    await mount({ onSave });
-    await click(chip('assistants', 'X'));
-    await click(chip('assistants', 'Y'));
-    await click(chip('assistants', 'X'));
-    await click(chip('assistants', 'Z'));
-    await click(save());
-    expect(onSave.mock.calls[0][0].assistants).toEqual(['Y', 'Z']);
-  });
-
-  it('주심을 부심으로 탭하면 주심에서 빠지고 부심으로 이동한다', async () => {
-    const onSave = vi.fn();
-    await mount({ onSave });
-    await click(chip('referee', 'X'));
-    await click(chip('assistants', 'X'));
-    await click(save());
-    const roles = onSave.mock.calls[0][0];
-    expect(roles.referee).toBe('');
-    expect(roles.assistants).toEqual(['X']);
-  });
-
-  it('부심을 주심으로 탭하면 부심에서 빠지고 주심으로 이동한다', async () => {
-    const onSave = vi.fn();
-    await mount({ onSave });
-    await click(chip('assistants', 'X'));
-    await click(chip('assistants', 'Y'));
-    await click(chip('referee', 'X'));
-    await click(save());
-    const roles = onSave.mock.calls[0][0];
-    expect(roles.referee).toBe('X');
-    expect(roles.assistants).toEqual(['Y']);
-  });
-
   it('영상촬영은 주심과 겸임 허용 — 서로 밀어내지 않는다', async () => {
     const onSave = vi.fn();
     await mount({ onSave });
@@ -193,10 +156,20 @@ describe('MatchRolesModal', () => {
     await mount({ match: { ...MATCH, roles: { referee: 'Z' } }, onSave });
     // 아무것도 안 건드리고 저장하면 no-op 가드에 걸려 onSave 가 호출되지 않으므로,
     // 칩 하나(camera 'X')를 토글해 초기값 referee:'Z' 가 결과에 그대로 반영되는지로 확인한다 —
-    // 초기 state 가 실제로 'Z' 로 seed 되지 않았다면 여기서 referee 가 '' 로 나온다.
+    // 초기 state 가 실제로 'Z' 로seed 되지 않았다면 여기서 referee 가 '' 로 나온다.
     await click(chip('camera', 'X'));
     await click(save());
-    expect(onSave).toHaveBeenCalledWith({ camera: ['X'], referee: 'Z', assistants: [] });
+    expect(onSave).toHaveBeenCalledWith({ camera: ['X'], referee: 'Z' });
+  });
+
+  // 2026-10-07~14 사이에 부심이 들어간 경기를 열면 그 값은 조용히 사라진다(폐지된 축).
+  it('레거시 부심이 든 경기를 열어도 부심은 복원되지 않고 저장에도 안 실린다', async () => {
+    const onSave = vi.fn();
+    await mount({ match: { ...MATCH, roles: { camera: [], referee: 'Z', assistants: ['W'] } }, onSave });
+    expect(container.textContent).not.toContain('부심');
+    await click(chip('camera', 'X'));
+    await click(save());
+    expect(onSave).toHaveBeenCalledWith({ camera: ['X'], referee: 'Z' });
   });
 
   it('아무것도 안 건드리고 저장하면 onSave 는 호출되지 않고 닫히기만 한다 (no-op 저장 가드)', async () => {
@@ -206,6 +179,16 @@ describe('MatchRolesModal', () => {
     await click(save());
     expect(onSave).not.toHaveBeenCalled();
     expect(onClose).toHaveBeenCalled();
+  });
+
+  // 레거시 부심만 든 경기는 열자마자 '전원 공석' 으로 읽힌다 → 손 안 대고 저장하면
+  // 쓰지 않는다(가드 통과 금지). 부심을 지우려고 일부러 저장하는 경우를 막지는 않는다 —
+  // 그건 아래 '실제 편집' 경로로 들어간다.
+  it('레거시 부심만 든 경기도 손 안 대면 쓰지 않는다', async () => {
+    const onSave = vi.fn();
+    await mount({ match: { ...MATCH, roles: { camera: [], referee: '', assistants: ['W'] } }, onSave });
+    await click(save());
+    expect(onSave).not.toHaveBeenCalled();
   });
 
   it('저장하면 onClose 도 호출된다', async () => {
@@ -222,9 +205,9 @@ describe('MatchRolesModal', () => {
   it('모달 열어둔 채 원격이 바뀌어도, 아무것도 안 건드리고 저장하면 쓰지 않는다', async () => {
     const onSave = vi.fn();
     const onClose = vi.fn();
-    await mount({ match: { ...MATCH, roles: { camera: [], referee: 'X', assistants: [] } }, onSave, onClose });
+    await mount({ match: { ...MATCH, roles: { camera: [], referee: 'X' } }, onSave, onClose });
     // 다른 기기가 주심을 X → Y 로 바꿈 (RESTORE_STATE 로 새 match 객체가 prop 으로 도착)
-    await rerender({ match: { ...MATCH, roles: { camera: [], referee: 'Y', assistants: [] } }, onSave, onClose });
+    await rerender({ match: { ...MATCH, roles: { camera: [], referee: 'Y' } }, onSave, onClose });
     await click(save());
     expect(onSave).not.toHaveBeenCalled();   // 낡은 X 로 Y 를 덮지 않는다
     expect(onClose).toHaveBeenCalled();
@@ -232,10 +215,10 @@ describe('MatchRolesModal', () => {
 
   it('원격이 바뀐 뒤 내가 실제로 편집하면 쓴다 — LWW 유지', async () => {
     const onSave = vi.fn();
-    await mount({ match: { ...MATCH, roles: { camera: [], referee: 'X', assistants: [] } }, onSave });
-    await rerender({ match: { ...MATCH, roles: { camera: [], referee: 'Y', assistants: [] } }, onSave });
+    await mount({ match: { ...MATCH, roles: { camera: [], referee: 'X' } }, onSave });
+    await rerender({ match: { ...MATCH, roles: { camera: [], referee: 'Y' } }, onSave });
     await click(chip('camera', 'Z'));        // 실제 편집
     await click(save());
-    expect(onSave).toHaveBeenCalledWith({ camera: ['Z'], referee: 'X', assistants: [] });
+    expect(onSave).toHaveBeenCalledWith({ camera: ['Z'], referee: 'X' });
   });
 });

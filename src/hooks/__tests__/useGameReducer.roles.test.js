@@ -12,7 +12,7 @@ const match = (idx, extra = {}) => ({
 
 const withMatches = (matches) => ({ ...initialState, soccerMatches: matches });
 
-const ROLES = { camera: ['김A', '이B'], referee: '박C', assistants: ['최D'] };
+const ROLES = { camera: ['김A', '이B'], referee: '박C' };
 
 describe('gameReducer — SET_SOCCER_MATCH_ROLES', () => {
   it('해당 경기의 roles 를 설정한다', () => {
@@ -55,19 +55,19 @@ describe('gameReducer — SET_SOCCER_MATCH_ROLES', () => {
     expect(next.soccerMatches).toEqual(s.soccerMatches);
   });
 
-  it('roles 를 정규화해 저장한다 — 부심 3명은 2명으로, falsy 원소는 제거', () => {
+  it('roles 를 정규화해 저장한다 — falsy 원소 제거, 폐지된 부심 드롭', () => {
     const next = gameReducer(withMatches([match(0)]), {
       type: 'SET_SOCCER_MATCH_ROLES', matchIdx: 0,
       roles: { camera: ['김A', ''], referee: '박C', assistants: ['a', 'b', 'c'] },
     });
     expect(next.soccerMatches[0].roles)
-      .toEqual({ camera: ['김A'], referee: '박C', assistants: ['a', 'b'] });
+      .toEqual({ camera: ['김A'], referee: '박C' });
   });
 
   it('roles 누락/null 이면 전원 공석으로 저장한다 (undefined 저장 금지)', () => {
     const next = gameReducer(withMatches([match(0)]), {
       type: 'SET_SOCCER_MATCH_ROLES', matchIdx: 0, roles: null,
     });
-    expect(next.soccerMatches[0].roles).toEqual({ camera: [], referee: '', assistants: [] });
+    expect(next.soccerMatches[0].roles).toEqual({ camera: [], referee: '' });
   });
 });

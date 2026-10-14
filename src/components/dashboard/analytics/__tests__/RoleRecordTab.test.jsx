@@ -46,10 +46,8 @@ describe('RoleRecordTab', () => {
     expect(html).not.toContain('역할 기록이 아직 없습니다');
     expect(html).toContain('김A');
     expect(html).toContain('박C');
-    expect(html).toContain('최D');
     expect(html).toContain('영상촬영');
     expect(html).toContain('주심');
-    expect(html).toContain('부심');
     expect(html).toContain('합계');
   });
 
@@ -60,5 +58,17 @@ describe('RoleRecordTab', () => {
   it('깨진 roles_json 이 섞여도 렌더된다', () => {
     const html = render({ matchLogs: [{ roles_json: '{nope' }, ...logs] });
     expect(html).toContain('김A');
+  });
+
+  // 부심 폐지(2026-10-14). 열도, 레거시 부심으로만 등장하던 사람(최D)도 사라진다.
+  it('부심 열이 없고, 레거시 부심은 집계되지 않는다', () => {
+    const html = render({ matchLogs: logs });
+    expect(html).not.toContain('부심');
+    expect(html).not.toContain('최D');
+  });
+
+  it('부심만 적힌 레거시 행만 있으면 빈 상태 문구', () => {
+    const only = [{ roles_json: JSON.stringify({ camera: [], referee: '', assistants: ['최D'] }) }];
+    expect(render({ matchLogs: only })).toContain('역할 기록이 아직 없습니다');
   });
 });

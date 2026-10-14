@@ -13,7 +13,7 @@ const match = (idx, extra = {}) => ({
   startedAt: 1000 + idx, ourScore: 1, opponentScore: 0, status: 'finished', ...extra,
 });
 
-const ROLES = { camera: ['김A'], referee: '박C', assistants: ['최D'] };
+const ROLES = { camera: ['김A'], referee: '박C' };
 
 describe('diffStateToWrites — roles 전파', () => {
   it('roles 만 바뀌면 soccerMatches/{idx}/roles 한 경로만 쓴다', () => {
@@ -26,7 +26,7 @@ describe('diffStateToWrites — roles 전파', () => {
 
   it('roles 를 전원 공석으로 비우는 변경도 그 경로 하나로 쓴다', () => {
     const prev = { soccerMatches: [{ ...match(0), roles: ROLES }] };
-    const empty = { camera: [], referee: '', assistants: [] };
+    const empty = { camera: [], referee: '' };
     const next = { soccerMatches: [{ ...match(0), roles: empty }] };
     const writes = diffStateToWrites(prev, next);
     expect(Object.keys(writes)).toEqual(['soccerMatches/0/roles']);
@@ -52,16 +52,16 @@ describe('reconstructState — RTDB 빈배열 드롭 복원', () => {
     },
   });
 
-  it('camera/assistants 가 드롭돼 {referee} 만 와도 배열로 복원한다', () => {
+  it('camera 가 드롭돼 {referee} 만 와도 배열로 복원한다', () => {
     const st = reconstructState('g_1', raw({ referee: '박C' }));
     expect(st.soccerMatches[0].roles)
-      .toEqual({ camera: [], referee: '박C', assistants: [] });
+      .toEqual({ camera: [], referee: '박C' });
   });
 
   it('roles 노드가 아예 없어도 정규형을 채운다', () => {
     const st = reconstructState('g_1', raw(undefined));
     expect(st.soccerMatches[0].roles)
-      .toEqual({ camera: [], referee: '', assistants: [] });
+      .toEqual({ camera: [], referee: '' });
   });
 
   it('배열이 객체화({0:..})돼 와도 배열로 복원한다', () => {
@@ -84,7 +84,7 @@ describe('reconstructState — RTDB 빈배열 드롭 복원', () => {
         events: [{ id: 'e0', type: 'goal', player: 'B', timestamp: 100 }],
         ourScore: 1, opponentScore: 0,
       }] },
-      { type: 'SET_SOCCER_MATCH_ROLES', matchIdx: 0, roles: { camera: [], referee: '박C', assistants: [] } }
+      { type: 'SET_SOCCER_MATCH_ROLES', matchIdx: 0, roles: { camera: [], referee: '박C' } }
     );
 
     // Firebase 가 실제로 하는 일: 빈 배열/빈 객체를 저장하지 않는다. 그 손실을 그대로 재현한다.

@@ -2,7 +2,11 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
-// 2026-10-07: 로그_매치 roles_json 열 추가 (축구 경기별 영상촬영·주심·부심).
+// 2026-10-14: 축구 역할에서 부심 폐지 — roles_json 은 이제 {camera,referee} 둘만 담는다.
+//             ★ Apps Script 코드 변경 없음(roles_json 은 r.roles_json||"" 로 문자열 통과만 한다).
+//             열 구성(23열)도 그대로. 2026-10-07~14 사이 행에 남은 assistants 는 앱이 읽을 때
+//             무시하므로 시트를 손댈 필요 없다(해당 경기를 재전송하면 그때 JSON 에서 빠진다).
+// 2026-10-07: 로그_매치 roles_json 열 추가 (축구 경기별 영상촬영·주심·부심 — 부심은 10-14 폐지).
 //             RAW_MATCHES_HEADERS 맨 끝 + _rawMatchToArray 맨 끝. 기존 열 위치 불변.
 //             ★ 기존 시트는 헤더 행 W1 에 roles_json 을 수동 입력해야 한다
 //               (_ensureRawSheets 는 시트가 없을 때만 헤더를 쓴다).

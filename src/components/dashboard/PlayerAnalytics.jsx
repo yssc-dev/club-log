@@ -65,7 +65,7 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
 
   const settings = useMemo(() => getEffectiveSettings(teamName, isSoccer ? '축구' : '풋살'), [teamName, isSoccer]);
   const showCrovaGoguma = !isSoccer && settings?.useCrovaGoguma === true && teamName === '마스터FC';
-  // 역할(영상촬영·주심·부심)은 축구 전용 — 풋살 로그_매치에는 roles_json 이 항상 빈칸이다.
+  // 역할(영상촬영·주심)은 축구 전용 — 풋살 로그_매치에는 roles_json 이 항상 빈칸이다.
   // 빅마스터FC(자체전) 는 IntraSoccerMatchView 에 역할 지정 진입점이 없어 영구히 빈 상태만
   // 뜨므로 탭 자체를 숨긴다 — 자체전에 역할을 주려면 그 진입점을 먼저 만드는 별도 작업이 필요하다.
   const showRoles = isSoccer && !isIntraSquadTeam(teamName, '축구');

@@ -325,7 +325,7 @@ export default function SoccerMatchView({
                 const or = (v) => (v && v.length ? (Array.isArray(v) ? v.join(", ") : v) : "—");
                 return (
                   <div style={{ fontSize: 11, color: C.grayLight, marginTop: 8, lineHeight: 1.7 }}>
-                    🎥 영상촬영: {or(r.camera)} · 🧑‍⚖️ 주심: {or(r.referee)} · 🚩 부심: {or(r.assistants)}
+                    🎥 영상촬영: {or(r.camera)} · 🧑‍⚖️ 주심: {or(r.referee)}
                   </div>
                 );
               })()}

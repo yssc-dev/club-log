@@ -51,3 +51,48 @@ describe('SoccerMatchResults — 경기 결과 표(득점자/어시)', () => {
     expect(render({ matches: undefined, styles: s })).toContain('<table');
   });
 });
+
+// 역할 열(2026-10-14) — 기록 전송 전에 '누가 몇 번 찍었나/주심 봤나' 를 이 표에서 검토한다.
+// 마감 화면과 보관소 상세가 이 컴포넌트를 공용으로 쓰므로 양쪽에 같이 나온다.
+describe('SoccerMatchResults — 역할 열', () => {
+  const withRoles = (roles) => ([{ matchIdx: 0, opponent: '한울', status: 'finished', events: [], roles }]);
+
+  it('역할 열 헤더가 있다', () => {
+    expect(render({ matches: withRoles({ camera: ['X'], referee: 'Y' }), styles: s })).toContain('역할');
+  });
+
+  it('지정된 촬영·주심을 모두 적는다', () => {
+    const html = render({ matches: withRoles({ camera: ['X', 'Y'], referee: 'Z' }), styles: s });
+    expect(html).toContain('X, Y');
+    expect(html).toContain('Z');
+  });
+
+  it('한쪽만 공석이면 그 축만 — 로 적는다 (미지정이 눈에 띄게)', () => {
+    const html = render({ matches: withRoles({ camera: ['X'], referee: '' }), styles: s });
+    expect(html).toContain('X');
+    expect(html).toContain('\u2014');       // em dash — 주심 공석
+  });
+
+  it('전원 공석이면 - 한 글자', () => {
+    const html = render({ matches: withRoles({ camera: [], referee: '' }), styles: s });
+    expect(html).not.toContain('\ud83c\udfa5');   // 🎥 아이콘조차 없다
+  });
+
+  it('roles 가 없는 레거시 경기도 크래시하지 않는다', () => {
+    expect(() => render({ matches: [{ matchIdx: 0, opponent: '한울', status: 'finished', events: [] }], styles: s })).not.toThrow();
+  });
+
+  it('RTDB 드롭 모양({referee}만 도착)도 읽는다 — readRoles 경유', () => {
+    expect(render({ matches: withRoles({ referee: 'Z' }), styles: s })).toContain('Z');
+  });
+
+  // ★ 다른 축이 비어 있으면 셀이 '-' 로 조기 반환돼 부심 표시 여부를 검사할 수 없다
+  //   (실제로 그 케이스로 쓰다가 공허한 테스트임을 확인했다). 촬영·주심을 채워 셀 본문을
+  //   렌더시킨 뒤 부심 이름과 🚩 가 없는지 본다.
+  it('레거시 부심은 표시하지 않는다', () => {
+    const html = render({ matches: withRoles({ camera: ['X'], referee: 'Y', assistants: ['최D'] }), styles: s });
+    expect(html).toContain('X');            // 셀이 실제로 렌더됐다는 증거
+    expect(html).not.toContain('최D');
+    expect(html).not.toContain('\ud83d\udea9');   // 🚩
+  });
+});
