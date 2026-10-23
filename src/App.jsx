@@ -36,6 +36,8 @@ import StandingsModal from './components/game/StandingsModal';
 import PlayerStatsModal from './components/game/PlayerStatsModal';
 import CupAttendeePicker from './components/cup/CupAttendeePicker';
 import { applyCupSheetAttendance, formatCupSheetSummary } from './utils/cup/cupAttendanceSheet';
+import { inspectSessionPlayerRemoval } from './utils/sessionPlayerRemoval';
+import { resolveRoundGks } from './utils/roundGks';
 
 export default function App({ authUser, teamContext, isNewGame, gameMode, gameParams, gameId, onLogout: _onLogout, onBackToMenu }) {
   const gameSettings = useMemo(() => getSettings(teamContext?.team), [teamContext?.team]);
@@ -479,7 +481,10 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   }, [playerMatchStats, finalStandings, completedMatches, getPlayerTeamName, getSeasonLeader, allRoundsComplete, earlyFinish, gameSettings, courtCount]);
 
   // Actions
-  const handleGkChange = useCallback((teamIdx, player) => {
+  // roundIdx 가 오면 그 라운드에 귀속(풋살 schedule 모드). 없으면 전역 한 칸 —
+  // 라이브 경기가 하나뿐인 free/push 모드에서만 그렇게 쓴다.
+  const handleGkChange = useCallback((teamIdx, player, roundIdx) => {
+    if (roundIdx != null) { dispatch({ type: 'SET_ROUND_GK', roundIdx, teamIdx, player }); return; }
     set('gks', { ...gks, [teamIdx]: player });
   }, [gks]);
 
@@ -644,6 +649,25 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
     dispatch({ type: 'SET_FIELDS', fields: { teams: newTeams, teamNames: newNames, gks: newGks } });
   };
 
+  // 미배정 칩의 × — 오늘 경기에서 완전히 빼기.
+  // 팀에서만 빼면(freeRemovePlayer) 참석자 목록과 이미 확정된 라운드의 명단 스냅샷에 남아
+  // 최종집계·로그_매치·컵 참석 가점까지 따라다닌다(2026-10-23 마스터스컵). 여기서 한 번에 지운다.
+  const removeSessionPlayer = (player) => {
+    const info = inspectSessionPlayerRemoval({ allEvents, completedMatches, gks, gksHistory }, player);
+    if (info.blocked) {
+      alert(`${player} 은(는) 오늘 기록이 있어 제외할 수 없습니다 (${info.reasons.join(" · ")}).\n`
+        + `기록을 먼저 지우거나, 해당 라운드를 확정취소한 뒤 다시 시도하세요.`);
+      return;
+    }
+    if (info.matchesListed > 0 && !window.confirm(
+      `${player} 을(를) 오늘 경기에서 완전히 제외합니다.\n`
+      + `이미 확정된 ${info.matchesListed}개 매치의 명단(휴식 포함)에서도 빠지고,\n`
+      + `최종집계·시트 기록·참석 가점에서 제외됩니다.\n\n계속할까요?`
+    )) return;
+    setSelectedPoolPlayers(prev => prev.filter(x => x !== player));
+    dispatch({ type: 'REMOVE_SESSION_PLAYER', player });
+  };
+
   const addGuestPlayer = () => {
     const name = newPlayer.trim();
     if (!name || attendees.includes(name) || teams.flat().includes(name)) { set('newPlayer', ""); return; }
@@ -738,13 +762,14 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
   const handleConfirmScheduleRound = () => {
     const viewRound = schedule[viewingRoundIdx];
     if (!viewRound) return;
+    const roundGks = resolveRoundGks({ gksHistory, gks, confirmedRounds, currentRoundIdx }, viewingRoundIdx);
     const results = viewRound.matches.map((pair, i) => {
       const matchId = `R${viewingRoundIdx + 1}_C${i}`;
       const evts = allEvents.filter(e => e.matchId === matchId);
       const homeTeam = teamNames[pair[0]], awayTeam = teamNames[pair[1]];
       return {
         homeIdx: pair[0], awayIdx: pair[1], matchId, homeTeam, awayTeam,
-        homeGk: gks[pair[0]] || null, awayGk: gks[pair[1]] || null,
+        homeGk: roundGks[pair[0]] || null, awayGk: roundGks[pair[1]] || null,
         homeScore: calcMatchScore(evts, matchId, homeTeam),
         awayScore: calcMatchScore(evts, matchId, awayTeam),
         court: courtCount === 2 ? (i === 0 ? "A구장" : "B구장") : "",
@@ -1325,6 +1350,12 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
                   border: "none", fontSize: 11, fontWeight: 500, cursor: "pointer", fontFamily: "inherit", flexShrink: 0,
                 }}>{playerSortMode === "point" ? "포인트순" : "이름순"}</button>
               </div>
+              {teamEditMode && unassignedPlayers.length > 0 && (
+                <div style={{ fontSize: 11, color: C.gray, marginBottom: 6, lineHeight: 1.5 }}>
+                  결국 오지 않은 선수는 이름 옆 <span style={{ fontWeight: 700 }}>×</span> 를 눌러 오늘 경기에서 완전히 빼세요
+                  — 확정된 라운드 명단과 참석 가점에서도 빠집니다.
+                </div>
+              )}
               <div style={{ display: "flex", flexWrap: "wrap", gap: 4 }}>
                 {[...unassignedPlayers].sort((a, b) => playerSortMode === "name" ? a.localeCompare(b, "ko") : getPlayerPoint(b, seasonPlayers) - getPlayerPoint(a, seasonPlayers)).map(p => {
                   const pd = getPlayerData(p, seasonPlayers);
@@ -1333,12 +1364,8 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
                     <div key={p} onClick={() => togglePoolSelect(p)} style={{ ...s.chip(isSel), cursor: "pointer", padding: "6px 10px", fontSize: 12, display: "inline-flex", alignItems: "center", gap: 6 }}>
                       <span>{p}</span><span style={{ fontSize: 10, opacity: 0.6 }}>{pd.point}p</span>
                       <span
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          setSelectedPoolPlayers(prev => prev.filter(x => x !== p));
-                          dispatch({ type: 'SET_ATTENDEES', attendees: attendees.filter(a => a !== p) });
-                        }}
-                        title="불참 처리"
+                        onClick={(e) => { e.stopPropagation(); removeSessionPlayer(p); }}
+                        title="오늘 경기에서 완전히 빼기 (확정된 라운드 명단·참석 집계에서도 제외)"
                         style={{
                           display: "inline-flex", alignItems: "center", justifyContent: "center",
                           width: 16, height: 16, borderRadius: 999,

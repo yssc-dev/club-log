@@ -2,6 +2,7 @@ import { useMemo, useState } from 'react';
 import { TEAM_COLORS } from '../../config/constants';
 import { BackIcon } from '../common/icons';
 import CourtRecorder from './CourtRecorder';
+import { resolveRoundGks } from '../../utils/roundGks';
 
 export default function ScheduleMatchView({ schedule, currentRoundIdx, viewingRoundIdx, setViewingRoundIdx, confirmedRounds, onConfirmRound, teams, teamNames, teamColorIndices, gks, gksHistory, courtCount, allEvents, onRecordEvent, onUndoEvent, onDeleteEvent, onEditEvent, completedMatches, attendees, onGkChange, liveMercs, onAddLiveMerc, onRemoveLiveMerc, onEditPastGk, onEditPastMercAdd, onEditPastMercRemove, onEditPastAbsent, splitPhase, absentees, onToggleAbsent, styles: s, roundDisplayOffset = 0, onWrapToLastFree }) {
   const [compose, setCompose] = useState(null);
@@ -11,8 +12,9 @@ export default function ScheduleMatchView({ schedule, currentRoundIdx, viewingRo
   // 확정된 라운드는 잠금(readOnly). 골/GK/용병/휴식 수정은 "확정취소" 후 라이브 상태에서만.
   const editingThisRound = false;
 
-  // 확정된 라운드면 gksHistory에서, 현재 라운드면 gks에서 GK 참조
-  const roundGks = isConfirmed ? (gksHistory?.[viewingRoundIdx] || {}) : gks;
+  // GK는 확정 여부와 무관하게 라운드별 기록(gksHistory[roundIdx]) 하나만 본다.
+  // 확정취소로 미확정 라운드가 둘 이상 생겨도 서로 섞이지 않는다(2026-10-23).
+  const roundGks = resolveRoundGks({ gksHistory, gks, confirmedRounds, currentRoundIdx }, viewingRoundIdx);
 
   // 확정된 라운드의 매치 명단 스냅샷을 matchId 기준으로 lookup
   const completedByMatchId = useMemo(() => {
@@ -170,7 +172,8 @@ export default function ScheduleMatchView({ schedule, currentRoundIdx, viewingRo
                 const side = teamIdx === mi.homeIdx ? 'home' : (teamIdx === mi.awayIdx ? 'away' : null);
                 if (side) onEditPastGk?.(mi.matchId, side, player);
               } else {
-                onGkChange?.(teamIdx, player);
+                // 보고 있는 라운드에 귀속시켜 기록(전역 한 칸 공유 금지)
+                onGkChange?.(teamIdx, player, viewingRoundIdx);
               }
             }}
             styles={s}

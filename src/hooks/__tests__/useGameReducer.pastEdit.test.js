@@ -110,20 +110,34 @@ describe('gameReducer — past match edit', () => {
   });
 
   describe('EDIT_PAST_GK', () => {
-    it('schedule 모드: completedMatches와 gksHistory(roundIdx 키) 동시 갱신', () => {
+    it("schedule 모드: completedMatches와 gksHistory('R{roundIdx}' 키) 동시 갱신", () => {
       const state = withState({
         completedMatches: [{
           matchId: 'R3_C1', homeIdx: 2, awayIdx: 4,
           homeTeam: 'A', awayTeam: 'B', homeGk: '구A', awayGk: '구B',
         }],
-        gksHistory: { 2: { 2: '구A', 4: '구B' } },
+        gksHistory: { R2: { 2: '구A', 4: '구B' } },
       });
       const next = gameReducer(state, {
         type: 'EDIT_PAST_GK', matchId: 'R3_C1', side: 'home', player: '새A',
       });
       expect(next.completedMatches[0].homeGk).toBe('새A');
-      expect(next.gksHistory[2][2]).toBe('새A');
-      expect(next.gksHistory[2][4]).toBe('구B');
+      expect(next.gksHistory.R2[2]).toBe('새A');
+      expect(next.gksHistory.R2[4]).toBe('구B');
+    });
+
+    it('구버전 숫자 키에 저장된 schedule 라운드를 고쳐도 같은 라운드의 다른 팀 GK가 남는다', () => {
+      const state = withState({
+        completedMatches: [{
+          matchId: 'R3_C1', homeIdx: 2, awayIdx: 4,
+          homeTeam: 'A', awayTeam: 'B', homeGk: '구A', awayGk: '구B',
+        }],
+        gksHistory: { 2: { 2: '구A', 4: '구B' } },   // 이 배포 전 데이터
+      });
+      const next = gameReducer(state, {
+        type: 'EDIT_PAST_GK', matchId: 'R3_C1', side: 'home', player: '새A',
+      });
+      expect(next.gksHistory.R2).toEqual({ 2: '새A', 4: '구B' });
     });
 
     it('push 모드: gksHistory 키는 completedMatches 인덱스', () => {

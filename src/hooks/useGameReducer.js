@@ -5,6 +5,7 @@ import { calcSoccerScore, remapPlayerInSoccerEvents } from '../utils/soccerScori
 import { createInitialPushState, calcNextPushMatch } from '../utils/pushMatch';
 import { FORMATIONS, swapFormationSlots, defendersFromPositionMap, revertSubInFormation } from '../utils/formations';
 import { teamAbsentList, pruneAbsentPlayer } from '../utils/absentees';
+import { roundGkKey } from '../utils/roundGks';
 import { readRoles } from '../utils/soccerRoles';
 
 const initialState = {
@@ -194,12 +195,13 @@ function applyEventChange(state, allEvents) {
 }
 
 // matchId → gksHistory key + (해당 매치의) teamIdx 변환.
-// 풋살 schedule: R{n}_C{i} → gksHistory[n-1] (roundIdx 기반, 같은 라운드 2코트 공유)
+// 풋살 schedule: R{n}_C{i} → gksHistory['R{n-1}'] (roundIdx 기반, 같은 라운드 2코트 공유)
 // 풋살 push: P{n}_C0 → gksHistory[completedMatches index]
 // 풋살 free: F{N}_C{ci} → gksHistory[completedMatches index] (매치 단위)
 function resolveGksHistoryKey(matchId, completedIdx) {
+  // schedule 라운드는 roundGkKey('R{roundIdx}') — free/push 의 숫자 키와 분리돼 있다(utils/roundGks.js)
   const sm = String(matchId || '').match(/^R(\d+)_C(\d+)$/);
-  if (sm) return parseInt(sm[1], 10) - 1;
+  if (sm) return roundGkKey(parseInt(sm[1], 10) - 1);
   if (/^P\d+_C0$/.test(matchId)) return completedIdx;
   if (/^F\d+_C\d+$/.test(matchId)) return completedIdx;
   return null;
@@ -355,10 +357,14 @@ function gameReducer(state, action) {
       const teamIdx = side === 'home' ? m.homeIdx : m.awayIdx;
       let gksHistory = state.gksHistory;
       if (histKey != null && teamIdx != null) {
-        gksHistory = {
-          ...gksHistory,
-          [histKey]: { ...(gksHistory[histKey] || {}), [teamIdx]: player },
+        // schedule 라운드가 구버전 숫자 키에 저장돼 있으면 그 내용을 새 키로 함께 옮긴다.
+        // 안 그러면 한 명만 고쳤을 때 같은 라운드의 다른 팀 GK가 사라진다.
+        const legacyKey = typeof histKey === 'string' ? Number(histKey.slice(1)) : null;
+        const base = {
+          ...(legacyKey != null ? (gksHistory[legacyKey] || {}) : {}),
+          ...(gksHistory[histKey] || {}),
         };
+        gksHistory = { ...gksHistory, [histKey]: { ...base, [teamIdx]: player } };
       }
       return { ...state, completedMatches, gksHistory };
     }
@@ -638,6 +644,18 @@ function gameReducer(state, action) {
         pushState: prevPushState,
       };
     }
+    case 'SET_ROUND_GK': {
+      // 풋살 schedule 모드의 라운드별 GK 지정/해제. 라이브든 확정이든 gksHistory[roundIdx] 하나만 쓴다.
+      // 전역 state.gks 는 라이브 경기가 하나뿐인 free/push 모드 몫이라 여기선 건드리지 않는다
+      // (혼합 모드에서 free 라운드의 GK가 날아가지 않도록).
+      const { roundIdx, teamIdx, player } = action;
+      if (roundIdx == null || teamIdx == null) return state;
+      const key = roundGkKey(roundIdx);
+      const forRound = { ...(state.gksHistory?.[key] || {}) };
+      if (player) forRound[teamIdx] = player;
+      else delete forRound[teamIdx];
+      return { ...state, gksHistory: { ...state.gksHistory, [key]: forRound } };
+    }
     case 'CONFIRM_ROUND': {
       const { roundIdx, matchResults, nextRoundIdx, newSchedule, newSplitPhase } = action;
       // 라운드 내 모든 매치를 scope로 묶어 차출자 base 제외 처리
@@ -650,15 +668,22 @@ function gameReducer(state, action) {
       snappedResults.forEach(r => { if (r.matchId) delete nextLiveMercs[r.matchId]; });
       const nextAbsenteesCR = { ...state.absentees };
       snappedResults.forEach(r => { if (r.matchId) delete nextAbsenteesCR[r.matchId]; });
-      // 현재 GK를 라운드별 히스토리에 저장 후 초기화
+      // GK는 이미 라운드별(gksHistory[roundIdx])로 기록돼 있으므로 확정은 아무것도 옮기지 않는다.
+      // 기록이 없는 경우는 이 배포 전에 전역 gks 에 GK를 지정해 둔 진행 중 세션뿐 — 그때만 승격한다.
+      const roundGkKeyCR = roundGkKey(roundIdx);
+      const roundGksCR = state.gksHistory?.[roundGkKeyCR];
+      const needsGkPromotion = !roundGksCR || Object.keys(roundGksCR).length === 0;
       const updates = {
         completedMatches: newCompleted,
         confirmedRounds: { ...state.confirmedRounds, [roundIdx]: true },
-        gksHistory: { ...state.gksHistory, [roundIdx]: { ...state.gks } },
-        gks: {},
         liveMercs: nextLiveMercs,
         absentees: nextAbsenteesCR,
+        // 전역 칸은 비운다: 구버전 잔재가 다음 라운드로 새지 않게(기존 동작 유지)
+        gks: {},
       };
+      if (needsGkPromotion) {
+        updates.gksHistory = { ...state.gksHistory, [roundGkKeyCR]: { ...state.gks } };
+      }
       if (newSchedule) updates.schedule = newSchedule;
       if (newSplitPhase) updates.splitPhase = newSplitPhase;
       if (nextRoundIdx != null) {
@@ -676,13 +701,22 @@ function gameReducer(state, action) {
       const prefix = `R${roundIdx + 1}_`;
       const newConfirmed = { ...state.confirmedRounds };
       delete newConfirmed[roundIdx];
-      // 뒤에 확정된 라운드가 남아있으면(중간 라운드 취소) 라이브 gks 를 보존해야 함.
-      // 구 라운드 GK로 덮어쓰면 이후 라운드 확정 시 잘못된 GK가 기록(로그_선수경기 오염)됨.
+      // GK는 건드리지 않는다. 라운드별로 gksHistory[roundIdx] 에 살아 있으므로 확정취소는
+      // "수정 가능해진다"는 상태 전환일 뿐이다. 예전엔 여기서 전역 gks 한 칸으로 GK를 옮겼는데,
+      // 미확정 라운드가 둘 이상이면 그 칸을 공유해 GK가 섞이거나 사라졌다(2026-10-23).
       const hasLaterConfirmed = Object.entries(newConfirmed)
         .some(([k, v]) => v && parseInt(k, 10) > roundIdx);
-      const restoredGks = hasLaterConfirmed ? state.gks : (state.gksHistory[roundIdx] || {});
-      const newGksHistory = { ...state.gksHistory };
-      delete newGksHistory[roundIdx];
+      // 이 배포 전에 확정된 라운드는 GK가 숫자 키에 있다. 미확정으로 돌아가면 숫자 키는
+      // 혼합 모드에서 free 매치 몫이라 더 못 읽으므로, 취소하는 지금 라운드 키로 승격해 둔다.
+      let promotedGksHistory = null;
+      {
+        const key = roundGkKey(roundIdx);
+        const own = state.gksHistory?.[key];
+        const legacy = state.gksHistory?.[roundIdx];
+        if ((!own || Object.keys(own).length === 0) && legacy && Object.keys(legacy).length > 0) {
+          promotedGksHistory = { ...state.gksHistory, [key]: { ...legacy } };
+        }
+      }
       // matchId 없는 항목(RTDB partial write 등)은 라운드 소속 판정 불가 — 보존
       const removedMatches = state.completedMatches.filter(
         m => (m.matchId || '').startsWith(prefix) && !m.isExtra
@@ -711,8 +745,7 @@ function gameReducer(state, action) {
       const newCurrentRoundIdx = hasLaterConfirmed ? state.currentRoundIdx : roundIdx;
       const updates = {
         confirmedRounds: newConfirmed,
-        gks: restoredGks,
-        gksHistory: newGksHistory,
+        ...(promotedGksHistory ? { gksHistory: promotedGksHistory } : {}),
         completedMatches: newCompleted,
         liveMercs: nextLiveMercs,
         absentees: nextAbsenteesUR,
@@ -730,6 +763,62 @@ function gameReducer(state, action) {
         }
       }
       return { ...state, ...updates };
+    }
+    case 'REMOVE_SESSION_PLAYER': {
+      // 온다고 해서 명단에 넣었지만 결국 오지 않은 선수를 오늘 경기에서 통째로 지운다.
+      // 팀에서만 빼면(freeRemovePlayer) 참석자 목록과 "이미 확정된 라운드의 명단 스냅샷"에
+      // 그대로 남아, 최종집계 선수별 기록 · 로그_매치 our_members_json · 컵 참석 가점까지
+      // 따라다녔다(2026-10-23 마스터스컵). 확정 명단은 과거 사실이라 평소엔 건드리지 않지만,
+      // "애초에 오지 않았다"는 정정은 사실 자체를 바로잡는 것이므로 여기서만 소급한다.
+      // 골/어시/GK 기록이 있는 선수는 호출부(App.jsx)에서 미리 막는다.
+      const { player } = action;
+      if (!player) return state;
+
+      const attendees = state.attendees.filter(p => p !== player);
+      const teams = state.teams.map(t => (Array.isArray(t) ? t.filter(p => p !== player) : t));
+      const gks = { ...state.gks };
+      Object.keys(gks).forEach(k => { if (gks[k] === player) delete gks[k]; });
+
+      // 라이브 용병 등록 — 빈 배열은 키째 제거(RTDB 가 빈 배열을 저장하지 않는다)
+      const liveMercs = { ...state.liveMercs };
+      let mercsChanged = false;
+      Object.keys(liveMercs).forEach(mid => {
+        const list = liveMercs[mid];
+        if (!Array.isArray(list)) return;
+        const kept = list.filter(m => m?.player !== player);
+        if (kept.length === list.length) return;
+        mercsChanged = true;
+        if (kept.length > 0) liveMercs[mid] = kept; else delete liveMercs[mid];
+      });
+
+      // 변경이 없으면 원본 배열을 그대로 돌려준다(불필요한 RTDB 쓰기/리렌더 방지)
+      const stripList = (list) => {
+        if (!Array.isArray(list) || !list.includes(player)) return list;
+        return list.filter(p => p !== player);
+      };
+      const completedMatches = state.completedMatches.map(m => {
+        const homePlayers = stripList(m.homePlayers);
+        const awayPlayers = stripList(m.awayPlayers);
+        const homeAbsent = stripList(m.homeAbsent);
+        const awayAbsent = stripList(m.awayAbsent);
+        const mercenaries = Array.isArray(m.mercenaries)
+          ? m.mercenaries.filter(x => x?.player !== player) : m.mercenaries;
+        const changed = homePlayers !== m.homePlayers || awayPlayers !== m.awayPlayers
+          || homeAbsent !== m.homeAbsent || awayAbsent !== m.awayAbsent
+          || mercenaries !== m.mercenaries;
+        if (!changed) return m;
+        return { ...m, homePlayers, awayPlayers, homeAbsent, awayAbsent, mercenaries };
+      });
+
+      return {
+        ...state,
+        attendees,
+        teams,
+        gks,
+        liveMercs: mercsChanged ? liveMercs : state.liveMercs,
+        absentees: pruneAbsentPlayer(state.absentees, player),
+        completedMatches,
+      };
     }
     case 'MOVE_PLAYER': {
       const { player, fromIdx, toIdx } = action;
