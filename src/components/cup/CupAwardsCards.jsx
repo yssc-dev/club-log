@@ -1,20 +1,26 @@
 // src/components/cup/CupAwardsCards.jsx
 // 컵 어워드 카드 목록 — 계산된 awards 배열을 받아 그린다.
+// 2026-10-23: 재는 기준이 다른 카드를 묶음(CUP_AWARD_GROUPS)으로 갈라 경계선과 머리글을 둔다.
+//   개인 기록 / 골키퍼(GK로 선 경기) / 팀 영향력(필드 기준) / 참석 — 분류 자체는 계산층이 소유한다.
+//   group 이 없는 카드(구버전 데이터)는 맨 끝에 머리글 없이 붙여 사라지지 않게 한다.
 // rows 카드: { key, title, note?, rows:[{ rank, name, value, display, ratio, sub? }] }
 //   sub(관여 카드만): 행 아래 회색 한 줄 "뛸 때 2.50 · 없을 때 0.67" — 차이값의 기준값(2026-10-02).
 // 개근 카드: { key, title, names, value }  (rows 없음)
 import { useTheme } from '../../hooks/useTheme';
+import { CUP_AWARD_GROUPS } from '../../utils/cup/cupInsights';
 
 export default function CupAwardsCards({ awards = [] }) {
   const { C } = useTheme();
   if (!awards.length) return null;
 
-  return (
-    <div
-      data-role="cup-awards"
-      style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}
-    >
-      {awards.map((a) => (
+  // 묶음별로 나눠 담는다(묶음 순서 고정). 어디에도 안 속한 카드는 '기타'로 맨 끝.
+  const known = new Set(CUP_AWARD_GROUPS.map(g => g.key));
+  const sections = CUP_AWARD_GROUPS
+    .map(g => ({ ...g, cards: awards.filter(a => a.group === g.key) }))
+    .concat([{ key: '_rest', label: '', note: '', cards: awards.filter(a => !known.has(a.group)) }])
+    .filter(sec => sec.cards.length > 0);
+
+  const renderCard = (a) => (
         <div
           key={a.key}
           data-role="cup-award-card"
@@ -141,6 +147,36 @@ export default function CupAwardsCards({ awards = [] }) {
               <div style={{ fontSize: 13, color: 'var(--accent, #FF9500)' }}>{a.value}</div>
             </>
           )}
+        </div>
+  );
+
+  return (
+    <div data-role="cup-awards">
+      {sections.map((sec, i) => (
+        <div
+          key={sec.key}
+          data-role="cup-award-group"
+          data-group={sec.key}
+          style={{
+            // 묶음 사이 경계선 — 첫 묶음 위에는 긋지 않는다.
+            // 색이 CSS 변수(var(--app-divider))라 shorthand 로 쓰면 jsdom 이 선언 전체를
+            // 무효 처리해 테스트가 두께조차 못 읽는다 → 분리 속성으로 둔다.
+            borderTopWidth: i === 0 ? 0 : 1,
+            borderTopStyle: 'solid',
+            borderTopColor: C.borderColor,
+            paddingTop: i === 0 ? 0 : 10,
+            marginTop: i === 0 ? 0 : 10,
+          }}
+        >
+          {sec.label && (
+            <div style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'baseline', gap: 5, marginBottom: 6 }}>
+              <div style={{ fontSize: 12, fontWeight: 700, color: C.white }}>{sec.label}</div>
+              {sec.note && <div style={{ fontSize: 11, color: C.gray }}>{sec.note}</div>}
+            </div>
+          )}
+          <div style={{ display: 'flex', flexWrap: 'wrap', gap: 8 }}>
+            {sec.cards.map(renderCard)}
+          </div>
         </div>
       ))}
     </div>

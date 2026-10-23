@@ -135,6 +135,16 @@ export function calcCupKeepers({ matchRows = [] }) {
 }
 
 
+// 시상 카드 묶음 — 같은 "1위"라도 재는 기준이 달라서 섞어 두면 오해를 부른다
+// (2026-10-23 "수문장 저건 GK 지표인가" → 경계를 두기로). label 옆 note 가 그 기준이다.
+// 카드는 이 순서대로, 묶음 단위로 그려진다. 빈 묶음은 화면에서 생략한다.
+export const CUP_AWARD_GROUPS = [
+  { key: 'personal', label: '개인 기록',  note: '출전 형태 무관' },
+  { key: 'keeper',   label: '골키퍼',     note: 'GK로 선 경기 기준' },
+  { key: 'impact',   label: '팀 영향력',  note: '필드 출전 기준 · GK 경기 제외' },
+  { key: 'attend',   label: '참석',       note: '' },
+];
+
 /**
  * 어워드 카드 배열 (고정 순서, 수상자 없는 카드는 생략).
  *
@@ -145,7 +155,8 @@ export function calcCupKeepers({ matchRows = [] }) {
  *   days    = calcCupStandings().days.
  *   topN    = 상위 몇 명 (기본 5). topN 번째와 같은 값(동률)은 topN+2 행까지 포함.
  * @returns {Array}
- *   rows 카드: { key, title, note?, rows: [{ rank, name, value, display, ratio, sub? }] }
+ *   rows 카드: { key, group, title, note?, rows: [{ rank, name, value, display, ratio, sub? }] }
+ *     group = CUP_AWARD_GROUPS 의 key — 재는 기준이 다른 카드를 화면에서 갈라 놓기 위한 분류.
  *     sub = 기준값 한 줄(관여 카드만): "뛸 때 2.50 · 없을 때 0.67" — 차이값이 어디서 나왔는지 보여준다(2026-10-02).
  *   개근 카드: { key, title, names, value }  (rows 없음)
  *   수비력(무실점률) 카드는 2026-10-02 제거 — 분석 탭 필드 지표에 팀 실점 억제와 통합됐다.
@@ -201,7 +212,7 @@ export function calcCupAwards({
       .filter(p => p.goals > 0)
       .sort((a, b) => b.goals - a.goals || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.goals, p => `${p.goals}골`, stdRatio(p => p.goals));
-    if (rows.length) cards.push({ key: 'topScorer', title: '득점왕', rows });
+    if (rows.length) cards.push({ key: 'topScorer', group: 'personal', title: '득점왕', rows });
   }
 
   // ── 2. 도움왕 ────────────────────────────────────────────────────────
@@ -210,7 +221,7 @@ export function calcCupAwards({
       .filter(p => p.assists > 0)
       .sort((a, b) => b.assists - a.assists || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.assists, p => `${p.assists}어시`, stdRatio(p => p.assists));
-    if (rows.length) cards.push({ key: 'topAssist', title: '도움왕', rows });
+    if (rows.length) cards.push({ key: 'topAssist', group: 'personal', title: '도움왕', rows });
   }
 
   // ── 3. 공격포인트 — 골 + 어시 ────────────────────────────────────────
@@ -225,7 +236,7 @@ export function calcCupAwards({
       sorted, ptsOf, p => `${ptsOf(p)}P`, stdRatio(ptsOf),
       p => `${p.goals || 0}골 · ${p.assists || 0}어시`,
     );
-    if (rows.length) cards.push({ key: 'attackPoints', title: '공격포인트', note: '골 + 어시', rows });
+    if (rows.length) cards.push({ key: 'attackPoints', group: 'personal', title: '공격포인트', note: '골 + 어시', rows });
   }
 
   // ── 4. 클린시트왕 ────────────────────────────────────────────────────
@@ -234,7 +245,7 @@ export function calcCupAwards({
       .filter(k => k.cleanSheets > 0)
       .sort((a, b) => b.cleanSheets - a.cleanSheets || b.games - a.games || byKo(a.name, b.name));
     const rows = makeRows(sorted, k => k.cleanSheets, k => `${k.cleanSheets}경기`, stdRatio(k => k.cleanSheets));
-    if (rows.length) cards.push({ key: 'cleanSheet', title: '클린시트왕', rows });
+    if (rows.length) cards.push({ key: 'cleanSheet', group: 'keeper', title: '클린시트왕', note: '무실점으로 막은 경기', rows });
   }
 
   // ── 5. 수문장 — games >= dynamicMin(최다경기) 중 최저 실점률 ─────────
@@ -252,7 +263,7 @@ export function calcCupAwards({
         return Math.max(0.08, (maxRate - item.concededRate) / (maxRate - minRate));
       };
       const rows = makeRows(qual, k => k.concededRate, k => `실점률 ${k.concededRate.toFixed(2)}`, keeperRatio);
-      if (rows.length) cards.push({ key: 'keeper', title: '수문장', note: `최소 ${minK}경기`, rows });
+      if (rows.length) cards.push({ key: 'keeper', group: 'keeper', title: '수문장', note: `최소 ${minK}경기`, rows });
     }
   }
 
@@ -266,7 +277,7 @@ export function calcCupAwards({
       .filter(p => p.goalImpact !== null && p.goalImpact > 0)
       .sort((a, b) => b.goalImpact - a.goalImpact || b.onGames - a.onGames || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.goalImpact, p => `+${p.goalImpact.toFixed(2)}`, stdRatio(p => p.goalImpact), onOffSub('onGfPg', 'offGfPg'));
-    if (rows.length) cards.push({ key: 'goalImpact', title: '팀 득점 기여', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 득점`, rows });
+    if (rows.length) cards.push({ key: 'goalImpact', group: 'impact', title: '팀 득점 기여', note: `최소 ${minOn}경기 · 경기당 득점`, rows });
   }
 
   // ── 7. 팀 실점 억제 — onoff.rated 중 defImpact > 0 ──────────────────
@@ -275,7 +286,7 @@ export function calcCupAwards({
       .filter(p => p.defImpact !== null && p.defImpact > 0)
       .sort((a, b) => b.defImpact - a.defImpact || b.onGames - a.onGames || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.defImpact, p => `+${p.defImpact.toFixed(2)}`, stdRatio(p => p.defImpact), onOffSub('onGaPg', 'offGaPg'));
-    if (rows.length) cards.push({ key: 'defImpact', title: '팀 실점 억제', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 실점`, rows });
+    if (rows.length) cards.push({ key: 'defImpact', group: 'impact', title: '팀 실점 억제', note: `최소 ${minOn}경기 · 경기당 실점`, rows });
   }
 
   // ── 7. 개근 — days.length >= 2 일 때만 ──────────────────────────────
@@ -284,9 +295,9 @@ export function calcCupAwards({
     const names = players.filter(p => p.days === totalDays).map(p => p.name).sort(byKo);
     if (names.length > 0) {
       if (names.length > 4) {
-        cards.push({ key: 'attendance', title: '개근', names: [], value: `${names.length}명 · ${totalDays}/${totalDays}일` });
+        cards.push({ key: 'attendance', group: 'attend', title: '개근', names: [], value: `${names.length}명 · ${totalDays}/${totalDays}일` });
       } else {
-        cards.push({ key: 'attendance', title: '개근', names, value: `${totalDays}/${totalDays}일` });
+        cards.push({ key: 'attendance', group: 'attend', title: '개근', names, value: `${totalDays}/${totalDays}일` });
       }
     }
   }

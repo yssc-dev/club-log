@@ -5,6 +5,7 @@ import {
   calcCupHeadToHead,
   calcCupKeepers,
   calcCupAwards,
+  CUP_AWARD_GROUPS,
   calcCupOnOff,
   mergePlayerKeeperRecords,
 } from '../cup/cupInsights';
@@ -221,6 +222,32 @@ describe('calcCupAwards', () => {
     expect(keys).toEqual(['topScorer', 'topAssist', 'attackPoints', 'cleanSheet', 'keeper', 'goalImpact', 'defImpact', 'attendance']);
   });
 
+  // 2026-10-23: 같은 "1위"라도 재는 기준(GK / 필드 / 출전무관)이 달라 화면에서 묶음으로 가른다.
+  describe('카드 묶음(group)', () => {
+    it('각 카드가 CUP_AWARD_GROUPS 의 key 로 분류된다', () => {
+      const players = [AP({ name: 'p1', goals: 3, assists: 2, days: 2 })];
+      const keepers = [AK({ name: 'k1', games: 3, conceded: 0, cleanSheets: 3, concededRate: 0 })];
+      const onoff = { minOn: 1, rated: [AR({ name: 'd1', onGames: 3, goalImpact: 1.5, defImpact: 0.8 })], unrated: [] };
+      const byKey = {};
+      for (const c of calcCupAwards({ players, keepers, onoff, days: ADAYS2 })) byKey[c.key] = c.group;
+      expect(byKey.topScorer).toBe('personal');
+      expect(byKey.topAssist).toBe('personal');
+      expect(byKey.attackPoints).toBe('personal');
+      expect(byKey.cleanSheet).toBe('keeper');
+      expect(byKey.keeper).toBe('keeper');
+      expect(byKey.goalImpact).toBe('impact');
+      expect(byKey.defImpact).toBe('impact');
+      const known = new Set(CUP_AWARD_GROUPS.map(g => g.key));
+      for (const [k, g] of Object.entries(byKey)) expect(known.has(g), `${k} 의 group=${g}`).toBe(true);
+    });
+
+    it('묶음 머리글이 재는 기준을 밝힌다 (수문장이 GK 지표임을 화면에서 알 수 있게)', () => {
+      const find = k => CUP_AWARD_GROUPS.find(g => g.key === k);
+      expect(find('keeper').note).toContain('GK');
+      expect(find('impact').note).toContain('GK 경기 제외');
+    });
+  });
+
   // 2026-10-23: 흔히 말하는 "득점 관여"는 골+어시다. 기존 goalImpact 카드는 팀 득점의 on/off 라
   // 개인 합계가 아니므로 '팀 득점 기여'로 개명하고, 골+어시 카드를 따로 뒀다.
   describe('공격포인트(골+어시)', () => {
@@ -384,7 +411,7 @@ describe('calcCupAwards', () => {
     expect(cards.find(c => c.key === 'defense')).toBeUndefined();
   });
 
-  it('득점관여 — goalImpact>0 만, null 제외, note 포함', () => {
+  it('팀 득점 기여 — goalImpact>0 만, null 제외, note 포함', () => {
     const onoff = {
       minOn: 3,
       rated: [
@@ -398,7 +425,7 @@ describe('calcCupAwards', () => {
     const card = calcCupAwards({ players: [], keepers: [], onoff, days: [] })
       .find(c => c.key === 'goalImpact');
     expect(card).toBeDefined();
-    expect(card.note).toBe('최소 3경기(필드, GK 경기 제외) · 경기당 득점');
+    expect(card.note).toBe('최소 3경기 · 경기당 득점');
     expect(card.rows.map(r => r.name)).toEqual(['g1', 'g2']);
     expect(card.rows[0].display).toBe('+1.50');
     expect(card.rows[0].ratio).toBe(1);
@@ -420,7 +447,7 @@ describe('calcCupAwards', () => {
     expect(card.rows[1].sub).toBe('뛸 때 1.00 · 없을 때 0.50');
   });
 
-  it('수비관여 — defImpact>0 만, null 제외', () => {
+  it('팀 실점 억제 — defImpact>0 만, null 제외', () => {
     const onoff = {
       minOn: 3,
       rated: [
@@ -432,7 +459,7 @@ describe('calcCupAwards', () => {
     };
     const card = calcCupAwards({ players: [], keepers: [], onoff, days: [] })
       .find(c => c.key === 'defImpact');
-    expect(card.note).toBe('최소 3경기(필드, GK 경기 제외) · 경기당 실점');
+    expect(card.note).toBe('최소 3경기 · 경기당 실점');
     expect(card.rows.map(r => r.name)).toEqual(['d1', 'd2']);
     expect(card.rows[0].display).toBe('+2.00');
   });

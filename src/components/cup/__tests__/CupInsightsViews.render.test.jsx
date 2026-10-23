@@ -29,6 +29,48 @@ describe('CupAwardsCards', () => {
     expect(container.querySelector('[data-role="cup-awards"]')).toBeNull();
   });
 
+  // 2026-10-23: 기준이 다른 카드를 묶음으로 가르고 사이에 경계선을 둔다.
+  describe('묶음(group)', () => {
+    const A = (key, group, title) => ({ key, group, title, rows: [{ rank: 1, name: 'x', value: 1, display: '1', ratio: 1 }] });
+
+    it('묶음마다 머리글과 기준을 적고, 그 안에 카드를 담는다', async () => {
+      await mount(createElement(CupAwardsCards, { awards: [
+        A('topScorer', 'personal', '득점왕'), A('keeper', 'keeper', '수문장'), A('goalImpact', 'impact', '팀 득점 기여'),
+      ] }));
+      const groups = [...container.querySelectorAll('[data-role="cup-award-group"]')];
+      expect(groups.map(g => g.dataset.group)).toEqual(['personal', 'keeper', 'impact']);
+      const keeperGroup = groups.find(g => g.dataset.group === 'keeper');
+      expect(keeperGroup.textContent).toContain('골키퍼');
+      expect(keeperGroup.textContent).toContain('GK로 선 경기 기준');
+      expect(keeperGroup.querySelector('[data-key="수문장"], [data-key="keeper"]')).not.toBeNull();
+      // 수문장 카드가 개인 기록 묶음에 섞여 있지 않다
+      const personal = groups.find(g => g.dataset.group === 'personal');
+      expect(personal.querySelector('[data-key="keeper"]')).toBeNull();
+    });
+
+    it('첫 묶음 위에는 경계선이 없고 이후 묶음에는 있다', async () => {
+      await mount(createElement(CupAwardsCards, { awards: [A('topScorer', 'personal', '득점왕'), A('keeper', 'keeper', '수문장')] }));
+      const groups = [...container.querySelectorAll('[data-role="cup-award-group"]')];
+      expect(groups[0].style.borderTopWidth).toBe('0px');
+      expect(groups[1].style.borderTopWidth).toBe('1px');
+      expect(groups[1].style.borderTopStyle).toBe('solid');
+    });
+
+    it('카드가 없는 묶음은 그리지 않는다', async () => {
+      await mount(createElement(CupAwardsCards, { awards: [A('topScorer', 'personal', '득점왕')] }));
+      const groups = [...container.querySelectorAll('[data-role="cup-award-group"]')];
+      expect(groups).toHaveLength(1);
+      expect(groups[0].dataset.group).toBe('personal');
+    });
+
+    it('group 없는 구버전 카드도 사라지지 않고 머리글 없이 맨 끝에 붙는다', async () => {
+      await mount(createElement(CupAwardsCards, { awards: [A('topScorer', 'personal', '득점왕'), A('mystery', undefined, '옛날카드')] }));
+      const groups = [...container.querySelectorAll('[data-role="cup-award-group"]')];
+      expect(groups.map(g => g.dataset.group)).toEqual(['personal', '_rest']);
+      expect(container.querySelector('[data-role="cup-award-card"][data-key="mystery"]')).not.toBeNull();
+    });
+  });
+
   it('rows 카드: rows 3개 렌더·rank 텍스트', async () => {
     const awards = [
       {
