@@ -5,6 +5,9 @@
 // ownGoalPoint: 자책 1골당 점수 (기본 -1, 표준 규칙). 자책(점) 셀 = ownGoals * ownGoalPoint 정수 문자열.
 // CupDetail 은 getCupSettings 로 팀 규칙값(-2 등)을 넘기므로 화면은 팀 규칙을 따른다.
 // gkRate 정렬: 비-GK(null)는 방향과 무관하게 항상 맨 뒤.
+// 미출전(참석 0 = 어느 경기 명단에도 없음)은 이름 옆에 표시하고 행을 흐리게 한다 — 등록 팀원은
+// 로그와 무관하게 전부 행이 있어서(calcCupPlayerRecords), 팀으로 정렬하면 그 팀에서 누가
+// 안 나왔는지 바로 보인다(2026-10-23 요청). 용병은 로그에만 있으므로 미출전일 수 없다.
 // 2026-10-09: 표 위 "정렬 기준 ⓘ" 탭 토글 — 문구는 cupPlayerRecordRules()(정렬 상수에서 조립)만 쓴다.
 // 기본 순서(골→어시→클린시트→참석→이름)는 records 가 이미 그 순서로 오고, 머리글 정렬은 안정 정렬이라 동값 안에서 유지된다.
 import { useMemo } from 'react';
@@ -66,8 +69,15 @@ export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 
         </thead>
         <tbody>
           {sorted.map(r => (
-            <tr key={r.name} data-role="cup-player-row" data-player={r.name} style={{ borderTop: `1px solid ${C.borderColor}` }}>
-              <td style={{ ...td, textAlign: 'left' }}>{r.name}</td>
+            <tr key={r.name} data-role="cup-player-row" data-player={r.name}
+              data-absent={(r.days ?? 0) === 0 && !r.guest ? 'true' : 'false'}
+              style={{ borderTop: `1px solid ${C.borderColor}`, opacity: (r.days ?? 0) === 0 && !r.guest ? 0.5 : 1 }}>
+              <td style={{ ...td, textAlign: 'left' }}>
+                {r.name}
+                {(r.days ?? 0) === 0 && !r.guest && (
+                  <span style={{ fontSize: 10, color: C.gray, marginLeft: 3 }}>미출전</span>
+                )}
+              </td>
               <td style={{ ...td, color: C.gray, fontSize: 12 }}>{r.guest ? '용병' : r.team}</td>
               <td style={{ ...td, fontWeight: r.goals > 0 ? 700 : 400 }}>{r.goals}</td>
               <td style={td}>{r.assists}</td>
@@ -84,7 +94,7 @@ export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 
       </table>
     </div>
     <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>
-      공격P = 골 + 어시 · 자책(점) = 자책골 수 × 팀 규칙 자책점 ({ownGoalPoint}점/개) · GK·실점·실점률·클린시트는 GK로 뛴 경기 기준
+      미출전 = 어느 경기 명단에도 없던 등록 팀원 · 공격P = 골 + 어시 · 자책(점) = 자책골 수 × 팀 규칙 자책점 ({ownGoalPoint}점/개) · GK·실점·실점률·클린시트는 GK로 뛴 경기 기준
     </div>
     </div>
   );

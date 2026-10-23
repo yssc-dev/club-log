@@ -85,6 +85,43 @@ describe('CupPlayerRecordsTable', () => {
     expect(ths).toEqual(['선수', '팀', '골', '어시', '공격P', '자책(점)', '참석', 'GK', '실점', '실점률', '클린시트']);
   });
 
+  // 2026-10-23: 등록 팀원은 기록이 없어도 행이 있다. 팀으로 정렬했을 때 누가 안 나왔는지
+  // 보이게 "미출전"을 달고 행을 흐리게 한다.
+  describe('미출전 표시', () => {
+    const rowOf = (name) => container.querySelector(`[data-role="cup-player-row"][data-player="${name}"]`);
+
+    it('참석 0 인 등록 팀원은 미출전으로 표시되고 흐려진다', async () => {
+      await mount(createElement(CupPlayerRecordsTable, { records: [
+        baseRec({ name: '뛴사람', days: 2 }),
+        baseRec({ name: '안온사람', days: 0, goals: 0, assists: 0, cleanSheets: 0, gkGames: 0, gkConceded: 0, gkRate: null }),
+      ] }));
+      const absent = rowOf('안온사람');
+      expect(absent.dataset.absent).toBe('true');
+      expect(absent.textContent).toContain('미출전');
+      expect(Number(absent.style.opacity)).toBeLessThan(1);
+    });
+
+    it('한 경기라도 명단에 있었으면 표시하지 않는다', async () => {
+      await mount(createElement(CupPlayerRecordsTable, { records: [baseRec({ name: '뛴사람', days: 1 })] }));
+      const row = rowOf('뛴사람');
+      expect(row.dataset.absent).toBe('false');
+      expect(row.textContent).not.toContain('미출전');
+      expect(Number(row.style.opacity)).toBe(1);
+    });
+
+    it('용병은 참석 0 이어도 미출전이 아니다 (등록 팀원이 아니라 로그에만 있는 사람)', async () => {
+      await mount(createElement(CupPlayerRecordsTable, { records: [baseRec({ name: '용병', guest: true, days: 0 })] }));
+      const row = rowOf('용병');
+      expect(row.dataset.absent).toBe('false');
+      expect(row.textContent).not.toContain('미출전');
+    });
+
+    it('설명줄이 미출전의 뜻을 밝힌다', async () => {
+      await mount(createElement(CupPlayerRecordsTable, { records: [baseRec()] }));
+      expect(container.textContent).toContain('미출전 = 어느 경기 명단에도 없던 등록 팀원');
+    });
+  });
+
   it('공격P = 골 + 어시 (시상 카드 「팀 득점 기여」의 on/off 값과 다른 지표)', async () => {
     await mount(createElement(CupPlayerRecordsTable, { records: [baseRec({ goals: 3, assists: 1 })] }));
     const tds = container.querySelector('[data-role="cup-player-row"]').querySelectorAll('td');
