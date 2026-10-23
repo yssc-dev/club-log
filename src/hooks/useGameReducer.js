@@ -796,18 +796,24 @@ function gameReducer(state, action) {
         if (!Array.isArray(list) || !list.includes(player)) return list;
         return list.filter(p => p !== player);
       };
+      // ★ 실제로 바뀐 필드만 덮어쓴다. 없던 키를 undefined 로 만들어 붙이면
+      //   RTDB update() 가 그 경기 저장을 통째로 거부한다
+      //   ("values argument contains undefined in property '...matches.R1_C1.mercenaries'")
       const completedMatches = state.completedMatches.map(m => {
-        const homePlayers = stripList(m.homePlayers);
-        const awayPlayers = stripList(m.awayPlayers);
-        const homeAbsent = stripList(m.homeAbsent);
-        const awayAbsent = stripList(m.awayAbsent);
-        const mercenaries = Array.isArray(m.mercenaries)
-          ? m.mercenaries.filter(x => x?.player !== player) : m.mercenaries;
-        const changed = homePlayers !== m.homePlayers || awayPlayers !== m.awayPlayers
-          || homeAbsent !== m.homeAbsent || awayAbsent !== m.awayAbsent
-          || mercenaries !== m.mercenaries;
-        if (!changed) return m;
-        return { ...m, homePlayers, awayPlayers, homeAbsent, awayAbsent, mercenaries };
+        let next = m;
+        const setField = (field, value) => {
+          if (value === m[field]) return;
+          if (next === m) next = { ...m };
+          next[field] = value;
+        };
+        for (const field of ['homePlayers', 'awayPlayers', 'homeAbsent', 'awayAbsent']) {
+          setField(field, stripList(m[field]));
+        }
+        if (Array.isArray(m.mercenaries)) {
+          const mercs = m.mercenaries.filter(x => x?.player !== player);
+          if (mercs.length !== m.mercenaries.length) setField('mercenaries', mercs);
+        }
+        return next;
       });
 
       return {

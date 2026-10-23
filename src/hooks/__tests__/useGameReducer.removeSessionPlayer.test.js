@@ -64,6 +64,43 @@ describe('gameReducer — REMOVE_SESSION_PLAYER (오늘 완전 불참 처리)', 
     expect(r6After).toBe(r6Before);
   });
 
+  // 2026-10-23 운영 사고: RTDB update() 는 값에 undefined 가 있으면 통째로 거부한다.
+  // ("values argument contains undefined in property '...matches.R1_C1.mercenaries'")
+  // 원래 없던 키를 undefined 로 만들어 붙이면 그 경기 저장이 전부 실패한다.
+  it('원래 없던 필드를 undefined 로 만들어 붙이지 않는다 (RTDB update 거부 방지)', () => {
+    const s = withState({
+      attendees: ['김형욱', '박재운'],
+      teams: [['박재운'], []],
+      completedMatches: [{
+        matchId: 'R1_C1', homeIdx: 0, awayIdx: 1,
+        homePlayers: ['김형욱', '박재운'], awayPlayers: ['노필선'],
+        // homeAbsent / awayAbsent / mercenaries 키 자체가 없는 매치 (용병·휴식 없던 경기)
+      }],
+    });
+    const next = gameReducer(s, { type: 'REMOVE_SESSION_PLAYER', player: '김형욱' });
+    const m = next.completedMatches[0];
+    expect(m.homePlayers).toEqual(['박재운']);
+    for (const [k, v] of Object.entries(m)) {
+      expect(v, `${k} 가 undefined`).not.toBeUndefined();
+    }
+    expect('mercenaries' in m).toBe(false);
+    expect('homeAbsent' in m).toBe(false);
+  });
+
+  it('용병 목록이 그대로면 배열 참조도 유지한다 (불필요한 RTDB 쓰기 방지)', () => {
+    const mercs = [{ player: '용병', teamIdx: 0 }];
+    const s = withState({
+      attendees: ['김형욱'],
+      teams: [['김형욱'], []],
+      completedMatches: [{
+        matchId: 'R1_C0', homeIdx: 0, awayIdx: 1,
+        homePlayers: ['김형욱'], awayPlayers: [], mercenaries: mercs,
+      }],
+    });
+    const next = gameReducer(s, { type: 'REMOVE_SESSION_PLAYER', player: '김형욱' });
+    expect(next.completedMatches[0].mercenaries).toBe(mercs);
+  });
+
   it('player 가 없으면 state 그대로', () => {
     const s = baseState();
     expect(gameReducer(s, { type: 'REMOVE_SESSION_PLAYER', player: '' })).toBe(s);

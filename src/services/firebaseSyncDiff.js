@@ -243,7 +243,29 @@ export function diffStateToWrites(prev, next) {
     }
   }
 
-  return writes;
+  return stripUndefinedDeep(writes);
+}
+
+// RTDB update() 는 값 어딘가에 undefined 가 섞이면 쓰기 전체를 거부한다
+// ("values argument contains undefined in property '...'"). 한 경기의 실수가 세션 전체 저장을
+// 막아 마감까지 못 하게 되므로(2026-10-23 마스터스컵), 보내기 직전에 한 지점에서 떨군다.
+// 객체의 undefined 키는 "없음"과 같으니 제거하고, 배열 구멍은 인덱스가 밀리지 않게 null 로 둔다.
+export function stripUndefinedDeep(value) {
+  if (Array.isArray(value)) {
+    return value.map(v => (v === undefined ? null : stripUndefinedDeep(v)));
+  }
+  if (value && typeof value === 'object' && !(value instanceof Date)) {
+    const out = {};
+    for (const [k, v] of Object.entries(value)) {
+      if (v === undefined) {
+        console.warn(`[sync] undefined 값을 제외하고 저장합니다: ${k}`);
+        continue;
+      }
+      out[k] = stripUndefinedDeep(v);
+    }
+    return out;
+  }
+  return value;
 }
 
 // RTDB는 빈 배열을 저장하지 않고, 희소 배열/중첩 배열은 객체로 변환됨.
