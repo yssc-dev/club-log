@@ -99,7 +99,7 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
   const canFinish = allRoundsConfirmed(state.rounds, state.confirmedRounds);
 
   const handleConfirmRound = () => {
-    if (!confirm(`라운드 ${round.roundIdx}을 확정할까요?\n확정하면 이 라운드는 수정할 수 없습니다(확정취소로 해제 가능).`)) return;
+    if (!confirm(`${round.roundIdx}라운드를 확정할까요?\n확정하면 이 라운드는 수정할 수 없습니다(확정취소로 해제 가능).`)) return;
     dispatch({ type: 'CONFIRM_ROUND', roundIdx: round.roundIdx });
   };
   // 라운드 삭제 — 잘못 눌러 만든 마지막 라운드를 되돌린다(미확정 라운드가 남아 마감이 막히는 상황의 해법).
@@ -109,13 +109,13 @@ export default function TennisApp({ authUser, teamContext, isNewGame, gameMode: 
     const note = recorded > 0
       ? `\n이 라운드의 기록된 코트 ${recorded}개가 함께 삭제됩니다. 되돌릴 수 없습니다.`
       : '';
-    if (!confirm(`라운드 ${round.roundIdx}을 삭제할까요?${note}`)) return;
+    if (!confirm(`${round.roundIdx}라운드를 삭제할까요?${note}`)) return;
     dispatch({ type: 'DELETE_ROUND', roundIdx: round.roundIdx });
   };
 
   const handleUnconfirmRound = () => {
     const closedNote = closed ? '\n경기 마감도 함께 취소됩니다(자동 업로드 대상에서 빠짐).' : '';
-    if (!confirm(`라운드 ${round.roundIdx} 확정을 취소할까요?\n취소하면 이 라운드를 다시 수정할 수 있습니다.${closedNote}`)) return;
+    if (!confirm(`${round.roundIdx}라운드 확정을 취소할까요?\n취소하면 이 라운드를 다시 수정할 수 있습니다.${closedNote}`)) return;
     dispatch({ type: 'UNCONFIRM_ROUND', roundIdx: round.roundIdx });
   };
 
