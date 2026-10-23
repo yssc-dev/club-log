@@ -200,7 +200,7 @@ const ADAYS1 = [{ date: '2026-10-01' }];
 const ADAYS2 = [{ date: '2026-10-01' }, { date: '2026-10-08' }];
 
 describe('calcCupAwards', () => {
-  it('카드 순서: topScorer→topAssist→cleanSheet→keeper→goalImpact→defImpact→attendance (수비력 카드 없음)', () => {
+  it('카드 순서: topScorer→topAssist→attackPoints→cleanSheet→keeper→goalImpact→defImpact→attendance (수비력 카드 없음)', () => {
     const players = [
       AP({ name: 'p1', goals: 3, assists: 2, days: 2 }),
       AP({ name: 'p2', goals: 1, assists: 1, days: 2 }),
@@ -218,7 +218,42 @@ describe('calcCupAwards', () => {
     };
     const cards = calcCupAwards({ players, keepers, onoff, days: ADAYS2 });
     const keys = cards.map(c => c.key);
-    expect(keys).toEqual(['topScorer', 'topAssist', 'cleanSheet', 'keeper', 'goalImpact', 'defImpact', 'attendance']);
+    expect(keys).toEqual(['topScorer', 'topAssist', 'attackPoints', 'cleanSheet', 'keeper', 'goalImpact', 'defImpact', 'attendance']);
+  });
+
+  // 2026-10-23: 흔히 말하는 "득점 관여"는 골+어시다. 기존 goalImpact 카드는 팀 득점의 on/off 라
+  // 개인 합계가 아니므로 '팀 득점 기여'로 개명하고, 골+어시 카드를 따로 뒀다.
+  describe('공격포인트(골+어시)', () => {
+    const awardsOf = players => calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] });
+
+    it('골+어시 합계로 순위를 매기고 "N P"와 내역을 보여준다', () => {
+      const card = awardsOf([
+        AP({ name: 'a', goals: 3, assists: 1 }),   // 4
+        AP({ name: 'b', goals: 0, assists: 5 }),   // 5 ← 어시만으로도 1위
+        AP({ name: 'c', goals: 2, assists: 0 }),   // 2
+      ]).find(c => c.key === 'attackPoints');
+      expect(card.title).toBe('공격포인트');
+      expect(card.note).toBe('골 + 어시');
+      expect(card.rows.map(r => r.name)).toEqual(['b', 'a', 'c']);
+      expect(card.rows[0].display).toBe('5P');
+      expect(card.rows[0].sub).toBe('0골 · 5어시');
+    });
+
+    it('동점이면 골이 많은 쪽이 위', () => {
+      const card = awardsOf([
+        AP({ name: 'a', goals: 1, assists: 3 }),
+        AP({ name: 'b', goals: 3, assists: 1 }),
+      ]).find(c => c.key === 'attackPoints');
+      expect(card.rows.map(r => r.name)).toEqual(['b', 'a']);
+      expect(card.rows.map(r => r.rank)).toEqual([1, 1]);   // 값이 같으면 경쟁 순위도 같다
+    });
+
+    it('골도 어시도 없으면 카드에 나오지 않고, 전원 0이면 카드 자체가 없다', () => {
+      const card = awardsOf([AP({ name: 'a', goals: 2 }), AP({ name: 'b' })])
+        .find(c => c.key === 'attackPoints');
+      expect(card.rows.map(r => r.name)).toEqual(['a']);
+      expect(awardsOf([AP({ name: 'a' })]).find(c => c.key === 'attackPoints')).toBeUndefined();
+    });
   });
 
   it('topN=5 기본: 상위 5개 rows (2026-10-23 사용자 요청으로 3 → 5)', () => {

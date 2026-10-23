@@ -284,13 +284,13 @@ describe('CupFieldImpactTable', () => {
   it('머리글 12개 순서 — 출전·미출전·GK 출전(2026-10-09 「GK(제외)」에서 개명) 뒤에 득점 묶음·실점 묶음', async () => {
     await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const ths = [...container.querySelectorAll('thead th')].map((t) => t.textContent.replace(/[▲▼]/g, '').trim());
-    expect(ths).toEqual(['선수', '팀', '출전', '미출전', 'GK 출전', '뛸 때 득점', '없을 때 득점', '득점관여', '뛸 때 실점', '없을 때 실점', '수비관여', '무실점률']);
+    expect(ths).toEqual(['선수', '팀', '출전', '미출전', 'GK 출전', '뛸 때 득점', '없을 때 득점', '득점 기여', '뛸 때 실점', '없을 때 실점', '실점 억제', '무실점률']);
   });
 
   it('기준값 셀: 미출전·GK 출전 수, 없을 때 득점/실점 toFixed(2), null 이면 —', async () => {
     await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const cells = (name) => [...container.querySelector(`[data-role="cup-field-impact-row"][data-player="${name}"]`).querySelectorAll('td')].map(td => td.textContent.trim());
-    // 열 순서: 선수·팀·출전·미출전·GK 출전·뛸 때 득점·없을 때 득점·득점관여·뛸 때 실점·없을 때 실점·수비관여·무실점률
+    // 열 순서: 선수·팀·출전·미출전·GK 출전·뛸 때 득점·없을 때 득점·득점 기여·뛸 때 실점·없을 때 실점·실점 억제·무실점률
     expect(cells('김공격')).toEqual(['김공격', '팀A', '5', '3', '1', '2.00', '0.50', '+1.50', '0.50', '0.90', '+0.40', '60%']);
     expect(cells('이미드')).toEqual(['이미드', '팀B', '4', '2', '0', '1.25', '2.20', '-0.95', '1.00', '—', '—', '0%']);
     expect(cells('박루키')).toEqual(['박루키', '팀A', '1', '0', '2', '1.00', '—', '—', '0.00', '—', '—', '100%']);
@@ -323,7 +323,7 @@ describe('CupFieldImpactTable', () => {
   it('정렬 시 rated 가 unrated 앞', async () => {
     await mount(createElement(CupFieldImpactTable, { minOn: 3, rated, unrated }));
     const ths = [...container.querySelectorAll('thead th')];
-    const goalTh = ths.find(th => th.textContent.includes('득점관여'));
+    const goalTh = ths.find(th => th.textContent.includes('득점 기여'));
     await act(async () => { goalTh.click(); });
     const allRows = [...container.querySelectorAll('[data-role="cup-field-impact-row"]')];
     const ratedIdx   = allRows.map((r, i) => r.dataset.rated === 'true'  ? i : null).filter(i => i !== null);
@@ -338,8 +338,8 @@ describe('CupFieldImpactTable', () => {
     expect(help.textContent).toContain('모든 수치는 필드 플레이어 기준');
     expect(help.textContent).toContain('GK로 선 경기는 출전·뛸 때·없을 때·관여·무실점률 어디에도 넣지 않습니다');
     expect(help.textContent).toContain('뛸 때·없을 때');
-    expect(help.textContent).toContain('득점관여 = 뛸 때 득점 − 없을 때 득점');
-    expect(help.textContent).toContain('수비관여 = 없을 때 실점 − 뛸 때 실점');
+    expect(help.textContent).toContain('득점 기여 = 뛸 때 득점 − 없을 때 득점');
+    expect(help.textContent).toContain('실점 억제 = 없을 때 실점 − 뛸 때 실점');
     expect(help.textContent).toContain('경기일이 쌓일수록');
   });
 

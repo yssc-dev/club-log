@@ -148,7 +148,7 @@ export function calcCupKeepers({ matchRows = [] }) {
  *   rows 카드: { key, title, note?, rows: [{ rank, name, value, display, ratio, sub? }] }
  *     sub = 기준값 한 줄(관여 카드만): "뛸 때 2.50 · 없을 때 0.67" — 차이값이 어디서 나왔는지 보여준다(2026-10-02).
  *   개근 카드: { key, title, names, value }  (rows 없음)
- *   수비력(무실점률) 카드는 2026-10-02 제거 — 분석 탭 필드 지표에 수비관여와 통합됐다.
+ *   수비력(무실점률) 카드는 2026-10-02 제거 — 분석 탭 필드 지표에 팀 실점 억제와 통합됐다.
  */
 export function calcCupAwards({
   players = [],
@@ -213,7 +213,22 @@ export function calcCupAwards({
     if (rows.length) cards.push({ key: 'topAssist', title: '도움왕', rows });
   }
 
-  // ── 3. 클린시트왕 ────────────────────────────────────────────────────
+  // ── 3. 공격포인트 — 골 + 어시 ────────────────────────────────────────
+  // 흔히 말하는 "득점 관여"가 이것이다. 아래 goalImpact 카드(팀 득점 기여)는 개인 기록이 아니라
+  // 팀 득점의 on/off 차이라 이름이 겹치면 오해를 부른다(2026-10-23 사용자 지적).
+  {
+    const ptsOf = p => (p.goals || 0) + (p.assists || 0);
+    const sorted = [...players]
+      .filter(p => ptsOf(p) > 0)
+      .sort((a, b) => ptsOf(b) - ptsOf(a) || (b.goals || 0) - (a.goals || 0) || byKo(a.name, b.name));
+    const rows = makeRows(
+      sorted, ptsOf, p => `${ptsOf(p)}P`, stdRatio(ptsOf),
+      p => `${p.goals || 0}골 · ${p.assists || 0}어시`,
+    );
+    if (rows.length) cards.push({ key: 'attackPoints', title: '공격포인트', note: '골 + 어시', rows });
+  }
+
+  // ── 4. 클린시트왕 ────────────────────────────────────────────────────
   {
     const sorted = [...keepers]
       .filter(k => k.cleanSheets > 0)
@@ -222,7 +237,7 @@ export function calcCupAwards({
     if (rows.length) cards.push({ key: 'cleanSheet', title: '클린시트왕', rows });
   }
 
-  // ── 4. 수문장 — games >= dynamicMin(최다경기) 중 최저 실점률 ─────────
+  // ── 5. 수문장 — games >= dynamicMin(최다경기) 중 최저 실점률 ─────────
   if (keepers.length > 0) {
     const maxGames = Math.max(...keepers.map(k => k.games));
     const minK = dynamicMin(maxGames);
@@ -243,23 +258,24 @@ export function calcCupAwards({
 
   // (수비력 카드 자리 — 2026-10-02 제거. 무실점률은 분석 탭 필드 지표 열로만 남는다.)
 
-  // ── 5. 득점관여 — onoff.rated 중 goalImpact > 0 ──────────────────────
+  // ── 6. 팀 득점 기여 — onoff.rated 중 goalImpact > 0 ─────────────────
+  // 개인의 골·어시 합계가 아니라 "내가 뛸 때 팀이 경기당 몇 골 더 넣는가"(on/off).
   // goalImpact 가 숫자면 offGfPg 도 숫자(offGames>0)라 sub 의 toFixed 가 안전하다.
   {
     const sorted = [...rated]
       .filter(p => p.goalImpact !== null && p.goalImpact > 0)
       .sort((a, b) => b.goalImpact - a.goalImpact || b.onGames - a.onGames || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.goalImpact, p => `+${p.goalImpact.toFixed(2)}`, stdRatio(p => p.goalImpact), onOffSub('onGfPg', 'offGfPg'));
-    if (rows.length) cards.push({ key: 'goalImpact', title: '득점관여', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 득점`, rows });
+    if (rows.length) cards.push({ key: 'goalImpact', title: '팀 득점 기여', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 득점`, rows });
   }
 
-  // ── 6. 수비관여 — onoff.rated 중 defImpact > 0 ───────────────────────
+  // ── 7. 팀 실점 억제 — onoff.rated 중 defImpact > 0 ──────────────────
   {
     const sorted = [...rated]
       .filter(p => p.defImpact !== null && p.defImpact > 0)
       .sort((a, b) => b.defImpact - a.defImpact || b.onGames - a.onGames || byKo(a.name, b.name));
     const rows = makeRows(sorted, p => p.defImpact, p => `+${p.defImpact.toFixed(2)}`, stdRatio(p => p.defImpact), onOffSub('onGaPg', 'offGaPg'));
-    if (rows.length) cards.push({ key: 'defImpact', title: '수비관여', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 실점`, rows });
+    if (rows.length) cards.push({ key: 'defImpact', title: '팀 실점 억제', note: `최소 ${minOn}경기(필드, GK 경기 제외) · 경기당 실점`, rows });
   }
 
   // ── 7. 개근 — days.length >= 2 일 때만 ──────────────────────────────

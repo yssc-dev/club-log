@@ -1,6 +1,7 @@
 // src/components/cup/CupPlayerRecordsTable.jsx
 // 대회 개인기록 표(3단계 스펙 §5). mergePlayerKeeperRecords() 결과를 그린다.
-// 열: 선수·팀·골·어시·자책(점)·참석·GK·실점·실점률·클린시트 (10열, 전부 정렬 가능)
+// 열: 선수·팀·골·어시·공격P·자책(점)·참석·GK·실점·실점률·클린시트 (11열, 전부 정렬 가능)
+// 공격P = 골 + 어시 (2026-10-23). 시상 카드 '팀 득점 기여'(on/off)와 다른 지표다.
 // ownGoalPoint: 자책 1골당 점수 (기본 -1, 표준 규칙). 자책(점) 셀 = ownGoals * ownGoalPoint 정수 문자열.
 // CupDetail 은 getCupSettings 로 팀 규칙값(-2 등)을 넘기므로 화면은 팀 규칙을 따른다.
 // gkRate 정렬: 비-GK(null)는 방향과 무관하게 항상 맨 뒤.
@@ -23,6 +24,7 @@ export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 
     team:        { accessor: r => r.guest ? '용병' : (r.team || ''), type: 'text' },
     goals:       { accessor: r => r.goals, type: 'num' },
     assists:     { accessor: r => r.assists, type: 'num' },
+    attackPoints: { accessor: r => (r.goals || 0) + (r.assists || 0), type: 'num' },
     ownGoals:    { accessor: r => r.ownGoals * ownGoalPoint, type: 'num' },
     days:        { accessor: r => r.days, type: 'num' },
     gkGames:     { accessor: r => r.gkGames ?? 0, type: 'num' },
@@ -53,6 +55,7 @@ export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 
             <SortHeader label="팀"      sortKey="team"        sort={sort} onSort={onSort} align="center" ds={ds} />
             <SortHeader label="골"      sortKey="goals"       sort={sort} onSort={onSort} align="center" ds={ds} />
             <SortHeader label="어시"    sortKey="assists"     sort={sort} onSort={onSort} align="center" ds={ds} />
+            <SortHeader label="공격P"   sortKey="attackPoints" sort={sort} onSort={onSort} align="center" ds={ds} />
             <SortHeader label="자책(점)" sortKey="ownGoals"    sort={sort} onSort={onSort} align="center" ds={ds} />
             <SortHeader label="참석"    sortKey="days"        sort={sort} onSort={onSort} align="center" ds={ds} />
             <SortHeader label="GK"      sortKey="gkGames"     sort={sort} onSort={onSort} align="center" ds={ds} />
@@ -68,6 +71,7 @@ export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 
               <td style={{ ...td, color: C.gray, fontSize: 12 }}>{r.guest ? '용병' : r.team}</td>
               <td style={{ ...td, fontWeight: r.goals > 0 ? 700 : 400 }}>{r.goals}</td>
               <td style={td}>{r.assists}</td>
+              <td style={{ ...td, fontWeight: ((r.goals || 0) + (r.assists || 0)) > 0 ? 700 : 400 }}>{(r.goals || 0) + (r.assists || 0)}</td>
               <td style={td}>{String(r.ownGoals * ownGoalPoint)}</td>
               <td style={td}>{r.days}</td>
               <td style={td}>{r.gkGames ?? 0}</td>
@@ -80,7 +84,7 @@ export default function CupPlayerRecordsTable({ records = [], ownGoalPoint = -1 
       </table>
     </div>
     <div style={{ fontSize: 11, color: C.gray, marginTop: 4 }}>
-      자책(점) = 자책골 수 × 팀 규칙 자책점 ({ownGoalPoint}점/개) · GK·실점·실점률·클린시트는 GK로 뛴 경기 기준
+      공격P = 골 + 어시 · 자책(점) = 자책골 수 × 팀 규칙 자책점 ({ownGoalPoint}점/개) · GK·실점·실점률·클린시트는 GK로 뛴 경기 기준
     </div>
     </div>
   );

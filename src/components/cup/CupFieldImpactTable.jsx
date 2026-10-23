@@ -13,8 +13,8 @@ const HELP_LINES = [
   '이 표의 모든 수치는 필드 플레이어 기준입니다. 내가 GK로 선 경기는 출전·뛸 때·없을 때·관여·무실점률 어디에도 넣지 않습니다',
   'GK 출전: 내가 GK로 선 경기 수. 이 표의 계산에서는 빠지고, 키퍼 성적은 개인기록의 GK 열에서 따로 봅니다. 출전 + 미출전 + GK 출전 = 소속팀 경기 수',
   '뛸 때·없을 때: 내가 필드로 명단에 있던 우리 팀 경기와 없던 우리 팀 경기의 경기당 득점·실점',
-  '득점관여 = 뛸 때 득점 − 없을 때 득점 (+1.00이면 내가 뛸 때 팀이 경기당 1골 더 넣음)',
-  '수비관여 = 없을 때 실점 − 뛸 때 실점 (+1.50이면 내가 뛸 때 팀이 경기당 1.5골 덜 먹음, 둘 다 +가 좋음)',
+  '득점 기여 = 뛸 때 득점 − 없을 때 득점 (+1.00이면 내가 뛸 때 팀이 경기당 1골 더 넣음) · 개인 골·어시 합계가 아니라 팀 득점 기준',
+  '실점 억제 = 없을 때 실점 − 뛸 때 실점 (+1.50이면 내가 뛸 때 팀이 경기당 1.5골 덜 먹음, 둘 다 +가 좋음)',
   '무실점률: 내가 필드로 뛸 때 우리 팀이 무실점으로 마친 경기 비율',
   '같은 경기에 함께 뛴 팀원끼리는 값이 비슷하고, 경기일이 쌓일수록 차이가 드러납니다',
 ];
@@ -101,11 +101,11 @@ export default function CupFieldImpactTable({ minOn = 3, rated = [], unrated = [
         <td style={td}>{p.onGames}</td>
         <td style={{ ...td, color: C.gray }}>{p.offGames}</td>
         <td style={{ ...td, color: C.gray }}>{p.gkGames ?? 0}</td>
-        {/* 득점 묶음: 뛸 때 − 없을 때 = 득점관여 */}
+        {/* 득점 묶음: 뛸 때 − 없을 때 = 득점 기여 */}
         <td style={td}>{fmtPg(p.onGfPg)}</td>
         <td style={{ ...td, color: C.gray }}>{fmtPg(p.offGfPg)}</td>
         <td style={{ ...td, color: goalPositive ? C.accent : C.white }}>{fmtImpact(p.goalImpact)}</td>
-        {/* 실점 묶음: 없을 때 − 뛸 때 = 수비관여 */}
+        {/* 실점 묶음: 없을 때 − 뛸 때 = 실점 억제 */}
         <td style={td}>{fmtPg(p.onGaPg)}</td>
         <td style={{ ...td, color: C.gray }}>{fmtPg(p.offGaPg)}</td>
         <td style={{ ...td, color: defPositive  ? C.accent : C.white }}>{fmtImpact(p.defImpact)}</td>
@@ -136,10 +136,10 @@ export default function CupFieldImpactTable({ minOn = 3, rated = [], unrated = [
               <SortHeader label="GK 출전"     sortKey="gkGames"    sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="뛸 때 득점"   sortKey="onGfPg"     sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="없을 때 득점" sortKey="offGfPg"    sort={sort} onSort={onSort} align="center" ds={ds} />
-              <SortHeader label="득점관여"    sortKey="goalImpact" sort={sort} onSort={onSort} align="center" ds={ds} />
+              <SortHeader label="득점 기여"   sortKey="goalImpact" sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="뛸 때 실점"   sortKey="onGaPg"     sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="없을 때 실점" sortKey="offGaPg"    sort={sort} onSort={onSort} align="center" ds={ds} />
-              <SortHeader label="수비관여"    sortKey="defImpact"  sort={sort} onSort={onSort} align="center" ds={ds} />
+              <SortHeader label="실점 억제"   sortKey="defImpact"  sort={sort} onSort={onSort} align="center" ds={ds} />
               <SortHeader label="무실점률"     sortKey="cleanRate"  sort={sort} onSort={onSort} align="center" ds={ds} />
             </tr>
           </thead>

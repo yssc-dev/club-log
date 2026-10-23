@@ -79,31 +79,39 @@ describe('CupPlayerRecordsTable', () => {
     ...over,
   });
 
-  it('열 머리글 10개 순서', async () => {
+  it('열 머리글 11개 순서 (2026-10-23 공격P 추가)', async () => {
     await mount(createElement(CupPlayerRecordsTable, { records: [baseRec()] }));
     const ths = [...container.querySelectorAll('thead th')].map(t => t.textContent);
-    expect(ths).toEqual(['선수', '팀', '골', '어시', '자책(점)', '참석', 'GK', '실점', '실점률', '클린시트']);
+    expect(ths).toEqual(['선수', '팀', '골', '어시', '공격P', '자책(점)', '참석', 'GK', '실점', '실점률', '클린시트']);
+  });
+
+  it('공격P = 골 + 어시 (시상 카드 「팀 득점 기여」의 on/off 값과 다른 지표)', async () => {
+    await mount(createElement(CupPlayerRecordsTable, { records: [baseRec({ goals: 3, assists: 1 })] }));
+    const tds = container.querySelector('[data-role="cup-player-row"]').querySelectorAll('td');
+    expect(tds[2].textContent).toBe('3');   // 골
+    expect(tds[3].textContent).toBe('1');   // 어시
+    expect(tds[4].textContent).toBe('4');   // 공격P
   });
 
   it('자책 "-2" 표기 (ownGoalPoint=-2, ownGoals=1)', async () => {
     await mount(createElement(CupPlayerRecordsTable, { records: [baseRec({ ownGoals: 1 })], ownGoalPoint: -2 }));
     const row = container.querySelector('[data-role="cup-player-row"]');
     const tds = row.querySelectorAll('td');
-    expect(tds[4].textContent).toBe('-2');
+    expect(tds[5].textContent).toBe('-2');
   });
 
   it('기본값 ownGoalPoint=-1 이면 ownGoals=1 → "-1"', async () => {
     await mount(createElement(CupPlayerRecordsTable, { records: [baseRec({ ownGoals: 1 })] }));
     const row = container.querySelector('[data-role="cup-player-row"]');
     const tds = row.querySelectorAll('td');
-    expect(tds[4].textContent).toBe('-1');
+    expect(tds[5].textContent).toBe('-1');
   });
 
   it('gkRate null → "—"', async () => {
     await mount(createElement(CupPlayerRecordsTable, { records: [baseRec({ gkRate: null })] }));
     const row = container.querySelector('[data-role="cup-player-row"]');
     const tds = row.querySelectorAll('td');
-    expect(tds[8].textContent).toBe('—');
+    expect(tds[9].textContent).toBe('—');
   });
 
   it('GK 머리글 클릭으로 정렬 가능', async () => {
