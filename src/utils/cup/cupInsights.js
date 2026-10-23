@@ -143,7 +143,7 @@ export function calcCupKeepers({ matchRows = [] }) {
  *   keepers = calcCupKeepers 결과.
  *   onoff   = calcCupOnOff 결과 { minOn, rated, unrated }.
  *   days    = calcCupStandings().days.
- *   topN    = 상위 몇 명 (기본 3). topN 번째와 같은 값(동률)은 최대 5행까지 포함.
+ *   topN    = 상위 몇 명 (기본 5). topN 번째와 같은 값(동률)은 topN+2 행까지 포함.
  * @returns {Array}
  *   rows 카드: { key, title, note?, rows: [{ rank, name, value, display, ratio, sub? }] }
  *     sub = 기준값 한 줄(관여 카드만): "뛸 때 2.50 · 없을 때 0.67" — 차이값이 어디서 나왔는지 보여준다(2026-10-02).
@@ -155,22 +155,23 @@ export function calcCupAwards({
   keepers = [],
   onoff = { minOn: 3, rated: [], unrated: [] },
   days = [],
-  topN = 3,
+  topN = 5,
 } = {}) {
   const minOn = onoff.minOn ?? 3;
   const rated = onoff.rated || [];
   const cards = [];
 
   // ── 공통 헬퍼 ────────────────────────────────────────────────────────
-  // 정렬된 배열에서 상위 topN + 동률(동일 primary 값) 행, 최대 5개.
+  // 정렬된 배열에서 상위 topN + 동률(동일 primary 값) 행, 최대 topN+2 개.
   // ratioFn(item, pool) → 0~1. subFn(item) → 기준값 줄 문자열(없으면 sub 키 생략).
   function makeRows(items, keyFn, displayFn, ratioFn, subFn) {
     if (!items.length) return [];
+    const maxRows = topN + 2;
     const sliceN = Math.min(topN, items.length);
     const borderVal = keyFn(items[sliceN - 1]);
     const pool = [];
     for (const item of items) {
-      if (pool.length >= 5) break;
+      if (pool.length >= maxRows) break;
       const v = keyFn(item);
       if (pool.length < topN || v === borderVal) pool.push(item);
       else break;
@@ -287,7 +288,8 @@ export function calcCupAwards({
  * 전원 필드로 취급해 집계한다 — 득점·실점 자체는 유효하기 때문.
  *
  * @param {{ matchRows?: Array, cup?: object, minOn?: number }} params
- *   minOn: 필드 출전 최소 경기수 기준 (기본 3). 이 값 이상이면 rated.
+ *   minOn: 필드 출전 최소 경기수 기준. 생략하면 '최다 필드 출전 x 30%'(dynamicMin)로 정한다.
+ *          이 값 이상이면 rated. 결과의 minOn 은 실제로 적용된 값이다.
  * @returns {{ minOn: number, rated: Array, unrated: Array }}
  * 각 항목: { name, team, onGames, offGames, gkGames, onGfPg, onGaPg, offGfPg, offGaPg, goalImpact, defImpact, onCleanSheets, cleanRate }
  *   gkGames: 소속(primary)팀 경기 중 GK로 서서 on/off 에서 제외된 경기 수(어느 팀 GK든).
@@ -296,7 +298,7 @@ export function calcCupAwards({
  *   cleanRate: onCleanSheets / onGames, Number(x.toFixed(2)).
  * 정렬: (goalImpact ?? -Inf) + (defImpact ?? -Inf) 내림 → onGames 내림 → name ko (null 은 맨 뒤).
  */
-export function calcCupOnOff({ matchRows = [], cup, minOn = 3 } = {}) {
+export function calcCupOnOff({ matchRows = [], cup, minOn = null } = {}) {
   const { displayOf } = buildTeamDisplay(matchRows, cup);
 
   // 엔티티 팀 키 집합 — primary 팀 동률 시 엔티티 우선
@@ -448,7 +450,7 @@ export function calcCupOnOff({ matchRows = [], cup, minOn = 3 } = {}) {
 
   if (entries.length === 0) return { minOn: 0, rated: [], unrated: [] };
 
-  // ── 6단계: rated/unrated 분리 — onGames >= minOn 이면 rated ─────────
+  // ── 6단계: rated/unrated 분리 — onGames >= 진입선이면 rated ────────
   // minOff 기준 없음. offGames=0 이면 impact=null 이지만 onGames 가 충분하면 rated.
 
   // 정렬: (goalImpact ?? -Inf) + (defImpact ?? -Inf) 내림 → onGames 내림 → name ko
@@ -461,10 +463,15 @@ export function calcCupOnOff({ matchRows = [], cup, minOn = 3 } = {}) {
     return byKo(a.name, b.name);
   };
 
-  const rated   = entries.filter(e => e.onGames >= minOn).sort(sortFn);
-  const unrated = entries.filter(e => e.onGames < minOn).sort(sortFn);
+  // 진입선: 명시값이 없으면 "최다 필드 출전 x 30%"(dynamicMin 단일 소스 — 수문장 카드와 같은 규칙).
+  // 고정 3경기였을 때는 두세 경기만 뛴 선수가 관여 1위로 올라와 표본이 너무 얕았다(2026-10-23 사용자 요청).
+  const maxOnGames = Math.max(...entries.map(e => e.onGames));
+  const effMinOn = minOn == null ? dynamicMin(maxOnGames) : minOn;
 
-  return { minOn, rated, unrated };
+  const rated   = entries.filter(e => e.onGames >= effMinOn).sort(sortFn);
+  const unrated = entries.filter(e => e.onGames < effMinOn).sort(sortFn);
+
+  return { minOn: effMinOn, rated, unrated };
 }
 
 /**

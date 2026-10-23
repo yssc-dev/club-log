@@ -221,40 +221,47 @@ describe('calcCupAwards', () => {
     expect(keys).toEqual(['topScorer', 'topAssist', 'cleanSheet', 'keeper', 'goalImpact', 'defImpact', 'attendance']);
   });
 
-  it('topN=3 기본: 상위 3개 rows', () => {
+  it('topN=5 기본: 상위 5개 rows (2026-10-23 사용자 요청으로 3 → 5)', () => {
     const players = [
-      AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 3 }),
-      AP({ name: 'c', goals: 2 }), AP({ name: 'd', goals: 1 }),
-    ];
-    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
-      .find(c => c.key === 'topScorer');
-    expect(card.rows).toHaveLength(3);
-    expect(card.rows.map(r => r.name)).toEqual(['a', 'b', 'c']);
-  });
-
-  it('동률 포함 규칙: 4명이면 4행', () => {
-    // 1위×2, 3위×2 → topN=3 이므로 3위(border) 동률 1명 추가 → 4행
-    const players = [
-      AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 5 }),
-      AP({ name: 'c', goals: 3 }), AP({ name: 'd', goals: 3 }),
-    ];
-    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
-      .find(c => c.key === 'topScorer');
-    expect(card.rows).toHaveLength(4);
-    expect(card.rows.map(r => r.rank)).toEqual([1, 1, 3, 3]);
-  });
-
-  it('동률 포함 규칙: 6명 동률이면 5행(상한)', () => {
-    // topN=3, 3위(border)와 동률이 6명이지만 total max 5
-    const players = [
-      AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 5 }),
-      AP({ name: 'c', goals: 3 }), AP({ name: 'd', goals: 3 }),
-      AP({ name: 'e', goals: 3 }), AP({ name: 'f', goals: 3 }),
-      AP({ name: 'g', goals: 3 }),
+      AP({ name: 'a', goals: 7 }), AP({ name: 'b', goals: 6 }),
+      AP({ name: 'c', goals: 5 }), AP({ name: 'd', goals: 4 }),
+      AP({ name: 'e', goals: 3 }), AP({ name: 'f', goals: 2 }),
     ];
     const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
       .find(c => c.key === 'topScorer');
     expect(card.rows).toHaveLength(5);
+    expect(card.rows.map(r => r.name)).toEqual(['a', 'b', 'c', 'd', 'e']);
+  });
+
+  it('5명보다 적으면 있는 만큼만', () => {
+    const players = [AP({ name: 'a', goals: 5 }), AP({ name: 'b', goals: 3 })];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
+      .find(c => c.key === 'topScorer');
+    expect(card.rows).toHaveLength(2);
+  });
+
+  it('동률 포함 규칙: 5위(border) 동률은 함께 올린다 → 6행', () => {
+    const players = [
+      AP({ name: 'a', goals: 9 }), AP({ name: 'b', goals: 8 }),
+      AP({ name: 'c', goals: 7 }), AP({ name: 'd', goals: 6 }),
+      AP({ name: 'e', goals: 3 }), AP({ name: 'f', goals: 3 }),
+      AP({ name: 'g', goals: 1 }),
+    ];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
+      .find(c => c.key === 'topScorer');
+    expect(card.rows).toHaveLength(6);
+    expect(card.rows.map(r => r.rank)).toEqual([1, 2, 3, 4, 5, 5]);
+  });
+
+  it('동률이 아무리 많아도 상한 7행(topN+2)', () => {
+    const players = [
+      AP({ name: 'a', goals: 9 }), AP({ name: 'b', goals: 8 }),
+      AP({ name: 'c', goals: 7 }), AP({ name: 'd', goals: 6 }),
+      ...['e', 'f', 'g', 'h', 'i', 'j'].map(n => AP({ name: n, goals: 3 })),
+    ];
+    const card = calcCupAwards({ players, keepers: [], onoff: { minOn: 3, rated: [], unrated: [] }, days: [] })
+      .find(c => c.key === 'topScorer');
+    expect(card.rows).toHaveLength(7);
   });
 
   it('rank 경쟁 순위(1,1,3)', () => {
@@ -568,8 +575,8 @@ describe('calcCupOnOff', () => {
       OO({ match_idx: 3, our_score: 0, opponent_score: 1,
            our_members_json: JSON.stringify(['gkA', 'p2', 'p3']) }), // p1 off (1회)
     ];
-    // p1: onGames=2, offGames=1 → 2 < 3(minOn 기본) → unrated
-    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    // p1: onGames=2, offGames=1 → 2 < 3(명시 minOn) → unrated
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO, minOn: 3 });
     const p1r = rated.find(e => e.name === 'p1');
     const p1u = unrated.find(e => e.name === 'p1');
     expect(p1r).toBeUndefined();       // rated 에 없음
@@ -617,7 +624,7 @@ describe('calcCupOnOff', () => {
       OO({ match_idx: 1, our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3']) }),
       OO({ match_idx: 2, our_members_json: JSON.stringify(['gkA', 'p1', 'p2', 'p3']) }),
     ];
-    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    const { rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO, minOn: 3 });
     const all = [...rated, ...unrated];
     const p1 = all.find(e => e.name === 'p1');
     expect(p1).toBeDefined();
@@ -812,21 +819,29 @@ describe('calcCupOnOff', () => {
       .toEqual({ minOn: 0, rated: [], unrated: [] });
   });
 
-  // 13. minOn 기본값 3
-  it('minOn 기본 3 — onGames=3 이면 rated', () => {
-    const rows = [
-      OO({ match_idx: 1, our_members_json: JSON.stringify(['gkA', 'p1', 'p2']),
-           opponent_members_json: JSON.stringify([]) }),
-      OO({ match_idx: 2, our_members_json: JSON.stringify(['gkA', 'p1', 'p2']),
-           opponent_members_json: JSON.stringify([]) }),
-      OO({ match_idx: 3, our_members_json: JSON.stringify(['gkA', 'p1', 'p2']),
-           opponent_members_json: JSON.stringify([]) }),
-      OO({ match_idx: 4, our_members_json: JSON.stringify(['gkA', 'p2']),
-           opponent_members_json: JSON.stringify([]) }), // p1 off
-    ];
-    const { minOn, rated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
-    expect(minOn).toBe(3);
-    expect(rated.find(e => e.name === 'p1')).toBeDefined(); // onGames=3 >= 3 → rated
+  // 13. 진입선 기본값 = 최다 필드 출전 x 30% (dynamicMin 단일 소스, 2026-10-23)
+  it('minOn 생략 — 최다 출전 x 30% 로 진입선을 정한다', () => {
+    // p2 는 10경기 전부 필드 출전, p1 은 앞 2경기만 → 진입선 ceil(10*0.3)=3
+    const rows = Array.from({ length: 10 }, (_, i) =>
+      OO({ match_idx: i + 1,
+           our_members_json: JSON.stringify(i < 2 ? ['gkA', 'p1', 'p2'] : ['gkA', 'p2']),
+           opponent_members_json: JSON.stringify([]) }));
+    const { minOn, rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    expect(minOn).toBe(3);                                   // ceil(10 * 0.3)
+    expect(rated.find(e => e.name === 'p2')).toBeDefined();   // 10경기
+    expect(unrated.find(e => e.name === 'p1')).toBeDefined(); // 2경기 < 3
+  });
+
+  it('표본이 커지면 진입선도 자동으로 올라간다', () => {
+    // p2 가 30경기 → 진입선 9. 8경기만 뛴 p1 은 아직 못 들어온다.
+    const rows = Array.from({ length: 30 }, (_, i) =>
+      OO({ match_idx: i + 1,
+           our_members_json: JSON.stringify(i < 8 ? ['gkA', 'p1', 'p2'] : ['gkA', 'p2']),
+           opponent_members_json: JSON.stringify([]) }));
+    const { minOn, rated, unrated } = calcCupOnOff({ matchRows: rows, cup: CUP_OO });
+    expect(minOn).toBe(9);                                   // ceil(30 * 0.3)
+    expect(unrated.find(e => e.name === 'p1')).toBeDefined();
+    expect(rated.find(e => e.name === 'p1')).toBeUndefined();
   });
 
   // 14. 옵션 minOn 으로 바꿀 수 있다
