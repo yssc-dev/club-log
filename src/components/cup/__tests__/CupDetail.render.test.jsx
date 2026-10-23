@@ -86,8 +86,8 @@ describe('CupDetail 기록 섹션', () => {
     const rows = [...container.querySelectorAll('tr[data-role="cup-standing-row"]')];
     // A: 3:0 승 3 + 등록 7명 참석 1 = 4 / C: 0경기(gd 0) / B: 0점 gd −3 → A, C, B
     expect(rows.map(r => r.dataset.team)).toEqual(['팀A', '팀C', '팀B']);
-    // 순위·팀·경기·승·무·패·득실·승점·참석·합계
-    expect([...rows[0].querySelectorAll('td')].map(td => td.textContent.trim())).toEqual(['1', '팀A', '1', '1', '0', '0', '+3', '3', '1', '4']);
+    // 순위·팀·경기·승·무·패·득·실·득실·승점·참석·합계
+    expect([...rows[0].querySelectorAll('td')].map(td => td.textContent.trim())).toEqual(['1', '팀A', '1', '1', '0', '0', '3', '0', '+3', '3', '1', '4']);
     expect(container.querySelector('div[data-role="cup-day"][data-date="2026-10-01"]')).not.toBeNull();
     expect(container.textContent).toContain('경기일별 풀리그');
     expect(container.textContent).not.toContain('풀리그 1회전');
