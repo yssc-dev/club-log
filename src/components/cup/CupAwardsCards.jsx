@@ -159,8 +159,9 @@ export default function CupAwardsCards({ awards = [] }) {
           data-group={sec.key}
           style={{
             // 묶음 사이 경계선 — 첫 묶음 위에는 긋지 않는다.
-            // 색이 CSS 변수(var(--app-divider))라 shorthand 로 쓰면 jsdom 이 선언 전체를
-            // 무효 처리해 테스트가 두께조차 못 읽는다 → 분리 속성으로 둔다.
+            // 색이 CSS 변수(var(--app-divider))라 shorthand 로 쓰면 jsdom 이 longhand 로
+            // 분해하지 못해(선언은 남지만 style.borderTopWidth 가 빈다) 테스트가 두께를
+            // 못 읽는다 → 분리 속성으로 둔다. 자세한 내용은 src/test-utils/domStyle.js.
             borderTopWidth: i === 0 ? 0 : 1,
             borderTopStyle: 'solid',
             borderTopColor: C.borderColor,

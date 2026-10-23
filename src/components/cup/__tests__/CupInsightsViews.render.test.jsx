@@ -8,6 +8,7 @@ import CupAwardsCards from '../CupAwardsCards';
 import CupHeadToHead from '../CupHeadToHead';
 import CupFieldImpactTable from '../CupFieldImpactTable';
 import CupPlayerRecordsTable from '../CupPlayerRecordsTable';
+import { styleOf } from '../../../test-utils/domStyle';
 
 Object.defineProperty(window, 'matchMedia', {
   writable: true,
@@ -51,9 +52,10 @@ describe('CupAwardsCards', () => {
     it('첫 묶음 위에는 경계선이 없고 이후 묶음에는 있다', async () => {
       await mount(createElement(CupAwardsCards, { awards: [A('topScorer', 'personal', '득점왕'), A('keeper', 'keeper', '수문장')] }));
       const groups = [...container.querySelectorAll('[data-role="cup-award-group"]')];
-      expect(groups[0].style.borderTopWidth).toBe('0px');
-      expect(groups[1].style.borderTopWidth).toBe('1px');
-      expect(groups[1].style.borderTopStyle).toBe('solid');
+      // styleOf: 빈 문자열을 성공으로 넘기지 않는다(잘못된 getter 로 조용히 통과 방지)
+      expect(styleOf(groups[0], 'borderTopWidth')).toBe('0px');
+      expect(styleOf(groups[1], 'borderTopWidth')).toBe('1px');
+      expect(styleOf(groups[1], 'borderTopStyle')).toBe('solid');
     });
 
     it('카드가 없는 묶음은 그리지 않는다', async () => {
