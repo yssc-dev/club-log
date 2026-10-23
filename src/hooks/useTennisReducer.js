@@ -5,7 +5,7 @@ import {
   TIEBREAK_POINTS_TO_WIN,
 } from '../utils/tennis/tennisScoring';
 import { normalizeTennisMatch, normalizeTennisCourt, normalizeScoringRules } from '../utils/tennis/normalizeTennisMatch';
-import { isRoundComplete, allRoundsConfirmed } from '../utils/tennis/roundConfirm';
+import { isRoundComplete, allRoundsConfirmed, canDeleteRound } from '../utils/tennis/roundConfirm';
 
 export const tennisInitialState = {
   gameId: '',
@@ -131,6 +131,21 @@ export function tennisReducer(state, action) {
         phase: 'playing',
         rounds: [...(state.rounds || []), { roundIdx: nextIdx, courts: [newCourt(1)] }],
         viewingRoundIdx: nextIdx,
+      };
+    }
+
+    case 'DELETE_ROUND': {
+      // 잘못 눌러 생긴 마지막 라운드를 되돌린다 — 미확정 라운드가 남아 마감이 영영 막히는 상황의 해법.
+      // 게이트는 canDeleteRound 단일 판정(화면 버튼과 같은 함수).
+      if (!canDeleteRound(state.rounds, state.confirmedRounds, action.roundIdx, state.phase)) return state;
+      const rounds = state.rounds.filter(r => r.roundIdx !== action.roundIdx);
+      const confirmedRounds = { ...(state.confirmedRounds || {}) };
+      delete confirmedRounds[action.roundIdx];   // 방어적 정리 — 미확정만 지우므로 평소엔 없는 키
+      return {
+        ...state,
+        rounds,
+        confirmedRounds,
+        viewingRoundIdx: rounds.reduce((m, r) => Math.max(m, r.roundIdx), 1),
       };
     }
 

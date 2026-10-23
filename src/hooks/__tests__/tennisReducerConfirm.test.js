@@ -108,3 +108,43 @@ describe('마감 상태(summary)에서의 편집', () => {
     expect(tennisReducer(reconfirmed, { type: 'SET_PHASE', phase: 'summary' }).phase).toBe('summary');
   });
 });
+
+describe('DELETE_ROUND', () => {
+  const readyCourt = (courtId) => ({ ...doneCourt(courtId), status: 'ready', sets: [], undoStack: [] });
+  const twoRounds = {
+    ...base,
+    rounds: [{ roundIdx: 1, courts: [doneCourt(1)] }, { roundIdx: 2, courts: [readyCourt(1)] }],
+    confirmedRounds: { 1: true },
+    viewingRoundIdx: 2,
+  };
+
+  it('마지막 미확정 라운드를 지우고 보는 라운드를 앞으로 되돌린다', () => {
+    const s = tennisReducer(twoRounds, { type: 'DELETE_ROUND', roundIdx: 2 });
+    expect(s.rounds.map(r => r.roundIdx)).toEqual([1]);
+    expect(s.viewingRoundIdx).toBe(1);
+    expect(s.confirmedRounds).toEqual({ 1: true });
+  });
+
+  it('삭제 후 전 라운드 확정이 되어 마감 게이트가 열린다 — 오터치 라운드로 막히지 않는다', () => {
+    const s = tennisReducer(twoRounds, { type: 'DELETE_ROUND', roundIdx: 2 });
+    expect(tennisReducer(s, { type: 'SET_PHASE', phase: 'summary' }).phase).toBe('summary');
+  });
+
+  it('중간/확정/마지막 1개/done은 no-op', () => {
+    // 중간 라운드 — 확정 여부와 무관하게 거부돼야 한다(미확정으로 두고 확인).
+    const midUnconfirmed = { ...twoRounds, confirmedRounds: {} };
+    expect(tennisReducer(midUnconfirmed, { type: 'DELETE_ROUND', roundIdx: 1 })).toBe(midUnconfirmed);
+    expect(tennisReducer(twoRounds, { type: 'DELETE_ROUND', roundIdx: 1 })).toBe(twoRounds);
+    const bothConfirmed = { ...twoRounds, confirmedRounds: { 1: true, 2: true } };
+    expect(tennisReducer(bothConfirmed, { type: 'DELETE_ROUND', roundIdx: 2 })).toBe(bothConfirmed);
+    expect(tennisReducer(base, { type: 'DELETE_ROUND', roundIdx: 1 })).toBe(base);
+    const closed = { ...twoRounds, phase: 'done' };
+    expect(tennisReducer(closed, { type: 'DELETE_ROUND', roundIdx: 2 })).toBe(closed);
+  });
+
+  it('기록이 있는 마지막 라운드도 지워진다 (확정만 안 돼 있으면)', () => {
+    const played = { ...twoRounds, rounds: [twoRounds.rounds[0], { roundIdx: 2, courts: [doneCourt(1)] }] };
+    const s = tennisReducer(played, { type: 'DELETE_ROUND', roundIdx: 2 });
+    expect(s.rounds.map(r => r.roundIdx)).toEqual([1]);
+  });
+});
