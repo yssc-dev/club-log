@@ -189,7 +189,7 @@ export function buildHeadToHead({ rows, player, format }) {
 
 // 최근 N경기: player의 행을 최신순(날짜↓ → 세션 input_time↓ → 라운드↓ → 코트↓)으로 정렬해 상위 N개.
 // 세션은 한 번에 확정돼 같은 input_time을 공유하므로 라운드/코트로 세션 내 순서를 가른다.
-export function buildRecentMatches({ rows, player, limit = 5 }) {
+export function buildRecentMatches({ rows, player, limit = 10 }) {
   const mine = (rows || []).filter(r => r.player === player);
   mine.sort((a, b) =>
     String(b.date).localeCompare(String(a.date)) ||

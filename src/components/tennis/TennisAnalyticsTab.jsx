@@ -746,7 +746,7 @@ export default function TennisAnalyticsTab({ C: propC }) {
     () => player ? buildPartnerBreakdown({ rows: fRows, player }) : [], [fRows, player]);
 
   const recentMatches = useMemo(
-    () => player ? buildRecentMatches({ rows: fRows, player, limit: 5 }) : [], [fRows, player]);
+    () => player ? buildRecentMatches({ rows: fRows, player, limit: 10 }) : [], [fRows, player]);
 
   const h2h = useMemo(
     () => player ? buildHeadToHead({ rows: fRows, player, format: indivFmt }) : [], [fRows, player, indivFmt]);
