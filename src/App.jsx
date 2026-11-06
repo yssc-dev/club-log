@@ -2,7 +2,7 @@ import { useState, useCallback, useMemo, useEffect, useRef } from 'react';
 import { TEAM_COLORS } from './config/constants';
 import { FALLBACK_DATA } from './config/fallbackData';
 import { useTheme } from './hooks/useTheme';
-import { getPlayerPoint, getPlayerData, teamPower, calcMatchScore } from './utils/scoring';
+import { getPlayerPoint, getPlayerData, teamPower, calcMatchScore, seasonLeader } from './utils/scoring';
 import { snakeDraft } from './utils/draft';
 import { generate4Team2Court, generate5Team2Court, generate6Team2Court, generate6TeamSecondHalf, generate7Team2Court, generate8Team2Court, generate8TeamSecondHalf, generate1Court } from './utils/brackets';
 import { generateEventId, formatEventInputTime } from './utils/idGenerator';
@@ -451,14 +451,12 @@ export default function App({ authUser, teamContext, isNewGame, gameMode, gamePa
     return stats;
   }, [allEvents, completedMatches, attendees]);
 
-  const getSeasonLeader = useCallback((type) => {
-    const data = type === "crova" ? seasonCrova : seasonGoguma;
-    const entries = Object.entries(data).filter(([, v]) => v !== 0);
-    if (entries.length === 0) return null;
-    const sorted = entries.sort(([, a], [, b]) => b - a);
-    if (sorted.length >= 2 && sorted[0][1] === sorted[1][1]) return null;
-    return sorted[0][0];
-  }, [seasonCrova, seasonGoguma]);
+  // 1위 판정은 seasonLeader(절대값 기준) 단일 소스 — 고구마는 시트에 음수 포인트로
+  // 저장되므로 원시값 내림차순이면 '가장 적게 받은 사람'이 1위가 된다(scoring.js 주석).
+  const getSeasonLeader = useCallback(
+    (type) => seasonLeader(type === "crova" ? seasonCrova : seasonGoguma),
+    [seasonCrova, seasonGoguma]
+  );
 
   const calcPlayerPoints = useCallback((player) => {
     const st = playerMatchStats[player];

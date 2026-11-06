@@ -61,3 +61,28 @@ export function calcMatchScore(events, matchId, teamName) {
     .filter(e => e.matchId === matchId && e.scoringTeam === teamName)
     .reduce((s, e) => s + (e.type === "goal" ? 1 : e.type === "owngoal" ? 2 : 0), 0);
 }
+
+/**
+ * 시즌 누적 크로바/고구마 1위. 황금크로바(고구마 1위가 1등팀) / 탄고구마(크로바
+ * 1위가 꼴찌팀) 배율의 입력이다.
+ *
+ * 선수별집계기록 로그의 크로바/고구마 열은 '횟수'가 아니라 이미 부호가 실린
+ * 누적 포인트다 — 크로바는 양수(+2/회), 고구마는 음수(-1/회, 탄고구마 -2).
+ * '1위 = 많이 받은 사람'이므로 절대값 기준으로 정렬한다(대시보드
+ * CrovaGogumaRankTab 과 같은 기준). 원시값 내림차순으로 뽑으면 고구마 1위가
+ * '가장 적게 받은 사람'이 되고, -1 동률자가 흔해 tie 가드에 걸려 항상 null 이 된다.
+ *
+ * 동률 1위는 null — 누구에게 배율을 줄지 정할 수 없으므로 보너스를 적용하지 않는다.
+ *
+ * @param {Record<string, number>} data - 이름 → 누적 포인트
+ * @returns {string|null} 1위 선수명, 없거나 동률이면 null
+ */
+export function seasonLeader(data) {
+  const entries = Object.entries(data || {})
+    .map(([name, v]) => [name, Math.abs(Number(v) || 0)])
+    .filter(([, v]) => v !== 0)
+    .sort(([, a], [, b]) => b - a);
+  if (entries.length === 0) return null;
+  if (entries.length >= 2 && entries[0][1] === entries[1][1]) return null;
+  return entries[0][0];
+}
