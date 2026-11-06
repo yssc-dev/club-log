@@ -24,7 +24,8 @@ const byName = (a, b) => a.members[0].localeCompare(b.members[0], 'ko') || a.mem
 function aggregatePairs(matchLogs) {
   const pairs = {};
   const touch = (key) => (pairs[key] ||= {
-    fieldRounds: new Set(), fieldDates: new Set(), wins: 0, draws: 0, losses: 0, conceded: 0, cleanSheets: 0,
+    seenRounds: new Set(), fieldRounds: new Set(), fieldDates: new Set(),
+    wins: 0, draws: 0, losses: 0, conceded: 0, cleanSheets: 0,
     allDates: new Set(),
   });
 
@@ -47,9 +48,12 @@ function aggregatePairs(matchLogs) {
         for (let j = i + 1; j < sorted.length; j++) {
           const a = sorted[i], b = sorted[j];
           const p = touch(`${a}|${b}`);
+          // 같은 (날짜, match_id) 중복 행 방어 — 첫 행 우선(pairBaseline.recordRoundOutcome과 같은 규칙).
+          // GK 판정보다 앞에 둔다: 첫 행이 GK 라운드였으면 둘째 행이 필드 라운드로 되살아나면 안 된다.
+          if (p.seenRounds.has(roundKey)) continue;
+          p.seenRounds.add(roundKey);
           p.allDates.add(m.date);
           if (gk && (gk === a || gk === b)) continue; // 한쪽이 그 라운드 GK → 필드 듀오 라운드가 아님
-          if (p.fieldRounds.has(roundKey)) continue;  // 같은 (날짜, match_id) 중복 행 방어
           p.fieldRounds.add(roundKey);
           p.fieldDates.add(m.date);
           if (gf > ga) p.wins++; else if (gf === ga) p.draws++; else p.losses++;

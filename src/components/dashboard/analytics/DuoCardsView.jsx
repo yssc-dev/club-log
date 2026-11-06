@@ -31,7 +31,7 @@ export default function DuoCardsView({ matchLogs, eventLogs, C }) {
       </div>
 
       <Card C={C} title="합작 골 TOP 5"
-        caption="어시 → 골로 이어진 골을 두 방향 합산한 절대수(로그_이벤트 기준). 보조 숫자는 앞사람 득점 수 · 뒷사람 득점 수(어시는 서로 반대)와 함께 뛴 경기일.">
+        caption="어시 → 골로 이어진 골을 두 방향 합산한 절대수(로그_이벤트 기준, 진입선 없음). 보조 숫자는 「앞 이름 득점(뒤 이름 어시) · 뒤 이름 득점(앞 이름 어시) / 함께 뛴 경기일」.">
         <RankBarList
           rows={cards.linkGoals.map(p => ({ name: pairName(p), value: p.count, sub: `${p.aToB}·${p.bToA} / ${p.sessions}일` }))}
           formatValue={v => `${v}골`} color={C.green} C={C} limit={5} nameWidth={92} subWidth={66}
@@ -39,7 +39,7 @@ export default function DuoCardsView({ matchLogs, eventLogs, C }) {
       </Card>
 
       <Card C={C} title="동반 승리 TOP 5"
-        caption="둘 다 필드로 뛴 라운드에서 함께 이긴 횟수(절대수). 보조 숫자는 그 라운드들의 승률 · 함께 뛴 경기일.">
+        caption="둘 다 필드로 뛴 라운드에서 함께 이긴 횟수(절대수, 진입선 없음). 보조 숫자는 그 라운드들의 승률 · 함께 필드로 뛴 경기일.">
         <RankBarList
           rows={cards.wins.map(p => ({ name: pairName(p), value: p.wins, sub: `${Math.round(p.winRate * 100)}%·${p.sessions}일` }))}
           formatValue={v => `${v}승`} color={C.accent} C={C} limit={5} nameWidth={92} subWidth={56}

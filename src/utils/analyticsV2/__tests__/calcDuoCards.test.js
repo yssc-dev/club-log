@@ -52,8 +52,10 @@ describe('calcDuoCards — 합작 골', () => {
       row('2026-05-07', 'R1_C0', ['가', '나', '다'], 1, 0, { gk: '가' }),
       row('2026-05-14', 'R1_C0', ['가', '나', '다'], 1, 0),
     ];
-    const { linkGoals } = calcDuoCards({ matchLogs, eventLogs: [goal('나', '가')] });
+    const { linkGoals, wins } = calcDuoCards({ matchLogs, eventLogs: [goal('나', '가')] });
     expect(find(linkGoals, '가', '나').sessions).toBe(2);
+    // 승리 카드의 경기일은 필드 라운드만(05-07은 가가 GK) → 두 카드의 세션 소스가 다르다
+    expect(find(wins, '가', '나').sessions).toBe(1);
   });
 });
 
@@ -97,6 +99,14 @@ describe('calcDuoCards — 동반 승리', () => {
     expect(find(wins, '가', '나').rounds).toBe(1);
     expect(find(wins, '가', '나').wins).toBe(1);
     expect(find(conceded, '가', '나').cleanSheets).toBe(1);
+  });
+
+  it('중복 행의 GK 값이 다르면 첫 행을 따른다(첫 행이 GK 라운드면 둘째 행으로 필드 라운드가 되지 않는다)', () => {
+    const withGk = row('2026-05-07', 'R1_C0', ['가', '나'], 1, 0, { gk: '가' });
+    const noGk = row('2026-05-07', 'R1_C0', ['가', '나'], 1, 0);
+    expect(find(calcDuoCards({ matchLogs: [withGk, noGk], eventLogs: [] }).wins, '가', '나')).toBeUndefined();
+    // 반대 순서면 첫 행(필드)이 남는다
+    expect(find(calcDuoCards({ matchLogs: [noGk, withGk], eventLogs: [] }).wins, '가', '나').wins).toBe(1);
   });
 
   it('is_extra 행은 제외한다', () => {
