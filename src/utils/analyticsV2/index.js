@@ -5,6 +5,7 @@ export * from './calcAssistLinkMatrix';
 export * from './calcAssistPairs';
 export * from './calcAwards';
 export * from './calcDailyMvp';
+export * from './calcDuoCards'; // 풋살 전용 — 셰도잉 목록 밖(futsalCalc.calcDuoCards로 직접 호출)
 export * from './calcGkChemistry';
 export * from './calcFieldDefense'; // 풋살 전용 — 셰도잉 목록 밖(futsalCalc.calcFieldDefense로 직접 호출)
 export * from './calcGkFieldSplit'; // 풋살 전용 — 셰도잉 목록 밖(futsalCalc.calcGkFieldSplit로 직접 호출)

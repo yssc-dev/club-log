@@ -2,6 +2,7 @@
 import { useState, useMemo, useEffect } from 'react';
 import * as futsalCalc from '../../../utils/analyticsV2';
 import GoldenTrioView from './GoldenTrioView';
+import DuoCardsView from './DuoCardsView';
 import AssistPairList from './AssistPairList';
 import DefenseAnalysisView from './DefenseAnalysisView';
 import OpponentLeadersView from './OpponentLeadersView';
@@ -46,7 +47,10 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
           }}>{s.label}</button>
         ))}
       </div>
-      {sub === 'trio' && <GoldenTrioView matchLogs={matchLogs} C={C} isSoccer={isSoccer} />}
+      {/* 풋살은 카드 3장(합작 골·동반 승리·실점 억제, 2026-11-06), 축구는 케미 랭킹 유지 */}
+      {sub === 'trio' && (isSoccer
+        ? <GoldenTrioView matchLogs={matchLogs} C={C} isSoccer={isSoccer} />
+        : <DuoCardsView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />)}
       {sub === 'assist' && <AssistPairList pairs={assistPairs} C={C} />}
       {sub === 'defense' && isSoccer && <DefenseAnalysisView matchLogs={matchLogs} C={C} />}
       {sub === 'opponent' && isSoccer && <OpponentLeadersView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />}
