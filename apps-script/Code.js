@@ -33,6 +33,12 @@
 //             league 열 정정. 8-14~28 사이 복식 "회원 3명+게스트 1명"이 규정(회원 3명 이상=투몽)과
 //             달리 미반영으로 저장된 10판 정정용. 허용값 투몽/길로틴/미반영, 행 팀소유 검증.
 // 2026-08-27: 테니스 시트 쓰기에 _sanitizeCell 적용 — 수식 주입 차단(_tennisRowToArray)
+// 2026-11-06: fixGoldenCrova20261105 추가 — 2026-11-05 마스터FC 풋살 황금크로바 소급 정정(일회성).
+//             앱의 getSeasonLeader 가 고구마 누적(음수 포인트)을 원시값 내림차순으로 뽑아
+//             1위를 '가장 적게 받은 사람'으로 오판 → 동률 null → 황금크로바가 한 번도 적용되지
+//             않았다(앱은 scoring.seasonLeader 절대값 기준으로 수정됨). 그날 1등 팀필선 6명의
+//             크로바 2 → 4 로 정정. 로그_선수경기 + 선수별집계기록 로그 양쪽, dryRun 기본.
+//             에디터에서 _dryrun → 검토 → _apply 순으로 실행. HTTP 미노출. 적용 후 제거 가능.
 // 2026-08-19: _playerLogColMap 크로바/고구마 폴백 7/8 → -1(헤더 없으면 0). 하버FC
 //             선수기록보관소엔 두 헤더가 없어 클린시트/실점 열을 오독 — getPrevRankings의
 //             증분에 실점이 고구마로 실려 개인 누적 기록 ▲/▼ 배지가 유령 순위변동 표시
@@ -2475,6 +2481,108 @@ function _getCumulativeBonus(team, sheetName) {
   }
 
   return { success: true, crova: crova, goguma: goguma };
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 일회성: 2026-11-05 황금크로바 소급 정정
+// ═══════════════════════════════════════════════════════════════
+
+// 그날 누적 고구마 1위(우창호 -10, 단독)가 1등 팀필선 소속이었으므로 팀필선 전원의
+// 크로바는 crovaPoint(2) × bonusMultiplier(2) = 4 여야 했다. 기록은 2 로 남았다.
+// 대상 6명을 이름으로 못 박는다 — 날짜·세션팀만으로 거르면 용병/수정 이력에 따라
+// 의도치 않은 행을 건드릴 수 있다. crova 가 FROM 인 행만 바꾸므로 재실행해도 안전하다.
+var GOLDEN_CROVA_FIX = {
+  date: "2026-11-05",
+  team: "마스터FC",
+  sport: "풋살",
+  sessionTeam: "팀필선",
+  players: ["노필선", "우창호", "박형조", "김홍익", "신관수", "정은우"],
+  from: 2,
+  to: 4
+};
+
+function fixGoldenCrova20261105(opts) {
+  opts = opts || {};
+  var dryRun = opts.dryRun !== false;
+  var cfg = GOLDEN_CROVA_FIX;
+  var want = {};
+  for (var i = 0; i < cfg.players.length; i++) want[cfg.players[i]] = true;
+
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var out = { success: true, dryRun: dryRun, sheets: [] };
+
+  // ── 1) 로그_선수경기 (헤더명 기반) ──
+  var pg = ss.getSheetByName(RAW_PLAYER_GAMES_SHEET);
+  if (!pg) return { success: false, error: "로그_선수경기 시트 없음" };
+  var pgH = pg.getRange(1, 1, 1, pg.getLastColumn()).getValues()[0].map(function(h){ return String(h).trim(); });
+  function ci(h, n) { var i = h.indexOf(n); if (i < 0) throw new Error("로그_선수경기 헤더 누락: " + n); return i; }
+  var cTeam = ci(pgH, "team"), cSport = ci(pgH, "sport"), cTid = ci(pgH, "tournament_id"),
+      cDate = ci(pgH, "date"), cPlayer = ci(pgH, "player"), cSess = ci(pgH, "session_team"),
+      cCrova = ci(pgH, "crova");
+
+  var pgLast = pg.getLastRow();
+  var pgHits = [];
+  if (pgLast >= 2) {
+    var pgRows = pg.getRange(2, 1, pgLast - 1, pg.getLastColumn()).getValues();
+    for (var r = 0; r < pgRows.length; r++) {
+      var row = pgRows[r];
+      if (String(row[cTeam]).trim() !== cfg.team) continue;
+      if (String(row[cSport]).trim() !== cfg.sport) continue;
+      if (String(row[cTid] || "").trim() !== "") continue;            // 컵 행 제외
+      if (_toDateStr(row[cDate]) !== cfg.date) continue;
+      if (String(row[cSess]).trim() !== cfg.sessionTeam) continue;
+      var name = String(row[cPlayer]).trim();
+      if (!want[name]) continue;
+      if ((Number(row[cCrova]) || 0) !== cfg.from) continue;
+      pgHits.push({ row: r + 2, name: name });
+    }
+  }
+  if (!dryRun) {
+    for (var k = 0; k < pgHits.length; k++) pg.getRange(pgHits[k].row, cCrova + 1).setValue(cfg.to);
+  }
+  out.sheets.push({ sheet: RAW_PLAYER_GAMES_SHEET, matched: pgHits.length, rows: pgHits });
+
+  // ── 2) 선수별집계기록 로그 (소속팀 열은 '마스터FC'라 세션팀 필터 불가 → 날짜+이름) ──
+  var plName = opts.playerLogSheet || PLAYER_LOG_SHEET;
+  if (!plName) return { success: false, error: "선수별집계 시트명이 지정되지 않았습니다(playerLogSheet 전달)" };
+  var pl = ss.getSheetByName(plName);
+  if (!pl) return { success: false, error: "시트 없음: " + plName };
+  var m = _playerLogColMap(pl);
+  if (m.iCrova < 0) return { success: false, error: plName + " 에 '크로바' 헤더가 없습니다" };
+
+  var plLast = pl.getLastRow();
+  var plStart = m.headerRow + 1;
+  var plHits = [];
+  if (plStart <= plLast) {
+    var plRows = pl.getRange(plStart, 1, plLast - plStart + 1, m.colCount).getValues();
+    for (var q = 0; q < plRows.length; q++) {
+      var pr = plRows[q];
+      if (_toDateStr(pr[m.iDate]) !== cfg.date) continue;
+      var pn = String(pr[m.iName]).trim();
+      if (!want[pn]) continue;
+      if ((Number(pr[m.iCrova]) || 0) !== cfg.from) continue;
+      plHits.push({ row: plStart + q, name: pn });
+    }
+  }
+  if (!dryRun) {
+    for (var j = 0; j < plHits.length; j++) pl.getRange(plHits[j].row, m.iCrova + 1).setValue(cfg.to);
+  }
+  out.sheets.push({ sheet: plName, matched: plHits.length, rows: plHits });
+
+  out.expected = cfg.players.length;
+  return out;
+}
+
+function fixGoldenCrova20261105_dryrun() {
+  var r = fixGoldenCrova20261105({ dryRun: true, playerLogSheet: "마스터FC 선수별집계기록 로그" });
+  Logger.log(JSON.stringify(r, null, 2));
+  return r;
+}
+
+function fixGoldenCrova20261105_apply() {
+  var r = fixGoldenCrova20261105({ dryRun: false, playerLogSheet: "마스터FC 선수별집계기록 로그" });
+  Logger.log(JSON.stringify(r, null, 2));
+  return r;
 }
 
 // ═══════════════════════════════════════════════════════════════
