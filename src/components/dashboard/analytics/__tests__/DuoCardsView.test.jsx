@@ -80,4 +80,19 @@ describe('ChemistryTab 베스트 듀오 분기', () => {
     expect(html).not.toContain('합작 골');
     expect(html).toContain('로그_매치 데이터가 없습니다');
   });
+
+  // 어시페어(방향별 어시→골)는 합작 골 카드(양방향 합)와 재료가 같아 풋살에서는 중복 — 2026-11-06 제거.
+  // 서브탭이 하나만 남으면 탭 버튼 줄 자체를 그리지 않는다.
+  it('풋살은 어시페어 서브탭이 없고 서브탭 버튼 줄도 없다', () => {
+    const html = render(ChemistryTab, { matchLogs, eventLogs, isSoccer: false });
+    expect(html).not.toContain('어시페어');
+    // '베스트 듀오'는 서브탭 버튼 레이블(카드 제목에는 없음) — 버튼 줄 자체가 없어야 한다
+    expect(html).not.toContain('베스트 듀오');
+  });
+
+  it('축구는 어시페어 서브탭 버튼이 남는다', () => {
+    const html = render(ChemistryTab, { matchLogs: [], eventLogs: [], isSoccer: true });
+    expect(html).toContain('베스트 듀오');
+    expect(html).toContain('어시페어');
+  });
 });

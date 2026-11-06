@@ -14,20 +14,23 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
   // 종목 전환 시 종목 전용 서브탭(defense/rival)에 좌초 방지 — TeamDashboard activeTab 'records' 리셋과 동일 규약
   useEffect(() => { setSub('trio'); }, [isSoccer]);
 
+  // 어시페어는 축구 전용(아래 subs 참조) — 풋살은 계산도 건너뛴다.
   // 어시페어 노출 보정 분모(함께 뛴 라운드 수)용 — calcSynergyMatrix를 탭 자체적으로 수행
   const synergyMatrix = useMemo(
-    () => calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: 5 }),
-    [matchLogs]
+    () => (isSoccer ? calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: 5 }) : { cells: {} }),
+    [matchLogs, isSoccer]
   );
-  // 축구는 고정 3회, 풋살은 생략 → 페어 최다 연결의 30% 동적 (배열에 threshold 메타 부착)
+  // 축구는 고정 3회 (배열에 threshold 메타 부착)
   const assistPairs = useMemo(
-    () => calcAssistPairs({ eventLogs: eventLogs || [], ...(isSoccer ? { threshold: 3 } : {}), topN: 10, synergyCells: synergyMatrix.cells }),
+    () => (isSoccer ? calcAssistPairs({ eventLogs: eventLogs || [], threshold: 3, topN: 10, synergyCells: synergyMatrix.cells }) : []),
     [eventLogs, synergyMatrix, isSoccer]
   );
 
   const subs = [
     { key: 'trio', label: '베스트 듀오' },
-    { key: 'assist', label: '어시페어' },
+    // 어시페어(방향별 어시→골)는 축구만. 풋살은 베스트 듀오의 합작 골 카드(양방향 합)와
+    // 재료가 같아 2026-11-06 유저 결정으로 제거 — 풋살 계산층 calcAssistPairs는 남겨둔다.
+    ...(isSoccer ? [{ key: 'assist', label: '어시페어' }] : []),
     // 수비케미는 our_defenders_json이 있는 축구 전용
     ...(isSoccer ? [{ key: 'defense', label: '수비케미' }] : []),
     // 축구판 대응: 외부 상대팀별 리더보드
@@ -36,7 +39,8 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
 
   return (
     <div>
-      <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
+      {/* 서브탭이 하나뿐(풋살)이면 버튼 줄을 그리지 않는다 */}
+      {subs.length > 1 && <div style={{ display: 'flex', gap: 6, marginBottom: 14 }}>
         {subs.map(s => (
           <button key={s.key} onClick={() => setSub(s.key)} style={{
             padding: '4px 12px', borderRadius: 50, fontSize: 11, fontWeight: 600,
@@ -46,12 +50,12 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
             cursor: 'pointer',
           }}>{s.label}</button>
         ))}
-      </div>
+      </div>}
       {/* 풋살은 카드 3장(합작 골·동반 승리·실점 억제, 2026-11-06), 축구는 케미 랭킹 유지 */}
       {sub === 'trio' && (isSoccer
         ? <GoldenTrioView matchLogs={matchLogs} C={C} isSoccer={isSoccer} />
         : <DuoCardsView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />)}
-      {sub === 'assist' && <AssistPairList pairs={assistPairs} C={C} />}
+      {sub === 'assist' && isSoccer && <AssistPairList pairs={assistPairs} C={C} />}
       {sub === 'defense' && isSoccer && <DefenseAnalysisView matchLogs={matchLogs} C={C} />}
       {sub === 'opponent' && isSoccer && <OpponentLeadersView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />}
     </div>
