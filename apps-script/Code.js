@@ -2,6 +2,16 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-11-06: 풋살 포인트 로그·선수별집계기록 로그의 경기일자를 "날짜값"으로 쓴다 — _toDateCell 신설,
+//             _writePointLog/_writePlayerLog 가 "2026-11-05" 문자열 대신 Date 객체를 setValues 한다.
+//             기존에는 시트가 그 문자열을 파싱해주길 기대하는 구조라, 셀 서식이 텍스트이거나 표의
+//             열 유형이 텍스트면 글자로 굳었다. 굳은 행은 SUMIFS("<"&날짜) 같은 숫자 비교에서
+//             에러 없이 빠져 집계가 조용히 과소 계산된다(마스터FC 1020행 중 835행이 그 상태였다).
+//             ★ 읽기는 손대지 않았다 — _getPointLog/_getPlayerLog 는 이미 _toDateStr 로 Date·텍스트를
+//               모두 "yyyy-MM-dd" 로 정규화하므로 앱이 받는 값은 전과 동일하다.
+//             ★ 이미 쌓인 행은 바뀌지 않는다. 과거분은 시트에서 직접 날짜값으로 고쳐야 한다.
+//             ★ 축구(_writeSoccerPointLog/_writeSoccerPlayerLog)·로그_* 3종·테니스는 같은 구조지만
+//               증상이 없어 이번 범위에서 제외했다.
 // 2026-10-14: 축구 역할에서 부심 폐지 — roles_json 은 이제 {camera,referee} 둘만 담는다.
 //             ★ Apps Script 코드 변경 없음(roles_json 은 r.roles_json||"" 로 문자열 통과만 한다).
 //             열 구성(23열)도 그대로. 2026-10-07~14 사이 행에 남은 assistants 는 앱이 읽을 때
@@ -228,6 +238,22 @@ function _toDateStr(val) {
   var m = s.match(/(\d{4})\D+(\d{1,2})\D+(\d{1,2})/);
   if (m) return m[1] + "-" + ("0" + m[2]).slice(-2) + "-" + ("0" + m[3]).slice(-2);
   return s;
+}
+
+// 시트 셀에 "날짜값"으로 넣기 위한 변환 — _toDateStr 의 역방향.
+// 앱은 경기일자를 "2026-11-05" 문자열로 보낸다. setValues 는 그 문자열을 사용자 입력처럼
+// 파싱하지만, 셀 서식이 "텍스트"이거나 표(Table)의 열 유형이 텍스트면 글자 그대로 굳는다.
+// 그렇게 굳은 행은 "<"&날짜 같은 숫자 비교에서 에러 없이 통째로 빠져 집계가 조용히 틀린다
+// (2026-11-06: 마스터FC 포인트 로그/선수별집계기록 로그에서 실제로 발생, 1020행 중 835행이 텍스트).
+// Date 객체로 넘기면 셀 서식과 무관하게 날짜값이 보장된다.
+// tz 는 스프레드시트 타임존 — 스크립트 타임존과 다를 때 하루 밀리는 것을 막는다.
+// 시간 성분은 자정으로 둔다(정오로 두면 "=날짜" 정확 매칭 수식이 깨진다).
+// yyyy-MM-dd 가 아닌 값(레거시 표기·빈칸)은 건드리지 않고 원본 그대로 통과시킨다.
+function _toDateCell(v, tz) {
+  if (v instanceof Date) return v;
+  var s = String(v == null ? "" : v).trim();
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(s)) return v;
+  return Utilities.parseDate(s + " 00:00:00", tz || "Asia/Seoul", "yyyy-MM-dd HH:mm:ss");
 }
 
 // ─── 공통 헬퍼 ───
@@ -873,6 +899,7 @@ function _writePointLog(data, sheetName) {
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var tz = ss.getSpreadsheetTimeZone() || "Asia/Seoul";
     var targetName = sheetName || POINT_LOG_SHEET;
     if (!targetName) return { success: false, error: "포인트로그 시트명이 지정되지 않았습니다" };
     var sheet = ss.getSheetByName(targetName);
@@ -884,7 +911,7 @@ function _writePointLog(data, sheetName) {
 
     var values = rows.map(function(e) {
       return [
-        e.gameDate, e.matchId, e.myTeam || "", e.opponentTeam || "",
+        _toDateCell(e.gameDate, tz), e.matchId, e.myTeam || "", e.opponentTeam || "",
         e.scorer || "", e.assist || "", e.ownGoalPlayer || "",
         e.concedingGk || "", e.inputTime || _kstNow(), teamName,
         e.foulPlayer || "",
@@ -918,6 +945,7 @@ function _writePlayerLog(data, sheetName) {
 
   try {
     var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var tz = ss.getSpreadsheetTimeZone() || "Asia/Seoul";
     var targetName = sheetName || PLAYER_LOG_SHEET;
     if (!targetName) return { success: false, error: "선수별집계 시트명이 지정되지 않았습니다" };
     var sheet = ss.getSheetByName(targetName);
@@ -929,7 +957,7 @@ function _writePlayerLog(data, sheetName) {
 
     var values = rows.map(function(p) {
       return [
-        p.gameDate, p.name,
+        _toDateCell(p.gameDate, tz), p.name,
         Number(p.goals) || 0, Number(p.assists) || 0, Number(p.owngoals) || 0,
         Number(p.conceded) || 0, Number(p.cleanSheets) || 0,
         Number(p.crova) || 0, Number(p.goguma) || 0, Number(p.keeperGames) || 0,
