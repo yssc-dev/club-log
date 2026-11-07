@@ -4,6 +4,9 @@ import FirebaseSync from '../../services/firebaseSync';
 import { useTheme } from '../../hooks/useTheme';
 import { TEAM_COLORS } from '../../config/constants';
 import { calcMatchScore } from '../../utils/scoring';
+import { mergeArchivePlayerRows } from '../../utils/archivePlayerRows';
+import { isCupSession } from '../../utils/cup/cupSession';
+import SheetCache from '../../services/sheetCache';
 import { getEffectiveSettings } from '../../config/settings';
 import { countFinishedSoccerMatches } from '../../utils/soccerScoring';
 import SoccerArchiveDetail from './SoccerArchiveDetail';
@@ -86,6 +89,8 @@ export default function HistoryView({ teamContext, onBack }) {
   const [view, setView] = useState("active"); // "active" | "trash"
   const [selectedGame, setSelectedGame] = useState(null);
   const [detailLoading, setDetailLoading] = useState(false);
+  // 풋살 아카이브 '선수별 기록'의 진실 소스(archivePlayerRows.js). null 이면 기존 재계산으로 뜬다.
+  const [playerGameLogs, setPlayerGameLogs] = useState(null);
   // 브라우저 뒤로가기: 상세가 열려 있으면 상세만 닫는다(목록 → 대시보드는 Root 가 담당).
   useBackNavigation(!!selectedGame, () => setSelectedGame(null));
 
@@ -110,6 +115,16 @@ export default function HistoryView({ teamContext, onBack }) {
   };
 
   useEffect(() => { reload(); /* eslint-disable-next-line react-hooks/exhaustive-deps */ }, [team]);
+
+  // 목록 로딩을 막지 않는 별도 effect — 실패해도 상세는 재계산 결과로 그대로 뜬다.
+  useEffect(() => {
+    if (!team || teamContext?.mode !== '풋살') { setPlayerGameLogs(null); return; }
+    let alive = true;
+    SheetCache.get('playerGameLog', { sport: '풋살' })
+      .then(rows => { if (alive) setPlayerGameLogs(Array.isArray(rows) ? rows : null); })
+      .catch(() => { if (alive) setPlayerGameLogs(null); });
+    return () => { alive = false; };
+  }, [team, teamContext?.mode]);
 
   const handleSelect = async (h) => {
     setDetailLoading(true);
@@ -166,7 +181,13 @@ export default function HistoryView({ teamContext, onBack }) {
     const es = { ...esBase, ...esSnap };
     const courtCount = gs?.courtCount || 1;
     const showBonus = es.useCrovaGoguma && courtCount === 2 && !isPush;
-    const playerRows = calcPlayerStats(events, matches, attendees, teams, teamNames, es);
+    // 선수별 기록은 로그_선수경기(진실 소스)를 읽는다 — 재계산은 그 날짜 행이 없을 때의 폴백.
+    // 컵 세션은 제외: 풋살 로그 캐시가 컵 행을 걸러 반환하므로(sheetCache rowFilter) 같은 날짜의
+    // 정규 세션 행이 잘못 붙을 수 있다.
+    const recalcRows = calcPlayerStats(events, matches, attendees, teams, teamNames, es);
+    const playerRows = isCupSession(gs)
+      ? recalcRows
+      : mergeArchivePlayerRows(recalcRows, playerGameLogs, selectedGame.gameDate, es);
 
     // 축구 게임: 데이터가 soccerMatches에 있고 completedMatches/teams는 비어있음.
     // futsal 필드로는 0경기·0점이 되므로 전용 렌더(SoccerArchiveDetail)로 분기한다.
