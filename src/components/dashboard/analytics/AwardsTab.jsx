@@ -454,7 +454,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             <RankingCol title="⚽ 득점" rows={ranking.goals} suffix="골" />
             <RankingCol title="🅰 어시" rows={ranking.assists} suffix="어시" />
             {/* value를 문자열로 미리 바꾸면 막대 비율을 못 낸다 — 숫자를 넘기고 포맷만 지정 */}
-            <RankingCol title="🏁 승률" rows={ranking.winRate} fmt={v => `${Math.round(v * 100)}%`} />
+            <RankingCol title="🏁 승률" rows={ranking.winRate} fmt={v => `${(v * 100).toFixed(2)}%`} />
           </div>
         ) : (
           <div style={{ fontSize: 11, color: C.gray }}>월 데이터 없음</div>
