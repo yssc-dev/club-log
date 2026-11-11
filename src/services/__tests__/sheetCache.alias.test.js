@@ -63,10 +63,12 @@ describe('alias 레지스트리', () => {
   it('alias 는 존재하는 원본 어댑터를 가리키고 rowFilter 를 갖는다; 축구·테니스에는 없다', () => {
     const aliases = SheetCache._aliasesForTest();
     const adapters = SheetCache._adaptersForTest();
-    expect(Object.keys(aliases['풋살']).sort()).toEqual(['cupEventLog', 'cupMatchLog']);
+    expect(Object.keys(aliases['풋살']).sort()).toEqual(['allEventLog', 'allMatchLog', 'allPlayerGameLog', 'cupEventLog', 'cupMatchLog']);
     for (const [k, a] of Object.entries(aliases['풋살'])) {
       expect(adapters['풋살'][a.alias], k).toBeDefined();
-      expect(typeof a.rowFilter, k).toBe('function');
+      // all* = 분석 탭 「대회 포함」 토글용 전체 행(필터 없음), cup* = 컵 행만
+      if (k.startsWith('all')) expect(a.rowFilter, k).toBeNull();
+      else expect(typeof a.rowFilter, k).toBe('function');
     }
     expect(aliases['축구']).toBeUndefined();
     expect(aliases['테니스']).toBeUndefined();
@@ -77,6 +79,14 @@ describe('alias 레지스트리', () => {
 });
 
 describe('컵 뷰 반환·경로 공유', () => {
+  it('allMatchLog: 정규+컵 전체 행을 돌려주고 전용 노드를 만들지 않는다', async () => {
+    const rows = await SheetCache.get('allMatchLog', { sport: '풋살' });
+    expect(rows).toHaveLength(2);
+    expect(rows).toContainEqual(CUP);
+    expect([...h.store.keys()].some(k => k.includes('allMatchLog'))).toBe(false);
+    // 정규 소비자는 여전히 컵 행을 못 본다
+    expect(await SheetCache.get('matchLog', { sport: '풋살' })).not.toContainEqual(CUP);
+  });
   it('L3 폴백: 컵 행만 돌려주고 노드는 원본 경로에 전체 행', async () => {
     const rows = await SheetCache.get('cupMatchLog', { sport: '풋살' });
     expect(rows).toEqual([CUP]);

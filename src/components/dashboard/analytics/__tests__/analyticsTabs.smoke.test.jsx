@@ -213,9 +213,10 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
   // 지표 Top5 진입 기준 — 풋살은 각 축 최대치의 30% 동적(2026-08-21), 축구 10경기 유지
   it('AwardsTab: 풋살 — 지표 Top5 진입 기준은 최대치의 30% 동적 표기', () => {
     // 픽스처: 전원 5경기 → 출전 ceil(5×0.3)=2 · 최대 필드 4 → 2 · 최대 키퍼 3 → 1
+    // 수비 진입선은 calcFieldDefense(필드 경기 + 경기일) 기준으로 표기한다(2026-11-11 수비력 통일).
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
     expect(html).toContain('최다 경기수의 30% 이상');
-    expect(html).toContain('현재 출전 2·수비 2·키퍼 1경기');
+    expect(html).toMatch(/현재 출전 2·수비 필드 \d+경기·\d+일·키퍼 1경기/);
     expect(html).not.toContain('30경기 이상');
   });
 
@@ -274,25 +275,34 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('최소 5경기');
   });
 
-  // 2026-08-21: 개인 축 필드 수비 카드 (무실점률·실점 억제) — 풋살 전용
-  it('AwardsTab: 풋살 — 수비(필드) 카드 렌더', () => {
+  // 2026-11-11: 풋살 수비 지표 3종(경기당 팀실점·무실점률·실점 억제) → 「수비력」 하나로 통일 + 근거 줄
+  it('AwardsTab: 풋살 — 수비력은 한 블록, 근거(경기·실점·그날 평균)를 같이 그린다', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
-    expect(html).toContain('수비 (필드)');
-    expect(html).toContain('무실점률');
-    expect(html).toContain('실점 억제');
+    expect(html).toContain('수비력 (그날 평균보다 덜 먹힌 실점');
+    expect(html).toMatch(/필드 \d+경기\(\d+일\) \d+실점 · 경기당 \d\.\d\d · 그날 평균 \d\.\d\d/);
+    expect(html).not.toContain('수비 (필드)');
+    expect(html).not.toContain('무실점률');
+    expect(html).not.toContain('실점 억제');
+    expect(html).not.toContain('경기당 팀실점');
     expect(html).not.toContain('NaN');
   });
 
-  it('AwardsTab: 축구 모드 — 수비(필드) 카드 숨김 (축구는 수비수 명단 기반 지표가 별도)', () => {
+  it('AwardsTab: 축구 모드 — 수비력은 예전 경기당 팀실점 그대로(풋살 블록 없음)', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
-    expect(html).not.toContain('수비 (필드)');
+    expect(html).toContain('수비력 (경기당 팀실점');
+    expect(html).not.toContain('그날 평균');
   });
 
-  it('PersonalAnalysisTab: 풋살 — 필드 수비 요약 라인 렌더', () => {
+  it('PersonalAnalysisTab: 풋살 — 수비력 근거 줄은 그날 평균 대비, 옛 요약 줄은 없다', () => {
     const html = wrap(PersonalAnalysisTab, { playerGameLogs, matchLogs, eventLogs, members, C, authUserName: 'A' });
-    expect(html).toContain('필드 수비:');
+    expect(html).not.toContain('필드 수비:');
+    expect(html).toMatch(/그날 평균 \d\.\d\d → [+-]\d\.\d\d|필드 경기 없음/);
   });
 
+  it('PersonalAnalysisTab: 축구 — 수비력 근거 줄은 예전 문구 그대로', () => {
+    const html = wrap(PersonalAnalysisTab, { playerGameLogs, matchLogs, eventLogs, members, C, authUserName: 'A', isSoccer: true });
+    expect(html).not.toContain('그날 평균');
+  });
 
   it('AwardsTab: 월별 랭킹 — 적용된 진입선(세션 수·하한)을 캡션으로 표기', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });

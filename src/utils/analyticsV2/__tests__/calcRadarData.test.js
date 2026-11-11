@@ -63,4 +63,22 @@ describe('calcRadarData', () => {
     expect(getPlayerType([80, 20, 50, 50, 50, 50]).label).toBe('킬러');
     expect(getPlayerType([20, 80, 50, 50, 50, 50]).label).toBe('메이커');
   });
+
+  it('fieldDefense를 넘기면 수비력 축 = 그날 평균 대비 실점(높을수록 좋음), 필드 기록 없으면 null', () => {
+    const summary = { A: mk(), B: mk(), C: mk() };
+    const fd = {
+      A: { fieldRounds: 5, suppression: 0.4 },
+      B: { fieldRounds: 5, suppression: -0.2 },
+      // C: 필드 기록 없음(예: GK 미기록 구간만 출전) — summary.fieldRounds 는 8이어도 축은 null
+    };
+    const pops = buildRadarPopulations(summary, ['A', 'B', 'C'], 4, fd);
+    expect(pops.defense).toEqual([0.4, -0.2]);
+    const a = calcRadarValues(pops, summary.A, 4, fd.A);
+    const b = calcRadarValues(pops, summary.B, 4, fd.B);
+    const c = calcRadarValues(pops, summary.C, 4, fd.C ?? null);
+    expect(a.raw.defense).toBeCloseTo(0.4);
+    expect(a.values[2]).toBeGreaterThan(b.values[2]); // 더 덜 먹힌 쪽이 높은 점수
+    expect(c.raw.defense).toBeNull();
+    expect(c.values[2]).toBeNull();
+  });
 });

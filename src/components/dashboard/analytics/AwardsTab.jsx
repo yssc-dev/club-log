@@ -1,6 +1,6 @@
 // src/components/dashboard/analytics/AwardsTab.jsx
 import { useMemo, useState } from 'react';
-import RankBarList from './RankBarList';
+import RankBarList, { barRatio } from './RankBarList';
 import { filterLogsByPeriod, recentCutoff, latestLogDate } from '../../../utils/analyticsPeriod';
 import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
@@ -62,7 +62,8 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     playerLogs: periodLogs.playerGameLogs,
     ...(isSoccer ? { minGames: soccerGate(5) } : {}), topN: 3,
   }), [periodLogs, isSoccer, isRecent]);
-  // 개인 축 필드 수비 (풋살 전용) — 세션 평균 베이스라인이 로테이션 전제라 축구 미적용
+  // 풋살 수비력 단일 소스(2026-11-11 통일) — 그날 평균 대비 실점. 세션 평균 베이스라인이 로테이션 전제라 축구 미적용
+  // (축구는 metricLeaders.defense = 경기당 팀실점 그대로).
   const fieldDefense = useMemo(
     () => (isSoccer ? null : futsalCalc.calcFieldDefense({ matchLogs: periodLogs.matchLogs })),
     [isSoccer, periodLogs]
@@ -185,6 +186,37 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     </div>
   );
 
+  // 풋살 수비력(2026-11-11 통일) — 값만이 아니라 근거(몇 경기 몇 실점·경기당·그날 평균)를 행마다 붙인다.
+  // 값 = 그날 평균 − 경기당(+ = 덜 먹힘). 음수는 막대 0.
+  const DefenseBlock = ({ rows }) => {
+    const best = Math.max(0, ...rows.map(r => r.value));
+    return (
+      <div style={{ marginTop: 12 }}>
+        <div style={{ fontSize: 10, color: C.gray, marginBottom: 2 }}>🛡 수비력 (그날 평균보다 덜 먹힌 실점 · 경기당)</div>
+        <div style={{ fontSize: 9, color: C.grayDark, marginBottom: 6 }}>
+          필드로 뛴 경기만(GK 경기 제외) · 값 = 그날 전체 평균 실점 − 내가 뛴 경기 평균 실점
+        </div>
+        {rows.length === 0 ? <div style={{ fontSize: 10.5, color: C.grayDark }}>-</div> : rows.map((r, i) => (
+          <div key={r.player} style={{ marginBottom: 4, fontSize: 10 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+              <span style={{ width: 22, flexShrink: 0, textAlign: 'right', color: C.grayDark }}>{i + 1}위</span>
+              <span style={{ width: 40, flexShrink: 0, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>{r.player}</span>
+              <div style={{ flex: 1, minWidth: 8, height: 6 }}>
+                <div style={{ width: `${barRatio(r.value, best, false) * 100}%`, height: '100%', borderRadius: 3, background: C.accent, opacity: 0.75 }} />
+              </div>
+              <span style={{ flexShrink: 0, color: C.accent, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
+                {r.value >= 0 ? '+' : ''}{r.value.toFixed(2)}
+              </span>
+            </div>
+            <div style={{ paddingLeft: 26, fontSize: 9, color: C.grayDark }}>
+              필드 {r.fieldRounds}경기({r.fieldDates}일) {r.conceded}실점 · 경기당 {r.concededPerGame.toFixed(2)} · 그날 평균 {r.baselinePerGame.toFixed(2)}
+            </div>
+          </div>
+        ))}
+      </div>
+    );
+  };
+
   const RankingCol = ({ title, rows, suffix = '', fmt }) => (
     <MetricBarCol title={title} rows={rows} fmt={fmt || (v => `${v}${suffix}`)} />
   );
@@ -235,38 +267,21 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
           {/* 풋살은 축별 최대치의 30% 동적 진입선(calcMetricLeaders.thresholds), 축구는 고정 10경기 */}
           개인분석 레이더와 동일 지표 · {dynamicGate
-            ? `최다 경기수의 30% 이상 (현재 출전 ${metricLeaders.thresholds?.minRounds ?? 0}·수비 ${metricLeaders.thresholds?.minFieldRounds ?? 0}·키퍼 ${metricLeaders.thresholds?.minKeeperRounds ?? 0}경기)`
+            ? `최다 경기수의 30% 이상 (현재 출전 ${metricLeaders.thresholds?.minRounds ?? 0}·${fieldDefense ? `수비 필드 ${fieldDefense.thresholds.minFieldRounds}경기·${fieldDefense.thresholds.minFieldDates}일` : `수비 ${metricLeaders.thresholds?.minFieldRounds ?? 0}`}·키퍼 ${metricLeaders.thresholds?.minKeeperRounds ?? 0}경기)`
             : '10경기 이상 (키퍼는 4경기 이상)'}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <MetricBarCol title="⚽ 득점력 (경기당 골)" rows={metricLeaders.scoring} fmt={v => v.toFixed(2)} />
           <MetricBarCol title="🎨 창의력 (경기당 어시)" rows={metricLeaders.creativity} fmt={v => v.toFixed(2)} />
-          <MetricBarCol title="🛡 수비력 (경기당 팀실점 ↓)" rows={metricLeaders.defense} fmt={v => v.toFixed(2)} invert />
+          {/* 풋살 수비력은 근거 줄이 붙어 폭이 필요하다 → 격자 아래 전폭 블록(DefenseBlock) */}
+          {isSoccer && <MetricBarCol title="🛡 수비력 (경기당 팀실점 ↓)" rows={metricLeaders.defense} fmt={v => v.toFixed(2)} invert />}
           <MetricBarCol title="🧤 키퍼 (경기당 실점 ↓)" rows={metricLeaders.keeping} fmt={v => v.toFixed(2)} invert />
           <MetricBarCol title="📅 참석률" rows={metricLeaders.attendance} fmt={v => `${(v * 100).toFixed(2)}%`} />
           <MetricBarCol title="🏁 승리기여 (승률)" rows={metricLeaders.winRate} fmt={v => `${(v * 100).toFixed(2)}%`} />
           <MetricBarCol title="🎯 팀득점관여율 (골+어시/팀득점)" rows={metricLeaders.involvement} fmt={v => `${(v * 100).toFixed(2)}%`} />
         </div>
+        {!isSoccer && fieldDefense && <DefenseBlock rows={fieldDefense.ranking} />}
       </div>
-      {/* 🛡 수비 (필드) — 개인 축 2종: 무실점률 · 세션평균 대비 실점 억제. 풋살 전용 */}
-      {!isSoccer && fieldDefense && (
-        <div style={{ padding: 14, background: C.cardLight, borderRadius: 12, marginBottom: 12 }}>
-          <div style={{ fontSize: 12, fontWeight: 700, color: C.gray, marginBottom: 4 }}>
-            🛡 수비 (필드)
-          </div>
-          <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-            필드로 뛴 매치 기준(GK 제외) · 억제 = 그날 세션 평균 실점 − 본인 평균(+ = 덜 먹힘) · 필드 최다치의 30%(현재 {fieldDefense.thresholds?.minFieldRounds ?? 0}경기·{fieldDefense.thresholds?.minFieldDates ?? 0}일) 이상 · 경기일이 적을수록 평균 쪽으로 보정한 값(같은 날은 같은 팀이라 경기일이 표본)
-          </div>
-          {(fieldDefense.ranking.cleanRate.length === 0 && fieldDefense.ranking.suppression.length === 0) ? (
-            <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
-          ) : (
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <MetricBarCol title="🧱 무실점률" rows={fieldDefense.ranking.cleanRate} fmt={v => `${(v * 100).toFixed(2)}%`} />
-              <MetricBarCol title="🛡 실점 억제 (경기당)" rows={fieldDefense.ranking.suppression} fmt={v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`} />
-            </div>
-          )}
-        </div>
-      )}
       {/* 라운드 흐름: 초반강자(-) ← → 후반폭격기(+) — 축구는 라운드 개념 없음 → 숨김 */}
       {!isSoccer && (() => {
         const late = slope.ranking.lateBloomers.slice(0, 3);

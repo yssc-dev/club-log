@@ -9,16 +9,21 @@
 //
 // 축 순서는 PersonalAnalysisTab AXES와 동일:
 //   [scoring, creativity, defense, keeping, attendance, winRate]
+//
+// 수비력 축(2026-11-11 통일): fieldDefense(calcFieldDefense.perPlayer)를 넘기면 "그날 평균 대비 덜 먹힌 실점"
+// (suppression, 높을수록 좋음)으로 계산한다 — 지표 Top5 수비력 열과 같은 값. 안 넘기면 예전 경기당 팀실점(낮을수록 좋음).
 import { percentile } from '../gameStateAnalyzer';
 
-export function buildRadarPopulations(playerSummary, ratedPlayers, totalSessions) {
+export function buildRadarPopulations(playerSummary, ratedPlayers, totalSessions, fieldDefense) {
   const pops = { scoring: [], creativity: [], defense: [], keeping: [], attendance: [], winRate: [] };
   for (const name of ratedPlayers) {
     const s = playerSummary[name];
     if (!s) continue;
     pops.scoring.push(s.rounds > 0 ? s.goals / s.rounds : 0);
     pops.creativity.push(s.rounds > 0 ? s.assists / s.rounds : 0);
-    if (s.fieldRounds > 0) pops.defense.push(s.avgConceded);
+    if (fieldDefense) {
+      if (fieldDefense[name]?.fieldRounds > 0) pops.defense.push(fieldDefense[name].suppression);
+    } else if (s.fieldRounds > 0) pops.defense.push(s.avgConceded);
     if (s.keeperRounds > 0) pops.keeping.push(s.conceded / s.keeperRounds);
     pops.attendance.push(totalSessions > 0 ? s.games / totalSessions : 0);
     pops.winRate.push(s.winRate);
@@ -26,12 +31,14 @@ export function buildRadarPopulations(playerSummary, ratedPlayers, totalSessions
   return pops;
 }
 
-export function calcRadarValues(pops, s, totalSessions) {
+// fd: 그 선수의 calcFieldDefense.perPlayer 항목. undefined = 예전 방식, null = 새 방식인데 필드 기록 없음.
+export function calcRadarValues(pops, s, totalSessions, fd) {
+  const useFd = fd !== undefined;
   if (!s) return { values: [null, null, null, null, null, null], raw: {} };
   const raw = {
     scoring: s.rounds > 0 ? s.goals / s.rounds : 0,
     creativity: s.rounds > 0 ? s.assists / s.rounds : 0,
-    defense: s.fieldRounds > 0 ? s.avgConceded : null,
+    defense: useFd ? (fd?.fieldRounds > 0 ? fd.suppression : null) : (s.fieldRounds > 0 ? s.avgConceded : null),
     keeping: s.keeperRounds > 0 ? s.conceded / s.keeperRounds : null,
     attendance: totalSessions > 0 ? s.games / totalSessions : 0,
     winRate: s.winRate,
@@ -40,7 +47,7 @@ export function calcRadarValues(pops, s, totalSessions) {
   const values = [
     percentile(pops.scoring, raw.scoring),
     percentile(pops.creativity, raw.creativity),
-    raw.defense == null ? null : percentile(pops.defense, raw.defense, true),
+    raw.defense == null ? null : percentile(pops.defense, raw.defense, !useFd),
     raw.keeping == null ? null : percentile(pops.keeping, raw.keeping, true),
     percentile(pops.attendance, raw.attendance),
     percentile(pops.winRate, raw.winRate),

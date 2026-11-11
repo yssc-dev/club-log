@@ -27,9 +27,13 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
   // 한 프레임이 그려진다(셰도잉 함수·useMemo 캐시 불일치 창).
   const [loadedSport, setLoadedSport] = useState(null);
   const [members, setMembers] = useState(null);
-  const [playerGameLogs, setPlayerGameLogs] = useState([]);
-  const [matchLogs, setMatchLogs] = useState([]);
-  const [eventLogs, setEventLogs] = useState([]);
+  // 풋살은 정규+대회(컵) 전체 행을 받아 두고(all*), 아래 「대회 포함」 토글로 화면에서 거른다.
+  // 축구는 원래 mode='대회' 행을 분석이 그대로 읽으므로 토글·필터 없음(전체 = 기존 동작).
+  const [allPlayerGameLogs, setPlayerGameLogs] = useState([]);
+  const [allMatchLogs, setMatchLogs] = useState([]);
+  const [allEventLogs, setEventLogs] = useState([]);
+  // 기본값 = 대회 제외(유저 결정 2026-11-11). 대회는 팀이 대회 내내 고정이라 소속 팀 영향이 지표에 크게 실린다.
+  const [includeCup, setIncludeCup] = useState(false);
   // 로그 조회 실패 문구(시트명 + 서버 메시지). 예전엔 .catch(() => []) 가 삼켜 "0경기"만 남았다.
   const [loadError, setLoadError] = useState(null);
 
@@ -50,9 +54,9 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
       // 스펙 §15: 로그 시트만 쓰는 팀은 대시보드 명단을 읽지 않는다 — members=null 은 조회 실패 때와
       // 같은 기존 경로(명단 = 기록에 나온 선수).
       skipDashboardSheet ? Promise.resolve(null) : fetchSheetData().catch(() => null),
-      logOrEmpty('matchLog'),
-      logOrEmpty('eventLog'),
-      logOrEmpty('playerGameLog'),
+      logOrEmpty(isSoccer ? 'matchLog' : 'allMatchLog'),
+      logOrEmpty(isSoccer ? 'eventLog' : 'allEventLog'),
+      logOrEmpty(isSoccer ? 'playerGameLog' : 'allPlayerGameLog'),
     ]).then(([sheetData, matchRows, eventRows, pgRows]) => {
       if (sheetData) setMembers(sheetData.players);
       setMatchLogs(matchRows || []);
@@ -62,6 +66,17 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
       setLoadedSport(sport);
     }).finally(() => setLoading(false));
   }, [teamName, isSoccer, skipDashboardSheet]);
+
+  const isCupRow = (row) => !!row?.tournament_id;
+  const hasCupRows = useMemo(
+    () => !isSoccer && (allMatchLogs.some(isCupRow) || allEventLogs.some(isCupRow) || allPlayerGameLogs.some(isCupRow)),
+    [isSoccer, allMatchLogs, allEventLogs, allPlayerGameLogs]
+  );
+  const [matchLogs, eventLogs, playerGameLogs] = useMemo(() => {
+    if (isSoccer || includeCup) return [allMatchLogs, allEventLogs, allPlayerGameLogs];
+    const regular = (rows) => rows.filter(r => !isCupRow(r));
+    return [regular(allMatchLogs), regular(allEventLogs), regular(allPlayerGameLogs)];
+  }, [isSoccer, includeCup, allMatchLogs, allEventLogs, allPlayerGameLogs]);
 
   const settings = useMemo(() => getEffectiveSettings(teamName, isSoccer ? '축구' : '풋살'), [teamName, isSoccer]);
   const showCrovaGoguma = !isSoccer && settings?.useCrovaGoguma === true && teamName === '마스터FC';
@@ -95,6 +110,26 @@ export default function PlayerAnalytics({ teamName, teamMode, initialTab, isAdmi
             }}>{t.label}</button>
         ))}
       </div>
+      {/* 대회 포함 토글 — 분석 탭 전체(개인분석·케미·어워드)에 적용. 풋살에 대회 기록이 있을 때만 노출 */}
+      {hasCupRows && tab !== 'crovaguma' && (
+        <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 10, flexWrap: 'wrap' }}>
+          <span style={{ fontSize: 10, color: C.gray }}>대회 기록</span>
+          {[[false, '제외'], [true, '포함']].map(([v, label]) => (
+            <button key={label} onClick={() => setIncludeCup(v)}
+              style={{
+                padding: '4px 12px', borderRadius: 999, fontSize: 11,
+                fontWeight: includeCup === v ? 700 : 500,
+                border: `1px solid ${includeCup === v ? 'transparent' : C.grayDarker}`,
+                background: includeCup === v ? C.white : 'transparent',
+                color: includeCup === v ? C.cardLight : C.gray,
+                cursor: 'pointer',
+              }}>{label}</button>
+          ))}
+          <span style={{ fontSize: 10, color: C.gray }}>
+            {includeCup ? '정규전 + 대회 경기 합산 · 대회는 팀이 고정이라 소속 팀 영향이 큽니다' : '정규전만'}
+          </span>
+        </div>
+      )}
       {loadError && (
         <div style={{
           display: 'flex', gap: 6, alignItems: 'flex-start',

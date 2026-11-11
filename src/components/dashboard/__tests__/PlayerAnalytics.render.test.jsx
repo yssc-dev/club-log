@@ -40,10 +40,11 @@ vi.mock('../../../config/settings', () => ({
 // 스파이로 받는다(2번째 인자를 버리지 않는다) — teamMode → { sport } 배선이 사라지면
 // 겸직팀에서 축구 탭을 보면서 풋살 캐시를 읽는 사고가 나는데, 인자를 버리는 목은
 // 그 회귀를 전혀 잡지 못한다.
+// 풋살은 all*(정규+대회 전체 행) 을 읽고 화면에서 「대회 포함」 토글로 거른다. 축구는 예전 이름 그대로.
 const defaultGet = (dataset) => Promise.resolve(
-  dataset === 'matchLog' ? matchLogs
-  : dataset === 'eventLog' ? eventLogs
-  : dataset === 'playerGameLog' ? playerGameLogs
+  dataset === 'matchLog' || dataset === 'allMatchLog' ? matchLogs
+  : dataset === 'eventLog' || dataset === 'allEventLog' ? eventLogs
+  : dataset === 'playerGameLog' || dataset === 'allPlayerGameLog' ? playerGameLogs
   : []
 );
 const getSpy = vi.fn(defaultGet);
@@ -88,9 +89,9 @@ describe('PlayerAnalytics 실렌더(act) — SheetCache 읽기 경로 (.rows 래
   // 축구 탭에 풋살 데이터가 뜬다.
   it('teamMode 를 SheetCache.get 의 2번째 인자로 넘긴다(풋살)', async () => {
     await mount();
-    expect(getSpy).toHaveBeenCalledWith('matchLog', { sport: '풋살' });
-    expect(getSpy).toHaveBeenCalledWith('eventLog', { sport: '풋살' });
-    expect(getSpy).toHaveBeenCalledWith('playerGameLog', { sport: '풋살' });
+    expect(getSpy).toHaveBeenCalledWith('allMatchLog', { sport: '풋살' });
+    expect(getSpy).toHaveBeenCalledWith('allEventLog', { sport: '풋살' });
+    expect(getSpy).toHaveBeenCalledWith('allPlayerGameLog', { sport: '풋살' });
   });
 
   it('teamMode="축구" 면 축구로 넘긴다(하드코딩이 아니라 prop 을 따름)', async () => {
@@ -107,7 +108,7 @@ describe('PlayerAnalytics 실렌더(act) — SheetCache 읽기 경로 (.rows 래
 describe('PlayerAnalytics — 로그 조회 실패 표시', () => {
   it('SheetCache.get 이 거부되면 서버 메시지를 담은 실패 문구를 띄우고 나머지 화면은 그대로 그린다', async () => {
     getSpy.mockImplementation((dataset) => (
-      dataset === 'matchLog'
+      dataset === 'allMatchLog'
         ? Promise.reject(new Error('로그_매치 조회 실패: 범위의 열 수는 최대 22이어야 합니다'))
         : defaultGet(dataset)
     ));
@@ -120,5 +121,46 @@ describe('PlayerAnalytics — 로그 조회 실패 표시', () => {
   it('정상 로드면 실패 문구가 없다', async () => {
     await mount();
     expect(container.textContent).not.toContain('조회 실패');
+  });
+});
+
+// 「대회 포함」 토글(2026-11-11) — 기본은 대회 제외, 분석 탭 전체에 적용.
+describe('PlayerAnalytics — 대회 포함 토글(풋살)', () => {
+  // 대회 날 2경기: A 가 2경기 더 뛴다(정규 2경기 → 포함 시 4경기)
+  const cup = (id) => ({ date: '2026-10-01', match_id: id, tournament_id: '컵', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 1, opponent_score: 0, our_gk: 'B', opponent_gk: 'D', round_idx: 1 });
+  const withCup = (dataset) => (
+    dataset === 'allMatchLog' ? Promise.resolve([...matchLogs, cup('R1_C0'), cup('R2_C0')]) : defaultGet(dataset)
+  );
+  const btn = (label) => [...container.querySelectorAll('button')].find(b => b.textContent === label);
+
+  it('대회 행이 없으면 토글을 그리지 않는다', async () => {
+    await mount();
+    expect(container.textContent).not.toContain('대회 기록');
+  });
+
+  it('기본값은 대회 제외 — 대회 경기는 집계에 안 들어간다', async () => {
+    getSpy.mockImplementation(withCup);
+    await mount();
+    expect(container.textContent).toContain('대회 기록');
+    expect(container.textContent).toContain('정규전만');
+    expect(container.textContent).toContain('A (2경기)');
+  });
+
+  it('포함을 누르면 대회 경기가 합산되고, 제외를 누르면 되돌아온다', async () => {
+    getSpy.mockImplementation(withCup);
+    await mount();
+    await act(async () => { btn('포함').click(); });
+    expect(container.textContent).toContain('A (4경기)');
+    expect(container.textContent).toContain('정규전 + 대회 경기 합산');
+    await act(async () => { btn('제외').click(); });
+    expect(container.textContent).toContain('A (2경기)');
+  });
+
+  it('축구에는 토글이 없다(대회 행을 원래 그대로 읽는다)', async () => {
+    getSpy.mockImplementation((dataset) => (
+      dataset === 'matchLog' ? Promise.resolve([...matchLogs, cup('3')]) : defaultGet(dataset)
+    ));
+    await mount({ teamMode: '축구' });
+    expect(container.textContent).not.toContain('대회 기록');
   });
 });

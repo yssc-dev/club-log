@@ -176,21 +176,31 @@ export default function PersonalAnalysisTab({
     return ratedPlayers[0] || players.find(p => playerSummary[p]) || players[0] || null;
   });
 
+  // ── 풋살 수비력 단일 소스(2026-11-11 통일) — 레이더 수비력 축·근거 문구가 어워드 지표 Top5 수비력과 같은 계산을 쓴다.
+  // 축구는 null → 레이더가 예전 경기당 팀실점 그대로(soccerCalc 는 네 번째 인자를 받지 않는다).
+  const fieldDefenseAll = useMemo(
+    () => (isSoccer ? null : futsalCalc.calcFieldDefense({ matchLogs: matchLogs || [] })),
+    [isSoccer, matchLogs]
+  );
+  const fdPerPlayer = fieldDefenseAll ? fieldDefenseAll.perPlayer : undefined;
+
   // ── Radar 백분위 모집단 — 표본 없는 축은 제외 (999 센티널 금지, calcRadarData 참조) ──
   const radarPops = useMemo(
-    () => buildRadarPopulations(playerSummary, ratedPlayers, totalSessions),
-    [ratedPlayers, playerSummary, totalSessions]
+    () => buildRadarPopulations(playerSummary, ratedPlayers, totalSessions, fdPerPlayer),
+    [ratedPlayers, playerSummary, totalSessions, fdPerPlayer]
   );
 
   const getPlayerData = (name) => {
     const s = playerSummary[name];
     if (!s) return { values: [null, null, null, null, null, null], raw: {}, detail: {} };
-    const { values, raw } = calcRadarValues(radarPops, s, totalSessions);
+    const fd = fdPerPlayer ? (fdPerPlayer[name] ?? null) : undefined;
+    const { values, raw } = calcRadarValues(radarPops, s, totalSessions, fd);
     const detail = {
       goals: s.goals, assists: s.assists, rounds: s.rounds, games: s.games, ownGoals: Math.abs(s.ownGoals || 0),
       keeperRounds: s.keeperRounds, conceded: s.conceded,
       fieldRounds: s.fieldRounds, fieldConceded: s.fieldConceded,
       wins: s.wins, draws: s.draws, losses: s.losses, totalMatches: s.matches,
+      fd: fd || null,
     };
     return { values, raw, detail };
   };
@@ -305,13 +315,6 @@ export default function PersonalAnalysisTab({
   );
   const myGkField = gkFieldSplit && selected ? gkFieldSplit.perPlayer[selected] : null;
 
-  // ── 필드 수비 요약 (풋살 전용) — 무실점률·세션평균 대비 억제, 어워드 수비 카드와 동일 계산 ──
-  const fieldDefenseAll = useMemo(
-    () => (isSoccer ? null : futsalCalc.calcFieldDefense({ matchLogs: matchLogs || [] })),
-    [isSoccer, matchLogs]
-  );
-  const myFieldDefense = fieldDefenseAll && selected ? fieldDefenseAll.perPlayer[selected] : null;
-
   // ── 폼 비교: 평소 vs 최근 1달 (풋살 전용) — 마지막 세션 날짜 기준 30일 창 ──
   const recentForm = useMemo(
     () => (isSoccer || !selected ? null : futsalCalc.calcRecentForm({ playerName: selected, playerLogs: playerGameLogs || [], matchLogs: matchLogs || [] })),
@@ -365,7 +368,11 @@ export default function PersonalAnalysisTab({
                   {[
                     { label: "득점력", score: values[0], desc: `${pd.detail.goals}골 / ${pd.detail.rounds}경기 = 경기당 ${pd.raw.scoring?.toFixed(2)}골` },
                     { label: "창의력", score: values[1], desc: `${pd.detail.assists}어시 / ${pd.detail.rounds}경기 = 경기당 ${pd.raw.creativity?.toFixed(2)}어시` },
-                    { label: "수비력", score: values[2], desc: pd.detail.fieldRounds > 0 ? `필드 ${pd.detail.fieldRounds}경기, 팀실점 ${pd.detail.fieldConceded} = 경기당 ${pd.raw.defense?.toFixed(2)}실점` : "필드 경기 없음" },
+                    { label: "수비력", score: values[2], desc: isSoccer
+                      ? (pd.detail.fieldRounds > 0 ? `필드 ${pd.detail.fieldRounds}경기, 팀실점 ${pd.detail.fieldConceded} = 경기당 ${pd.raw.defense?.toFixed(2)}실점` : "필드 경기 없음")
+                      : (pd.detail.fd?.fieldRounds > 0
+                        ? `필드 ${pd.detail.fd.fieldRounds}경기(${pd.detail.fd.fieldDates}일) ${pd.detail.fd.conceded}실점 = 경기당 ${pd.detail.fd.concededPerGame.toFixed(2)} · 그날 평균 ${pd.detail.fd.baselinePerGame.toFixed(2)} → ${pd.detail.fd.suppression >= 0 ? '+' : ''}${pd.detail.fd.suppression.toFixed(2)}`
+                        : "필드 경기 없음") },
                     { label: "키퍼", score: values[3], desc: pd.detail.keeperRounds > 0 ? `${pd.detail.keeperRounds}경기, ${pd.detail.conceded}실점 = 경기당 ${pd.raw.keeping?.toFixed(2)}실점` : "키퍼 경기 없음" },
                     { label: "참석률", score: values[4], desc: `${pd.detail.games} / ${totalSessions}게임 = ${Math.round(pd.raw.attendance * 100)}%` },
                     { label: "승리기여", score: values[5], desc: `${pd.detail.totalMatches}경기 ${pd.detail.wins}승 ${pd.detail.draws}무 ${pd.detail.losses}패 = 승률 ${Math.round(pd.raw.winRate * 100)}%` },
@@ -418,19 +425,6 @@ export default function PersonalAnalysisTab({
                     <span style={{ color: C.white }}>
                       GK {split.keeper.rounds}경기 {split.keeper.conceded}실 · 필드 {split.field.rounds}경기 {split.field.goals}골 {split.field.assists}어시
                     </span>
-                  </div>
-                )}
-                {!isSoccer && myFieldDefense && myFieldDefense.fieldRounds > 0 && (
-                  <div>
-                    <span style={{ color: C.gray }} title="필드로 뛴 매치 기준(GK 제외). 억제 = 그날 세션 평균 실점 − 본인 사이드 평균(양수 = 평균보다 덜 먹힘)">필드 수비: </span>
-                    <span style={{ color: C.white }}>
-                      무실점률 {Math.round(myFieldDefense.cleanRate * 100)}%
-                    </span>
-                    <span style={{ color: C.gray }}> · </span>
-                    <span style={{ color: myFieldDefense.suppression >= 0 ? C.accent : "#ef4444", fontWeight: 700 }}>
-                      {myFieldDefense.suppression >= 0 ? '+' : ''}{myFieldDefense.suppression.toFixed(2)} {myFieldDefense.suppression >= 0 ? '억제' : '허용'}
-                    </span>
-                    <span style={{ color: C.gray }}> ({myFieldDefense.fieldRounds}경기·{myFieldDefense.fieldDates}일)</span>
                   </div>
                 )}
                 {playerSummary[selected]?.teamGoals > 0 && (

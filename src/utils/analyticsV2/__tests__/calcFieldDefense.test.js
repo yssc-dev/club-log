@@ -1,9 +1,9 @@
 import { describe, it, expect } from 'vitest';
 import { calcFieldDefense } from '../calcFieldDefense';
 
-// 개인 축 필드 수비 지표 (풋살 전용, 포지션·조합 개념 없음):
-//   ① 무실점률 = 필드로 뛴 매치 중 팀 무실점 비율
-//   ② 실점 억제(suppression) = 그날 세션 전체 사이드 평균 실점 − 본인 사이드 평균 실점 (양수=억제)
+// 풋살 「수비력」 단일 소스 (2026-11-11 통일, 포지션·조합 개념 없음):
+//   수비력(suppression) = 그날 세션 전체 사이드 평균 실점 − 본인 사이드 평균 실점 (양수=덜 먹힘)
+//   랭킹은 원값 그대로(평균 쪽 보정 없음) + 근거(경기·실점·경기당·그날 평균) 동봉.
 // GK가 기록된 사이드만 필드 귀속(기존 정책), 세션 베이스라인엔 전체 매치 포함.
 
 const M = (date, home, away, ourScore, oppScore, gks = {}, id = 'R1_C1') => ({
@@ -54,7 +54,7 @@ describe('calcFieldDefense', () => {
     expect(perPlayer.A.fieldRounds).toBe(1);
   });
 
-  it('랭킹: 무실점률 내림차순 / 억제 내림차순, 진입선 = 필드 최다의 30%(올림) 동적', () => {
+  it('랭킹: 수비력 내림차순, 진입선 = 필드 최다의 30%(올림) 동적', () => {
     const many = (n, home, away, ourScore, oppScore) =>
       Array.from({ length: n }, (_, i) => M(`2026-0${1 + (i % 6)}-0${1 + (i % 9)}`, home, away, ourScore, oppScore, {}, `R${i}_C1`));
     const matchLogs = [
@@ -64,11 +64,11 @@ describe('calcFieldDefense', () => {
     ];
     const r = calcFieldDefense({ matchLogs });
     expect(r.thresholds.minFieldRounds).toBe(3);
-    const cleanNames = r.ranking.cleanRate.map(x => x.player);
-    expect(cleanNames).toContain('Best');
-    expect(cleanNames).toContain('In');
-    expect(cleanNames).not.toContain('Out');
-    expect(r.ranking.suppression[0].player).toBe('Best'); // 억제 1위
+    const names = r.ranking.map(x => x.player);
+    expect(names).toContain('In');
+    expect(names).not.toContain('Out');
+    expect(names[0]).toBe('Best');
+    expect(names.indexOf('Best')).toBeLessThan(names.indexOf('Worst'));
   });
 
   it('진입선: 경기 수를 채워도 경기일 수가 최다치의 30% 미만이면 제외', () => {
@@ -84,30 +84,23 @@ describe('calcFieldDefense', () => {
     const r = calcFieldDefense({ matchLogs });
     expect(r.thresholds).toMatchObject({ minFieldRounds: 3, minFieldDates: 3, maxFieldDates: 10 });
     expect(r.perPlayer.Burst).toMatchObject({ fieldRounds: 10, fieldDates: 2 });
-    expect(r.ranking.cleanRate.map(x => x.player)).not.toContain('Burst');
-    expect(r.ranking.suppression.map(x => x.player)).not.toContain('Burst');
-    expect(r.ranking.cleanRate.map(x => x.player)).toContain('Reg');
+    expect(r.ranking.map(x => x.player)).not.toContain('Burst');
+    expect(r.ranking.map(x => x.player)).toContain('Reg');
   });
 
-  it('보정: 경기일이 적을수록 평균 쪽으로 — 원값이 같아도 경기일 많은 쪽이 위, 원값은 보존', () => {
-    // Few·Many 모두 매 경기 무실점(원 무실점률 100%, 원 억제 +0.5). Few 3일, Many 9일.
-    const day = (date, name) => M(date, ['G', name], ['H', `opp_${name}`], 1, 0);
+  it('랭킹 값은 원값 그대로(경기일 보정 없음)이고 근거 수치를 함께 싣는다', () => {
+    // 하루: A측 실점 [0, 2], B측 실점 [1, 3] → 그날 평균 1.5. A = 2경기 2실점, 경기당 1.0, 수비력 +0.5
     const matchLogs = [
-      ...Array.from({ length: 3 }, (_, i) => day(`2026-07-0${1 + i}`, 'Few')),
-      ...Array.from({ length: 9 }, (_, i) => day(`2026-08-0${1 + i}`, 'Many')),
+      M('2026-06-04', ['G', 'A'], ['H', 'B'], 1, 0),
+      M('2026-06-04', ['G', 'A'], ['H', 'B'], 3, 2, {}, 'R2_C1'),
     ];
     const r = calcFieldDefense({ matchLogs });
-    // 경기일 진입선 K = ceil(9×0.3) = 3 → w(Few)=3/6=0.5, w(Many)=9/12=0.75. 리그 무실점률 = 12/24 = 0.5
-    expect(r.thresholds.minFieldDates).toBe(3);
-    expect(r.leagueCleanRate).toBeCloseTo(0.5);
-    expect(r.perPlayer.Few.cleanRate).toBeCloseTo(1);         // 원값 보존
-    expect(r.perPlayer.Few.suppression).toBeCloseTo(0.5);
-    expect(r.perPlayer.Few.cleanRateAdj).toBeCloseTo(0.75);   // 0.5 + 0.5×0.5
-    expect(r.perPlayer.Many.cleanRateAdj).toBeCloseTo(0.875); // 0.5 + 0.5×0.75
-    expect(r.perPlayer.Few.suppressionAdj).toBeCloseTo(0.25);
-    expect(r.perPlayer.Many.suppressionAdj).toBeCloseTo(0.375);
-    expect(r.ranking.cleanRate.map(x => x.player).slice(0, 2)).toEqual(['Many', 'Few']);
-    expect(r.ranking.suppression[0]).toMatchObject({ player: 'Many', raw: 0.5, fieldDates: 9 });
-    expect(r.ranking.suppression[0].value).toBeCloseTo(0.375);
+    expect(r.ranking[0]).toMatchObject({ player: 'A', fieldRounds: 2, fieldDates: 1, conceded: 2 });
+    expect(r.ranking[0].value).toBeCloseTo(0.5);
+    expect(r.ranking[0].concededPerGame).toBeCloseTo(1.0);
+    expect(r.ranking[0].baselinePerGame).toBeCloseTo(1.5);
+    expect(r.ranking[1]).toMatchObject({ player: 'B', conceded: 4 });
+    expect(r.ranking[1].value).toBeCloseTo(-0.5);
+    expect(r.perPlayer.A.suppressionAdj).toBeUndefined(); // 보정값 폐기
   });
 });

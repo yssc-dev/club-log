@@ -114,6 +114,10 @@ const ALIASES = {
   '풋살': {
     cupMatchLog: { alias: 'matchLog', rowFilter: isCupRow },
     cupEventLog: { alias: 'eventLog', rowFilter: isCupRow },
+    // 분석 탭 「대회 포함」 토글(2026-11-11): 정규+컵 전체 행. rowFilter 없음 → 화면이 tournament_id 로 직접 거른다.
+    allMatchLog:      { alias: 'matchLog',      rowFilter: null },
+    allEventLog:      { alias: 'eventLog',      rowFilter: null },
+    allPlayerGameLog: { alias: 'playerGameLog', rowFilter: null },
   },
 };
 
