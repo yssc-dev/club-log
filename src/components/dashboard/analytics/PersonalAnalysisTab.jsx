@@ -430,7 +430,7 @@ export default function PersonalAnalysisTab({
                     <span style={{ color: myFieldDefense.suppression >= 0 ? C.accent : "#ef4444", fontWeight: 700 }}>
                       {myFieldDefense.suppression >= 0 ? '+' : ''}{myFieldDefense.suppression.toFixed(2)} {myFieldDefense.suppression >= 0 ? '억제' : '허용'}
                     </span>
-                    <span style={{ color: C.gray }}> ({myFieldDefense.fieldRounds}경기)</span>
+                    <span style={{ color: C.gray }}> ({myFieldDefense.fieldRounds}경기·{myFieldDefense.fieldDates}일)</span>
                   </div>
                 )}
                 {playerSummary[selected]?.teamGoals > 0 && (

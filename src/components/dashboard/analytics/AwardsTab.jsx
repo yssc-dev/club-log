@@ -255,7 +255,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             🛡 수비 (필드)
           </div>
           <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
-            필드로 뛴 매치 기준(GK 제외) · 억제 = 그날 세션 평균 실점 − 본인 평균(+ = 덜 먹힘) · 필드 최다치의 30%(현재 {fieldDefense.thresholds?.minFieldRounds ?? 0}경기) 이상
+            필드로 뛴 매치 기준(GK 제외) · 억제 = 그날 세션 평균 실점 − 본인 평균(+ = 덜 먹힘) · 필드 최다치의 30%(현재 {fieldDefense.thresholds?.minFieldRounds ?? 0}경기·{fieldDefense.thresholds?.minFieldDates ?? 0}일) 이상 · 경기일이 적을수록 평균 쪽으로 보정한 값(같은 날은 같은 팀이라 경기일이 표본)
           </div>
           {(fieldDefense.ranking.cleanRate.length === 0 && fieldDefense.ranking.suppression.length === 0) ? (
             <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>

@@ -70,4 +70,44 @@ describe('calcFieldDefense', () => {
     expect(cleanNames).not.toContain('Out');
     expect(r.ranking.suppression[0].player).toBe('Best'); // 억제 1위
   });
+
+  it('진입선: 경기 수를 채워도 경기일 수가 최다치의 30% 미만이면 제외', () => {
+    const on = (date, n, home, away, ourScore, oppScore) =>
+      Array.from({ length: n }, (_, i) => M(date, home, away, ourScore, oppScore, {}, `R${i}_C1`));
+    const matchLogs = [
+      // Reg: 10일 × 1경기 = 10경기·10일
+      ...Array.from({ length: 10 }, (_, i) => M(`2026-07-${10 + i}`, ['G', 'Reg'], ['H', 'X'], 1, 1)),
+      // Burst: 2일 × 5경기 = 10경기·2일 (전부 무실점) — 경기 수는 같지만 경기일 진입선 ceil(10×0.3)=3 미달
+      ...on('2026-08-01', 5, ['G', 'Burst'], ['H', 'Y'], 1, 0),
+      ...on('2026-08-02', 5, ['G', 'Burst'], ['H', 'Y'], 1, 0),
+    ];
+    const r = calcFieldDefense({ matchLogs });
+    expect(r.thresholds).toMatchObject({ minFieldRounds: 3, minFieldDates: 3, maxFieldDates: 10 });
+    expect(r.perPlayer.Burst).toMatchObject({ fieldRounds: 10, fieldDates: 2 });
+    expect(r.ranking.cleanRate.map(x => x.player)).not.toContain('Burst');
+    expect(r.ranking.suppression.map(x => x.player)).not.toContain('Burst');
+    expect(r.ranking.cleanRate.map(x => x.player)).toContain('Reg');
+  });
+
+  it('보정: 경기일이 적을수록 평균 쪽으로 — 원값이 같아도 경기일 많은 쪽이 위, 원값은 보존', () => {
+    // Few·Many 모두 매 경기 무실점(원 무실점률 100%, 원 억제 +0.5). Few 3일, Many 9일.
+    const day = (date, name) => M(date, ['G', name], ['H', `opp_${name}`], 1, 0);
+    const matchLogs = [
+      ...Array.from({ length: 3 }, (_, i) => day(`2026-07-0${1 + i}`, 'Few')),
+      ...Array.from({ length: 9 }, (_, i) => day(`2026-08-0${1 + i}`, 'Many')),
+    ];
+    const r = calcFieldDefense({ matchLogs });
+    // 경기일 진입선 K = ceil(9×0.3) = 3 → w(Few)=3/6=0.5, w(Many)=9/12=0.75. 리그 무실점률 = 12/24 = 0.5
+    expect(r.thresholds.minFieldDates).toBe(3);
+    expect(r.leagueCleanRate).toBeCloseTo(0.5);
+    expect(r.perPlayer.Few.cleanRate).toBeCloseTo(1);         // 원값 보존
+    expect(r.perPlayer.Few.suppression).toBeCloseTo(0.5);
+    expect(r.perPlayer.Few.cleanRateAdj).toBeCloseTo(0.75);   // 0.5 + 0.5×0.5
+    expect(r.perPlayer.Many.cleanRateAdj).toBeCloseTo(0.875); // 0.5 + 0.5×0.75
+    expect(r.perPlayer.Few.suppressionAdj).toBeCloseTo(0.25);
+    expect(r.perPlayer.Many.suppressionAdj).toBeCloseTo(0.375);
+    expect(r.ranking.cleanRate.map(x => x.player).slice(0, 2)).toEqual(['Many', 'Few']);
+    expect(r.ranking.suppression[0]).toMatchObject({ player: 'Many', raw: 0.5, fieldDates: 9 });
+    expect(r.ranking.suppression[0].value).toBeCloseTo(0.375);
+  });
 });
