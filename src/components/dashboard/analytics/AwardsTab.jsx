@@ -243,9 +243,9 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           <MetricBarCol title="🎨 창의력 (경기당 어시)" rows={metricLeaders.creativity} fmt={v => v.toFixed(2)} />
           <MetricBarCol title="🛡 수비력 (경기당 팀실점 ↓)" rows={metricLeaders.defense} fmt={v => v.toFixed(2)} invert />
           <MetricBarCol title="🧤 키퍼 (경기당 실점 ↓)" rows={metricLeaders.keeping} fmt={v => v.toFixed(2)} invert />
-          <MetricBarCol title="📅 참석률" rows={metricLeaders.attendance} fmt={v => `${Math.round(v * 100)}%`} />
-          <MetricBarCol title="🏁 승리기여 (승률)" rows={metricLeaders.winRate} fmt={v => `${Math.round(v * 100)}%`} />
-          <MetricBarCol title="🎯 팀득점관여율 (골+어시/팀득점)" rows={metricLeaders.involvement} fmt={v => `${Math.round(v * 100)}%`} />
+          <MetricBarCol title="📅 참석률" rows={metricLeaders.attendance} fmt={v => `${(v * 100).toFixed(2)}%`} />
+          <MetricBarCol title="🏁 승리기여 (승률)" rows={metricLeaders.winRate} fmt={v => `${(v * 100).toFixed(2)}%`} />
+          <MetricBarCol title="🎯 팀득점관여율 (골+어시/팀득점)" rows={metricLeaders.involvement} fmt={v => `${(v * 100).toFixed(2)}%`} />
         </div>
       </div>
       {/* 🛡 수비 (필드) — 개인 축 2종: 무실점률 · 세션평균 대비 실점 억제. 풋살 전용 */}
@@ -339,12 +339,12 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             <MetricBarCol
               title="💥 몰빵형 (편차 ↑)" color={C.orange}
               rows={volatility.streaky.map(it => ({ player: it.player, value: it.std }))}
-              fmt={v => `σ ${v.toFixed(1)}`}
+              fmt={v => `σ ${v.toFixed(2)}`}
             />
             <MetricBarCol
               title="🎯 꾸준형 (편차 ↓)" color={C.green} invert
               rows={volatility.consistent.map(it => ({ player: it.player, value: it.std }))}
-              fmt={v => `σ ${v.toFixed(1)}`}
+              fmt={v => `σ ${v.toFixed(2)}`}
             />
           </div>
         )}
