@@ -261,7 +261,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>
           ) : (
             <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 10 }}>
-              <MetricBarCol title="🧱 무실점률" rows={fieldDefense.ranking.cleanRate} fmt={v => `${Math.round(v * 100)}%`} />
+              <MetricBarCol title="🧱 무실점률" rows={fieldDefense.ranking.cleanRate} fmt={v => `${(v * 100).toFixed(2)}%`} />
               <MetricBarCol title="🛡 실점 억제 (경기당)" rows={fieldDefense.ranking.suppression} fmt={v => `${v >= 0 ? '+' : ''}${v.toFixed(2)}`} />
             </div>
           )}
