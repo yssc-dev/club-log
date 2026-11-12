@@ -1,3 +1,8 @@
+// ★ 2026-11-12 유저 결정(하버FC와 통일): 순위 값 = 필드로 뛴 경기의 경기당 실점(총실점 ÷ 필드 경기, 낮을수록 좋음).
+//   "그날 평균 대비"(suppression)는 직관적이지 않다는 판단으로 순위·레이더에서 내렸다(perPlayer 에 계산만 남음).
+//   진입선 = 필드 경기 수 ≥ 최다 × 30% (경기일 진입선은 기본 0 — 실측상 걸러내는 선수가 없었다).
+//   실측(606경기): 상위 5명 구성은 그날 평균 방식과 동일(차진옥·박형조·채수찬·김의선·나민혁), 순서만 다름.
+// (이하 2026-11-11 원 설명)
 // 풋살 「수비력」 단일 소스 (2026-11-11 통일) — 지표 Top5 수비력 열·개인분석 레이더 수비력 축이 함께 쓴다.
 // 풋살엔 수비 포지션·수비 이벤트가 없어 팀 실점 기반 개인 지표만 성립한다(2026-08-21 유저 방향).
 //   수비력(suppression) = 그날 전체 사이드 평균 실점(baselinePerGame) − 내가 필드로 뛴 경기 평균 실점(concededPerGame)
@@ -12,7 +17,7 @@
 import { parseActualPlayers } from './parseMembers';
 import { dynamicMin } from './dynamicMin';
 
-export function calcFieldDefense({ matchLogs = [], topN = 5, minFieldRounds = null, minFieldDates = null } = {}) {
+export function calcFieldDefense({ matchLogs = [], topN = 5, minFieldRounds = null, minFieldDates = 0 } = {}) {
   const sessionTally = {}; // date -> { sum, n } — 사이드 단위 실점 합/수
   const sides = [];
   for (const m of matchLogs) {
@@ -66,11 +71,11 @@ export function calcFieldDefense({ matchLogs = [], topN = 5, minFieldRounds = nu
     .filter(([, p]) => p.fieldRounds >= resolvedMin && p.fieldDates >= resolvedMinDates);
   const ranking = rated
     .map(([player, p]) => ({
-      player, value: p.suppression,
+      player, value: p.concededPerGame, cleanSheets: p.cleanSheets,
       fieldRounds: p.fieldRounds, fieldDates: p.fieldDates, conceded: p.conceded,
       concededPerGame: p.concededPerGame, baselinePerGame: p.baselinePerGame,
     }))
-    .sort((a, b) => b.value - a.value || b.fieldRounds - a.fieldRounds || a.player.localeCompare(b.player, 'ko'))
+    .sort((a, b) => a.value - b.value || b.fieldRounds - a.fieldRounds || a.player.localeCompare(b.player, 'ko'))
     .slice(0, topN);
 
   return {

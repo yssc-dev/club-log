@@ -371,7 +371,7 @@ export default function PersonalAnalysisTab({
                     { label: "수비력", score: values[2], desc: isSoccer
                       ? (pd.detail.fieldRounds > 0 ? `필드 ${pd.detail.fieldRounds}경기, 팀실점 ${pd.detail.fieldConceded} = 경기당 ${pd.raw.defense?.toFixed(2)}실점` : "필드 경기 없음")
                       : (pd.detail.fd?.fieldRounds > 0
-                        ? `필드 ${pd.detail.fd.fieldRounds}경기(${pd.detail.fd.fieldDates}일) ${pd.detail.fd.conceded}실점 = 경기당 ${pd.detail.fd.concededPerGame.toFixed(2)} · 그날 평균 ${pd.detail.fd.baselinePerGame.toFixed(2)} → ${pd.detail.fd.suppression >= 0 ? '+' : ''}${pd.detail.fd.suppression.toFixed(2)}`
+                        ? `필드 ${pd.detail.fd.fieldRounds}경기 ${pd.detail.fd.conceded}실점 = 경기당 ${pd.detail.fd.concededPerGame.toFixed(2)}실점`
                         : "필드 경기 없음") },
                     { label: "키퍼", score: values[3], desc: pd.detail.keeperRounds > 0 ? `${pd.detail.keeperRounds}경기, ${pd.detail.conceded}실점 = 경기당 ${pd.raw.keeping?.toFixed(2)}실점` : "키퍼 경기 없음" },
                     { label: "참석률", score: values[4], desc: `${pd.detail.games} / ${totalSessions}게임 = ${Math.round(pd.raw.attendance * 100)}%` },

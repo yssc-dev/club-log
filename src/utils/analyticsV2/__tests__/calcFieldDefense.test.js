@@ -71,7 +71,8 @@ describe('calcFieldDefense', () => {
     expect(names.indexOf('Best')).toBeLessThan(names.indexOf('Worst'));
   });
 
-  it('진입선: 경기 수를 채워도 경기일 수가 최다치의 30% 미만이면 제외', () => {
+  // 2026-11-12: 경기일 진입선 기본 해제(필드 경기 수 30%만). minFieldDates 를 명시하면 여전히 건다.
+  it('진입선: 기본은 필드 경기 수 30%만 — 경기일이 적어도 통과, minFieldDates 명시 시 제외', () => {
     const on = (date, n, home, away, ourScore, oppScore) =>
       Array.from({ length: n }, (_, i) => M(date, home, away, ourScore, oppScore, {}, `R${i}_C1`));
     const matchLogs = [
@@ -82,25 +83,29 @@ describe('calcFieldDefense', () => {
       ...on('2026-08-02', 5, ['G', 'Burst'], ['H', 'Y'], 1, 0),
     ];
     const r = calcFieldDefense({ matchLogs });
-    expect(r.thresholds).toMatchObject({ minFieldRounds: 3, minFieldDates: 3, maxFieldDates: 10 });
+    expect(r.thresholds).toMatchObject({ minFieldRounds: 3, minFieldDates: 0, maxFieldDates: 10 });
     expect(r.perPlayer.Burst).toMatchObject({ fieldRounds: 10, fieldDates: 2 });
-    expect(r.ranking.map(x => x.player)).not.toContain('Burst');
+    expect(r.ranking.map(x => x.player)).toContain('Burst');
     expect(r.ranking.map(x => x.player)).toContain('Reg');
+    const gated = calcFieldDefense({ matchLogs, minFieldDates: 3 });
+    expect(gated.ranking.map(x => x.player)).not.toContain('Burst');
   });
 
-  it('랭킹 값은 원값 그대로(경기일 보정 없음)이고 근거 수치를 함께 싣는다', () => {
-    // 하루: A측 실점 [0, 2], B측 실점 [1, 3] → 그날 평균 1.5. A = 2경기 2실점, 경기당 1.0, 수비력 +0.5
+  // 2026-11-12: 랭킹 값 = 필드 경기당 실점(낮은 순). 그날 평균 대비(suppression)는 perPlayer 에만 남는다.
+  it('랭킹 값은 필드 경기당 실점(낮은 순)이고 근거 수치를 함께 싣는다', () => {
+    // 하루: A측 실점 [0, 2], B측 실점 [1, 3]. A = 2경기 2실점 경기당 1.0, B = 2경기 4실점 경기당 2.0
     const matchLogs = [
       M('2026-06-04', ['G', 'A'], ['H', 'B'], 1, 0),
       M('2026-06-04', ['G', 'A'], ['H', 'B'], 3, 2, {}, 'R2_C1'),
     ];
     const r = calcFieldDefense({ matchLogs });
-    expect(r.ranking[0]).toMatchObject({ player: 'A', fieldRounds: 2, fieldDates: 1, conceded: 2 });
-    expect(r.ranking[0].value).toBeCloseTo(0.5);
+    expect(r.ranking[0]).toMatchObject({ player: 'A', fieldRounds: 2, fieldDates: 1, conceded: 2, cleanSheets: 1 });
+    expect(r.ranking[0].value).toBeCloseTo(1.0);
     expect(r.ranking[0].concededPerGame).toBeCloseTo(1.0);
     expect(r.ranking[0].baselinePerGame).toBeCloseTo(1.5);
     expect(r.ranking[1]).toMatchObject({ player: 'B', conceded: 4 });
-    expect(r.ranking[1].value).toBeCloseTo(-0.5);
+    expect(r.ranking[1].value).toBeCloseTo(2.0);
+    expect(r.perPlayer.A.suppression).toBeCloseTo(0.5); // 계산은 남지만 순위엔 안 쓴다
     expect(r.perPlayer.A.suppressionAdj).toBeUndefined(); // 보정값 폐기
   });
 });

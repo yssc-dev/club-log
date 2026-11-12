@@ -216,7 +216,7 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     // 수비 진입선은 calcFieldDefense(필드 경기 + 경기일) 기준으로 표기한다(2026-11-11 수비력 통일).
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
     expect(html).toContain('최다 경기수의 30% 이상');
-    expect(html).toMatch(/현재 출전 2·수비 필드 \d+경기·\d+일·키퍼 1경기/);
+    expect(html).toMatch(/현재 출전 2·수비 필드 \d+경기·키퍼 1경기/);
     expect(html).not.toContain('30경기 이상');
   });
 
@@ -276,10 +276,11 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
   });
 
   // 2026-11-11: 풋살 수비 지표 3종(경기당 팀실점·무실점률·실점 억제) → 「수비력」 하나로 통일 + 근거 줄
-  it('AwardsTab: 풋살 — 수비력은 한 블록, 근거(경기·실점·그날 평균)를 같이 그린다', () => {
+  it('AwardsTab: 풋살 — 수비력은 한 블록, 필드 경기당 실점 + 근거(경기·실점·무실점)', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
-    expect(html).toContain('수비력 (그날 평균보다 덜 먹힌 실점');
-    expect(html).toMatch(/필드 \d+경기\(\d+일\) \d+실점 · 경기당 \d\.\d\d · 그날 평균 \d\.\d\d/);
+    expect(html).toContain('수비력 (필드로 뛴 경기의 경기당 실점');
+    expect(html).toMatch(/\d+경기 \d+실점 · 무실점 \d+/);
+    expect(html).not.toContain('그날 평균');
     expect(html).not.toContain('수비 (필드)');
     expect(html).not.toContain('무실점률');
     expect(html).not.toContain('실점 억제');
@@ -309,10 +310,11 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('그날 평균');
   });
 
-  it('PersonalAnalysisTab: 풋살 — 수비력 근거 줄은 그날 평균 대비, 옛 요약 줄은 없다', () => {
+  it('PersonalAnalysisTab: 풋살 — 수비력 근거 줄은 필드 경기당 실점, 옛 요약 줄은 없다', () => {
     const html = wrap(PersonalAnalysisTab, { playerGameLogs, matchLogs, eventLogs, members, C, authUserName: 'A' });
     expect(html).not.toContain('필드 수비:');
-    expect(html).toMatch(/그날 평균 \d\.\d\d → [+-]\d\.\d\d|필드 경기 없음/);
+    expect(html).toMatch(/필드 \d+경기 \d+실점 = 경기당 \d\.\d\d실점|필드 경기 없음/);
+    expect(html).not.toContain('그날 평균');
   });
 
   it('PersonalAnalysisTab: 축구 — 수비력 근거 줄은 예전 문구 그대로', () => {
