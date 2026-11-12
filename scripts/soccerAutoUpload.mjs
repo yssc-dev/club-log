@@ -32,7 +32,14 @@ const SPORT_KEY = '축구';
 
 let manualCheck = false;
 
-const nowKstLocale = () => new Date().toLocaleString('ko-KR', { timeZone: 'Asia/Seoul' });
+// 앱(브라우저 KST)의 new Date().toLocaleString("ko-KR") 과 같은 "2026. 11. 12. 오전 9:05:03" 형식.
+// GitHub 러너 Node 는 한국어 로캘 데이터가 없어 toLocaleString('ko-KR') 이 "AM" 을 내므로 직접 만든다.
+const nowKstLocale = () => {
+  const d = new Date(Date.now() + 9 * 3600 * 1000);
+  const h = d.getUTCHours(), h12 = h % 12 === 0 ? 12 : h % 12;
+  const p2 = (n) => String(n).padStart(2, '0');
+  return `${d.getUTCFullYear()}. ${d.getUTCMonth() + 1}. ${d.getUTCDate()}. ${h < 12 ? '오전' : '오후'} ${h12}:${p2(d.getUTCMinutes())}:${p2(d.getUTCSeconds())}`;
+};
 const todayKst = () => new Date(Date.now() + 9 * 3600 * 1000).toISOString().slice(0, 10);
 
 async function rtdb(method, path, body) {
