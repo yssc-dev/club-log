@@ -200,15 +200,17 @@ async function processTeam(teamKey, team, teamSettings) {
         let archivedFinalized = false;
         try { archivedFinalized = JSON.parse(st?.state || '{}').gameFinalized === true; } catch { /* 파싱 실패 = 모름 */ }
         if (archivedFinalized) {
-          console.log(`  [부활 감지] ${t.gameId} — 이미 확정·아카이브된 경기. 시트 재전송 없이 active 만 정리`);
+          console.log(t.action === ACTION_UPLOAD_ARCHIVE
+            ? `  [부활 감지] ${t.gameId} — 이미 확정·아카이브된 경기가 active 에 다시 있음. 시트 재전송 없이 active 만 정리`
+            : `  ${t.gameId} — 사람이 기록확정까지 마친 경기. active 만 정리`);
           await rtdb('DELETE', `games/${encodeURIComponent(teamKey)}/active/${encodeURIComponent(t.gameId)}`);
           continue;
         }
       }
       if (t.action === ACTION_UPLOAD_ARCHIVE) {
         const ok = await uploadSheets(teamKey, team, sheets, t.gameId, t.state);
-        uploaded = true;   // 일부라도 썼을 수 있으므로 캐시는 강등한다
-        if (!ok) continue;
+        if (!ok) continue;   // 중복 의심 — 아무것도 쓰지 않았다
+        uploaded = true;
       }
       await archiveGame(teamKey, t.gameId, t.state);
     } catch (e) {
