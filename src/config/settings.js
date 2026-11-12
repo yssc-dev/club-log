@@ -18,6 +18,9 @@ export const SPORT_DEFAULTS = {
     foulPoint: -1,
     cleanSheetPoint: 1,
     opponents: [],
+    // 「경기마감」(최종 집계 화면)까지 간 경기를 다음날 오전 10시(KST) 자동으로 시트 5종 전송 + 아카이브할지.
+    // 테니스와 같이 팀 override로만 켠다 — SHARED_KEYS/SOCCER_KEYS에는 넣지 않는다.
+    autoUpload: false,
   },
   테니스: {
     // 랭킹 포인트 산식. rankPoints.js의 DEFAULT_POINT_RULES와 같은 모양.

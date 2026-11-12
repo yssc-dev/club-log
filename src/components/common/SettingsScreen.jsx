@@ -387,6 +387,23 @@ export default function SettingsScreen({ teamName, teamMode, teamEntries, isAdmi
             <>
               <div className="app-row"><NumRow label="자책골 포인트" value={settings.ownGoalPoint} onChange={v => update("ownGoalPoint", v)} defaultVal={getDefaultFor("ownGoalPoint")} settingKey="ownGoalPoint" /></div>
               <div className="app-row"><NumRow label="클린시트 포인트" value={settings.cleanSheetPoint} onChange={v => update("cleanSheetPoint", v)} defaultVal={getDefaultFor("cleanSheetPoint")} settingKey="cleanSheetPoint" /></div>
+              <div className="app-row">
+                <div style={ss.row}>
+                  <label style={ss.label}>
+                    <input type="checkbox"
+                      checked={!!settings.autoUpload}
+                      onChange={e => update('autoUpload', e.target.checked)}
+                      style={{ marginRight: 8, accentColor: "var(--app-blue)" }} />
+                    마감 경기 자동 업로드·아카이브<SourceBadge k="autoUpload" />
+                  </label>
+                </div>
+              </div>
+              <div className="app-row" style={{ padding: "0 16px 8px" }}>
+                <span style={ss.hint}>
+                  "경기마감"까지 누르고 기록확정을 안 한 경기를 다음날 오전 10시경 시트 전송 후 아카이브합니다.
+                  진행 중 경기와 당일 경기는 건드리지 않습니다.
+                </span>
+              </div>
             </>
           ) : isTennis ? (
             <>

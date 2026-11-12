@@ -21,11 +21,9 @@ import AttendeeSelector from './components/game/AttendeeSelector';
 import {
   calcSoccerPlayerStats, calcSoccerPlayerPoint,
   calcSoccerTeamRecord, calcSoccerOpponentRecords,
-  buildEventLogRows, buildPointLogRows, buildPlayerLogRows,
   countFinishedSoccerMatches, getSoccerPlayedPlayers, keepLockedAttendees, mergeAttendeesIntoRoster,
 } from './utils/soccerScoring';
-import { buildRawEventsFromSoccer, buildRawPlayerGamesFromSoccer } from './utils/rawLogBuilders';
-import { buildRoundRowsFromSoccer } from './utils/matchRowBuilder';
+import { buildSoccerFinalizeRows } from './utils/soccerFinalizeRows';
 import { refreshAfterFinalize } from './utils/refreshAfterFinalize';
 import { gameDateFromId } from './utils/gameDate';
 
@@ -248,28 +246,10 @@ export default function SoccerApp({ authUser, teamContext, isNewGame, gameMode, 
     // 펜딩 자동저장 취소 — 마감 성공 후 clearState된 노드를 타이머가 되살리는 레이스 방지
     cancelPendingSave();
 
-    const eventLogRows = buildEventLogRows(finished, dateStr);
-    const pointLogRows = buildPointLogRows(finished, dateStr, inputTime);
-    const playerLogRows = buildPlayerLogRows(finished, dateStr, inputTime);
+    // 행 생성은 자동 업로드 러너(scripts/soccerAutoUpload.mjs)와 같은 순수 함수를 쓴다.
     const team = teamContext?.team || '';
-    const stateForMatchRows = {
-      ...state,
-      soccerMatches: finished.map(m => ({ ...m, matchIdx: m.matchIdx + 1 })),
-    };
-    const sessionGameId = finished.length > 0
-      ? (finished[0].startedAt ? `s_${finished[0].startedAt}` : `s_${dateStr}_${finished[0].matchIdx + 1}`)
-      : '';
-    const matchRows = buildRoundRowsFromSoccer({
-      team,
-      mode: '기본',
-      tournamentId: '',
-      date: dateStr,
-      stateJSON: stateForMatchRows,
-      inputTime,
-    });
-    matchRows.forEach(r => { r.game_id = sessionGameId; });
-    const rawEvents = buildRawEventsFromSoccer({ team, gameId: sessionGameId, events: eventLogRows });
-    const rawPlayerGames = buildRawPlayerGamesFromSoccer({ team, inputTime, players: playerLogRows });
+    const { pointLogRows, playerLogRows, rawEvents, rawPlayerGames, matchRows } =
+      buildSoccerFinalizeRows({ state, team, dateStr, inputTime });
 
     try {
       const results = await Promise.allSettled([

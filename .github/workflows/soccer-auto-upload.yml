@@ -1,0 +1,45 @@
+name: Soccer Auto Upload
+
+# 하버FC 축구: 「경기마감」까지 누르고 기록확정을 안 한 전날 이전 경기를 시트 5종 전송 + 아카이브한다.
+# 트리거 구성은 tennis-auto-upload.yml 과 같다:
+#  1차  — 맥북 launchd(~/Library/Scripts/tennis-auto-upload-dispatch.sh, 매일 10:00 KST)가 두 워크플로를
+#         모두 workflow_dispatch 로 호출한다.
+#  백업  — 아래 schedule(GitHub cron은 수 시간 지연·누락이 잦다). 진행 기록 + 시트 날짜 중복 검사가 있어
+#         늦게 돌거나 1차와 겹쳐도 안전하다(concurrency 로 동시 실행도 막는다).
+on:
+  schedule:
+    - cron: "0 1 * * *"
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "true면 아무것도 쓰지 않고 처리 대상만 출력한다"
+        type: boolean
+        default: true
+
+permissions:
+  contents: read
+
+concurrency:
+  group: soccer-auto-upload
+  cancel-in-progress: false
+
+jobs:
+  run:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+
+      - run: npm ci
+
+      - name: 자동 업로드·아카이브 실행
+        env:
+          FIREBASE_DATABASE_URL: ${{ secrets.VITE_FIREBASE_DATABASE_URL }}
+          APPS_SCRIPT_URL: ${{ secrets.VITE_APPS_SCRIPT_URL }}
+          SOCCER_BOT_TOKEN: ${{ secrets.SOCCER_BOT_TOKEN }}
+          DRY_RUN: ${{ github.event_name == 'schedule' && 'false' || inputs.dry_run }}
+        run: npx vite-node scripts/soccerAutoUpload.mjs
