@@ -75,10 +75,15 @@ describe('ChemistryTab 베스트 듀오 분기', () => {
     expect(html).not.toContain('케미 =');
   });
 
-  it('축구는 기존 GoldenTrioView 유지', () => {
-    const html = render(ChemistryTab, { matchLogs: [], eventLogs: [], isSoccer: true });
-    expect(html).not.toContain('합작 골');
-    expect(html).toContain('로그_매치 데이터가 없습니다');
+  // 2026-11-12: 축구도 케미 랭킹 → 합작 골 카드 1장(동반 승리·실점 억제는 축구에 없음)
+  it('축구는 합작 골 카드 1장, 케미 랭킹·동반 승리·실점 억제 없음', () => {
+    const html = render(ChemistryTab, { matchLogs, eventLogs, isSoccer: true });
+    expect(html).toContain('합작 골 TOP 10');
+    expect(html).toContain('가 + 나');
+    expect(html).toContain('4골');
+    expect(html).not.toContain('동반 승리');
+    expect(html).not.toContain('실점 억제');
+    expect(html).not.toContain('로그_매치 데이터가 없습니다');
   });
 
   // 어시페어(방향별 어시→골)는 합작 골 카드(양방향 합)와 재료가 같아 풋살에서는 중복 — 2026-11-06 제거.
@@ -90,9 +95,11 @@ describe('ChemistryTab 베스트 듀오 분기', () => {
     expect(html).not.toContain('베스트 듀오');
   });
 
-  it('축구는 어시페어 서브탭 버튼이 남는다', () => {
+  it('축구도 어시페어 서브탭이 없다(수비케미·상대팀별은 남음)', () => {
     const html = render(ChemistryTab, { matchLogs: [], eventLogs: [], isSoccer: true });
     expect(html).toContain('베스트 듀오');
-    expect(html).toContain('어시페어');
+    expect(html).not.toContain('어시페어');
+    expect(html).toContain('수비케미');
+    expect(html).toContain('상대팀별');
   });
 });

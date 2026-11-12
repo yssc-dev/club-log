@@ -1,36 +1,19 @@
 // src/components/dashboard/analytics/ChemistryTab.jsx
-import { useState, useMemo, useEffect } from 'react';
-import * as futsalCalc from '../../../utils/analyticsV2';
-import GoldenTrioView from './GoldenTrioView';
+import { useState, useEffect } from 'react';
 import DuoCardsView from './DuoCardsView';
-import AssistPairList from './AssistPairList';
+import SoccerLinkGoalsView from './SoccerLinkGoalsView';
 import DefenseAnalysisView from './DefenseAnalysisView';
 import OpponentLeadersView from './OpponentLeadersView';
-import * as soccerCalc from '../../../utils/soccerAnalytics';
 
 export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false }) {
-  const { calcAssistPairs, calcSynergyMatrix } = isSoccer ? soccerCalc : futsalCalc;
   const [sub, setSub] = useState('trio');
-  // 종목 전환 시 종목 전용 서브탭(defense/rival)에 좌초 방지 — TeamDashboard activeTab 'records' 리셋과 동일 규약
+  // 종목 전환 시 종목 전용 서브탭(defense/opponent)에 좌초 방지 — TeamDashboard activeTab 'records' 리셋과 동일 규약
   useEffect(() => { setSub('trio'); }, [isSoccer]);
-
-  // 어시페어는 축구 전용(아래 subs 참조) — 풋살은 계산도 건너뛴다.
-  // 어시페어 노출 보정 분모(함께 뛴 라운드 수)용 — calcSynergyMatrix를 탭 자체적으로 수행
-  const synergyMatrix = useMemo(
-    () => (isSoccer ? calcSynergyMatrix({ matchLogs: matchLogs || [], minRounds: 5 }) : { cells: {} }),
-    [matchLogs, isSoccer]
-  );
-  // 축구는 고정 3회 (배열에 threshold 메타 부착)
-  const assistPairs = useMemo(
-    () => (isSoccer ? calcAssistPairs({ eventLogs: eventLogs || [], threshold: 3, topN: 10, synergyCells: synergyMatrix.cells }) : []),
-    [eventLogs, synergyMatrix, isSoccer]
-  );
 
   const subs = [
     { key: 'trio', label: '베스트 듀오' },
-    // 어시페어(방향별 어시→골)는 축구만. 풋살은 베스트 듀오의 합작 골 카드(양방향 합)와
-    // 재료가 같아 2026-11-06 유저 결정으로 제거 — 풋살 계산층 calcAssistPairs는 남겨둔다.
-    ...(isSoccer ? [{ key: 'assist', label: '어시페어' }] : []),
+    // 어시페어 서브탭은 풋살(2026-11-06)·축구(2026-11-12) 모두 제거 — 합작 골 카드와 재료가 같다(유저 결정).
+    // calcAssistPairs·AssistPairList·GoldenTrioView 코드는 테스트가 쓰고 있어 남겨둔다(화면 미사용).
     // 수비케미는 our_defenders_json이 있는 축구 전용
     ...(isSoccer ? [{ key: 'defense', label: '수비케미' }] : []),
     // 축구판 대응: 외부 상대팀별 리더보드
@@ -51,11 +34,10 @@ export default function ChemistryTab({ matchLogs, eventLogs, C, isSoccer = false
           }}>{s.label}</button>
         ))}
       </div>}
-      {/* 풋살은 카드 3장(합작 골·동반 승리·실점 억제, 2026-11-06), 축구는 케미 랭킹 유지 */}
+      {/* 풋살은 카드 3장(합작 골·동반 승리·실점 억제, 2026-11-06), 축구는 합작 골 카드 1장(2026-11-12) */}
       {sub === 'trio' && (isSoccer
-        ? <GoldenTrioView matchLogs={matchLogs} C={C} isSoccer={isSoccer} />
+        ? <SoccerLinkGoalsView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />
         : <DuoCardsView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />)}
-      {sub === 'assist' && isSoccer && <AssistPairList pairs={assistPairs} C={C} />}
       {sub === 'defense' && isSoccer && <DefenseAnalysisView matchLogs={matchLogs} C={C} />}
       {sub === 'opponent' && isSoccer && <OpponentLeadersView matchLogs={matchLogs} eventLogs={eventLogs} C={C} />}
     </div>

@@ -10,6 +10,7 @@ export * from './calcDailyMvp';
 export * from './calcDefenseAnalysis';
 export * from './calcGkChemistry';
 export * from './calcGoldenTrio';
+export * from './calcLinkGoals';   // 축구 전용 — 컴포넌트 직접 소비
 export * from './calcMetricLeaders';
 export * from './calcMonthlyRanking';
 export * from './appEraScope';
