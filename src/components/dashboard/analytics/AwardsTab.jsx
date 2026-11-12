@@ -68,15 +68,12 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     () => (isSoccer ? null : futsalCalc.calcFieldDefense({ matchLogs: periodLogs.matchLogs })),
     [isSoccer, periodLogs]
   );
-  // 축구 「강한 수비수」(2026-11-12) — 풋살 수비력과 같은 정의(그날 평균 실점 − 수비수로 선 경기 평균 실점).
-  // 단일 소스 = soccerAnalytics/calcDefenseAnalysis(수비케미 탭·개인분석과 같은 값), 진입선 = 수비수 경기일 최다의 30%.
+  // 축구 「강한 수비수」(2026-11-12 유저 결정) — 수비수(DF)로 선 경기의 총실점 ÷ 경기 수, 낮은 순.
+  // 진입선 = 수비수 기록 전체 경기 수 × 30%. 단일 소스 = soccerAnalytics/calcDefenseAnalysis(수비케미 탭과 같은 목록).
   const soccerDefense = useMemo(() => {
     if (!isSoccer) return null;
     const d = soccerCalc.calcDefenseAnalysis({ matchLogs: periodLogs.matchLogs });
-    const ranking = soccerCalc.sortDefenseRows(d.individuals, { metric: 'conceded', by: 'delta' })
-      .slice(0, 5)
-      .map(x => ({ player: x.name, value: x.delta, games: x.games, dates: x.dates, conceded: x.conceded, concededPerGame: x.concededPerGame, baselinePerGame: x.baselineConcededPerGame }));
-    return { ranking, minDates: d.minDates.individual };
+    return { rows: d.individuals.slice(0, 5), minGames: d.individualMinGames, scopeMatches: d.scopeMatches };
   }, [isSoccer, periodLogs]);
   // 지표 Top5 — 개인분석 레이더와 동일 단일소스(calcPlayerSummary)
   const metricLeaders = useMemo(() => {
@@ -198,15 +195,27 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
 
   // 풋살 수비력(2026-11-11 통일) — 값만이 아니라 근거(몇 경기 몇 실점·경기당·그날 평균)를 행마다 붙인다.
   // 값 = 그날 평균 − 경기당(+ = 덜 먹힘). 음수는 막대 0.
-  const DefenseBlock = ({ rows, soccer = false }) => {
+  // 축구 강한 수비수 — 경기당 실점(낮을수록 좋음) + 근거(경기·총실점·무실점)
+  const SoccerDefenderBlock = ({ d }) => (
+    <div style={{ marginTop: 12 }}>
+      <div style={{ fontSize: 10, color: C.gray, marginBottom: 2 }}>🛡 강한 수비수 (수비수로 뛴 경기의 경기당 실점 ↓)</div>
+      <div style={{ fontSize: 9, color: C.grayDark, marginBottom: 6 }}>
+        값 = 수비수로 선 경기 총실점 ÷ 경기 수 · 수비수 기록 {d.scopeMatches}경기의 30%({d.minGames}경기) 이상
+      </div>
+      <RankBarList
+        rows={d.rows.map(x => ({ name: x.name, value: x.concededPerGame, sub: `${x.games}경기 ${x.conceded}실점 · 무실점 ${x.cleanSheets}` }))}
+        formatValue={v => v.toFixed(2)} lowerIsBetter color={C.accent} C={C} emptyText="-" nameWidth={40} subWidth={110}
+      />
+    </div>
+  );
+
+  const DefenseBlock = ({ rows }) => {
     const best = Math.max(0, ...rows.map(r => r.value));
     return (
       <div style={{ marginTop: 12 }}>
-        <div style={{ fontSize: 10, color: C.gray, marginBottom: 2 }}>{soccer ? '🛡 강한 수비수 (그날 평균보다 덜 먹힌 실점 · 경기당)' : '🛡 수비력 (그날 평균보다 덜 먹힌 실점 · 경기당)'}</div>
+        <div style={{ fontSize: 10, color: C.gray, marginBottom: 2 }}>🛡 수비력 (그날 평균보다 덜 먹힌 실점 · 경기당)</div>
         <div style={{ fontSize: 9, color: C.grayDark, marginBottom: 6 }}>
-          {soccer
-            ? '수비수(DF)로 선 경기만 · 값 = 그날 전체 평균 실점 − 내가 수비수로 선 경기 평균 실점 · 상대·GK 미보정'
-            : '필드로 뛴 경기만(GK 경기 제외) · 값 = 그날 전체 평균 실점 − 내가 뛴 경기 평균 실점'}
+          필드로 뛴 경기만(GK 경기 제외) · 값 = 그날 전체 평균 실점 − 내가 뛴 경기 평균 실점
         </div>
         {rows.length === 0 ? <div style={{ fontSize: 10.5, color: C.grayDark }}>-</div> : rows.map((r, i) => (
           <div key={r.player} style={{ marginBottom: 4, fontSize: 10 }}>
@@ -221,7 +230,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
               </span>
             </div>
             <div style={{ paddingLeft: 26, fontSize: 9, color: C.grayDark }}>
-              {soccer ? '수비수' : '필드'} {soccer ? r.games : r.fieldRounds}경기({soccer ? r.dates : r.fieldDates}일) {r.conceded}실점 · 경기당 {r.concededPerGame.toFixed(2)} · 그날 평균 {r.baselinePerGame.toFixed(2)}
+              필드 {r.fieldRounds}경기({r.fieldDates}일) {r.conceded}실점 · 경기당 {r.concededPerGame.toFixed(2)} · 그날 평균 {r.baselinePerGame.toFixed(2)}
             </div>
           </div>
         ))}
@@ -279,8 +288,8 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
           {/* 풋살은 축별 최대치의 30% 동적 진입선(calcMetricLeaders.thresholds), 축구는 고정 10경기 */}
           개인분석 레이더와 동일 지표 · {dynamicGate
-            ? `최다 경기수의 30% 이상 (현재 출전 ${metricLeaders.thresholds?.minRounds ?? 0}·${fieldDefense ? `수비 필드 ${fieldDefense.thresholds.minFieldRounds}경기·${fieldDefense.thresholds.minFieldDates}일` : `수비수 경기일 ${soccerDefense?.minDates ?? 0}일`}·키퍼 ${metricLeaders.thresholds?.minKeeperRounds ?? 0}경기)`
-            : `10경기 이상 (키퍼는 4경기 이상 · 강한 수비수는 수비수로 선 경기일 ${soccerDefense?.minDates ?? 0}일 이상 = 최다의 30%)`}
+            ? `최다 경기수의 30% 이상 (현재 출전 ${metricLeaders.thresholds?.minRounds ?? 0}·${fieldDefense ? `수비 필드 ${fieldDefense.thresholds.minFieldRounds}경기·${fieldDefense.thresholds.minFieldDates}일` : `수비수 ${soccerDefense?.minGames ?? 0}경기`}·키퍼 ${metricLeaders.thresholds?.minKeeperRounds ?? 0}경기)`
+            : `10경기 이상 (키퍼는 4경기 이상 · 강한 수비수는 수비수 ${soccerDefense?.minGames ?? 0}경기 이상 = 전체의 30%)`}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <MetricBarCol title="⚽ 득점력 (경기당 골)" rows={metricLeaders.scoring} fmt={v => v.toFixed(2)} />
@@ -292,7 +301,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           <MetricBarCol title="🎯 팀득점관여율 (골+어시/팀득점)" rows={metricLeaders.involvement} fmt={v => `${(v * 100).toFixed(2)}%`} />
         </div>
         {!isSoccer && fieldDefense && <DefenseBlock rows={fieldDefense.ranking} />}
-        {isSoccer && soccerDefense && <DefenseBlock rows={soccerDefense.ranking} soccer />}
+        {isSoccer && soccerDefense && <SoccerDefenderBlock d={soccerDefense} />}
       </div>
       {/* 라운드 흐름: 초반강자(-) ← → 후반폭격기(+) — 축구는 라운드 개념 없음 → 숨김 */}
       {!isSoccer && (() => {

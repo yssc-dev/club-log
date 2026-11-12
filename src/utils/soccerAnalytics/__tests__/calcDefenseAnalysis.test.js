@@ -258,15 +258,14 @@ describe('calcDefenseAnalysis 경기일 진입선', () => {
     ...Array.from({ length: 10 }, (_, i) => d(['B'], 0, i < 5 ? '2026-07-01' : '2026-07-02')),
     ...Array.from({ length: 3 }, (_, i) => d(['C'], 0, `2026-08-0${i + 1}`)),
   ];
-  it('개인 진입선 = 최다 경기일(10) × 30% = 3일 — 경기 수가 많아도 2일이면 탈락', () => {
+  // 개인 진입선(2026-11-12 후속): 경기일이 아니라 수비수 기록 전체 경기 수 × 30% (23경기 → 7경기)
+  it('개인 진입선 = 전체 경기 × 30% — 경기일 수와 무관', () => {
     const r = calcDefenseAnalysis({ matchLogs: logs });
-    expect(r.minDates.individual).toBe(3);
-    expect(r.maxDates.individual).toBe(10);
-    expect(r.individuals.map(x => x.name).sort()).toEqual(['A', 'C']);
-    expect(r.individuals.find(x => x.name === 'A').dates).toBe(10);
+    expect(r.individualMinGames).toBe(7);
+    expect(r.individuals.map(x => x.name)).toEqual(['B', 'A']); // 경기당 실점 낮은 순(B 0.00, A 1.00), C는 3경기라 탈락
   });
-  it('명시값이 오면 동적 진입선 대신 그것을 쓴다', () => {
-    const r = calcDefenseAnalysis({ matchLogs: logs, individualMinDates: 0 });
+  it('명시값이 오면 그것을 쓴다', () => {
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 0 });
     expect(r.individuals.map(x => x.name).sort()).toEqual(['A', 'B', 'C']);
   });
   it('3인 진입선은 최소 2일', () => {

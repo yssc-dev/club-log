@@ -8,6 +8,7 @@
 // 마스터FC 풋살 「수비력」(analyticsV2/calcFieldDefense)과 같은 정의 — 2026-11-12 유저 결정
 // ("상대가 누구든 상관없다"). 그 전엔 '같은 상대에서의 부재 대비' 보정이었으나 폐기했다.
 // 한계(의도): 상대·GK 미보정 — UI 캡션에 명시.
+// ★ 2026-11-12 같은 날 후속 결정: 화면의 개인 순위는 delta 가 아니라 생값(경기당 실점) — 아래 individuals 주석.
 import { parseActualPlayers } from './parseMembers';
 import { expandIntraMatchRows } from './expandIntraMatchRows';
 import { dynamicMin } from './dynamicMin';
@@ -52,8 +53,8 @@ export function sortDefenseRows(rows, { metric = 'conceded', dir = 'desc', by = 
 
 // *Threshold = 경기 수 진입선(명시 호출부용, 기본 0), *MinDates = 경기일 진입선(기본 null = 동적 30%).
 export function calcDefenseAnalysis({
-  matchLogs, individualThreshold = 0, pairThreshold = 0, trioThreshold = 3,
-  individualMinDates = null, pairMinDates = null, trioMinDates = null,
+  matchLogs, individualThreshold = null, pairThreshold = 0, trioThreshold = 3,
+  individualMinDates = 0, pairMinDates = null, trioMinDates = null,
 }) {
   const scope = [];
   // 자체전 행은 A·B 두 시점 행으로 펼친다(상대 버킷 '자체전'). 비자체전 행은 그대로 — 하버FC 무영향.
@@ -128,15 +129,20 @@ export function calcDefenseAnalysis({
   };
   const maxDates = (map) => Object.values(map).reduce((mx, s) => Math.max(mx, s.dates.size), 0);
   const minDates = {
-    individual: individualMinDates ?? dynamicMin(maxDates(indiv)),
+    individual: individualMinDates ?? dynamicMin(maxDates(indiv)),   // 기본 0 — 개인은 경기 수 진입선만
     pair: pairMinDates ?? dynamicMin(maxDates(pair)),
     trio: trioMinDates ?? Math.max(TRIO_MIN_DATES_FLOOR, dynamicMin(maxDates(trio))),
   };
 
+  // 개인 진입선(2026-11-12 유저 결정): 수비수로 선 경기 수 ≥ 범위 내 전체 경기 수 × 30% 올림.
+  // 개인 순위는 생값(경기당 실점 = 총실점 ÷ 수비수 경기) 오름차순 — "그날 평균 대비" 같은 보정값은
+  // 직관적이지 않다는 유저 판단으로 화면 순위에서 내렸다(delta 필드는 계산만 남음).
+  const individualMinGames = individualThreshold ?? dynamicMin(totalMatches);
   const individuals = sortDefenseRows(
     Object.entries(indiv)
       .map(([name, s]) => ({ name, ...finish(s) }))
-      .filter(x => x.games >= individualThreshold && x.dates >= minDates.individual),
+      .filter(x => x.games >= individualMinGames && x.dates >= minDates.individual),
+    { metric: 'conceded', by: 'raw', dir: 'desc' },
   );
 
   // 조합 행은 인원수와 무관하게 members 배열로 통일 — 2인/3인을 같은 정렬·렌더 경로에 태운다
@@ -152,6 +158,7 @@ export function calcDefenseAnalysis({
     scopeDates: new Set(scope.map(x => x.date)).size,
     // 화면 캡션용 진입선 — { individual, pair, trio } 경기일 수 + 단계별 최다 경기일
     minDates,
+    individualMinGames,
     maxDates: { individual: maxDates(indiv), pair: maxDates(pair), trio: maxDates(trio) },
     totalConceded,
     totalCleanSheets,

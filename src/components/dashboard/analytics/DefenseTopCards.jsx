@@ -68,7 +68,7 @@ export function DefenseTopCardsView({ matchLogs, C, ds }) {
           metric="clean" color={C.accent} C={C} ds={ds} />
       </div>
       <div style={{ fontSize: 10, color: C.gray, marginTop: 6 }}>
-        수비수 기록 {d.scopeMatches}경기 · 팀 평균 {d.teamConcededPerGame.toFixed(2)}실점 · 수비수로 선 경기일 개인 {d.minDates.individual}일·페어 {d.minDates.pair}일 이상(최다의 30%)
+        수비수 기록 {d.scopeMatches}경기 · 팀 평균 {d.teamConcededPerGame.toFixed(2)}실점 · 개인 수비수 {d.individualMinGames}경기 이상(전체의 30%) · 페어 함께 선 경기일 {d.minDates.pair}일 이상(최다의 30%)
       </div>
     </div>
   );

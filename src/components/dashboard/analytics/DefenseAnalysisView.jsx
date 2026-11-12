@@ -100,7 +100,7 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
   const M = DEFENSE_METRICS[metric];
 
   const individuals = useMemo(
-    () => sortDefenseRows(d.individuals, { metric, dir: 'desc' }),
+    () => sortDefenseRows(d.individuals, { metric, by: 'raw', dir: 'desc' }),
     [d, metric],
   );
 
@@ -126,43 +126,18 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
 
       <DefenseComboSection d={d} metric={metric} size={size} C={C} />
 
-      <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 {metric === 'clean' ? '무실점률 (그날 평균 대비)' : '수비력 (그날 평균 대비)'}</div>
+      {/* 개인 순위(2026-11-12 유저 결정): 수비수로 선 경기의 생값 — 실점률=총실점÷경기(낮은 순), 클린시트율=무실점 경기÷경기.
+          진입선 = 수비수 기록 전체 경기 수의 30%. 보정값(그날 평균 대비)은 직관적이지 않아 화면에서 뺐다. */}
+      <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 {M.label} ({M.bestLabel})</div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
-        {M.caption} · 수비수로 선 경기일 {d.minDates.individual}일 이상
+        수비수로 선 경기만 · 수비수 기록 {d.scopeMatches}경기의 30%({d.individualMinGames}경기) 이상
       </div>
-      {individuals.length === 0 ? (
-        <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (경기일 {d.minDates.individual}일 이상 필요)</div>
-      ) : (() => {
-        // 다이버징 막대 스케일 — 최대 |Δ| 기준 좌우 대칭 (극성은 색+방향+부호 삼중 인코딩)
-        const deltas = individuals.map(x => M.deltaOf(x)).filter(v => v != null);
-        const maxAbs = Math.max(0.001, ...deltas.map(Math.abs));
-        return individuals.map(x => {
-          const delta = M.deltaOf(x);
-          return (
-            <div key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>
-              <span style={{ width: 108, flexShrink: 0, fontSize: 11, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {x.name} <span style={{ color: C.gray, fontSize: 9 }}>{x.games}G·{x.dates}일</span>
-              </span>
-              <div style={{ flex: 1, display: 'flex', height: 8 }}>
-                <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                  {delta != null && delta < 0 && (
-                    <div style={{ width: `${(Math.abs(delta) / maxAbs) * 100}%`, height: '100%', background: C.red, borderRadius: '3px 0 0 3px' }} />
-                  )}
-                </div>
-                <div style={{ width: 1, background: C.grayDark, flexShrink: 0 }} />
-                <div style={{ flex: 1 }}>
-                  {delta != null && delta >= 0 && (
-                    <div style={{ width: `${(delta / maxAbs) * 100}%`, height: '100%', background: C.green, borderRadius: '0 3px 3px 0' }} />
-                  )}
-                </div>
-              </div>
-              <span style={{ width: 50, flexShrink: 0, textAlign: 'right', fontSize: 11, color: delta == null ? C.gray : C.white, fontVariantNumeric: 'tabular-nums' }}>
-                {M.formatDelta(delta)}
-              </span>
-            </div>
-          );
-        });
-      })()}
+      <RankBarList
+        rows={individuals.map(x => ({ name: x.name, value: M.rawOf(x), formatted: M.formatValue(x), sub: `${x.games}경기 ${x.conceded}실점 · 무실점 ${x.cleanSheets}` }))}
+        formatValue={(v, r) => r.formatted} lowerIsBetter={metric === 'conceded'} color={C.green} C={C}
+        limit={individuals.length} nameWidth={44} subWidth={110}
+        emptyText={`표본 부족 (수비수 ${d.individualMinGames}경기 이상 필요)`}
+      />
     </div>
   );
 }

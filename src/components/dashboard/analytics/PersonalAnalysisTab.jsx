@@ -481,17 +481,9 @@ export default function PersonalAnalysisTab({
             <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, textAlign: "left" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 6 }}>수비 기록</div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 6, paddingBottom: 6, borderBottom: `1px dashed ${C.grayDarker}` }}>
-                <span style={{ color: C.gray }}>{myDefense.me.games}경기 수비 출전</span>
+                <span style={{ color: C.gray }}>수비수 {myDefense.me.games}경기 {myDefense.me.conceded}실점</span>
                 <span style={{ color: C.white, fontWeight: 600, fontVariantNumeric: "tabular-nums" }}>
-                  {myDefense.me.concededPerGame.toFixed(2)}실점 · 무실점 {Math.round(myDefense.me.cleanRate * 100)}%
-                </span>
-              </div>
-              <div style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 0", fontSize: 10 }}>
-                <span style={{ color: C.gray }}>수비력 · 그날 평균 {myDefense.me.baselineConcededPerGame == null ? '–' : myDefense.me.baselineConcededPerGame.toFixed(2)}실점 대비</span>
-                <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", color: myDefense.me.delta == null ? C.gray : (myDefense.me.delta >= 0 ? C.green : C.red) }}>
-                  {myDefense.me.delta == null
-                    ? "–"
-                    : `${myDefense.me.delta >= 0 ? "+" : ""}${myDefense.me.delta.toFixed(2)}실점 ${myDefense.me.delta >= 0 ? "덜 먹힘" : "더 먹힘"}`}
+                  경기당 {myDefense.me.concededPerGame.toFixed(2)}실점 · 무실점 {Math.round(myDefense.me.cleanRate * 100)}%
                 </span>
               </div>
               {[
@@ -515,7 +507,7 @@ export default function PersonalAnalysisTab({
                 </div>
               ))}
               <div style={{ marginTop: 6, fontSize: 9.5, color: C.gray, lineHeight: 1.5 }}>
-                수비수로 기록된 경기만 (레코더 도입 후). 조합은 2인 5경기·3인 3경기 이상.
+                수비수로 기록된 경기만 (레코더 도입 후). 조합은 함께 선 경기일 최다의 30% 이상.
                 <br />⚠️ 상대팀·GK 영향이 섞인 참고 지표.
               </div>
             </div>

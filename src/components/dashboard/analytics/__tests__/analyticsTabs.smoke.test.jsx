@@ -179,8 +179,8 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
       members: [{ name: 'A' }], C, authUserName: 'A', isSoccer: true,
     });
     // '수비 기록'은 상대팀별 목록의 '수비 기록 없음'과 겹치므로 이 섹션 고유 문구로 확인
-    expect(html).toContain('수비 출전');     // D는 수비 기록 있음 → 노출
-    expect(html2).not.toContain('수비 출전'); // 아무도 수비 기록 없음 → 숨김
+    expect(html).toContain('수비수 1경기');     // D는 수비 기록 있음 → 노출
+    expect(html2).not.toContain('수비수 1경기'); // 아무도 수비 기록 없음 → 숨김
   });
 
   it('AwardsTab: 해트트릭/일일MVP/종합포인트/전체 옵션 렌더, 불꽃·클러치 없음', () => {
@@ -295,15 +295,18 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('필드로 뛴 경기만');
   });
 
-  it('AwardsTab: 축구 모드 — 수비수 기록이 있으면 근거 줄(수비수 N경기·그날 평균)을 그린다', () => {
+  it('AwardsTab: 축구 모드 — 강한 수비수 = 수비수 경기 총실점÷경기(낮은 순) + 근거 줄', () => {
     const dfLogs = ['2026-06-01', '2026-06-02', '2026-06-03'].flatMap(date => [
       { date, our_defenders_json: JSON.stringify(['수A', '수B']), opponent_score: 0, our_score: 1, our_members_json: '[]' },
       { date, our_defenders_json: JSON.stringify(['수C', '수B']), opponent_score: 2, our_score: 0, our_members_json: '[]' },
     ]);
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs: dfLogs, eventLogs, C, isSoccer: true });
-    expect(html).toContain('수A');
-    expect(html).toMatch(/수비수 3경기\(3일\) 0실점 · 경기당 0\.00 · 그날 평균 1\.00/);
-    expect(html).toContain('+1.00');
+    // 6경기의 30% = 2경기 → 셋 다 통과. 수A 0.00 < 수B 1.00 < 수C 2.00
+    expect(html).toContain('3경기 0실점 · 무실점 3');
+    expect(html).toContain('6경기 6실점 · 무실점 3');
+    expect(html.indexOf('>수A<')).toBeLessThan(html.indexOf('>수B<'));
+    expect(html.indexOf('>수B<')).toBeLessThan(html.indexOf('>수C<'));
+    expect(html).not.toContain('그날 평균');
   });
 
   it('PersonalAnalysisTab: 풋살 — 수비력 근거 줄은 그날 평균 대비, 옛 요약 줄은 없다', () => {
