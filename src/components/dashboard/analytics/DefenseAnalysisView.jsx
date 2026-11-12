@@ -127,10 +127,10 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
       <DefenseComboSection d={d} metric={metric} size={size} C={C} />
 
       {/* 개인 순위(2026-11-12 유저 결정): 수비수로 선 경기의 생값 — 실점률=총실점÷경기(낮은 순), 클린시트율=무실점 경기÷경기.
-          진입선 = 수비수 기록 전체 경기 수의 30%. 보정값(그날 평균 대비)은 직관적이지 않아 화면에서 뺐다. */}
+          진입선 = 가장 많이 뛴 수비수 경기 수의 30%. 보정값(그날 평균 대비)은 직관적이지 않아 화면에서 뺐다. */}
       <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 {M.label} ({M.bestLabel})</div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
-        수비수로 선 경기만 · 수비수 기록 {d.scopeMatches}경기의 30%({d.individualMinGames}경기) 이상
+        수비수로 선 경기만 · 최다 출전 수비수({d.maxIndividualGames}경기)의 30%({d.individualMinGames}경기) 이상
       </div>
       <RankBarList
         rows={individuals.map(x => ({ name: x.name, value: M.rawOf(x), formatted: M.formatValue(x), sub: `${x.games}경기 ${x.conceded}실점 · 무실점 ${x.cleanSheets}` }))}

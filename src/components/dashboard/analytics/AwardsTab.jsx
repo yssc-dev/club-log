@@ -69,11 +69,11 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     [isSoccer, periodLogs]
   );
   // 축구 「강한 수비수」(2026-11-12 유저 결정) — 수비수(DF)로 선 경기의 총실점 ÷ 경기 수, 낮은 순.
-  // 진입선 = 수비수 기록 전체 경기 수 × 30%. 단일 소스 = soccerAnalytics/calcDefenseAnalysis(수비케미 탭과 같은 목록).
+  // 진입선 = 가장 많이 뛴 수비수의 경기 수 × 30%. 단일 소스 = soccerAnalytics/calcDefenseAnalysis(수비케미 탭과 같은 목록).
   const soccerDefense = useMemo(() => {
     if (!isSoccer) return null;
     const d = soccerCalc.calcDefenseAnalysis({ matchLogs: periodLogs.matchLogs });
-    return { rows: d.individuals.slice(0, 5), minGames: d.individualMinGames, scopeMatches: d.scopeMatches };
+    return { rows: d.individuals.slice(0, 5), minGames: d.individualMinGames, maxGames: d.maxIndividualGames };
   }, [isSoccer, periodLogs]);
   // 지표 Top5 — 개인분석 레이더와 동일 단일소스(calcPlayerSummary)
   const metricLeaders = useMemo(() => {
@@ -200,7 +200,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
     <div style={{ marginTop: 12 }}>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 2 }}>🛡 강한 수비수 (수비수로 뛴 경기의 경기당 실점 ↓)</div>
       <div style={{ fontSize: 9, color: C.grayDark, marginBottom: 6 }}>
-        값 = 수비수로 선 경기 총실점 ÷ 경기 수 · 수비수 기록 {d.scopeMatches}경기의 30%({d.minGames}경기) 이상
+        값 = 수비수로 선 경기 총실점 ÷ 경기 수 · 최다 출전 수비수({d.maxGames}경기)의 30%({d.minGames}경기) 이상
       </div>
       <RankBarList
         rows={d.rows.map(x => ({ name: x.name, value: x.concededPerGame, sub: `${x.games}경기 ${x.conceded}실점 · 무실점 ${x.cleanSheets}` }))}
@@ -289,7 +289,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
           {/* 풋살은 축별 최대치의 30% 동적 진입선(calcMetricLeaders.thresholds), 축구는 고정 10경기 */}
           개인분석 레이더와 동일 지표 · {dynamicGate
             ? `최다 경기수의 30% 이상 (현재 출전 ${metricLeaders.thresholds?.minRounds ?? 0}·${fieldDefense ? `수비 필드 ${fieldDefense.thresholds.minFieldRounds}경기·${fieldDefense.thresholds.minFieldDates}일` : `수비수 ${soccerDefense?.minGames ?? 0}경기`}·키퍼 ${metricLeaders.thresholds?.minKeeperRounds ?? 0}경기)`
-            : `10경기 이상 (키퍼는 4경기 이상 · 강한 수비수는 수비수 ${soccerDefense?.minGames ?? 0}경기 이상 = 전체의 30%)`}
+            : `10경기 이상 (키퍼는 4경기 이상 · 강한 수비수는 수비수 ${soccerDefense?.minGames ?? 0}경기 이상 = 최다의 30%)`}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
           <MetricBarCol title="⚽ 득점력 (경기당 골)" rows={metricLeaders.scoring} fmt={v => v.toFixed(2)} />

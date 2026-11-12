@@ -134,10 +134,12 @@ export function calcDefenseAnalysis({
     trio: trioMinDates ?? Math.max(TRIO_MIN_DATES_FLOOR, dynamicMin(maxDates(trio))),
   };
 
-  // 개인 진입선(2026-11-12 유저 결정): 수비수로 선 경기 수 ≥ 범위 내 전체 경기 수 × 30% 올림.
+  // 개인 진입선(2026-11-12 유저 결정): 수비수로 선 경기 수 ≥ 가장 많이 뛴 수비수의 경기 수 × 30% 올림
+  // (처음엔 "전체 경기 × 30%"였으나 통과 5명뿐이라 같은 날 최다 기준으로 변경 — 풋살 지표 Top5와 같은 규약).
   // 개인 순위는 생값(경기당 실점 = 총실점 ÷ 수비수 경기) 오름차순 — "그날 평균 대비" 같은 보정값은
   // 직관적이지 않다는 유저 판단으로 화면 순위에서 내렸다(delta 필드는 계산만 남음).
-  const individualMinGames = individualThreshold ?? dynamicMin(totalMatches);
+  const maxIndividualGames = Object.values(indiv).reduce((mx, s) => Math.max(mx, s.games), 0);
+  const individualMinGames = individualThreshold ?? dynamicMin(maxIndividualGames);
   const individuals = sortDefenseRows(
     Object.entries(indiv)
       .map(([name, s]) => ({ name, ...finish(s) }))
@@ -159,6 +161,7 @@ export function calcDefenseAnalysis({
     // 화면 캡션용 진입선 — { individual, pair, trio } 경기일 수 + 단계별 최다 경기일
     minDates,
     individualMinGames,
+    maxIndividualGames,
     maxDates: { individual: maxDates(indiv), pair: maxDates(pair), trio: maxDates(trio) },
     totalConceded,
     totalCleanSheets,
