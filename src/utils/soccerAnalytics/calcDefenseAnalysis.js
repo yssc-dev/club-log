@@ -13,6 +13,12 @@
 // 한계(의도): GK 미보정 — UI 캡션에 명시.
 import { parseActualPlayers } from './parseMembers';
 import { expandIntraMatchRows } from './expandIntraMatchRows';
+import { dynamicMin } from './dynamicMin';
+
+// 진입선(2026-11-12 유저 결정): 경기 수가 아니라 「함께(수비수로) 선 경기일 수」 기준.
+// 하버FC는 하루 여러 경기를 쿼터 단위로 돌려 "5경기"가 1~2일치인 경우가 많다 — 독립 표본은 경기일.
+// 단계(개인/2인/3인)별 최다 경기일 × 30% 올림(dynamicMin). 3인은 표본이 얇아 최소 2일 + 3경기를 함께 건다.
+const TRIO_MIN_DATES_FLOOR = 2;
 
 // 지표별 정렬 축.
 //   delta     = 부재 대비 억제. 두 지표 모두 '클수록 좋음'으로 부호를 맞춰 놓았다.
@@ -47,7 +53,11 @@ export function sortDefenseRows(rows, { metric = 'conceded', dir = 'desc', by = 
   });
 }
 
-export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairThreshold = 5, trioThreshold = 3 }) {
+// *Threshold = 경기 수 진입선(명시 호출부용, 기본 0), *MinDates = 경기일 진입선(기본 null = 동적 30%).
+export function calcDefenseAnalysis({
+  matchLogs, individualThreshold = 0, pairThreshold = 0, trioThreshold = 3,
+  individualMinDates = null, pairMinDates = null, trioMinDates = null,
+}) {
   const scope = [];
   // 자체전 행은 A·B 두 시점 행으로 펼친다(상대 버킷 '자체전'). 비자체전 행은 그대로 — 하버FC 무영향.
   for (const m of expandIntraMatchRows(matchLogs || [])) {
@@ -59,6 +69,7 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
       dfs,
       conceded: Number(m.opponent_score) || 0,
       opponent: String(m.opponent_team_name || '').trim(),
+      date: String(m.date || ''),
     });
   }
   const totalMatches = scope.length;
@@ -76,21 +87,21 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
   const indiv = {};
   const pair = {};
   const trio = {};
-  const bump = (map, key, conceded, opponent) => {
-    if (!map[key]) map[key] = { games: 0, conceded: 0, cleanSheets: 0, byOpp: {} };
+  const bump = (map, key, conceded, opponent, date) => {
+    if (!map[key]) map[key] = { games: 0, conceded: 0, cleanSheets: 0, byOpp: {}, dates: new Set() };
     const s = map[key];
-    s.games++; s.conceded += conceded;
+    s.games++; s.conceded += conceded; s.dates.add(date);
     if (conceded === 0) s.cleanSheets++;
     const o = (s.byOpp[opponent] ??= { g: 0, c: 0, cs: 0 });
     o.g++; o.c += conceded; if (conceded === 0) o.cs++;
   };
-  for (const { dfs, conceded, opponent } of scope) {
-    for (const d of dfs) bump(indiv, d, conceded, opponent);
+  for (const { dfs, conceded, opponent, date } of scope) {
+    for (const d of dfs) bump(indiv, d, conceded, opponent, date);
     for (let i = 0; i < dfs.length; i++)
       for (let j = i + 1; j < dfs.length; j++) {
-        bump(pair, `${dfs[i]}|${dfs[j]}`, conceded, opponent);
+        bump(pair, `${dfs[i]}|${dfs[j]}`, conceded, opponent, date);
         // 3인까지만 — 4인은 백4 고정 팀에서 '그 경기 자체'와 같아져 반복이 거의 없다
-        for (let k = j + 1; k < dfs.length; k++) bump(trio, `${dfs[i]}|${dfs[j]}|${dfs[k]}`, conceded, opponent);
+        for (let k = j + 1; k < dfs.length; k++) bump(trio, `${dfs[i]}|${dfs[j]}|${dfs[k]}`, conceded, opponent, date);
       }
   }
 
@@ -117,7 +128,7 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
     // 기대−실제, 클린시트율은 '높을수록 좋음'이라 실제−기대.
     const baselineCleanRate = hasBaseline ? expClean / matched : null;
     return {
-      games: s.games, conceded: s.conceded, cleanSheets: s.cleanSheets,
+      games: s.games, dates: s.dates.size, conceded: s.conceded, cleanSheets: s.cleanSheets,
       concededPerGame,
       cleanRate,
       baselineConcededPerGame,
@@ -127,22 +138,33 @@ export function calcDefenseAnalysis({ matchLogs, individualThreshold = 8, pairTh
       hasBaseline,
     };
   };
+  const maxDates = (map) => Object.values(map).reduce((mx, s) => Math.max(mx, s.dates.size), 0);
+  const minDates = {
+    individual: individualMinDates ?? dynamicMin(maxDates(indiv)),
+    pair: pairMinDates ?? dynamicMin(maxDates(pair)),
+    trio: trioMinDates ?? Math.max(TRIO_MIN_DATES_FLOOR, dynamicMin(maxDates(trio))),
+  };
+
   const individuals = sortDefenseRows(
     Object.entries(indiv)
       .map(([name, s]) => ({ name, ...finish(s) }))
-      .filter(x => x.games >= individualThreshold),
+      .filter(x => x.games >= individualThreshold && x.dates >= minDates.individual),
   );
 
   // 조합 행은 인원수와 무관하게 members 배열로 통일 — 2인/3인을 같은 정렬·렌더 경로에 태운다
-  const buildCombos = (map, threshold) => Object.entries(map)
+  const buildCombos = (map, threshold, dateMin) => Object.entries(map)
     .map(([key, s]) => ({ members: key.split('|'), ...finish(s) }))
-    .filter(x => x.games >= threshold);
+    .filter(x => x.games >= threshold && x.dates >= dateMin);
 
-  const allPairs = buildCombos(pair, pairThreshold);
-  const allTrios = buildCombos(trio, trioThreshold);
+  const allPairs = buildCombos(pair, pairThreshold, minDates.pair);
+  const allTrios = buildCombos(trio, trioThreshold, minDates.trio);
 
   return {
     scopeMatches: totalMatches,
+    scopeDates: new Set(scope.map(x => x.date)).size,
+    // 화면 캡션용 진입선 — { individual, pair, trio } 경기일 수 + 단계별 최다 경기일
+    minDates,
+    maxDates: { individual: maxDates(indiv), pair: maxDates(pair), trio: maxDates(trio) },
     totalConceded,
     totalCleanSheets,
     teamConcededPerGame: totalMatches > 0 ? totalConceded / totalMatches : 0,

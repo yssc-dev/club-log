@@ -5,13 +5,15 @@ import DefenseAnalysisView, { DefenseComboSection } from '../DefenseAnalysisView
 import { calcDefenseAnalysis } from '../../../../utils/soccerAnalytics';
 import { C } from '../../../../config/constants';
 
-const m = (dfs, conceded) => ({ our_defenders_json: JSON.stringify(dfs), opponent_score: conceded });
+const m = (dfs, conceded, date = '2026-06-01') => ({ our_defenders_json: JSON.stringify(dfs), opponent_score: conceded, date });
+// 경기일 진입선(2026-11-12) 대비 — 10경기를 5일에 나눠 3인 최소 2일도 넘긴다
+const day = (i) => `2026-06-0${(i % 5) + 1}`;
 
 // A·B·C는 10경기 전부 무실점, D·E·F는 10경기 전부 2실점.
 // 페어 임계(5)·트리오 임계(3)를 모두 넘기고 두 축의 순서가 뚜렷하게 갈린다.
 const logs = [
-  ...Array.from({ length: 10 }, () => m(['A', 'B', 'C'], 0)),
-  ...Array.from({ length: 10 }, () => m(['D', 'E', 'F'], 2)),
+  ...Array.from({ length: 10 }, (_, i) => m(['A', 'B', 'C'], 0, day(i))),
+  ...Array.from({ length: 10 }, (_, i) => m(['D', 'E', 'F'], 2, day(i))),
 ];
 const d = calcDefenseAnalysis({ matchLogs: logs });
 

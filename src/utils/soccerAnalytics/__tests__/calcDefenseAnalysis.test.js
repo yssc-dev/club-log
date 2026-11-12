@@ -114,7 +114,7 @@ describe('calcDefenseAnalysis', () => {
         m(['A', 'B', 'C'], 1),
         m(['A', 'B', 'D'], 3), // A·B·D는 1경기 → 임계 미달
       ],
-      individualThreshold: 99, pairThreshold: 99,
+      individualThreshold: 99, pairThreshold: 99, trioMinDates: 0,
     });
     expect(r.trios).toHaveLength(1);
     const abc = r.trios[0];
@@ -127,8 +127,8 @@ describe('calcDefenseAnalysis', () => {
 
   it('trioThreshold로 3인 임계를 조절한다', () => {
     const logs = [m(['A', 'B', 'C'], 1), m(['A', 'B', 'C'], 1)];
-    expect(calcDefenseAnalysis({ matchLogs: logs, trioThreshold: 3 }).trios).toHaveLength(0);
-    expect(calcDefenseAnalysis({ matchLogs: logs, trioThreshold: 2 }).trios).toHaveLength(1);
+    expect(calcDefenseAnalysis({ matchLogs: logs, trioThreshold: 3, trioMinDates: 0 }).trios).toHaveLength(0);
+    expect(calcDefenseAnalysis({ matchLogs: logs, trioThreshold: 2, trioMinDates: 0 }).trios).toHaveLength(1);
   });
 
   it('worstTrios는 best의 역순', () => {
@@ -136,7 +136,7 @@ describe('calcDefenseAnalysis', () => {
       ...Array.from({ length: 3 }, () => m(['A', 'B', 'C'], 0)),
       ...Array.from({ length: 3 }, () => m(['D', 'E', 'F'], 3)),
     ];
-    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 99, pairThreshold: 99 });
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualThreshold: 99, pairThreshold: 99, trioMinDates: 0 });
     expect(r.trios[0].members).toEqual(['A', 'B', 'C']);
     expect(r.worstTrios[0].members).toEqual(['D', 'E', 'F']);
   });
@@ -324,4 +324,31 @@ describe('calcDefenseAnalysis 상대 보정 Δ', () => {
     // 어려움 부재기준 4.0 ×1 + 쉬움 부재기준 0.0 ×1 = 기대 2.0, 실제 0 → +2.0
     expect(ab.delta).toBeCloseTo(2.0);
   });
+
+// 2026-11-12: 진입선 = 수비수로 선 경기일 수(단계별 최다 × 30% 올림). 하루 여러 경기가 1표본으로 뭉치는 걸 반영.
+describe('calcDefenseAnalysis 경기일 진입선', () => {
+  const d = (dfs, conceded, date) => m(dfs, conceded, { date });
+  // A: 10일(하루 1경기) / B: 2일(하루 5경기씩 10경기) / C: 3일
+  const logs = [
+    ...Array.from({ length: 10 }, (_, i) => d(['A'], 1, `2026-06-${String(i + 1).padStart(2, '0')}`)),
+    ...Array.from({ length: 10 }, (_, i) => d(['B'], 0, i < 5 ? '2026-07-01' : '2026-07-02')),
+    ...Array.from({ length: 3 }, (_, i) => d(['C'], 0, `2026-08-0${i + 1}`)),
+  ];
+  it('개인 진입선 = 최다 경기일(10) × 30% = 3일 — 경기 수가 많아도 2일이면 탈락', () => {
+    const r = calcDefenseAnalysis({ matchLogs: logs });
+    expect(r.minDates.individual).toBe(3);
+    expect(r.maxDates.individual).toBe(10);
+    expect(r.individuals.map(x => x.name).sort()).toEqual(['A', 'C']);
+    expect(r.individuals.find(x => x.name === 'A').dates).toBe(10);
+  });
+  it('명시값이 오면 동적 진입선 대신 그것을 쓴다', () => {
+    const r = calcDefenseAnalysis({ matchLogs: logs, individualMinDates: 0 });
+    expect(r.individuals.map(x => x.name).sort()).toEqual(['A', 'B', 'C']);
+  });
+  it('3인 진입선은 최소 2일', () => {
+    const r = calcDefenseAnalysis({ matchLogs: [d(['A', 'B', 'C'], 0, '2026-06-01'), d(['A', 'B', 'C'], 0, '2026-06-01'), d(['A', 'B', 'C'], 0, '2026-06-01')] });
+    expect(r.minDates.trio).toBe(2);
+    expect(r.trios).toHaveLength(0);
+  });
+});
 });

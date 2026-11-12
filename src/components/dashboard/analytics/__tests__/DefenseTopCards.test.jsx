@@ -60,8 +60,9 @@ describe('DefenseTopCardsView', () => {
     expect(html.indexOf('0.00')).toBeLessThan(html.indexOf('2.00'));
   });
 
-  it('표본 미달이면 카드를 통째로 숨긴다', () => {
-    expect(render({ matchLogs: [m(['A', 'B'], 1)] })).toBe('');
+  // 2026-11-12 진입선이 경기일 동적(최다 × 30%)으로 바뀌어 "1경기뿐인 데이터"도 1일 진입선을 통과한다.
+  it('진입선 캡션은 경기일 기준을 보여준다', () => {
+    expect(render()).toContain('수비수로 선 경기일 개인 1일·페어 1일 이상');
   });
 
   it('수비수 기록이 아예 없어도 크래시 없이 숨긴다', () => {

@@ -49,6 +49,7 @@ export function calcOpponentLeaders({
     const defense = calcDefenseAnalysis({
       matchLogs: scoped.filter(m => oppName(m) === opponent),
       individualThreshold: minGames, pairThreshold: Infinity, trioThreshold: Infinity,
+      individualMinDates: 0,  // 상대별 표는 경기 수 진입선만 쓴다(경기일 동적 진입선 미적용)
     });
     const defenseLeaders = sortDefenseRows(defense.individuals, { metric: 'conceded', by: 'raw' })
       .slice(0, topN)

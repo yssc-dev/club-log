@@ -292,7 +292,7 @@ export default function PersonalAnalysisTab({
   // 수비케미 탭과 같은 계산층을 재사용하고, 개인 화면이라 개인 임계만 푼다(individualThreshold:1).
   // 조합 임계는 수비케미와 동일(페어 5·트리오 3) — 두 화면이 서로 다른 목록을 보여주면 안 된다.
   const defenseAll = useMemo(
-    () => (isSoccer ? soccerCalc.calcDefenseAnalysis({ matchLogs: matchLogs || [], individualThreshold: 1 }) : null),
+    () => (isSoccer ? soccerCalc.calcDefenseAnalysis({ matchLogs: matchLogs || [], individualThreshold: 1, individualMinDates: 0 }) : null),
     [isSoccer, matchLogs]
   );
   // 수비 기록이 없는 선수(GK·공격수만 뛴 선수)는 null → 섹션 자체를 숨긴다

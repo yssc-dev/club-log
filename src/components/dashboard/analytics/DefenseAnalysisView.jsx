@@ -14,9 +14,10 @@ import { DEFENSE_METRICS, DEFENSE_METRIC_KEYS } from './defenseMetrics';
 
 const fmt = (v) => (v == null ? '–' : v.toFixed(2));
 
+// 진입선은 calcDefenseAnalysis.minDates(경기일 수, 최다의 30%)에서 온다 — 여기 숫자를 박지 않는다.
 const COMBO_SIZES = [
-  { key: 'pair', label: '2인', rowsKey: 'pairs', minGames: 5, noun: '페어' },
-  { key: 'trio', label: '3인', rowsKey: 'trios', minGames: 3, noun: '트리오' },
+  { key: 'pair', label: '2인', rowsKey: 'pairs', noun: '페어' },
+  { key: 'trio', label: '3인', rowsKey: 'trios', noun: '트리오' },
 ];
 
 function ToggleRow({ options, value, onChange, C }) {
@@ -64,8 +65,7 @@ export function DefenseComboSection({ d, metric, size, C }) {
     <div style={{ marginBottom: 18 }}>
       {size === 'trio' && (
         <div style={{ fontSize: 10, color: C.orange, marginBottom: 6, lineHeight: 1.5 }}>
-          ⚠ 3인 조합은 표본이 적어 참고용입니다. 3경기 이상 함께 선 조합만 표시하며,
-          같은 날 연속 경기가 섞여 있어 실제 표본은 경기 수보다 적습니다.
+          ⚠ 3인 조합은 표본이 적어 참고용입니다. 함께 선 경기일 {d.minDates?.trio ?? 0}일 이상 + 3경기 이상만 표시합니다.
         </div>
       )}
       <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
@@ -76,7 +76,7 @@ export function DefenseComboSection({ d, metric, size, C }) {
           <RankBarList
             rows={toRows(best)} formatValue={(v, r) => r.formatted}
             lowerIsBetter={lowerIsBetter} scaleRef={scaleRef} color={C.green} C={C} nameWidth={80}
-            emptyText={`표본 부족 (${spec.noun}당 ${spec.minGames}경기 이상 필요)`}
+            emptyText={`표본 부족 (${spec.noun}당 함께 선 경기일 ${d.minDates?.[size] ?? 0}일 이상 필요)`}
           />
         </div>
         <div style={{ minWidth: 0 }}>
@@ -128,7 +128,8 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
         value={metric} onChange={setMetric} C={C} />
 
       <div style={{ fontSize: 11, color: C.gray, margin: '4px 0 10px', lineHeight: 1.5 }}>
-        수비수 기록 {d.scopeMatches}경기 · 팀 평균 {fmt(d.teamConcededPerGame)}실점 · 클린시트 {Math.round(d.teamCleanRate * 100)}%
+        수비수 기록 {d.scopeMatches}경기({d.scopeDates}일) · 진입선 = 수비수로 선 경기일 최다의 30%(개인 {d.minDates.individual}일 · 2인 {d.minDates.pair}일 · 3인 {d.minDates.trio}일)
+        <br />팀 평균 {fmt(d.teamConcededPerGame)}실점 · 클린시트 {Math.round(d.teamCleanRate * 100)}%
         {oppBaselineNode}
         <br />⚠️ 조합 목록은 생값(상대·GK 미보정) · 개인 Δ는 같은 상대 기준 보정(GK는 미보정)
       </div>
@@ -137,10 +138,10 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
 
       <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 {M.label} 억제</div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
-        {M.caption} · 8경기 이상
+        {M.caption} · 수비수로 선 경기일 {d.minDates.individual}일 이상
       </div>
       {individuals.length === 0 ? (
-        <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (8경기 이상 필요)</div>
+        <div style={{ fontSize: 11, color: C.gray }}>표본 부족 (경기일 {d.minDates.individual}일 이상 필요)</div>
       ) : (() => {
         // 다이버징 막대 스케일 — 최대 |Δ| 기준 좌우 대칭 (극성은 색+방향+부호 삼중 인코딩)
         const deltas = individuals.map(x => M.deltaOf(x)).filter(v => v != null);
@@ -149,8 +150,8 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
           const delta = M.deltaOf(x);
           return (
             <div key={x.name} style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '4px 0' }}>
-              <span style={{ width: 88, flexShrink: 0, fontSize: 11, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                {x.name} <span style={{ color: C.gray, fontSize: 9 }}>{x.games}G</span>
+              <span style={{ width: 108, flexShrink: 0, fontSize: 11, color: C.white, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                {x.name} <span style={{ color: C.gray, fontSize: 9 }}>{x.games}G·{x.dates}일</span>
               </span>
               <div style={{ flex: 1, display: 'flex', height: 8 }}>
                 <div style={{ flex: 1, display: 'flex', justifyContent: 'flex-end' }}>
