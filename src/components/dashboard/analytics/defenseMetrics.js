@@ -5,7 +5,7 @@
 //   - formatValue: 행에 찍히는 생값. 조합 목록은 이 값 하나만 보여주고 이 값으로 정렬한다
 //                  (표시와 정렬이 같은 수여야 목록이 자기일관 — Δ로 세우면 역전이 보인다)
 //   - bestLabel  : 그 생값 정렬을 그대로 읽은 제목
-//   - deltaOf/formatDelta : 개인 억제 막대용 부재 대비 Δ (조합에는 안 쓴다)
+//   - deltaOf/formatDelta : 개인 막대용 그날 평균 대비 Δ (조합에는 안 쓴다)
 // 두 Δ는 부호 방향이 같다(+면 억제). 실점률은 낮을수록 좋아 베이스라인−출전,
 // 클린시트율은 높을수록 좋아 출전−베이스라인으로 calcDefenseAnalysis가 맞춰 놓았다.
 
@@ -21,7 +21,7 @@ export const DEFENSE_METRICS = {
     bestLabel: '실점 적은순',
     deltaOf: (r) => r.delta,
     formatDelta: (d) => (d == null ? '–' : signed(d.toFixed(2), d)),
-    caption: 'Δ = 같은 상대에서의 부재 − 출전 실점차 · +면 억제',
+    caption: '수비력 = 그날 평균 실점 − 내가 수비수로 선 경기 평균 실점 · +면 덜 먹힘',
   },
   clean: {
     key: 'clean',
@@ -31,7 +31,7 @@ export const DEFENSE_METRICS = {
     bestLabel: '무실점률 높은순',
     deltaOf: (r) => r.cleanDelta,
     formatDelta: (d) => (d == null ? '–' : signed(`${Math.round(d * 100)}%p`, d)),
-    caption: 'Δ = 같은 상대에서의 출전 − 부재 클린시트율차 · +면 억제',
+    caption: '내 무실점률 − 그날 평균 무실점률 · +면 좋음',
   },
 };
 

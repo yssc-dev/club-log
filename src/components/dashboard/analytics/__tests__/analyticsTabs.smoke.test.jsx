@@ -265,7 +265,7 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
 
   it('AwardsTab: 축구 — 기간 토글이 있어도 누적 진입선은 고정값 그대로', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
-    expect(html).toContain('10경기 이상 (키퍼는 4경기 이상)');
+    expect(html).toContain('10경기 이상 (키퍼는 4경기 이상');
     expect(html).not.toContain('최다 경기수의 30%');
   });
 
@@ -287,10 +287,23 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('NaN');
   });
 
-  it('AwardsTab: 축구 모드 — 수비력은 예전 경기당 팀실점 그대로(풋살 블록 없음)', () => {
+  // 2026-11-12: 축구 수비력 열(전원 경기당 팀실점) → 「강한 수비수」 블록(수비수 경기만, 그날 평균 대비)
+  it('AwardsTab: 축구 모드 — 강한 수비수 블록, 옛 경기당 팀실점 열 없음', () => {
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
-    expect(html).toContain('수비력 (경기당 팀실점');
-    expect(html).not.toContain('그날 평균');
+    expect(html).toContain('강한 수비수');
+    expect(html).not.toContain('수비력 (경기당 팀실점');
+    expect(html).not.toContain('필드로 뛴 경기만');
+  });
+
+  it('AwardsTab: 축구 모드 — 수비수 기록이 있으면 근거 줄(수비수 N경기·그날 평균)을 그린다', () => {
+    const dfLogs = ['2026-06-01', '2026-06-02', '2026-06-03'].flatMap(date => [
+      { date, our_defenders_json: JSON.stringify(['수A', '수B']), opponent_score: 0, our_score: 1, our_members_json: '[]' },
+      { date, our_defenders_json: JSON.stringify(['수C', '수B']), opponent_score: 2, our_score: 0, our_members_json: '[]' },
+    ]);
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs: dfLogs, eventLogs, C, isSoccer: true });
+    expect(html).toContain('수A');
+    expect(html).toMatch(/수비수 3경기\(3일\) 0실점 · 경기당 0\.00 · 그날 평균 1\.00/);
+    expect(html).toContain('+1.00');
   });
 
   it('PersonalAnalysisTab: 풋살 — 수비력 근거 줄은 그날 평균 대비, 옛 요약 줄은 없다', () => {

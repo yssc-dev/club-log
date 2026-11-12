@@ -290,7 +290,7 @@ export default function PersonalAnalysisTab({
 
   // ── 개인 수비 지표 (축구 전용) ──
   // 수비케미 탭과 같은 계산층을 재사용하고, 개인 화면이라 개인 임계만 푼다(individualThreshold:1).
-  // 조합 임계는 수비케미와 동일(페어 5·트리오 3) — 두 화면이 서로 다른 목록을 보여주면 안 된다.
+  // 조합 진입선은 수비케미와 동일(경기일 동적 30%) — 두 화면이 서로 다른 목록을 보여주면 안 된다.
   const defenseAll = useMemo(
     () => (isSoccer ? soccerCalc.calcDefenseAnalysis({ matchLogs: matchLogs || [], individualThreshold: 1, individualMinDates: 0 }) : null),
     [isSoccer, matchLogs]
@@ -487,21 +487,21 @@ export default function PersonalAnalysisTab({
                 </span>
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "6px 0", fontSize: 10 }}>
-                <span style={{ color: C.gray }}>본인 부재 대비 · 같은 상대 기준</span>
+                <span style={{ color: C.gray }}>수비력 · 그날 평균 {myDefense.me.baselineConcededPerGame == null ? '–' : myDefense.me.baselineConcededPerGame.toFixed(2)}실점 대비</span>
                 <span style={{ fontWeight: 600, fontVariantNumeric: "tabular-nums", color: myDefense.me.delta == null ? C.gray : (myDefense.me.delta >= 0 ? C.green : C.red) }}>
                   {myDefense.me.delta == null
-                    ? "– (비교할 부재 경기 없음)"
-                    : `${myDefense.me.delta >= 0 ? "+" : ""}${myDefense.me.delta.toFixed(2)}실점 ${myDefense.me.delta >= 0 ? "억제" : "허용"}`}
+                    ? "–"
+                    : `${myDefense.me.delta >= 0 ? "+" : ""}${myDefense.me.delta.toFixed(2)}실점 ${myDefense.me.delta >= 0 ? "덜 먹힘" : "더 먹힘"}`}
                 </span>
               </div>
               {[
-                { title: "함께 선 2인", rows: myDefense.pairs, minGames: 5 },
-                { title: "함께 선 3인", rows: myDefense.trios, minGames: 3 },
-              ].map(({ title, rows, minGames }) => (
+                { title: "함께 선 2인", rows: myDefense.pairs, minDates: defenseAll.minDates.pair },
+                { title: "함께 선 3인", rows: myDefense.trios, minDates: defenseAll.minDates.trio },
+              ].map(({ title, rows, minDates }) => (
                 <div key={title} style={{ marginTop: 6 }}>
                   <div style={{ fontSize: 10, color: C.gray, fontWeight: 700, marginBottom: 2 }}>{title} (실점 적은순)</div>
                   {rows.length === 0 ? (
-                    <div style={{ fontSize: 10, color: C.gray }}>{minGames}경기 이상 함께 선 조합 없음</div>
+                    <div style={{ fontSize: 10, color: C.gray }}>함께 선 경기일 {minDates}일 이상인 조합 없음</div>
                   ) : rows.map(r => (
                     <div key={r.members.join("|")} style={{ display: "flex", justifyContent: "space-between", gap: 6, padding: "3px 0" }}>
                       <span style={{ color: C.gray, minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>

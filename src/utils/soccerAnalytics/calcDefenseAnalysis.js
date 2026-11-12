@@ -1,16 +1,13 @@
-// 수비 분석 (축구 전용): our_defenders_json 기반 개인 실점억제율 + DF 페어 실점 케미.
+// 수비 분석 (축구 전용): our_defenders_json 기반 개인 「수비력」 + DF 2인/3인 조합.
 // 집계 범위 = is_extra 아님 + 수비수 기록이 있는 경기만(레코더 도입 후 — 레거시엔 defenders 없음).
 //
-// delta = '같은 상대에서의' 부재 대비 억제. 상대 버킷별로
-//   부재 기준선 = (그 상대 팀실점 − 본인 출전분) / (그 상대 팀경기 − 본인 출전경기)
-// 를 잡고, 본인 출전 경기수로 가중합한 기대 실점과 실제를 비교한다. 양수 = 억제.
-// 상대를 무시하면 어려운 상대만 맡은 수비수가 과대 처벌된다
-// (실측: 팀 기준선이 한울 0.56 vs 터틀파크 1.65로 3배 차이 — 미보정 순위는
-//  '누가 한울전에 많이 나왔나'를 상당 부분 반영했다).
-// 그 상대 경기를 전부 뛴 버킷은 부재 표본이 없어 매칭에서 뺀다. 매칭 표본이 0이면
-// hasBaseline=false·delta=null — pairBaseline 규약과 동일, 소비자는 '–' 표시.
-// 상대팀명이 없는 데이터는 단일 버킷으로 떨어져 옛 전체-부재 수식과 정확히 일치한다.
-// 한계(의도): GK 미보정 — UI 캡션에 명시.
+// delta(수비력) = 그날 평균 실점 − 내가 수비수로 선 경기 평균 실점. 양수 = 그날 평균보다 덜 먹힘.
+//   그날 평균 = 그 경기일 범위 내 전체 경기(수비수 기록 있는 경기)의 경기당 실점. 본인 경기 포함.
+//   baselineConcededPerGame = 내가 뛴 경기마다 그날 평균을 붙여 낸 평균(경기 수 가중).
+// cleanDelta = 내 무실점률 − 그날 무실점률(같은 방식). 부호 방향은 delta 와 같다(+면 좋음).
+// 마스터FC 풋살 「수비력」(analyticsV2/calcFieldDefense)과 같은 정의 — 2026-11-12 유저 결정
+// ("상대가 누구든 상관없다"). 그 전엔 '같은 상대에서의 부재 대비' 보정이었으나 폐기했다.
+// 한계(의도): 상대·GK 미보정 — UI 캡션에 명시.
 import { parseActualPlayers } from './parseMembers';
 import { expandIntraMatchRows } from './expandIntraMatchRows';
 import { dynamicMin } from './dynamicMin';
@@ -74,7 +71,7 @@ export function calcDefenseAnalysis({
   }
   const totalMatches = scope.length;
 
-  // 상대별 팀 스탯 — 보정 기준선의 재료이자 캡션의 '상대별 팀 실점' 표기용.
+  // 상대별 팀 스탯 — 팀 합계와 opponents(상대별 팀 실점 표기용) 재료. 수비력 기준선과는 무관(그날 평균 사용).
   // 팀 합계(totalConceded 등)도 여기서 파생해 scope를 한 번만 돈다.
   const oppStats = {};
   for (const { opponent, conceded } of scope) {
@@ -84,16 +81,23 @@ export function calcDefenseAnalysis({
   const totalConceded = Object.values(oppStats).reduce((s, o) => s + o.c, 0);
   const totalCleanSheets = Object.values(oppStats).reduce((s, o) => s + o.cs, 0);
 
+  // 경기일별 팀 실점 — 수비력 기준선(그날 평균)의 재료
+  const dayStats = {};
+  for (const { date, conceded } of scope) {
+    const d = (dayStats[date] ??= { g: 0, c: 0, cs: 0 });
+    d.g++; d.c += conceded; if (conceded === 0) d.cs++;
+  }
+
   const indiv = {};
   const pair = {};
   const trio = {};
   const bump = (map, key, conceded, opponent, date) => {
-    if (!map[key]) map[key] = { games: 0, conceded: 0, cleanSheets: 0, byOpp: {}, dates: new Set() };
+    if (!map[key]) map[key] = { games: 0, conceded: 0, cleanSheets: 0, dates: new Set(), baseC: 0, baseCs: 0 };
     const s = map[key];
     s.games++; s.conceded += conceded; s.dates.add(date);
+    const day = dayStats[date];
+    s.baseC += day.c / day.g; s.baseCs += day.cs / day.g;
     if (conceded === 0) s.cleanSheets++;
-    const o = (s.byOpp[opponent] ??= { g: 0, c: 0, cs: 0 });
-    o.g++; o.c += conceded; if (conceded === 0) o.cs++;
   };
   for (const { dfs, conceded, opponent, date } of scope) {
     for (const d of dfs) bump(indiv, d, conceded, opponent, date);
@@ -108,33 +112,17 @@ export function calcDefenseAnalysis({
   const finish = (s) => {
     const concededPerGame = s.games > 0 ? s.conceded / s.games : 0;
     const cleanRate = s.games > 0 ? s.cleanSheets / s.games : 0;
-    // 상대 버킷별 부재 기준선을 본인 출전 경기수로 가중합해 '기대'를 만든다.
-    // 그 상대 경기를 전부 뛴 버킷(baseG=0)은 부재 표본이 없어 실제·기대 양쪽에서 뺀다 —
-    // 그래서 Δ의 분모(matched)는 드물게 games보다 작을 수 있고, 그때 표시용 생값
-    // (concededPerGame, 전 경기 기준)과 Δ의 실제항이 미세하게 어긋난다(의도).
-    let matched = 0, actConceded = 0, actClean = 0, expConceded = 0, expClean = 0;
-    for (const [opp, o] of Object.entries(s.byOpp)) {
-      const t = oppStats[opp];
-      const baseG = t.g - o.g;
-      if (baseG <= 0) continue;
-      matched += o.g;
-      actConceded += o.c; actClean += o.cs;
-      expConceded += o.g * ((t.c - o.c) / baseG);
-      expClean += o.g * ((t.cs - o.cs) / baseG);
-    }
-    const hasBaseline = matched > 0;
-    const baselineConcededPerGame = hasBaseline ? expConceded / matched : null;
-    // 클린시트 Δ는 실점률 Δ와 부호 방향을 맞춘다(+면 억제). 실점률은 '낮을수록 좋음'이라
-    // 기대−실제, 클린시트율은 '높을수록 좋음'이라 실제−기대.
-    const baselineCleanRate = hasBaseline ? expClean / matched : null;
+    const hasBaseline = s.games > 0;
+    const baselineConcededPerGame = hasBaseline ? s.baseC / s.games : null;
+    const baselineCleanRate = hasBaseline ? s.baseCs / s.games : null;
     return {
       games: s.games, dates: s.dates.size, conceded: s.conceded, cleanSheets: s.cleanSheets,
       concededPerGame,
       cleanRate,
       baselineConcededPerGame,
-      delta: hasBaseline ? baselineConcededPerGame - actConceded / matched : null,
+      delta: hasBaseline ? baselineConcededPerGame - concededPerGame : null,
       baselineCleanRate,
-      cleanDelta: hasBaseline ? actClean / matched - baselineCleanRate : null,
+      cleanDelta: hasBaseline ? cleanRate - baselineCleanRate : null,
       hasBaseline,
     };
   };

@@ -6,7 +6,7 @@
 //
 // 조합 목록은 '생값으로 표시하고 생값으로 정렬'한다. Δ로 세우면 표본이 큰 조합의
 // 베이스라인이 팀 평균과 크게 달라져, 화면의 숫자가 정렬을 거스르는 역전이 보인다
-// (예: 1.37실점 19경기가 1.40실점 5경기보다 위). 부재 대비 Δ는 아래 개인 섹션이 담당.
+// (예: 1.37실점 19경기가 1.40실점 5경기보다 위). 그날 평균 대비 Δ는 아래 개인 섹션이 담당.
 import { useMemo, useState } from 'react';
 import { calcDefenseAnalysis, sortDefenseRows } from '../../../utils/soccerAnalytics';
 import RankBarList from './RankBarList';
@@ -104,15 +104,6 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
     [d, metric],
   );
 
-  // 상대별 팀 기준선 캡션 — 개인 Δ가 이 기준으로 보정된다는 걸 화면에서 보이게 한다.
-  // 5경기 미만 상대는 기준선 자체가 소음이라 표기에서 뺀다(보정 계산에는 들어감).
-  const majors = (d.opponents || []).filter(o => o.opponent && o.games >= 5);
-  const baselineVal = (o) => metric === 'clean'
-    ? `${Math.round(o.cleanRate * 100)}%` : o.concededPerGame.toFixed(2);
-  const oppBaselineNode = majors.length === 0 ? null : (
-    <><br />상대별 팀 {metric === 'clean' ? '무실점률' : '실점'}: {majors.map(o => `${o.opponent} ${baselineVal(o)}`).join(' · ')}</>
-  );
-
   if (d.scopeMatches === 0) {
     return (
       <div style={{ textAlign: 'center', padding: 30, color: C.gray, fontSize: 12 }}>
@@ -130,13 +121,12 @@ export default function DefenseAnalysisView({ matchLogs, C }) {
       <div style={{ fontSize: 11, color: C.gray, margin: '4px 0 10px', lineHeight: 1.5 }}>
         수비수 기록 {d.scopeMatches}경기({d.scopeDates}일) · 진입선 = 수비수로 선 경기일 최다의 30%(개인 {d.minDates.individual}일 · 2인 {d.minDates.pair}일 · 3인 {d.minDates.trio}일)
         <br />팀 평균 {fmt(d.teamConcededPerGame)}실점 · 클린시트 {Math.round(d.teamCleanRate * 100)}%
-        {oppBaselineNode}
-        <br />⚠️ 조합 목록은 생값(상대·GK 미보정) · 개인 Δ는 같은 상대 기준 보정(GK는 미보정)
+        <br />⚠️ 조합 목록은 생값 · 개인은 그날 평균 대비(상대·GK 미보정)
       </div>
 
       <DefenseComboSection d={d} metric={metric} size={size} C={C} />
 
-      <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 {M.label} 억제</div>
+      <div style={{ fontSize: 11, color: C.white, fontWeight: 700, marginBottom: 2 }}>개인 {metric === 'clean' ? '무실점률 (그날 평균 대비)' : '수비력 (그날 평균 대비)'}</div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>
         {M.caption} · 수비수로 선 경기일 {d.minDates.individual}일 이상
       </div>
