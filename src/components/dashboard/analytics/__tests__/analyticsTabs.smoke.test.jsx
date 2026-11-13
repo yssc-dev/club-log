@@ -210,6 +210,23 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).toContain('종합포인트 (골+어시+클린+크로바+고구마+역주행)');
   });
 
+  // 2026-11-13: 지표 Top5 각 행에 근거(골/경기·실점/경기·승무패 등)를 함께 표기
+  it('AwardsTab: 지표 Top5 행마다 근거 표기', async () => {
+    const { calcPlayerSummary, calcMetricLeaders } = await import('../../../../utils/analyticsV2');
+    const { perPlayer, totalSessions } = calcPlayerSummary({ matchLogs, eventLogs, playerGameLogs });
+    const L = calcMetricLeaders({ perPlayer, totalSessions });
+    const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
+    const s = L.scoring[0], k = L.keeping[0], w = L.winRate[0], a = L.attendance[0];
+    expect(html).toContain(`${s.goals}골/${s.rounds}경기`);
+    expect(html).toContain(`${k.conceded}실점/${k.keeperRounds}경기`);
+    expect(html).toContain(`${w.wins}승 ${w.draws}무 ${w.losses}패`);
+    expect(html).toContain(`${a.games}/${a.totalSessions}일`);
+    expect(html).not.toContain('undefined');
+    // 축구는 진입 10경기 고정이라 이 5경기 픽스처에선 Top5가 비어 있다 — 근거 없이도 깨지지 않아야 한다
+    const soccer = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C, isSoccer: true });
+    expect(soccer).not.toContain('undefined');
+  });
+
   // 지표 Top5 진입 기준 — 풋살은 각 축 최대치의 30% 동적(2026-08-21), 축구 10경기 유지
   it('AwardsTab: 풋살 — 지표 Top5 진입 기준은 최대치의 30% 동적 표기', () => {
     // 픽스처: 전원 5경기 → 출전 ceil(5×0.3)=2 · 최대 필드 4 → 2 · 최대 키퍼 3 → 1

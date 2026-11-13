@@ -1,6 +1,7 @@
 // src/components/dashboard/analytics/AwardsTab.jsx
 import { useMemo, useState } from 'react';
 import RankBarList from './RankBarList';
+import { withBasis } from './metricBasis';
 import { filterLogsByPeriod, recentCutoff, latestLogDate } from '../../../utils/analyticsPeriod';
 import * as futsalCalc from '../../../utils/analyticsV2';
 import * as soccerCalc from '../../../utils/soccerAnalytics';
@@ -186,10 +187,12 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
 
   // 지표 Top5 / 랭킹 공통 열 — 막대 표현은 RankBarList가 맡는다(앱 전체 순위 목록과 같은 형태).
   // invert=낮을수록 좋음(실점률·편차) → 1위가 항상 최장.
-  const MetricBarCol = ({ title, rows, fmt, invert = false, color }) => (
+  // basis: 지표 키(metricBasis.METRIC_BASIS) — 주면 행마다 근거(골/경기 등)를 값 옆에 붙인다
+  const MetricBarCol = ({ title, rows, fmt, invert = false, color, basis }) => (
     <div>
       <div style={{ fontSize: 10, color: C.gray, marginBottom: 6 }}>{title}</div>
-      <RankBarList rows={rows} formatValue={fmt} lowerIsBetter={invert} color={color || C.accent} C={C} emptyText="-" />
+      <RankBarList rows={basis ? withBasis(basis, rows) : rows} formatValue={fmt} lowerIsBetter={invert}
+        color={color || C.accent} C={C} emptyText="-" subBelow={!!basis} />
     </div>
   );
 
@@ -275,13 +278,13 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
             : `10경기 이상 (키퍼는 4경기 이상 · 강한 수비수는 수비수 ${soccerDefense?.minGames ?? 0}경기 이상 = 최다의 30%)`}
         </div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}>
-          <MetricBarCol title="⚽ 득점력 (경기당 골)" rows={metricLeaders.scoring} fmt={v => v.toFixed(2)} />
-          <MetricBarCol title="🎨 창의력 (경기당 어시)" rows={metricLeaders.creativity} fmt={v => v.toFixed(2)} />
+          <MetricBarCol title="⚽ 득점력 (경기당 골)" rows={metricLeaders.scoring} basis="scoring" fmt={v => v.toFixed(2)} />
+          <MetricBarCol title="🎨 창의력 (경기당 어시)" rows={metricLeaders.creativity} basis="creativity" fmt={v => v.toFixed(2)} />
           {/* 풋살 수비력은 근거 줄이 붙어 폭이 필요하다 → 격자 아래 전폭 블록(DefenseBlock) */}
-          <MetricBarCol title="🧤 키퍼 (경기당 실점 ↓)" rows={metricLeaders.keeping} fmt={v => v.toFixed(2)} invert />
-          <MetricBarCol title="📅 참석률" rows={metricLeaders.attendance} fmt={v => `${(v * 100).toFixed(2)}%`} />
-          <MetricBarCol title="🏁 승리기여 (승률)" rows={metricLeaders.winRate} fmt={v => `${(v * 100).toFixed(2)}%`} />
-          <MetricBarCol title="🎯 팀득점관여율 (골+어시/팀득점)" rows={metricLeaders.involvement} fmt={v => `${(v * 100).toFixed(2)}%`} />
+          <MetricBarCol title="🧤 키퍼 (경기당 실점 ↓)" rows={metricLeaders.keeping} basis="keeping" fmt={v => v.toFixed(2)} invert />
+          <MetricBarCol title="📅 참석률" rows={metricLeaders.attendance} basis="attendance" fmt={v => `${(v * 100).toFixed(2)}%`} />
+          <MetricBarCol title="🏁 승리기여 (승률)" rows={metricLeaders.winRate} basis="winRate" fmt={v => `${(v * 100).toFixed(2)}%`} />
+          <MetricBarCol title="🎯 팀득점관여율 (골+어시/팀득점)" rows={metricLeaders.involvement} basis="involvement" fmt={v => `${(v * 100).toFixed(2)}%`} />
         </div>
         {!isSoccer && fieldDefense && <DefenseBlock rows={fieldDefense.ranking} minGames={fieldDefense.thresholds.minFieldRounds} maxGames={fieldDefense.thresholds.maxFieldRounds} />}
         {isSoccer && soccerDefense && <SoccerDefenderBlock d={soccerDefense} />}

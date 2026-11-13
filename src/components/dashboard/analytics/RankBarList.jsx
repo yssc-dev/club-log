@@ -22,6 +22,8 @@ export default function RankBarList({
   rows, formatValue, C,
   lowerIsBetter = false, color, limit = 5, emptyText = '표본 부족', showRank = true,
   nameWidth = 40, subWidth = 40, scaleRef,
+  // subBelow: 부가정보(sub)를 행 오른쪽 대신 그 아래 작은 줄로 — 좁은 2열 격자(지표 Top5)에서 막대가 눌리지 않게
+  subBelow = false,
 }) {
   const list = (rows || []).slice(0, limit);
   if (list.length === 0) {
@@ -40,7 +42,8 @@ export default function RankBarList({
   return (
     <>
       {list.map((r, i) => (
-        <div key={nameOf(r) || `row-${i}`} style={{ display: 'flex', alignItems: 'center', gap: 4, padding: '2px 0', fontSize: 10 }}>
+        <div key={nameOf(r) || `row-${i}`} style={{ padding: subBelow ? '2px 0 3px' : 0 }}>
+        <div style={{ display: 'flex', alignItems: 'center', gap: 4, padding: subBelow ? 0 : '2px 0', fontSize: 10 }}>
           {showRank && (
             <span style={{ width: 22, flexShrink: 0, textAlign: 'right', color: C.grayDark }}>
               {r.rank ?? i + 1}위
@@ -58,11 +61,17 @@ export default function RankBarList({
           <span style={{ flexShrink: 0, color: barColor, fontWeight: 700, fontVariantNumeric: 'tabular-nums' }}>
             {formatValue(r.value, r)}
           </span>
-          {r.sub && (
+          {r.sub && !subBelow && (
             <span style={{ width: subWidth, flexShrink: 0, textAlign: 'right', fontSize: 9, color: C.grayDark, whiteSpace: 'nowrap' }}>
               {r.sub}
             </span>
           )}
+        </div>
+        {r.sub && subBelow && (
+          <div style={{ paddingLeft: showRank ? 26 : 0, fontSize: 9, color: C.grayDark, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+            {r.sub}
+          </div>
+        )}
         </div>
       ))}
     </>
