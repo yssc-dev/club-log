@@ -254,6 +254,25 @@ describe('calcPlayerSummary', () => {
       expect(r.perPlayer.A.fieldRounds).toBe(0); // max(0, 1-5) = 0
     });
 
+    it('레거시 부분명단에 빠진 날의 PG 키퍼 기록도 keeperRounds/conceded에 합산 — 필드 계산엔 미반영', () => {
+      // 실데이터(마스터FC 김종현): 01-15·03-12 PG엔 키퍼 3경기 0실점이 있지만 로그_매치 명단엔 없음
+      // → 지표 Top5(0.67)와 수문장 카드(0.62)가 어긋났다. 키퍼는 PG가 권위라 날짜 검사 없이 센다.
+      const matchLogs = [
+        { date: '2026-01-08', match_id: 'R1_C0', our_members_json: '["A","B"]', opponent_members_json: '[]', our_gk: '', our_score: 0, opponent_score: 2 },
+        { date: '2026-01-08', match_id: 'R2_C0', our_members_json: '["A","B"]', opponent_members_json: '[]', our_gk: '', our_score: 0, opponent_score: 1 },
+        { date: '2026-01-15', match_id: 'R1_C0', our_members_json: '["B"]', opponent_members_json: '[]', our_gk: '', our_score: 1, opponent_score: 0 },
+      ];
+      const playerGameLogs = [
+        { date: '2026-01-08', player: 'A', keeper_games: 1, conceded: 2 },
+        { date: '2026-01-15', player: 'A', keeper_games: 2, conceded: 0 }, // A는 이날 명단에 없음
+        { date: '2026-02-01', player: 'A', keeper_games: 4, conceded: 9 }, // 세션 날짜 밖(기간 밖·is_extra 전용) → 무시
+      ];
+      const r = calcPlayerSummary({ matchLogs, eventLogs: [], playerGameLogs });
+      expect(r.perPlayer.A).toMatchObject({ keeperRounds: 3, conceded: 2 });
+      // 필드는 명단 기준 그대로: rounds 2 − 명단 날 키퍼 1 = 1, 팀실점 3 − 명단 날 키퍼실점 2 = 1
+      expect(r.perPlayer.A).toMatchObject({ rounds: 2, fieldRounds: 1, fieldConceded: 1 });
+    });
+
     it('PG가 없으면 matchLogs.our_gk fallback (기존 동작 유지)', () => {
       const matchLogs = [
         { match_id: 'R1_C0', our_members_json: '["A"]', opponent_members_json: '[]', our_gk: 'A', our_score: 0, opponent_score: 2 },

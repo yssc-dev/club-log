@@ -7,8 +7,9 @@
 // - keeperRounds/conceded(GK 실점): playerGameLogs(PG) 우선, 없으면 matchLogs.our_gk fallback
 //   * 이유: 2026-04-23 이전 matchLogs.our_gk가 거의 비어 있음 (legacy 데이터 누락).
 //     PG가 keeper 정보의 권위 소스. 향후 matchLogs.our_gk가 항상 채워지면 PG 의존 제거 가능.
-// - fieldRounds = rounds - keeperRounds (음수 방지)
-// - fieldConceded = (출전 매치의 자기팀 실점 합) - conceded(GK)
+//   * 키퍼 수치는 세션 날짜의 PG를 명단 여부와 무관하게 전부 합산(수문장 카드와 동일).
+// - fieldRounds = rounds - (명단에 있는 날의 keeperRounds) (음수 방지)
+// - fieldConceded = (출전 매치의 자기팀 실점 합) - (명단에 있는 날의 conceded)
 // - is_extra=true 매치는 모든 카운트에서 제외
 
 // ★ 휴식 매치는 본인이 안 뛴 매치이므로 모든 카운트(rounds/matches/wins...)에서 제외
@@ -92,7 +93,7 @@ export function calcPlayerSummary({ matchLogs = [], eventLogs = [], playerGameLo
     }
   }
 
-  // 3) PG 패스: keeper 권위 데이터로 덮어쓰기 (해당 선수의 출전 날짜만 인정, rounds 캡)
+  // 3) PG 패스: keeper 권위 데이터로 덮어쓰기 (키퍼 수치는 세션 날짜 전부, 필드 차감은 명단 날짜만)
   const pgByPlayer = {};
   for (const p of playerGameLogs) {
     const name = p.player;
@@ -104,22 +105,28 @@ export function calcPlayerSummary({ matchLogs = [], eventLogs = [], playerGameLo
   for (const name of Object.keys(perPlayer)) {
     const s = perPlayer[name];
     const pgRows = pgByPlayer[name];
-    let keeperRounds = 0, conceded = 0, usedPg = false;
+    // keeperRounds/conceded: 세션 날짜(기간·is_extra 반영)의 PG 키퍼 기록 전부 — 수문장 카드(calcAwards)와 동일 값.
+    //   레거시 부분명단(~04-23)은 골·어시 없는 키퍼를 빠뜨리므로 명단 날짜로 거르지 않는다(2026-11-13).
+    // 필드 계산용(rosterKeeper*): 명단에 있는 날만 — rounds/팀실점이 명단 기준이라 같은 모집단에서 빼야 한다.
+    let keeperRounds = 0, conceded = 0, rosterKeeperRounds = 0, rosterKeeperConceded = 0, usedPg = false;
     if (pgRows && pgRows.length > 0) {
       usedPg = true;
       for (const p of pgRows) {
-        if (!s._attendedDates.has(p.date)) continue; // 출전 안 한 날짜는 무시
-        keeperRounds += Number(p.keeper_games || p.keeperGames) || 0;
-        conceded += Number(p.conceded) || 0;
+        if (!sessionDates.has(p.date)) continue; // 세션 밖(기간 밖·is_extra 전용) 날짜는 무시
+        const kg = Number(p.keeper_games || p.keeperGames) || 0;
+        const c = Number(p.conceded) || 0;
+        keeperRounds += kg;
+        conceded += c;
+        if (s._attendedDates.has(p.date)) { rosterKeeperRounds += kg; rosterKeeperConceded += c; }
       }
     } else {
-      keeperRounds = s._mtKeeperRounds;
-      conceded = s._mtConceded;
+      keeperRounds = rosterKeeperRounds = s._mtKeeperRounds;
+      conceded = rosterKeeperConceded = s._mtConceded;
     }
     s.keeperRounds = keeperRounds;
     s.conceded = conceded;
-    s.fieldRounds = Math.max(0, s.rounds - keeperRounds);
-    s.fieldConceded = Math.max(0, s._teamConceded - conceded);
+    s.fieldRounds = Math.max(0, s.rounds - rosterKeeperRounds);
+    s.fieldConceded = Math.max(0, s._teamConceded - rosterKeeperConceded);
     s.avgConceded = s.fieldRounds > 0 ? s.fieldConceded / s.fieldRounds : 0;
     s.winRate = s.matches > 0 ? (s.wins + s.draws * 0.5) / s.matches : 0;
     s.goalInvolvement = s.teamGoals > 0 ? (s.goals + s.assists) / s.teamGoals : 0;
