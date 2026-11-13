@@ -119,6 +119,14 @@ export default function PushMatchView({
       court: "", mercenaries: [], isExtra: false,
     };
 
+    // GK 필수 체크 — 자유대진(FreeMatchView)·대진표 모드와 같은 규칙.
+    // 골 입력은 GK가 없으면 CourtRecorder가 막지만 무득점(0:0) 경기는 그 관문을 안 거쳐,
+    // 여기서 안 막으면 로그_매치 GK 칸이 빈 채로 올라간다(2026-11-12 P9·P16).
+    if (!result.homeGk || !result.awayGk) {
+      alert(`키퍼를 지정하세요: ${!result.homeGk ? result.homeTeam : ""}${!result.homeGk && !result.awayGk ? ", " : ""}${!result.awayGk ? result.awayTeam : ""}`);
+      return;
+    }
+
     const msg = `${result.homeTeam} ${homeScore}:${awayScore} ${result.awayTeam}`;
     if (!confirm(msg + "\n\n경기결과를 확정하시겠습니까?")) return;
 
