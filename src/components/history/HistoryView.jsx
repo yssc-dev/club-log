@@ -14,6 +14,7 @@ import IntraSoccerArchiveDetail from '../intra/IntraSoccerArchiveDetail';
 import { isIntra } from '../../utils/intraSoccer/sideView';
 import TennisResultsModal from '../tennis/TennisResultsModal';
 import { makeStyles } from '../../styles/theme';
+import { sortFutsalMatchesByPlayOrder } from '../../utils/futsalMatchOrder';
 
 function calcStandings(completedMatches, teamNames) {
   const stats = {};
@@ -292,7 +293,8 @@ export default function HistoryView({ teamContext, onBack }) {
           {/* 경기 기록 */}
           <div style={{ marginBottom: 16 }}>
             <div style={{ fontSize: 14, fontWeight: 800, color: C.white, marginBottom: 8 }}>📋 경기 기록</div>
-            {matches.map((m, i) => {
+            {/* 보관 당시 배열이 RTDB 사전순(P10이 P1 앞)으로 뒤틀려 있을 수 있어 표시는 경기 순서로 */}
+            {sortFutsalMatchesByPlayOrder(matches).map((m, i) => {
               const evts = events.filter(e => e.matchId === m.matchId);
               const courtCount = gs?.courtCount || 1;
               const label = (() => {

@@ -1,6 +1,7 @@
 // firebaseSync 의 순수 helper 함수들. firebase SDK 의존 없음.
 // 별도 파일로 분리해 단위테스트 가능하게 함.
 
+import { sortFutsalMatchesByPlayOrder } from '../utils/futsalMatchOrder';
 import { readRoles } from '../utils/soccerRoles';
 
 export const META_FIELDS = [
@@ -369,7 +370,8 @@ export function reconstructState(gameId, raw) {
   const meta = raw.meta || {};
   const events = raw.events ? Object.values(raw.events) : [];
   events.sort((a, b) => (a?.timestamp || 0) - (b?.timestamp || 0));
-  const matches = raw.matches ? Object.values(raw.matches) : [];
+  // RTDB 는 matches 키(matchId)를 사전순으로 돌려줘 P10 이 P1 앞에 온다 → 실제 경기 순서로 복원
+  const matches = raw.matches ? sortFutsalMatchesByPlayOrder(Object.values(raw.matches)) : [];
   const soccerMatches = raw.soccerMatches
     ? Object.values(raw.soccerMatches).sort((a, b) => (a?.matchIdx || 0) - (b?.matchIdx || 0)).map(normalizeSoccerMatch)
     : [];
