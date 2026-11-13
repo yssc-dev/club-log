@@ -114,6 +114,7 @@ export function calcPlayerSummary({ matchLogs = [], eventLogs = [], playerGameLo
       for (const p of pgRows) {
         if (!sessionDates.has(p.date)) continue; // 세션 밖(기간 밖·is_extra 전용) 날짜는 무시
         const kg = Number(p.keeper_games || p.keeperGames) || 0;
+        if (kg <= 0) continue; // 키퍼로 안 뛴 행의 conceded는 무시 — calcAwards와 동일 규칙
         const c = Number(p.conceded) || 0;
         keeperRounds += kg;
         conceded += c;

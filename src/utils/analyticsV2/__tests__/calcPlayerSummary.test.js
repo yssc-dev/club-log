@@ -273,6 +273,15 @@ describe('calcPlayerSummary', () => {
       expect(r.perPlayer.A).toMatchObject({ rounds: 2, fieldRounds: 1, fieldConceded: 1 });
     });
 
+    it('키퍼 0경기 행의 conceded는 키퍼 실점에 넣지 않음 (calcAwards와 동일)', () => {
+      const matchLogs = [
+        { date: '2026-09-30', match_id: 'R1_C0', our_members_json: '["A"]', opponent_members_json: '[]', our_gk: '', our_score: 0, opponent_score: 1 },
+      ];
+      const playerGameLogs = [{ date: '2026-09-30', player: 'A', keeper_games: 0, conceded: 1 }];
+      const r = calcPlayerSummary({ matchLogs, eventLogs: [], playerGameLogs });
+      expect(r.perPlayer.A).toMatchObject({ keeperRounds: 0, conceded: 0, fieldRounds: 1, fieldConceded: 1 });
+    });
+
     it('PG가 없으면 matchLogs.our_gk fallback (기존 동작 유지)', () => {
       const matchLogs = [
         { match_id: 'R1_C0', our_members_json: '["A"]', opponent_members_json: '[]', our_gk: 'A', our_score: 0, opponent_score: 2 },
