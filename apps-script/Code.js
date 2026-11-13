@@ -2,6 +2,10 @@
 // 풋살 웹앱 Apps Script v2.0
 //
 // CHANGELOG
+// 2026-11-13: renumberFutsalMatchIdx 추가(일회성 정정, 편집기에서 실행) — RTDB 가 경기 목록을 matchId 사전순으로
+//             돌려줘 10경기 넘는 날 로그_매치 match_idx 가 P10…P16,P1…P9 순서로 들어간 21개 세션을 match_id 순서로
+//             다시 매긴다. match_idx 열만 수정·행 이동 없음·레거시 제외, 적용 전 로그_매치_백업 탭 생성.
+//             _dryRun() 으로 미리보기 후 _apply() 실행. 웹앱 배포(새 버전)는 필요 없다.
 // 2026-11-06: 풋살 포인트 로그·선수별집계기록 로그의 경기일자를 "날짜값"으로 쓴다 — _toDateCell 신설,
 //             _writePointLog/_writePlayerLog 가 "2026-11-05" 문자열 대신 Date 객체를 setValues 한다.
 //             기존에는 시트가 그 문자열을 파싱해주길 기대하는 구조라, 셀 서식이 텍스트이거나 표의
@@ -1562,6 +1566,84 @@ function backfillFutsalGk(opts) {
     diagSamples: diagSamples,
   };
 }
+
+// ─── renumberFutsalMatchIdx (2026-11-13 일회성 정정) ───
+// RTDB 가 경기 목록을 matchId 사전순("P10_C0" < "P1_C0")으로 돌려줘, 10경기 넘는 날은 업로드한 기기의
+// 경기 순서가 P10…P16, P1…P9 로 뒤틀린 채 로그_매치 match_idx 에 들어갔다(앱은 4a9e9c4 에서 수정).
+// 풋살 행을 (team, sport, date, game_id) 세션 단위로 묶어 match_id 순서(자유 F → 대진표 R → 밀어내기 P,
+// 번호 → 코트)로 match_idx 를 1부터 다시 매긴다. match_idx 열만 고치고 행은 지우거나 옮기지 않는다.
+// 레거시(game_id 가 legacy_ 로 시작하거나 빈 값)는 건드리지 않는다. 형식을 모르는 match_id 는 뒤로(원래 순서 유지).
+//
+// 편집기에서 실행: renumberFutsalMatchIdx_dryRun() 으로 미리보기 → renumberFutsalMatchIdx_apply() 로 적용
+// (적용 시 로그_매치_백업_yyyyMMdd_HHmm 탭을 먼저 만든다).
+function renumberFutsalMatchIdx(opts) {
+  opts = opts || {};
+  var dryRun = opts.dryRun !== false;
+  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var sheet = ss.getSheetByName(RAW_MATCHES_SHEET);
+  if (!sheet) return { success: false, error: "로그_매치 시트 없음" };
+  var lastRow = sheet.getLastRow();
+  if (lastRow < 2) return { success: true, sessions: 0, changedRows: 0 };
+
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0];
+  function col(name) {
+    var i = headers.indexOf(name);
+    if (i < 0) throw new Error("헤더 누락: " + name);
+    return i;
+  }
+  var cTeam = col("team"), cSport = col("sport"), cDate = col("date"), cGame = col("game_id");
+  var cIdx = col("match_idx"), cMid = col("match_id");
+  var data = sheet.getRange(2, 1, lastRow - 1, headers.length).getValues();
+
+  var RANK = { F: 0, R: 1, P: 2 };
+  function key(mid) {
+    var m = String(mid || "").match(/^([FRP])(\d+)_C(\d+)$/);
+    return m ? [RANK[m[1]], parseInt(m[2], 10), parseInt(m[3], 10)] : null;
+  }
+
+  var groups = {}, order = [];
+  for (var r = 0; r < data.length; r++) {
+    var row = data[r];
+    if (String(row[cSport] || "") !== "풋살") continue;
+    var gid = String(row[cGame] || "");
+    if (!gid || gid.indexOf("legacy") === 0) continue;
+    var gk = [row[cTeam], _toDateStr(row[cDate]), gid].join("|");
+    if (!groups[gk]) { groups[gk] = []; order.push(gk); }
+    groups[gk].push({ r: r, k: key(row[cMid]), cur: Number(row[cIdx]) || 0, idx: Number(row[cIdx]) || 0 });
+  }
+
+  var newCol = data.map(function (row) { return [row[cIdx]]; });
+  var changedRows = 0, changedSessions = [];
+  for (var g = 0; g < order.length; g++) {
+    var items = groups[order[g]];
+    // 원래 match_idx 순서를 안정 정렬의 기준(동률·미지 형식 순서 유지)으로 쓴다
+    items.sort(function (a, b) { return a.idx - b.idx || a.r - b.r; });
+    items.forEach(function (it, i) { it.pos = i; });
+    items.sort(function (a, b) {
+      if (!a.k || !b.k) { if (a.k) return -1; if (b.k) return 1; return a.pos - b.pos; }
+      return a.k[0] - b.k[0] || a.k[1] - b.k[1] || a.k[2] - b.k[2] || a.pos - b.pos;
+    });
+    var n = 0;
+    for (var i = 0; i < items.length; i++) {
+      var want = i + 1;
+      if (items[i].cur !== want) { newCol[items[i].r][0] = want; n++; }
+    }
+    if (n > 0) { changedRows += n; changedSessions.push(order[g] + " (" + n + "/" + items.length + "행)"); }
+  }
+
+  Logger.log("세션 " + order.length + "개 중 " + changedSessions.length + "개, " + changedRows + "행 match_idx 변경" + (dryRun ? " (미리보기 — 시트 미수정)" : ""));
+  changedSessions.forEach(function (s) { Logger.log("  " + s); });
+  if (dryRun || changedRows === 0) {
+    return { success: true, dryRun: dryRun, sessions: order.length, changedSessions: changedSessions, changedRows: changedRows };
+  }
+  var backup = _backupSheet(RAW_MATCHES_SHEET);
+  if (!backup.success) return { success: false, error: "백업 실패: " + backup.error };
+  sheet.getRange(2, cIdx + 1, newCol.length, 1).setValues(newCol);
+  Logger.log("적용 완료 · 백업 탭: " + backup.name);
+  return { success: true, dryRun: false, backup: backup.name, sessions: order.length, changedSessions: changedSessions, changedRows: changedRows };
+}
+function renumberFutsalMatchIdx_dryRun() { return renumberFutsalMatchIdx({ dryRun: true }); }
+function renumberFutsalMatchIdx_apply() { return renumberFutsalMatchIdx({ dryRun: false }); }
 
 // 편집기에서 직접 실행할 수 있는 래퍼 (Logger.log로 결과 확인)
 function backfillFutsalGk_dryRun() {
