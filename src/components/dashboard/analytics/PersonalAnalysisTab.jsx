@@ -266,7 +266,7 @@ export default function PersonalAnalysisTab({
 
   // ── Personal Records (PR) for selected player ────────────────────────────
   const pr = useMemo(() =>
-    selected ? calcPersonalRecords({ playerName: selected, playerLogs: playerGameLogs || [] }) : null
+    selected ? calcPersonalRecords({ playerName: selected, playerLogs: playerGameLogs || [], matchLogs: matchLogs || [] }) : null
   , [selected, playerGameLogs]);
 
   // ── 상대팀별 성적 (축구 전용 — 풋살은 매주 팀 로테이션이라 상대팀 축이 무의미) ──
@@ -441,7 +441,7 @@ export default function PersonalAnalysisTab({
               </div>
             );
           })()}
-          {!isSoccer && <GkFieldSplitCard data={myGkField} keeperRounds={playerSummary[selected]?.keeperRounds || 0} C={C} />}
+          {!isSoccer && <GkFieldSplitCard data={myGkField} C={C} />}
           {streakData && (streakData.scoringStreak.best > 0 || streakData.cleanSheetStreak.best > 0) && (
             <div style={{ marginTop: 12, padding: "10px 12px", borderRadius: 8, background: C.cardLight, fontSize: 11, lineHeight: 1.9, textAlign: "left" }}>
               <div style={{ fontSize: 11, fontWeight: 700, color: C.white, marginBottom: 4 }}>연속 기록</div>
@@ -590,7 +590,7 @@ export default function PersonalAnalysisTab({
             </div>
             {pr.keeperSummary && (
               <div style={{ ...prRow, borderTop: `1px dashed ${C.grayDarker}` }}>
-                <span style={{ color: C.gray }} title="PG 누적 — 클린시트율은 무실점 세션 비율, 실점은 키퍼 경기당">🧤 키퍼 누적</span>
+                <span style={{ color: C.gray }} title={isSoccer ? "PG 누적 — 클린시트율은 무실점 세션 비율, 실점은 키퍼 경기당" : "클린시트율은 무실점 세션 비율(PG), 실점은 GK가 기록된 경기 기준 키퍼 경기당 — 4/22 이전 GK 미기록 경기 제외"}>🧤 키퍼 누적</span>
                 <span style={{ color: C.white, fontWeight: 700 }}>
                   클린시트율 {Math.round(pr.keeperSummary.cleanSheetRate * 100)}%
                   <span style={{ color: C.gray, fontWeight: 400 }}> · 경기당 {pr.keeperSummary.concededPerGame.toFixed(2)}실점 ({pr.keeperSummary.keeperGames}경기)</span>

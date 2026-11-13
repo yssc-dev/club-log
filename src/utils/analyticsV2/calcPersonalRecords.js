@@ -1,8 +1,11 @@
+import { calcGkFieldSplit } from './calcGkFieldSplit';
 // Personal Records: 단일 세션 최고치 + GK 최장 무실점
 // + keeperSummary(키퍼 누적: 클린시트율·경기당 실점) + rankScore(시즌 누적/평균)
 //   — PG(로그_선수경기) 컬럼 재활용. keeperSummary는 개인탭 GK 능력 객관화용,
 //     rankScore는 세션 팀순위 배점 누적(승/무/패보다 세밀한 '세션 캐리' 지표).
-export function calcPersonalRecords({ playerName, playerLogs }) {
+// matchLogs를 넘기면 keeperSummary의 키퍼 경기 수·실점은 GK가 기록된 로그_매치 사이드 기준(calcGkFieldSplit)
+//   — 지표 Top5·수문장 카드와 같은 숫자(2026-11-13). 클린시트율은 세션 단위라 PG 유지.
+export function calcPersonalRecords({ playerName, playerLogs, matchLogs = null }) {
   const empty = {
     mostGoals: null, mostAssists: null, longestCleanSheet: null, bestRankScore: null,
     keeperSummary: null, rankScore: null,
@@ -45,6 +48,11 @@ export function calcPersonalRecords({ playerName, playerLogs }) {
     keeperGames += kg;
     keeperConceded += Number(s.conceded) || 0;
     cleanSheets += Number(s.cleansheets) || 0;
+  }
+  if (matchLogs) {
+    const sp = calcGkFieldSplit({ matchLogs }).perPlayer[playerName];
+    keeperGames = sp ? sp.gk.games : 0;
+    keeperConceded = sp ? sp.gk.goalsAgainst : 0;
   }
   const keeperSummary = keeperSessions > 0 ? {
     keeperSessions,

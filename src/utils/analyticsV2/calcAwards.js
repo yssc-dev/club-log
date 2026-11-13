@@ -5,15 +5,16 @@
 // owngoal은 로그_이벤트에 owngoal 이벤트가 하나라도 있으면 그쪽을 진실 소스로 사용.
 // (배열이 비어있지 않다는 것만으로 폴백을 막으면 owngoal 미기록 데이터셋에서 PG 누적이 유실됨)
 // 없으면 폴백으로 playerLogs.owngoals 컬럼 합산.
-// 키퍼 지표는 PG(로그_선수경기)의 누적 컬럼을 권위 소스로 사용:
-//   keeper_games(키퍼로 뛴 경기 수), conceded(실점 합), cleansheets(무실점 세션 0/1).
-//   클린시트 수 = Σcleansheets, 실점률 = Σconceded / Σkeeper_games (경기당, 낮을수록 좋음).
+// 키퍼 지표(2026-11-13 변경): 키퍼 경기 수·실점 = GK가 기록된 로그_매치 사이드(calcGkFieldSplit) —
+//   지표 Top5·개인분석·키퍼 vs 필드 카드와 같은 숫자. 레거시 GK 미기록 경기는 빠진다.
+//   클린시트 수 = PG cleansheets(무실점 세션 0/1) 누적, 실점률 = 실점 / 키퍼 경기 (경기당, 낮을수록 좋음).
 //   실점률 나쁜 순 = 같은 컷, 내림차순.
 // minKeeperGames 생략(null) 시 동적: 최다 키퍼경기의 30%(올림) — dynamicMin 참조.
 // 축구(soccerAnalytics/calcAwards)는 고정 4 유지 — 명시 인자로 넘기면 그 값 사용.
+import { calcGkFieldSplit } from './calcGkFieldSplit';
 import { dynamicMin } from './dynamicMin';
 
-export function calcAwards({ playerLogs, eventLogs, topN = {}, minKeeperGames = null }) {
+export function calcAwards({ playerLogs, eventLogs, matchLogs = [], topN = {}, minKeeperGames = null }) {
   const limits = {
     hatTrick: topN.hatTrick ?? 5,
     cleanSheet: topN.cleanSheet ?? 5,
@@ -22,17 +23,21 @@ export function calcAwards({ playerLogs, eventLogs, topN = {}, minKeeperGames = 
     owngoal: topN.owngoal ?? 3,
   };
 
+  // 키퍼 경기수·실점 = GK가 기록된 로그_매치 사이드만(calcGkFieldSplit) — 지표 Top5·개인분석과 같은 숫자
+  //   (2026-11-13 유저 결정 A: 레거시 GK 미기록 경기는 키퍼 지표에서 제외).
+  // 클린시트 수 = PG cleansheets(무실점 세션) 누적 — 세션 단위 포인트 항목이라 PG 유지.
   const keeper = {}, own = {};
+  const ensureKeeper = (name) => keeper[name] || (keeper[name] = { keeperGames: 0, conceded: 0, cleanSheets: 0 });
+  for (const [name, sp] of Object.entries(calcGkFieldSplit({ matchLogs }).perPlayer)) {
+    if (sp.gk.games === 0) continue;
+    const a = ensureKeeper(name);
+    a.keeperGames = sp.gk.games;
+    a.conceded = sp.gk.goalsAgainst;
+  }
   for (const p of playerLogs || []) {
-    const name = p.player;
-    // 키퍼 누적: 키퍼로 한 경기라도 뛴 세션만 합산
-    const kg = Number(p.keeper_games) || 0;
-    if (kg > 0) {
-      const a = keeper[name] || (keeper[name] = { keeperGames: 0, conceded: 0, cleanSheets: 0 });
-      a.keeperGames += kg;
-      a.conceded += Number(p.conceded) || 0;
-      a.cleanSheets += Number(p.cleansheets) || 0;
-    }
+    if ((Number(p.keeper_games) || 0) <= 0) continue;
+    const cs = Number(p.cleansheets) || 0;
+    if (cs > 0) ensureKeeper(p.player).cleanSheets += cs;
   }
 
   const hasOwngoalEvents = (eventLogs || []).some(e => e.event_type === 'owngoal');
@@ -85,7 +90,7 @@ export function calcAwards({ playerLogs, eventLogs, topN = {}, minKeeperGames = 
     .filter(r => r.cleanSheets > 0)
     .sort((a, b) =>
       b.cleanSheets - a.cleanSheets ||
-      a.concededRate - b.concededRate ||
+      (a.concededRate ?? Infinity) - (b.concededRate ?? Infinity) ||
       a.player.localeCompare(b.player, 'ko'))
     .slice(0, limits.cleanSheet);
 
@@ -93,7 +98,7 @@ export function calcAwards({ playerLogs, eventLogs, topN = {}, minKeeperGames = 
   const maxKeeperGames = keeperRows.reduce((m, r) => Math.max(m, r.keeperGames), 0);
   const resolvedMinKeeperGames = minKeeperGames ?? dynamicMin(maxKeeperGames);
   const stingiest = keeperRows
-    .filter(r => r.keeperGames >= resolvedMinKeeperGames)
+    .filter(r => r.keeperGames > 0 && r.keeperGames >= resolvedMinKeeperGames)
     .sort((a, b) =>
       a.concededRate - b.concededRate ||
       b.keeperGames - a.keeperGames ||
@@ -102,7 +107,7 @@ export function calcAwards({ playerLogs, eventLogs, topN = {}, minKeeperGames = 
 
   // 실점률 나쁜 순: 경기당 실점 많은 순 (같은 소표본 컷, 동률은 표본 많은 순 → 이름)
   const leakiest = keeperRows
-    .filter(r => r.keeperGames >= resolvedMinKeeperGames)
+    .filter(r => r.keeperGames > 0 && r.keeperGames >= resolvedMinKeeperGames)
     .sort((a, b) =>
       b.concededRate - a.concededRate ||
       b.keeperGames - a.keeperGames ||

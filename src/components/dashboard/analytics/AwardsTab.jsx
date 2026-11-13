@@ -42,7 +42,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
   }, [isRecent, periodLogs]);
 
   // ── 누적 고정 (원본 로그) ──
-  const awards = useMemo(() => calcAwards({ playerLogs: playerGameLogs || [], eventLogs: eventLogs || [] }), [playerGameLogs, eventLogs]);
+  const awards = useMemo(() => calcAwards({ playerLogs: playerGameLogs || [], eventLogs: eventLogs || [], matchLogs: matchLogs || [] }), [playerGameLogs, eventLogs, matchLogs]);
   const dailyMvp = useMemo(() => calcDailyMvp({ playerGameLogs: playerGameLogs || [] }), [playerGameLogs]);
 
   // ── 기간 적용 (periodLogs) ──
@@ -413,7 +413,7 @@ export default function AwardsTab({ playerGameLogs, matchLogs, eventLogs, C, isS
         <div style={{ fontSize: 10, color: C.gray, marginBottom: 10 }}>
           누적 기준(기간 선택 미적용) · 실점률 = 경기당 실점 · {isSoccer
             ? '키퍼 4경기 이상'
-            : `실점률은 최다 키퍼경기의 30%(현재 ${awards.thresholds?.minKeeperGames ?? 0}경기) 이상`}
+            : `실점률은 최다 키퍼경기의 30%(현재 ${awards.thresholds?.minKeeperGames ?? 0}경기) 이상 · 키퍼 경기는 GK가 기록된 경기만(4/22 이전 미기록 제외)`}
         </div>
         {(awards.keepers.cleanSheetKings.length === 0 && awards.keepers.stingiest.length === 0) ? (
           <div style={{ fontSize: 11, color: C.gray }}>표본 부족</div>

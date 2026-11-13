@@ -1,6 +1,13 @@
 import { describe, it, expect } from 'vitest';
 import { calcAwards } from '../calcAwards';
 
+// 2026-11-13: 키퍼 경기 수·실점은 로그_매치(GK 기록된 사이드)에서 센다. 테스트는 PG 키퍼 행을
+// 같은 숫자의 매치로 펼쳐 넘긴다 — keeper_games 개의 매치, 실점은 첫 매치에 몰아서.
+const gkMatches = (rows) => rows.flatMap(p => Array.from({ length: Number(p.keeper_games) || 0 }, (_, i) => ({
+  date: p.date, our_gk: p.player, our_members_json: '[]', opponent_members_json: '[]',
+  our_score: 0, opponent_score: i === 0 ? (Number(p.conceded) || 0) : 0,
+})));
+
 describe('calcAwards', () => {
   const logs = [
     // 필드 플레이어 (불꽃/자책용)
@@ -24,12 +31,12 @@ describe('calcAwards', () => {
   ];
 
   it('fireStarter(세션 3골)는 제거됨 — 반환 키 자체가 없음', () => {
-    const r = calcAwards({ playerLogs: logs });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs) });
     expect(r.fireStarter).toBeUndefined();
   });
 
   it('keepers.cleanSheetKings: PG 누적 cleansheets 합 내림차순', () => {
-    const r = calcAwards({ playerLogs: logs });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs) });
     // G 3, H 1, L 1 → 동률은 실점률 낮은 순(H,L 둘다 0) → 이름순 H,L
     expect(r.keepers.cleanSheetKings.map(x => x.player)).toEqual(['G', 'H', 'L']);
     const g = r.keepers.cleanSheetKings.find(x => x.player === 'G');
@@ -39,7 +46,7 @@ describe('calcAwards', () => {
   });
 
   it('keepers.stingiest: 경기당 실점 오름차순, 최소 키퍼경기 미달 제외', () => {
-    const r = calcAwards({ playerLogs: logs, minKeeperGames: 4 });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs), minKeeperGames: 4 });
     // 자격: G(8경기, 0.125), H(4경기, 0), M(5경기, 0.8). L(2경기)은 제외.
     // M 추가로 ['H','G'] → ['H','G','M'] 으로 갱신
     expect(r.keepers.stingiest.map(x => x.player)).toEqual(['H', 'G', 'M']);
@@ -48,7 +55,7 @@ describe('calcAwards', () => {
   });
 
   it('owngoalKings returns only players with >0 owngoals, sorted desc', () => {
-    const r = calcAwards({ playerLogs: logs });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs) });
     expect(r.owngoalKings).toEqual([
       { player: 'C', total: 3 },
       { player: 'A', total: 1 },
@@ -91,7 +98,7 @@ describe('calcAwards', () => {
     const eventLogs = [
       { event_type: 'goal', player: 'X', date: '2026-01-01', match_id: 'R1_C1' },
     ];
-    const r = calcAwards({ playerLogs: logs, eventLogs });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs), eventLogs });
     // eventLogs는 비어있지 않지만 owngoal 이벤트가 없음 → PG 폴백 (C:3, A:1)
     expect(r.owngoalKings).toEqual([
       { player: 'C', total: 3 },
@@ -104,19 +111,19 @@ describe('calcAwards', () => {
       { event_type: 'owngoal', player: 'D', date: '2026-01-01', match_id: 'R1_C1' },
       { event_type: 'owngoal', player: 'D', date: '2026-01-01', match_id: 'R2_C1' },
     ];
-    const r = calcAwards({ playerLogs: logs, eventLogs });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs), eventLogs });
     expect(r.owngoalKings).toEqual([{ player: 'D', total: 2 }]);
   });
 
   it('respects custom topN', () => {
-    const r = calcAwards({ playerLogs: logs, topN: { cleanSheet: 1, stingiest: 1, owngoal: 1 } });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs), topN: { cleanSheet: 1, stingiest: 1, owngoal: 1 } });
     expect(r.keepers.cleanSheetKings).toHaveLength(1);
     expect(r.keepers.stingiest).toHaveLength(1);
     expect(r.owngoalKings).toHaveLength(1);
   });
 
   it('keepers.leakiest: 경기당 실점 내림차순, 같은 최소 키퍼경기 컷, 동률은 표본 많은 순', () => {
-    const r = calcAwards({ playerLogs: logs, minKeeperGames: 4 });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs), minKeeperGames: 4 });
     expect(r.keepers.leakiest.map(x => x.player)).toEqual(['M', 'G', 'H']);
     expect(r.keepers.leakiest[0].concededRate).toBeCloseTo(0.8, 5);
     expect(r.keepers.leakiest.find(x => x.player === 'L')).toBeUndefined();
@@ -127,12 +134,12 @@ describe('calcAwards', () => {
       { player: 'P', date: '2026-02-01', goals: 0, assists: 0, keeper_games: 4, conceded: 2, cleansheets: 0, owngoals: 0 },
       { player: 'Q', date: '2026-02-01', goals: 0, assists: 0, keeper_games: 8, conceded: 4, cleansheets: 0, owngoals: 0 },
     ];
-    const r = calcAwards({ playerLogs: tie, minKeeperGames: 4 });
+    const r = calcAwards({ playerLogs: tie, matchLogs: gkMatches(tie), minKeeperGames: 4 });
     expect(r.keepers.leakiest.map(x => x.player)).toEqual(['Q', 'P']);
   });
 
   it('keepers.leakiest 는 topN.leakiest 로 잘린다', () => {
-    const r = calcAwards({ playerLogs: logs, minKeeperGames: 4, topN: { leakiest: 1 } });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs), minKeeperGames: 4, topN: { leakiest: 1 } });
     expect(r.keepers.leakiest).toHaveLength(1);
   });
 });
@@ -146,7 +153,7 @@ d2('calcAwards 동적 진입선', () => {
       { player: 'In', date: '2026-01-01', keeper_games: 20, conceded: 0, cleansheets: 0 },
       { player: 'Out', date: '2026-01-01', keeper_games: 19, conceded: 0, cleansheets: 0 },
     ];
-    const r = calcAwards({ playerLogs: logs });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs) });
     const names = r.keepers.stingiest.map(k => k.player);
     ex2(names).toContain('In');
     ex2(names).not.toContain('Out');
@@ -158,7 +165,24 @@ d2('calcAwards 동적 진입선', () => {
       { player: 'Max', date: '2026-01-01', keeper_games: 65, conceded: 65, cleansheets: 0 },
       { player: 'Small', date: '2026-01-01', keeper_games: 4, conceded: 0, cleansheets: 0 },
     ];
-    const r = calcAwards({ playerLogs: logs, minKeeperGames: 4 });
+    const r = calcAwards({ playerLogs: logs, matchLogs: gkMatches(logs), minKeeperGames: 4 });
     ex2(r.keepers.stingiest.map(k => k.player)).toContain('Small');
+  });
+});
+
+describe('calcAwards 키퍼 = GK 기록된 로그_매치 기준 (2026-11-13)', () => {
+  it('PG에만 있는 레거시 키퍼 경기는 실점률에서 빠지고, 클린시트 수는 PG 그대로', () => {
+    const playerLogs = [
+      { player: 'K', date: '2026-01-08', keeper_games: 3, conceded: 0, cleansheets: 1 }, // 레거시: 로그_매치 GK 공백
+      { player: 'K', date: '2026-05-07', keeper_games: 2, conceded: 1, cleansheets: 0 },
+    ];
+    const matchLogs = [
+      { date: '2026-01-08', our_gk: '', our_members_json: '["K"]', opponent_members_json: '[]', our_score: 0, opponent_score: 0 },
+      { date: '2026-05-07', our_gk: 'K', our_members_json: '["K"]', opponent_members_json: '[]', our_score: 0, opponent_score: 1 },
+      { date: '2026-05-07', our_gk: 'K', our_members_json: '["K"]', opponent_members_json: '[]', our_score: 2, opponent_score: 0 },
+    ];
+    const r = calcAwards({ playerLogs, eventLogs: [], matchLogs, minKeeperGames: 1 });
+    expect(r.keepers.stingiest[0]).toMatchObject({ player: 'K', keeperGames: 2, conceded: 1, cleanSheets: 1 });
+    expect(r.keepers.cleanSheetKings[0]).toMatchObject({ player: 'K', cleanSheets: 1 });
   });
 });
