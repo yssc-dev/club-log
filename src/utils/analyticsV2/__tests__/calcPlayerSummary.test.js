@@ -201,29 +201,37 @@ describe('calcPlayerSummary', () => {
     expect(r.maxRounds).toBe(0);
   });
 
-  // 2026-11-13 유저 결정 A: 키퍼·필드 지표는 GK가 기록된 로그_매치 사이드만(calcGkFieldSplit 단일 소스).
-  // PG의 keeper_games/conceded는 쓰지 않는다 — 경기 단위 지표(키퍼 vs 필드 카드·수비력)와 숫자를 맞추기 위함.
-  describe('키퍼·필드 = GK 기록 경기 기준', () => {
-    it('PG에 키퍼 기록이 있어도 로그_매치 GK가 비어 있으면 키퍼 경기로 세지 않음', () => {
+  // 2026-11-13 유저 결정: 키퍼 = PG(실제 키퍼 횟수), 필드 = GK 기록된 로그_매치 사이드(경기 단위 확정 가능분).
+  describe('키퍼 = PG, 필드 = GK 기록 경기', () => {
+    it('레거시(로그_매치 GK 공백·경기 누락)도 PG 키퍼 경기는 모두 센다', () => {
       const matchLogs = [
-        { date: '2026-01-15', match_id: 'R1_C0', our_members_json: '["A"]', opponent_members_json: '[]', our_gk: '', our_score: 1, opponent_score: 2 },
+        { date: '2026-02-26', match_id: 'R1_C0', our_members_json: '["A"]', opponent_members_json: '[]', our_gk: '', our_score: 1, opponent_score: 2 },
         { date: '2026-05-07', match_id: 'R1_C0', our_members_json: '["A","B"]', opponent_members_json: '[]', our_gk: 'A', our_score: 0, opponent_score: 3 },
       ];
       const playerGameLogs = [
-        { date: '2026-01-15', player: 'A', keeper_games: 1, conceded: 2 },
+        { date: '2026-02-26', player: 'A', keeper_games: 4, conceded: 2 }, // 로그_매치엔 1경기뿐(나머지 누락)
         { date: '2026-05-07', player: 'A', keeper_games: 1, conceded: 3 },
+        { date: '2026-06-01', player: 'A', keeper_games: 9, conceded: 9 }, // 세션 밖 → 무시
       ];
       const r = calcPlayerSummary({ matchLogs, eventLogs: [], playerGameLogs });
-      expect(r.perPlayer.A).toMatchObject({ rounds: 2, keeperRounds: 1, conceded: 3, fieldRounds: 0 });
-      expect(r.perPlayer.B).toMatchObject({ rounds: 1, keeperRounds: 0, fieldRounds: 1, fieldConceded: 3 });
+      expect(r.perPlayer.A).toMatchObject({ keeperRounds: 5, conceded: 5, fieldRounds: 0 });
+      expect(r.perPlayer.B).toMatchObject({ keeperRounds: 0, fieldRounds: 1, fieldConceded: 3 });
     });
 
-    it('값은 calcGkFieldSplit과 항상 같다 (단일 소스)', async () => {
+    it('키퍼 0경기 행의 conceded는 키퍼 실점에 넣지 않음 (calcAwards와 동일)', () => {
+      const matchLogs = [
+        { date: '2026-09-30', match_id: 'R1_C0', our_members_json: '["A","G"]', opponent_members_json: '[]', our_gk: 'G', our_score: 0, opponent_score: 1 },
+      ];
+      const playerGameLogs = [{ date: '2026-09-30', player: 'A', keeper_games: 0, conceded: 1 }];
+      const r = calcPlayerSummary({ matchLogs, eventLogs: [], playerGameLogs });
+      expect(r.perPlayer.A).toMatchObject({ keeperRounds: 0, conceded: 0, fieldRounds: 1, fieldConceded: 1 });
+    });
+
+    it('PG 행이 없으면 키퍼는 로그_매치 GK로 폴백, 필드는 항상 calcGkFieldSplit', async () => {
       const { calcGkFieldSplit } = await import('../calcGkFieldSplit');
       const matchLogs = [
         { date: '2026-05-07', match_id: 'R1_C0', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_gk: 'A', opponent_gk: 'C', our_score: 2, opponent_score: 1 },
         { date: '2026-05-07', match_id: 'R2_C0', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_gk: 'B', opponent_gk: '', our_score: 0, opponent_score: 0 },
-        { date: '2026-05-07', match_id: 'R3_C0', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_gk: 'A', opponent_gk: 'D', our_score: 1, opponent_score: 3, is_extra: true },
       ];
       const r = calcPlayerSummary({ matchLogs, eventLogs: [] });
       const sp = calcGkFieldSplit({ matchLogs }).perPlayer;
@@ -233,7 +241,6 @@ describe('calcPlayerSummary', () => {
           fieldRounds: sp[n]?.field.games ?? 0, fieldConceded: sp[n]?.field.goalsAgainst ?? 0,
         });
       }
-      expect(r.perPlayer.A).toMatchObject({ keeperRounds: 1, conceded: 1, fieldRounds: 1, fieldConceded: 0 });
     });
   });
 });

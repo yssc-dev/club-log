@@ -84,12 +84,12 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
     expect(html).not.toContain('키퍼 vs 필드');
   });
 
-  // 2026-11-13: 요약 줄(GK/필드)·레이더 키퍼 축·키퍼 vs 필드 카드가 같은 키퍼 경기수를 쓴다.
-  // PG에 키퍼 2경기가 있어도 로그_매치에 GK가 기록된 1경기만 센다(예전 "N경기 중 M경기만 집계" 주석 폐지).
-  it('PersonalAnalysisTab: 풋살 — GK 경기수는 화면 어디서나 GK 기록 매치 기준 하나', () => {
+  // PG(권위) 키퍼 경기수 > 카드 집계(GK 기록 매치만)일 때 — 같은 화면의 두 숫자를 잇는 커버리지 주석.
+  // 실데이터: 레거시(1월) GK 미기록 매치 탓에 76명 중 45명이 불일치 (예: PG 36 vs 카드 28)
+  it('PersonalAnalysisTab: 풋살 — 카드 GK 경기수가 PG 키퍼 경기수보다 적으면 커버리지 주석 표기', () => {
     const ml = [
       { date: '2026-06-04', match_id: 'R1_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 2, opponent_score: 1, our_gk: 'A', opponent_gk: 'C', round_idx: 1 },
-      { date: '2026-06-04', match_id: 'R2_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 1, opponent_score: 0, our_gk: '', opponent_gk: '', round_idx: 2 }, // GK 미기록 — 키퍼·필드 모두 제외
+      { date: '2026-06-04', match_id: 'R2_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 1, opponent_score: 0, our_gk: '', opponent_gk: '', round_idx: 2 }, // GK 미기록 — 카드 집계 제외
       { date: '2026-06-04', match_id: 'R3_C1', our_members_json: '["A","B"]', opponent_members_json: '["C","D"]', our_score: 0, opponent_score: 2, our_gk: 'B', opponent_gk: 'D', round_idx: 3 },
     ];
     const pgl = [
@@ -99,10 +99,7 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
       playerGameLogs: pgl, matchLogs: ml, eventLogs: [],
       members: [{ name: 'A' }, { name: 'B' }, { name: 'C' }, { name: 'D' }], C, authUserName: 'A',
     });
-    expect(html).toContain('GK 1경기 1실 · 필드 1경기');
-    expect(html).toContain('GK일 때 (1경기)');
-    expect(html).not.toContain('키퍼 2경기');
-    expect(html).not.toContain('경기만 집계');
+    expect(html).toContain('키퍼 2경기 중 GK가 매치에 기록된 1경기만 집계');
   });
 
   it('PersonalAnalysisTab: 상대팀별 성적 — 앱 이전 경기도 골·어시와 경기수에 함께 들어간다', () => {
@@ -215,12 +212,11 @@ describe('분석탭 렌더 스모크 (지표 개편 경로)', () => {
 
   // 지표 Top5 진입 기준 — 풋살은 각 축 최대치의 30% 동적(2026-08-21), 축구 10경기 유지
   it('AwardsTab: 풋살 — 지표 Top5 진입 기준은 최대치의 30% 동적 표기', () => {
-    // 픽스처: 전원 5경기 → 출전 ceil(5×0.3)=2 · 최대 키퍼 = 로그_매치 GK 기록 기준 B 4경기 → ceil(1.2)=2
-    //   (2026-11-13 전엔 PG keeper_games 최대 3 → 1)
+    // 픽스처: 전원 5경기 → 출전 ceil(5×0.3)=2 · 최대 필드 4 → 2 · 최대 키퍼 3 → 1
     // 수비 진입선은 calcFieldDefense(필드 경기 + 경기일) 기준으로 표기한다(2026-11-11 수비력 통일).
     const html = wrap(AwardsTab, { playerGameLogs, matchLogs, eventLogs, C });
     expect(html).toContain('최다 경기수의 30% 이상');
-    expect(html).toMatch(/현재 출전 2·수비 필드 \d+경기·키퍼 2경기/);
+    expect(html).toMatch(/현재 출전 2·수비 필드 \d+경기·키퍼 1경기/);
     expect(html).not.toContain('30경기 이상');
   });
 

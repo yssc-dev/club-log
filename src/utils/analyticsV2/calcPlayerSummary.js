@@ -4,9 +4,9 @@
 // 데이터 소스 정책:
 // - rounds/matches/wins/draws/losses: matchLogs (members_json + score)
 // - goals/assists/ownGoals: eventLogs
-// - keeperRounds/conceded/fieldRounds/fieldConceded: GK가 기록된 사이드만 (calcGkFieldSplit 단일 소스)
-//   * 2026-11-13: 레거시(~04-22) GK 미기록 경기는 키퍼·필드 지표에서 제외 — 키퍼 vs 필드 카드·수비력·
-//     수문장 카드와 같은 숫자를 내기 위함. 그래서 keeperRounds + fieldRounds ≤ rounds.
+// - keeperRounds/conceded: PG(로그_선수경기) 세션 날짜 keeper_games>0 행 합 (수문장 카드·개인기록과 동일)
+// - fieldRounds/fieldConceded: GK가 기록된 로그_매치 사이드만 (calcGkFieldSplit — 수비력·키퍼 vs 필드 카드와 동일)
+//   * 둘의 소스가 달라 keeperRounds + fieldRounds ≠ rounds 일 수 있다(2026-11-13 유저 결정).
 // - is_extra=true 매치는 모든 카운트에서 제외
 
 // ★ 휴식 매치는 본인이 안 뛴 매치이므로 모든 카운트(rounds/matches/wins...)에서 제외
@@ -79,10 +79,12 @@ export function calcPlayerSummary({ matchLogs = [], eventLogs = [], playerGameLo
     }
   }
 
-  // 3) 키퍼·필드 — GK가 기록된 사이드만(calcGkFieldSplit 단일 소스, 2026-11-13 유저 결정 A).
-  //    레거시(~04-22) 로그_매치는 GK가 비어 경기 단위로 GK/필드를 확정할 수 없다. 예전엔 키퍼 수치만
-  //    PG(날짜별 keeper_games)로 채웠는데, 그러면 키퍼 vs 필드 카드·수비력(경기 단위)과 숫자가 갈렸다
-  //    → 키퍼·필드 지표는 모두 GK 기록 경기 기준으로 통일. PG는 참석(games)에만 쓴다.
+  // 3) 키퍼·필드 (2026-11-13 유저 결정)
+  //    - 키퍼(keeperRounds/conceded) = PG(로그_선수경기) 날짜별 keeper_games·conceded 합 — 수문장 카드·개인기록과 같은 값.
+  //      레거시(~04-22) 로그_매치는 경기가 절반가량 빠지고 GK도 비어 실제 키퍼 횟수를 못 센다(차동헌 54 vs 49).
+  //      세션 날짜(기간·is_extra 반영) 행만, keeper_games>0 행만. PG 행이 아예 없으면 로그_매치 GK로 폴백.
+  //    - 필드(fieldRounds/fieldConceded) = GK가 기록된 로그_매치 사이드(calcGkFieldSplit) — 수비력·키퍼 vs 필드 카드와 같은 값.
+  //      경기 단위로 GK를 알아야 필드를 확정할 수 있어서 PG로는 못 만든다.
   const pgByPlayer = {};
   for (const p of playerGameLogs) {
     const name = p.player;
@@ -96,8 +98,21 @@ export function calcPlayerSummary({ matchLogs = [], eventLogs = [], playerGameLo
     const s = perPlayer[name];
     const pgRows = pgByPlayer[name];
     const sp = split[name];
-    s.keeperRounds = sp ? sp.gk.games : 0;
-    s.conceded = sp ? sp.gk.goalsAgainst : 0;
+    if (pgRows && pgRows.length > 0) {
+      let kr = 0, kc = 0;
+      for (const p of pgRows) {
+        if (!sessionDates.has(p.date)) continue;
+        const kg = Number(p.keeper_games || p.keeperGames) || 0;
+        if (kg <= 0) continue; // 키퍼로 안 뛴 행의 conceded는 무시 — calcAwards와 동일 규칙
+        kr += kg;
+        kc += Number(p.conceded) || 0;
+      }
+      s.keeperRounds = kr;
+      s.conceded = kc;
+    } else {
+      s.keeperRounds = sp ? sp.gk.games : 0;
+      s.conceded = sp ? sp.gk.goalsAgainst : 0;
+    }
     s.fieldRounds = sp ? sp.field.games : 0;
     s.fieldConceded = sp ? sp.field.goalsAgainst : 0;
     s.avgConceded = s.fieldRounds > 0 ? s.fieldConceded / s.fieldRounds : 0;
